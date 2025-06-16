@@ -1,0 +1,44 @@
+{
+  "name": "examination-management-system",
+  "version": "1.0.0",
+  "description": "Full-Stack MERN Examination Management System",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "install-server": "cd server && npm install",
+    "install-client": "cd client && npm install",
+    "install-all": "npm install && npm run install-server && npm run install-client",
+    "seed": "cd server && npm run seed",
+    "build": "cd client && npm run build",
+    "start": "cd server && npm start",
+    "test": "concurrently \"cd server && npm test\" \"cd client && npm test\"",
+    "lint": "concurrently \"cd server && npm run lint\" \"cd client && npm run lint\"",
+    "clean": "rimraf node_modules client/node_modules server/node_modules client/dist server/dist"
+  },
+  "keywords": [
+    "examination",
+    "management",
+    "system",
+    "mern",
+    "react",
+    "nodejs",
+    "mongodb",
+    "express"
+  ],
+  "author": "SEMS Development Team",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "rimraf": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/examination-management-system.git"
+  }
+}
