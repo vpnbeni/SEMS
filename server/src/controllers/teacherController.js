@@ -310,6 +310,30 @@ const getTeacherStats = asyncHandler(async (req, res) => {
   );
 });
 
+// @desc    Get next available employee ID
+// @route   GET /api/teachers/next-employee-id
+// @access  Private
+const getNextEmployeeId = asyncHandler(async (req, res) => {
+  // Find the latest employee ID by sorting in descending order
+  const latestTeacher = await Teacher.findOne(
+    { employeeId: { $regex: /^EMP\d{4}$/ } }, // Match EMP followed by 4 digits
+    { employeeId: 1 }
+  ).sort({ employeeId: -1 });
+
+  let nextEmployeeId = 'EMP0001'; // Default starting ID
+
+  if (latestTeacher && latestTeacher.employeeId) {
+    // Extract the numeric part and increment it
+    const currentNumber = parseInt(latestTeacher.employeeId.substring(3));
+    const nextNumber = currentNumber + 1;
+    nextEmployeeId = `EMP${nextNumber.toString().padStart(4, '0')}`;
+  }
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, 'Next employee ID generated successfully', { employeeId: nextEmployeeId })
+  );
+});
+
 // @desc    Bulk create teachers
 // @route   POST /api/teachers/bulk
 // @access  Private
@@ -396,5 +420,6 @@ module.exports = {
   getTeachersByDepartment,
   getTeachersBySubject,
   getTeacherStats,
+  getNextEmployeeId,
   bulkCreateTeachers
 };

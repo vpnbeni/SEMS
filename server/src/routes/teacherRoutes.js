@@ -11,6 +11,7 @@ const {
   getTeachersByDepartment,
   getTeachersBySubject,
   getTeacherStats,
+  getNextEmployeeId,
   bulkCreateTeachers
 } = require('../controllers/teacherController');
 
@@ -56,6 +57,9 @@ router.route('/')
 
 // Statistics route
 router.get('/stats', getTeacherStats);
+
+// Next employee ID route
+router.get('/next-employee-id', getNextEmployeeId);
 
 // Bulk operations
 router.post('/bulk', validateJoi(bulkUploadSchema), bulkCreateTeachers);

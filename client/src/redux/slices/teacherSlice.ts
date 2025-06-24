@@ -189,6 +189,22 @@ export const deleteTeacher = createAsyncThunk(
   }
 )
 
+export const fetchNextEmployeeId = createAsyncThunk(
+  'teachers/fetchNextEmployeeId',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/teachers/next-employee-id')
+      return response.data.data.employeeId
+    } catch (error: any) {
+      return rejectWithValue(
+        error.response?.data?.message || 
+        error.message || 
+        'Failed to fetch next employee ID. Please try again later.'
+      )
+    }
+  }
+)
+
 const teacherSlice = createSlice({
   name: 'teachers',
   initialState,
