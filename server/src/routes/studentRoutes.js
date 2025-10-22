@@ -15,7 +15,8 @@ const {
   getNextRollNumber,
   bulkCreateStudents,
   uploadDocument,
-  deleteDocument
+  deleteDocument,
+  uploadProfileImage
 } = require('../controllers/studentController');
 
 const { protect, authorize } = require('../middleware/auth');
@@ -141,6 +142,12 @@ router.delete('/:id/documents/:docId',
     docId: objectIdSchema
   })),
   deleteDocument
+);
+
+// Profile image upload route
+router.post('/:id/profile-image',
+  validateParams(Joi.object({ id: objectIdSchema })),
+  uploadProfileImage
 );
 
 module.exports = router;

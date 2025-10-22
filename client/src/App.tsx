@@ -9,7 +9,9 @@ import type { AppDispatch } from './redux/store'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Teachers from './pages/Teachers'
+import TeacherDetail from './pages/TeacherDetail'
 import Students from './pages/Students'
+import StudentDetail from './pages/StudentDetail'
 import Subjects from './pages/Subjects'
 import DateSheets from './pages/DateSheets'
 import RoomAllocation from './pages/RoomAllocation'
@@ -65,7 +67,9 @@ function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="teachers" element={<Teachers />} />
+              <Route path="teachers/:id" element={<TeacherDetail />} />
               <Route path="students" element={<Students />} />
+              <Route path="students/:id" element={<StudentDetail />} />
               <Route path="subjects" element={<Subjects />} />
               <Route path="datesheets" element={<DateSheets />} />
               <Route path="rooms" element={<RoomAllocation />} />

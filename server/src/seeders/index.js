@@ -266,7 +266,7 @@ const generateTeacherData = (subjects) => {
       name: `Teacher ${i}`,
       email: `teacher${i}@school.edu`,
       phone: `9${String(Math.floor(Math.random() * 900000000) + 100000000)}`,
-      employeeId: `EMP${String(i).padStart(4, '0')}`,
+      employeeId: `EMP${i}`,
       department,
       designation,
       subjects: teacherSubjects.slice(0, Math.floor(Math.random() * 3) + 1),

@@ -23,6 +23,7 @@ const subjectRoutes = require('./routes/subjectRoutes');
 const datesheetRoutes = require('./routes/datesheetRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const dispatchRoutes = require('./routes/dispatchRoutes');
+const exportRoutes = require('./routes/exportRoutes');
 
 // Create Express app
 const app = express();
@@ -120,6 +121,7 @@ app.use('/api/subjects', subjectRoutes);
 app.use('/api/datesheets', datesheetRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/dispatch', dispatchRoutes);
+app.use('/api/export', exportRoutes);
 
 // API documentation endpoint
 app.get('/api', (req, res) => {
@@ -134,7 +136,8 @@ app.get('/api', (req, res) => {
       subjects: '/api/subjects',
       datesheets: '/api/datesheets',
       rooms: '/api/rooms',
-      dispatch: '/api/dispatch'
+      dispatch: '/api/dispatch',
+      export: '/api/export'
     },
     documentation: 'See README.md for detailed API documentation'
   });

@@ -16,7 +16,7 @@ export interface Teacher {
   employeeId: string
   department: string
   designation: string
-  subjects: string[]
+  subjects: (string | { _id: string; name: string; code: string; class?: string })[]
   email: string
   phone: string
   experience: number
@@ -85,6 +85,9 @@ export interface FetchTeachersParams {
   subject?: string
   isActive?: boolean
   sort?: string
+  joiningDateFrom?: string
+  joiningDateTo?: string
+  minExperience?: number
 }
 
 export const fetchTeachers = createAsyncThunk(
@@ -101,8 +104,11 @@ export const fetchTeachers = createAsyncThunk(
       if (params.search) queryParams.append('search', params.search);
       if (params.department) queryParams.append('department', params.department);
       if (params.subject) queryParams.append('subject', params.subject);
-      if (params.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
+      if (params.isActive !== undefined) queryParams.append('isActive', String(params.isActive));
       if (params.sort) queryParams.append('sort', params.sort);
+      if (params.joiningDateFrom) queryParams.append('joiningDateFrom', params.joiningDateFrom);
+      if (params.joiningDateTo) queryParams.append('joiningDateTo', params.joiningDateTo);
+      if (params.minExperience !== undefined) queryParams.append('minExperience', String(params.minExperience));
 
       const response = await api.get(`/teachers?${queryParams.toString()}`);
       console.log('API Response:', response.data.data);

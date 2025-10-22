@@ -391,6 +391,20 @@ const teacherQuerySchema = Joi.object({
       'number.integer': 'Maximum experience must be an integer',
       'number.min': 'Maximum experience cannot be negative',
       'number.greater': 'Maximum experience must be greater than minimum experience'
+    }),
+  joiningDateFrom: Joi.date()
+    .iso()
+    .messages({
+      'date.base': 'Joining date from must be a valid date',
+      'date.format': 'Joining date from must be in ISO format'
+    }),
+  joiningDateTo: Joi.date()
+    .iso()
+    .min(Joi.ref('joiningDateFrom'))
+    .messages({
+      'date.base': 'Joining date to must be a valid date',
+      'date.format': 'Joining date to must be in ISO format',
+      'date.min': 'Joining date to must be after joining date from'
     })
 });
 

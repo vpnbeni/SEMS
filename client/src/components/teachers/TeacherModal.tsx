@@ -8,6 +8,7 @@ import {
   hideEditTeacherModal,
   setLoading,
   fetchNextEmployeeId,
+  fetchTeachers,
 } from "../../redux/slices/teacherSlice";
 import { fetchSubjects } from "../../redux/slices/subjectSlice";
 import Modal from "../common/Modal";
@@ -93,6 +94,11 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode }) => {
   // Populate form when selectedTeacher changes (for edit mode)
   useEffect(() => {
     if (mode === "edit" && selectedTeacher) {
+      // Extract subject IDs - handle both populated objects and plain IDs
+      const subjectIds = (selectedTeacher.subjects || []).map((subject: any) =>
+        typeof subject === 'string' ? subject : subject._id
+      );
+
       setFormData({
         name: selectedTeacher.name || "",
         employeeId: selectedTeacher.employeeId || "",
@@ -115,7 +121,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode }) => {
           phone: selectedTeacher.emergencyContact?.phone || "",
           relation: selectedTeacher.emergencyContact?.relation || "",
         },
-        subjects: [...(selectedTeacher.subjects || [])],
+        subjects: subjectIds,
         status: selectedTeacher.status || (selectedTeacher.isActive ? "active" : "inactive"),
       });
     }
@@ -175,9 +181,9 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode }) => {
       }));
       // Clear error when user starts typing
       if (errors[`${parent}${field.charAt(0).toUpperCase()}${field.slice(1)}`]) {
-        setErrors((prev) => ({ 
-          ...prev, 
-          [`${parent}${field.charAt(0).toUpperCase()}${field.slice(1)}`]: "" 
+        setErrors((prev) => ({
+          ...prev,
+          [`${parent}${field.charAt(0).toUpperCase()}${field.slice(1)}`]: ""
         }));
       }
     } else {
@@ -279,6 +285,8 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode }) => {
             setLoading(false);
           }
         });
+        // Refresh the teachers list after creating
+        await dispatch(fetchTeachers({}));
       } else if (selectedTeacher?._id) {
         const updateData = {
           _id: selectedTeacher._id,
@@ -286,8 +294,10 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode }) => {
           ...teacherData,
         };
         await dispatch(updateTeacher(updateData)).unwrap();
+        // Refresh the teachers list after updating
+        await dispatch(fetchTeachers({}));
       }
-      
+
       handleClose();
     } catch (error) {
       console.error(`Failed to ${mode} teacher:`, error);

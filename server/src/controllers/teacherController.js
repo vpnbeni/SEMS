@@ -9,7 +9,7 @@ const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/cons
 // @access  Private
 const getTeachers = asyncHandler(async (req, res) => {
   const { page, limit, skip } = getPaginationParams(req);
-  const { search, department, subject, isActive, minExperience, maxExperience, sort = '-createdAt' } = req.query;
+  const { search, department, subject, isActive, minExperience, maxExperience, joiningDateFrom, joiningDateTo, sort = '-createdAt' } = req.query;
 
   // Build filter object
   const filter = {};
@@ -32,7 +32,8 @@ const getTeachers = asyncHandler(async (req, res) => {
   }
   
   if (isActive !== undefined) {
-    filter.isActive = isActive === 'true';
+    // Handle both boolean and string values
+    filter.isActive = isActive === true || isActive === 'true';
   }
   
   if (minExperience !== undefined || maxExperience !== undefined) {
@@ -42,6 +43,20 @@ const getTeachers = asyncHandler(async (req, res) => {
     }
     if (maxExperience !== undefined) {
       filter.experience.$lte = parseInt(maxExperience);
+    }
+  }
+
+  // Joining date range filter
+  if (joiningDateFrom || joiningDateTo) {
+    filter.dateOfJoining = {};
+    if (joiningDateFrom) {
+      filter.dateOfJoining.$gte = new Date(joiningDateFrom);
+    }
+    if (joiningDateTo) {
+      // Set to end of day for the "to" date
+      const toDate = new Date(joiningDateTo);
+      toDate.setHours(23, 59, 59, 999);
+      filter.dateOfJoining.$lte = toDate;
     }
   }
 
@@ -316,17 +331,17 @@ const getTeacherStats = asyncHandler(async (req, res) => {
 const getNextEmployeeId = asyncHandler(async (req, res) => {
   // Find the latest employee ID by sorting in descending order
   const latestTeacher = await Teacher.findOne(
-    { employeeId: { $regex: /^EMP\d{4}$/ } }, // Match EMP followed by 4 digits
+    { employeeId: { $regex: /^EMP\d+$/ } }, // Match EMP followed by digits
     { employeeId: 1 }
-  ).sort({ employeeId: -1 });
+  ).sort({ createdAt: -1 });
 
-  let nextEmployeeId = 'EMP0001'; // Default starting ID
+  let nextEmployeeId = 'EMP1'; // Default starting ID
 
   if (latestTeacher && latestTeacher.employeeId) {
     // Extract the numeric part and increment it
     const currentNumber = parseInt(latestTeacher.employeeId.substring(3));
     const nextNumber = currentNumber + 1;
-    nextEmployeeId = `EMP${nextNumber.toString().padStart(4, '0')}`;
+    nextEmployeeId = `EMP${nextNumber}`;
   }
 
   res.status(HTTP_STATUS.OK).json(

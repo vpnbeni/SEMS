@@ -3,9 +3,16 @@ const colors = require('colors');
 
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+    const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI || process.env.DATABASE_URL || 'mongodb://127.0.0.1:27017/examination_management_system';
+    const dbName = process.env.DB_NAME || 'examination_management_system';
+
+    if (!process.env.MONGODB_URI && !process.env.MONGO_URI && !process.env.DATABASE_URL) {
+      console.log('MONGODB_URI not set. Falling back to local MongoDB at mongodb://127.0.0.1:27017'.yellow.bold);
+    }
+
+    const conn = await mongoose.connect(mongoUri, {
       // Remove deprecated options as they are now defaults in Mongoose 6+
-      dbName: process.env.DB_NAME || 'examination_management_system'
+      dbName
     });
 
     console.log(`MongoDB Connected: ${conn.connection.host}`.cyan.underline.bold);

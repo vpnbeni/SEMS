@@ -5,6 +5,7 @@ const { generateResponse, getPaginationParams, buildPaginationResponse } = requi
 const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/constants');
 const path = require('path');
 const fs = require('fs').promises;
+const { uploadToCloudinary, deleteFromCloudinary, extractPublicId } = require('../config/cloudinary');
 
 // @desc    Get all students
 // @route   GET /api/students
@@ -274,12 +275,16 @@ const deleteStudent = asyncHandler(async (req, res) => {
     }
   }
 
-  // Delete profile image if exists
+  // Delete profile image from Cloudinary if exists
   if (student.profileImage) {
-    try {
-      await fs.unlink(student.profileImage);
-    } catch (error) {
-      console.error(`Failed to delete profile image: ${student.profileImage}`, error);
+    const publicId = extractPublicId(student.profileImage);
+    if (publicId) {
+      try {
+        await deleteFromCloudinary(publicId);
+        console.log(`Deleted profile image from Cloudinary: ${publicId}`);
+      } catch (error) {
+        console.error(`Failed to delete profile image from Cloudinary: ${publicId}`, error);
+      }
     }
   }
 
@@ -629,6 +634,98 @@ const deleteDocument = asyncHandler(async (req, res) => {
   );
 });
 
+// @desc    Upload student profile image
+// @route   POST /api/students/:id/profile-image
+// @access  Private
+const uploadProfileImage = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (!req.files || !req.files.profileImage) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, 'Profile image file is required')
+    );
+  }
+
+  const student = await Student.findById(id);
+  if (!student) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  const file = req.files.profileImage;
+  
+  // Validate file type
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+  if (!allowedTypes.includes(file.mimetype)) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, 'Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed')
+    );
+  }
+
+  // Validate file size (5MB max)
+  const maxSize = 5 * 1024 * 1024;
+  if (file.size > maxSize) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, 'File size must be less than 5MB')
+    );
+  }
+
+  try {
+    // Delete old profile image from Cloudinary if exists
+    if (student.profileImage) {
+      const oldPublicId = extractPublicId(student.profileImage);
+      if (oldPublicId) {
+        try {
+          await deleteFromCloudinary(oldPublicId);
+          console.log(`Deleted old profile image: ${oldPublicId}`);
+        } catch (error) {
+          console.error(`Failed to delete old profile image from Cloudinary: ${oldPublicId}`, error);
+        }
+      }
+    }
+
+    // Upload to Cloudinary
+    // Use the temporary file path from express-fileupload
+    const publicId = `student_${student.rollNumber}_${Date.now()}`;
+    const uploadResult = await uploadToCloudinary(
+      file.tempFilePath,
+      'students/profiles',
+      publicId
+    );
+
+    // Update student profile image with Cloudinary URL
+    student.profileImage = uploadResult.url;
+    await student.save();
+
+    // Clean up temporary file
+    try {
+      await fs.unlink(file.tempFilePath);
+    } catch (error) {
+      console.error('Failed to delete temporary file:', error);
+    }
+
+    res.status(HTTP_STATUS.OK).json(
+      generateResponse(true, 'Profile image uploaded successfully', student)
+    );
+  } catch (error) {
+    console.error('Profile image upload error:', error);
+    
+    // Clean up temporary file in case of error
+    try {
+      if (file.tempFilePath) {
+        await fs.unlink(file.tempFilePath);
+      }
+    } catch (cleanupError) {
+      console.error('Failed to delete temporary file:', cleanupError);
+    }
+
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      generateResponse(false, error.message || 'Failed to upload profile image')
+    );
+  }
+});
+
 module.exports = {
   getStudents,
   getStudent,
@@ -644,5 +741,6 @@ module.exports = {
   getNextRollNumber,
   bulkCreateStudents,
   uploadDocument,
-  deleteDocument
+  deleteDocument,
+  uploadProfileImage
 };

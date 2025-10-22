@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { AppDispatch, RootState } from "../redux/store";
 import {
   fetchTeachers,
@@ -13,9 +14,12 @@ import {
 import AddTeacherModal from "../components/teachers/AddTeacherModal";
 import EditTeacherModal from "../components/teachers/EditTeacherModal";
 import DeleteTeacherModal from "../components/teachers/DeleteTeacherModal";
+import ExportModal, { ExportFilters } from "../components/common/ExportModal";
+import axios from "axios";
 
 const Teachers: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
+  const navigate = useNavigate();
   const { teachers, loading, error, pagination } = useSelector(
     (state: RootState) => state.teachers
   );
@@ -24,39 +28,88 @@ const Teachers: React.FC = () => {
   console.log(error, "error");
   console.log(pagination, "pagination");
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [joiningDateFrom, setJoiningDateFrom] = useState("");
+  const [joiningDateTo, setJoiningDateTo] = useState("");
+  const [yearsOfExperience, setYearsOfExperience] = useState("");
+  const [showExportModal, setShowExportModal] = useState(false);
+
+  // Debounced filter states
+  const [debouncedJoiningDateFrom, setDebouncedJoiningDateFrom] = useState("");
+  const [debouncedJoiningDateTo, setDebouncedJoiningDateTo] = useState("");
+  const [debouncedYearsOfExperience, setDebouncedYearsOfExperience] = useState("");
+
+  // Debounce search term with 500ms delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setCurrentPage(1); // Reset to first page on new search
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Debounce joining date filters
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedJoiningDateFrom(joiningDateFrom);
+      setCurrentPage(1);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [joiningDateFrom]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedJoiningDateTo(joiningDateTo);
+      setCurrentPage(1);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [joiningDateTo]);
+
+  // Debounce years of experience filter
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedYearsOfExperience(yearsOfExperience);
+      setCurrentPage(1);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [yearsOfExperience]);
 
   const fetchTeachersData = useCallback(() => {
     const params: FetchTeachersParams = {
       page: currentPage,
       limit: pagination.itemsPerPage,
-      search: searchTerm || undefined,
+      search: debouncedSearchTerm || undefined,
       department: selectedDepartment !== "all" ? selectedDepartment : undefined,
+      isActive: statusFilter !== "all" ? statusFilter === "active" : undefined,
+      joiningDateFrom: debouncedJoiningDateFrom || undefined,
+      joiningDateTo: debouncedJoiningDateTo || undefined,
+      minExperience: debouncedYearsOfExperience ? parseInt(debouncedYearsOfExperience) : undefined,
       sort: "-createdAt",
     };
     dispatch(fetchTeachers(params));
   }, [
     dispatch,
     currentPage,
-    searchTerm,
+    debouncedSearchTerm,
     selectedDepartment,
+    statusFilter,
+    debouncedJoiningDateFrom,
+    debouncedJoiningDateTo,
+    debouncedYearsOfExperience,
     pagination.itemsPerPage,
   ]);
 
   useEffect(() => {
     fetchTeachersData();
   }, [fetchTeachersData]);
-
-  // Add debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setCurrentPage(1); // Reset to first page on new search
-      fetchTeachersData();
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm, selectedDepartment, fetchTeachersData]);
 
   useEffect(() => {
     if (error) {
@@ -76,11 +129,8 @@ const Teachers: React.FC = () => {
     avatar: teacher.profileImage
       ? teacher.name.charAt(0).toUpperCase()
       : teacher.name.charAt(0).toUpperCase(),
-    subjects: Array.isArray(teacher.subjects)
-      ? teacher.subjects.map((s: any) =>
-          typeof s === "string" ? s : s.name || s
-        )
-      : [],
+    // Keep subjects as-is (they can be either IDs or populated objects)
+    subjects: teacher.subjects || [],
   });
 
   // Only use real teachers from API and transform them
@@ -96,20 +146,6 @@ const Teachers: React.FC = () => {
     "History",
   ];
 
-  // Filter teachers based on search and department
-  const filteredTeachers = (displayTeachers ?? []).filter(
-    (teacher: Teacher) => {
-      const matchesSearch =
-        teacher.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        teacher.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        teacher.email.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesDepartment =
-        selectedDepartment === "all" ||
-        teacher.department === selectedDepartment;
-      return matchesSearch && matchesDepartment;
-    }
-  );
-
   // Event handlers
   const handleAddTeacher = () => {
     dispatch(showAddTeacherModal());
@@ -120,8 +156,7 @@ const Teachers: React.FC = () => {
   };
 
   const handleViewTeacher = (teacher: Teacher) => {
-    console.log("View teacher:", teacher);
-    // TODO: Implement view teacher modal or navigate to teacher detail page
+    navigate(`/teachers/${teacher._id || teacher.id}`);
   };
 
   const handleDeleteTeacher = (teacher: Teacher) => {
@@ -129,8 +164,82 @@ const Teachers: React.FC = () => {
   };
 
   const handleExport = () => {
-    console.log("Export teachers - Feature coming soon");
-    // TODO: Implement export functionality
+    setShowExportModal(true);
+  };
+
+  const handleFetchPreview = async (filters: ExportFilters) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      // Build query params
+      const params = new URLSearchParams();
+
+      if (filters.search) params.append("search", filters.search);
+      if (filters.department && filters.department !== "all") params.append("department", filters.department);
+      if (filters.status && filters.status !== "all") {
+        params.append("isActive", filters.status === "active" ? "true" : "false");
+      }
+      if (filters.joiningDateFrom) params.append("joiningDateFrom", filters.joiningDateFrom);
+      if (filters.joiningDateTo) params.append("joiningDateTo", filters.joiningDateTo);
+      if (filters.minExperience) params.append("minExperience", filters.minExperience);
+
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/export/teachers/preview?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      return response.data.data;
+    } catch (error) {
+      console.error("Failed to fetch preview:", error);
+      return { total: 0, filtered: 0 };
+    }
+  };
+
+  const handleExportData = async (filters: ExportFilters, exportAll: boolean) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      // Build query params
+      const params = new URLSearchParams();
+
+      if (!exportAll) {
+        if (filters.search) params.append("search", filters.search);
+        if (filters.department && filters.department !== "all") params.append("department", filters.department);
+        if (filters.status && filters.status !== "all") {
+          params.append("isActive", filters.status === "active" ? "true" : "false");
+        }
+        if (filters.joiningDateFrom) params.append("joiningDateFrom", filters.joiningDateFrom);
+        if (filters.joiningDateTo) params.append("joiningDateTo", filters.joiningDateTo);
+        if (filters.minExperience) params.append("minExperience", filters.minExperience);
+      }
+
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/export/teachers?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          responseType: "blob",
+        }
+      );
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `teachers_export_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Failed to export data. Please try again.");
+    }
   };
 
   return (
@@ -162,7 +271,7 @@ const Teachers: React.FC = () => {
               {loading
                 ? "..."
                 : displayTeachers.filter((t: Teacher) => t.status === "active")
-                    .length}
+                  .length}
             </span>
           </div>
         </div>
@@ -170,9 +279,9 @@ const Teachers: React.FC = () => {
 
       {/* Action Bar */}
       <div className="card mb-6">
-        <div className="card-content ">
-          <div className="flex flex-col lg:flex-row gap-4 items-start  lg:items-center justify-between">
-            <div className="flex flex-col sm:flex-row gap-4 flex-1 ">
+        <div className="card-content">
+          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            <div className="flex flex-col sm:flex-row gap-4 flex-1">
               {/* Search */}
               <div className="relative flex-1 max-w-md">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -198,20 +307,6 @@ const Teachers: React.FC = () => {
                   className="input pl-10 w-full"
                 />
               </div>
-
-              {/* Department Filter */}
-              <select
-                value={selectedDepartment}
-                onChange={(e) => setSelectedDepartment(e.target.value)}
-                className="input w-full sm:w-auto"
-              >
-                <option value="all">All Departments</option>
-                {departments.map((dept) => (
-                  <option key={dept} value={dept}>
-                    {dept}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div className="flex gap-3">
@@ -234,6 +329,39 @@ const Teachers: React.FC = () => {
                   />
                 </svg>
                 Export
+              </button>
+              <button
+                onClick={() => setShowMoreFilters(!showMoreFilters)}
+                className="btn btn-outline"
+                disabled={loading}
+              >
+                <svg
+                  className="w-4 h-4 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                  />
+                </svg>
+                More Filters
+                <svg
+                  className={`w-4 h-4 ml-2 transition-transform ${showMoreFilters ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
               </button>
               <button
                 onClick={handleAddTeacher}
@@ -284,6 +412,118 @@ const Teachers: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* More Filters Accordion */}
+          {showMoreFilters && (
+            <div className="mt-4 pt-4 border-t border-secondary-200 dark:border-secondary-700">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Status Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+                    Status
+                  </label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="input w-full"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+
+                {/* Department Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+                    Department
+                  </label>
+                  <select
+                    value={selectedDepartment}
+                    onChange={(e) => setSelectedDepartment(e.target.value)}
+                    className="input w-full"
+                  >
+                    <option value="all">All Departments</option>
+                    {departments.map((dept) => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Joining Date From */}
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+                    Joining Date From
+                  </label>
+                  <input
+                    type="date"
+                    value={joiningDateFrom}
+                    onChange={(e) => setJoiningDateFrom(e.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+
+                {/* Joining Date To */}
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+                    Joining Date To
+                  </label>
+                  <input
+                    type="date"
+                    value={joiningDateTo}
+                    onChange={(e) => setJoiningDateTo(e.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+
+                {/* Years of Experience */}
+                <div>
+                  <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+                    Min Years of Experience
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    placeholder="e.g., 5"
+                    value={yearsOfExperience}
+                    onChange={(e) => setYearsOfExperience(e.target.value)}
+                    className="input w-full"
+                  />
+                </div>
+
+                {/* Clear Filters Button */}
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setStatusFilter("all");
+                      setSelectedDepartment("all");
+                      setJoiningDateFrom("");
+                      setJoiningDateTo("");
+                      setYearsOfExperience("");
+                    }}
+                    className="btn btn-ghost w-full"
+                  >
+                    <svg
+                      className="w-4 h-4 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                    Clear Filters
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -319,7 +559,7 @@ const Teachers: React.FC = () => {
       {/* Teachers Grid */}
       {!loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTeachers.map((teacher: Teacher) => (
+          {displayTeachers.map((teacher: Teacher) => (
             <div
               key={teacher.id || teacher._id}
               className="card group hover:shadow-elegant transition-all duration-300 transform hover:-translate-y-1"
@@ -412,12 +652,12 @@ const Teachers: React.FC = () => {
                     </p>
                     <div className="flex flex-wrap gap-1">
                       {teacher.subjects.map(
-                        (subject: string, index: number) => (
+                        (subject: any, index: number) => (
                           <span
                             key={index}
                             className="badge badge-outline text-xs"
                           >
-                            {subject}
+                            {typeof subject === 'string' ? subject : subject.name || subject.code || 'Unknown'}
                           </span>
                         )
                       )}
@@ -500,7 +740,7 @@ const Teachers: React.FC = () => {
       )}
 
       {/* Empty State for when no teachers match filters */}
-      {!loading && filteredTeachers.length === 0 && (
+      {!loading && displayTeachers.length === 0 && (
         <div className="card">
           <div className="card-content text-center py-12">
             <div className="w-24 h-24 bg-secondary-100 dark:bg-secondary-800 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -522,7 +762,7 @@ const Teachers: React.FC = () => {
               No teachers found
             </h3>
             <p className="text-secondary-600 dark:text-secondary-400 mb-6">
-              {searchTerm || selectedDepartment !== "all"
+              {searchTerm || selectedDepartment !== "all" || statusFilter !== "all" || joiningDateFrom || joiningDateTo || yearsOfExperience
                 ? "No teachers match your search criteria. Try adjusting your filters."
                 : "Get started by adding your first teacher to the system."}
             </p>
@@ -591,6 +831,56 @@ const Teachers: React.FC = () => {
       <AddTeacherModal />
       <EditTeacherModal />
       <DeleteTeacherModal />
+      <ExportModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        title="Export Teachers"
+        onExport={handleExportData}
+        onFetchPreview={handleFetchPreview}
+        filterConfig={[
+          {
+            label: "Search",
+            key: "search",
+            type: "text",
+            placeholder: "Search by name, email, or employee ID",
+          },
+          {
+            label: "Department",
+            key: "department",
+            type: "select",
+            options: [
+              { label: "All Departments", value: "all" },
+              ...departments.map((dept) => ({ label: dept, value: dept })),
+            ],
+          },
+          {
+            label: "Status",
+            key: "status",
+            type: "select",
+            options: [
+              { label: "All Status", value: "all" },
+              { label: "Active", value: "active" },
+              { label: "Inactive", value: "inactive" },
+            ],
+          },
+          {
+            label: "Joining Date From",
+            key: "joiningDateFrom",
+            type: "date",
+          },
+          {
+            label: "Joining Date To",
+            key: "joiningDateTo",
+            type: "date",
+          },
+          {
+            label: "Min Years of Experience",
+            key: "minExperience",
+            type: "number",
+            placeholder: "e.g., 5",
+          },
+        ]}
+      />
     </div>
   );
 };
