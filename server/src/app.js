@@ -20,6 +20,7 @@ const authRoutes = require('./routes/authRoutes');
 const teacherRoutes = require('./routes/teacherRoutes');
 const studentRoutes = require('./routes/studentRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
+const candidateRoutes = require('./routes/candidateRoutes');
 const datesheetRoutes = require('./routes/datesheetRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const dispatchRoutes = require('./routes/dispatchRoutes');
@@ -118,6 +119,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/subjects', subjectRoutes);
+app.use('/api/candidates', candidateRoutes);
 app.use('/api/datesheets', datesheetRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/dispatch', dispatchRoutes);
@@ -134,6 +136,7 @@ app.get('/api', (req, res) => {
       teachers: '/api/teachers',
       students: '/api/students',
       subjects: '/api/subjects',
+      candidates: '/api/candidates',
       datesheets: '/api/datesheets',
       rooms: '/api/rooms',
       dispatch: '/api/dispatch',

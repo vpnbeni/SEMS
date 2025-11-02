@@ -12,6 +12,8 @@ import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
 import Students from './pages/Students'
 import StudentDetail from './pages/StudentDetail'
+import Candidates from './pages/Candidates'
+import CandidateDetail from './pages/CandidateDetail'
 import Subjects from './pages/Subjects'
 import DateSheets from './pages/DateSheets'
 import RoomAllocation from './pages/RoomAllocation'
@@ -70,6 +72,8 @@ function App() {
               <Route path="teachers/:id" element={<TeacherDetail />} />
               <Route path="students" element={<Students />} />
               <Route path="students/:id" element={<StudentDetail />} />
+              <Route path="candidates" element={<Candidates />} />
+              <Route path="candidates/:id" element={<CandidateDetail />} />
               <Route path="subjects" element={<Subjects />} />
               <Route path="datesheets" element={<DateSheets />} />
               <Route path="rooms" element={<RoomAllocation />} />

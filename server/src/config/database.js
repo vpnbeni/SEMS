@@ -51,8 +51,9 @@ const connectDB = async () => {
 // Set mongoose options
 mongoose.set('strictQuery', true);
 
-// Enable debugging in development
-if (process.env.NODE_ENV === 'development') {
+// Enable debugging in development (optional - set MONGOOSE_DEBUG=true to enable)
+// This logs all Mongoose operations including index creation
+if (process.env.NODE_ENV === 'development' && process.env.MONGOOSE_DEBUG === 'true') {
   mongoose.set('debug', true);
 }
 
