@@ -1,0 +1,39 @@
+services:
+  # Backend API Server
+  - type: web
+    name: sems-server
+    env: node
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: CLIENT_URL
+        # Replace YOUR_CLIENT_URL with your actual Render client URL
+        # Example: https://sems-client.onrender.com
+        value: https://YOUR_CLIENT_URL.onrender.com
+      # Add your other server environment variables in Render dashboard:
+      # - MONGODB_URI
+      # - JWT_SECRET
+      # - JWT_EXPIRE
+      # - PORT (usually auto-set by Render)
+
+  # Frontend Static Site
+  - type: web
+    name: sems-client
+    env: static
+    rootDir: client
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        # Replace YOUR_SERVER_URL with your actual Render server URL
+        # Example: https://sems-server.onrender.com/api
+        value: https://YOUR_SERVER_URL.onrender.com/api
+      # Optional:
+      # - key: VITE_APP_NAME
+      #   value: SEMS
+      # - key: VITE_APP_VERSION
+      #   value: 1.0.0
+
