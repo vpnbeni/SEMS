@@ -13,7 +13,7 @@ const DeleteTeacherModal: React.FC = () => {
   }
 
   const handleDelete = async () => {
-    if (!selectedTeacher) return
+    if (!selectedTeacher || !selectedTeacher.id) return
 
     try {
       await dispatch(deleteTeacher(selectedTeacher.id)).unwrap()

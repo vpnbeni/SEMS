@@ -24,7 +24,7 @@ interface CandidateFiltersProps {
 const CandidateFilters: React.FC<CandidateFiltersProps> = ({
   filters,
   onFilterChange,
-  stats
+  stats: _stats
 }) => {
   const handleInputChange = (key: keyof Filters, value: string) => {
     onFilterChange({
