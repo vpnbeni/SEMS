@@ -7,6 +7,7 @@
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
     "seed": "node src/seeders/index.js",
+    "seed:subjects": "node seed-subjects.js",
     "test": "jest --watchAll --verbose",
     "test:cloudinary": "node test-cloudinary.js",
     "lint": "eslint src --ext .js",

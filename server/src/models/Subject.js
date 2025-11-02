@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { STUDENT_CLASSES, SUBJECT_TYPES, REGEX_PATTERNS } = require('../utils/constants');
+const { STUDENT_CLASSES, REGEX_PATTERNS } = require('../utils/constants');
 
 const subjectSchema = new mongoose.Schema({
   name: {
@@ -24,40 +24,16 @@ const subjectSchema = new mongoose.Schema({
     required: [true, 'Class is required'],
     enum: Object.values(STUDENT_CLASSES)
   },
-  type: {
-    type: String,
-    required: [true, 'Subject type is required'],
-    enum: Object.values(SUBJECT_TYPES),
-    default: SUBJECT_TYPES.CORE
-  },
+
   duration: {
     type: Number,
-    required: [true, 'Examination duration is required'],
-    min: [30, 'Duration must be at least 30 minutes'],
-    max: [300, 'Duration cannot exceed 300 minutes (5 hours)']
+    required: [true, 'Exam duration is required'],
+    min: [0.5, 'Duration must be at least 0.5 hours'],
+    max: [5, 'Duration cannot exceed 5 hours'],
+    default: 3
   },
-  maxMarks: {
-    type: Number,
-    required: [true, 'Maximum marks is required'],
-    min: [1, 'Maximum marks must be at least 1'],
-    max: [1000, 'Maximum marks cannot exceed 1000']
-  },
-  passingMarks: {
-    type: Number,
-    required: [true, 'Passing marks is required'],
-    min: [1, 'Passing marks must be at least 1'],
-    validate: {
-      validator: function(value) {
-        return value <= this.maxMarks;
-      },
-      message: 'Passing marks cannot be greater than maximum marks'
-    }
-  },
-  description: {
-    type: String,
-    trim: true,
-    maxlength: [500, 'Description cannot be more than 500 characters']
-  },
+
+
   syllabus: {
     type: String,
     trim: true,
@@ -79,33 +55,7 @@ const subjectSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  theoryMarks: {
-    type: Number,
-    default: 0,
-    min: [0, 'Theory marks cannot be negative'],
-    validate: {
-      validator: function(value) {
-        return value + this.practicalMarks === this.maxMarks;
-      },
-      message: 'Theory marks + Practical marks must equal maximum marks'
-    }
-  },
-  practicalMarks: {
-    type: Number,
-    default: 0,
-    min: [0, 'Practical marks cannot be negative'],
-    validate: {
-      validator: function(value) {
-        return value + this.theoryMarks === this.maxMarks;
-      },
-      message: 'Theory marks + Practical marks must equal maximum marks'
-    }
-  },
-  internalAssessmentMarks: {
-    type: Number,
-    default: 0,
-    min: [0, 'Internal assessment marks cannot be negative']
-  },
+
   boardCode: {
     type: String,
     trim: true,
@@ -179,13 +129,11 @@ const subjectSchema = new mongoose.Schema({
 // Indexes
 subjectSchema.index({ code: 1 });
 subjectSchema.index({ class: 1 });
-subjectSchema.index({ type: 1 });
 subjectSchema.index({ isActive: 1 });
 subjectSchema.index({ name: 'text', code: 'text', description: 'text' });
 subjectSchema.index({ createdAt: -1 });
 
 // Compound indexes
-subjectSchema.index({ class: 1, type: 1, isActive: 1 });
 subjectSchema.index({ class: 1, isActive: 1 });
 
 // Virtual for display name
@@ -193,16 +141,7 @@ subjectSchema.virtual('displayName').get(function() {
   return `${this.name} (${this.code})`;
 });
 
-// Virtual for marks distribution
-subjectSchema.virtual('marksDistribution').get(function() {
-  return {
-    total: this.maxMarks,
-    theory: this.theoryMarks,
-    practical: this.practicalMarks,
-    internal: this.internalAssessmentMarks,
-    passing: this.passingMarks
-  };
-});
+
 
 // Virtual for duration in hours and minutes
 subjectSchema.virtual('durationFormatted').get(function() {
@@ -218,26 +157,7 @@ subjectSchema.virtual('durationFormatted').get(function() {
   }
 });
 
-// Pre-save middleware to auto-calculate marks
-subjectSchema.pre('save', function(next) {
-  // Auto-calculate theory and practical marks if not set
-  if (this.isTheorySubject && this.theoryMarks === 0 && this.practicalMarks === 0) {
-    if (this.isPracticalSubject) {
-      this.theoryMarks = Math.floor(this.maxMarks * 0.7);
-      this.practicalMarks = this.maxMarks - this.theoryMarks;
-    } else {
-      this.theoryMarks = this.maxMarks;
-      this.practicalMarks = 0;
-    }
-  }
-  
-  // Set default passing marks if not provided
-  if (!this.passingMarks || this.passingMarks === 0) {
-    this.passingMarks = Math.ceil(this.maxMarks * 0.33); // 33% passing marks
-  }
-  
-  next();
-});
+
 
 // Pre-save middleware to format subject name
 subjectSchema.pre('save', function(next) {
@@ -252,46 +172,10 @@ subjectSchema.statics.findByClass = function(className) {
   return this.find({ class: className, isActive: true });
 };
 
-// Static method to find by type
-subjectSchema.statics.findByType = function(type, className = null) {
-  const query = { type, isActive: true };
-  if (className) {
-    query.class = className;
-  }
-  return this.find(query);
-};
 
-// Static method to find core subjects
-subjectSchema.statics.findCoreSubjects = function(className = null) {
-  return this.findByType(SUBJECT_TYPES.CORE, className);
-};
-
-// Static method to find elective subjects
-subjectSchema.statics.findElectiveSubjects = function(className = null) {
-  return this.findByType(SUBJECT_TYPES.ELECTIVE, className);
-};
 
 // Static method to get subject statistics
 subjectSchema.statics.getStats = async function() {
-  const stats = await this.aggregate([
-    {
-      $group: {
-        _id: { class: '$class', type: '$type' },
-        count: { $sum: 1 },
-        active: {
-          $sum: {
-            $cond: [{ $eq: ['$isActive', true] }, 1, 0]
-          }
-        },
-        averageMarks: { $avg: '$maxMarks' },
-        averageDuration: { $avg: '$duration' }
-      }
-    },
-    {
-      $sort: { '_id.class': 1, '_id.type': 1 }
-    }
-  ]);
-
   const classStats = await this.aggregate([
     {
       $group: {
@@ -301,7 +185,9 @@ subjectSchema.statics.getStats = async function() {
           $sum: {
             $cond: [{ $eq: ['$isActive', true] }, 1, 0]
           }
-        }
+        },
+
+        averageDuration: { $avg: '$duration' }
       }
     }
   ]);
@@ -313,7 +199,6 @@ subjectSchema.statics.getStats = async function() {
     total,
     activeTotal,
     byClass: classStats,
-    byClassAndType: stats,
     lastUpdated: new Date()
   };
 };

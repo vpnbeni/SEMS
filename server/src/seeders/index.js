@@ -13,7 +13,7 @@ const Subject = require('../models/Subject');
 const Room = require('../models/Room');
 
 // Import constants
-const { USER_ROLES, STUDENT_CLASSES, STUDENT_SECTIONS, SUBJECT_TYPES, ROOM_FACILITIES } = require('../utils/constants');
+const { USER_ROLES, STUDENT_CLASSES, STUDENT_SECTIONS, ROOM_FACILITIES } = require('../utils/constants');
 
 // Connect to database
 const connectDB = require('../config/database');
@@ -46,65 +46,35 @@ const subjectData = [
     name: 'Mathematics',
     code: 'MATH10',
     class: STUDENT_CLASSES.CLASS_10,
-    type: SUBJECT_TYPES.CORE,
-    duration: 180,
-    maxMarks: 100,
-    passingMarks: 33,
-    theoryMarks: 80,
-    practicalMarks: 20,
-    description: 'Mathematics for Class 10',
+    duration: 3,
     isActive: true
   },
   {
     name: 'Science',
     code: 'SCI10',
     class: STUDENT_CLASSES.CLASS_10,
-    type: SUBJECT_TYPES.CORE,
-    duration: 180,
-    maxMarks: 100,
-    passingMarks: 33,
-    theoryMarks: 70,
-    practicalMarks: 30,
-    description: 'Science for Class 10',
+    duration: 3,
     isActive: true
   },
   {
     name: 'English',
     code: 'ENG10',
     class: STUDENT_CLASSES.CLASS_10,
-    type: SUBJECT_TYPES.CORE,
-    duration: 180,
-    maxMarks: 100,
-    passingMarks: 33,
-    theoryMarks: 100,
-    practicalMarks: 0,
-    description: 'English for Class 10',
+    duration: 3,
     isActive: true
   },
   {
     name: 'Hindi',
     code: 'HIN10',
     class: STUDENT_CLASSES.CLASS_10,
-    type: SUBJECT_TYPES.CORE,
-    duration: 180,
-    maxMarks: 100,
-    passingMarks: 33,
-    theoryMarks: 100,
-    practicalMarks: 0,
-    description: 'Hindi for Class 10',
+    duration: 3,
     isActive: true
   },
   {
     name: 'Social Science',
     code: 'SST10',
     class: STUDENT_CLASSES.CLASS_10,
-    type: SUBJECT_TYPES.CORE,
-    duration: 180,
-    maxMarks: 100,
-    passingMarks: 33,
-    theoryMarks: 100,
-    practicalMarks: 0,
-    description: 'Social Science for Class 10',
+    duration: 3,
     isActive: true
   },
   // Class 12 subjects
@@ -112,65 +82,35 @@ const subjectData = [
     name: 'Physics',
     code: 'PHY12',
     class: STUDENT_CLASSES.CLASS_12,
-    type: SUBJECT_TYPES.CORE,
-    duration: 180,
-    maxMarks: 100,
-    passingMarks: 33,
-    theoryMarks: 70,
-    practicalMarks: 30,
-    description: 'Physics for Class 12',
+    duration: 3,
     isActive: true
   },
   {
     name: 'Chemistry',
     code: 'CHE12',
     class: STUDENT_CLASSES.CLASS_12,
-    type: SUBJECT_TYPES.CORE,
-    duration: 180,
-    maxMarks: 100,
-    passingMarks: 33,
-    theoryMarks: 70,
-    practicalMarks: 30,
-    description: 'Chemistry for Class 12',
+    duration: 3,
     isActive: true
   },
   {
     name: 'Mathematics',
     code: 'MATH12',
     class: STUDENT_CLASSES.CLASS_12,
-    type: SUBJECT_TYPES.CORE,
-    duration: 180,
-    maxMarks: 100,
-    passingMarks: 33,
-    theoryMarks: 100,
-    practicalMarks: 0,
-    description: 'Mathematics for Class 12',
+    duration: 3,
     isActive: true
   },
   {
     name: 'English',
     code: 'ENG12',
     class: STUDENT_CLASSES.CLASS_12,
-    type: SUBJECT_TYPES.CORE,
-    duration: 180,
-    maxMarks: 100,
-    passingMarks: 33,
-    theoryMarks: 100,
-    practicalMarks: 0,
-    description: 'English for Class 12',
+    duration: 3,
     isActive: true
   },
   {
     name: 'Computer Science',
     code: 'CS12',
     class: STUDENT_CLASSES.CLASS_12,
-    type: SUBJECT_TYPES.ELECTIVE,
-    duration: 180,
-    maxMarks: 100,
-    passingMarks: 33,
-    theoryMarks: 70,
-    practicalMarks: 30,
-    description: 'Computer Science for Class 12',
+    duration: 3,
     isActive: true
   }
 ];

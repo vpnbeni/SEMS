@@ -21,12 +21,17 @@ const getSubjects = asyncHandler(async (req, res) => {
 
   // Get subjects with pagination
   const subjects = await Subject.find(filter)
-    .select('_id name code class')
+    .select('_id name code class duration isActive')
     .sort('name')
+    .skip(skip)
+    .limit(limit)
     .lean();
 
+  // Build pagination response
+  const response = buildPaginationResponse(subjects, totalCount, page, limit);
+
   res.status(HTTP_STATUS.OK).json(
-    generateResponse(true, SUCCESS_MESSAGES.FETCHED, subjects)
+    generateResponse(true, SUCCESS_MESSAGES.FETCHED, response.data, response.pagination)
   );
 });
 
