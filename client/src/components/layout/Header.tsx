@@ -1,13 +1,67 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { logout, selectUser } from '../../redux/slices/authSlice'
 import type { AppDispatch } from '../../redux/store'
+import { useLocation } from 'react-router-dom'
 
 const Header: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
   const currentUser = useSelector(selectUser)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const location = useLocation()
+
+  const { pageTitle, pageSubtitle } = useMemo(() => {
+    const path = location.pathname
+    // Normalize base segments
+    const seg = (path.split('/')[1] || 'dashboard').toLowerCase()
+
+    switch (seg) {
+      case 'dashboard':
+        return {
+          pageTitle: 'Dashboard',
+          pageSubtitle: 'Welcome to School Examination Management System',
+        }
+      case 'datesheets':
+        return {
+          pageTitle: 'Date Sheets',
+          pageSubtitle: 'Create and manage examination date sheets',
+        }
+      case 'exam-functionaries':
+        return {
+          pageTitle: 'Exam Functionaries',
+          pageSubtitle: 'Manage examination functionaries and assignments',
+        }
+      case 'candidates':
+        return {
+          pageTitle: 'Candidates',
+          pageSubtitle: 'Manage examination candidates and PDF imports',
+        }
+      case 'subjects':
+        return {
+          pageTitle: 'Subjects',
+          pageSubtitle: 'Manage subjects, codes, and related settings',
+        }
+      case 'rooms':
+        return {
+          pageTitle: 'Room Allocation',
+          pageSubtitle: 'Assign rooms for examinations',
+        }
+      case 'dispatch':
+        return {
+          pageTitle: 'Answer Sheet Dispatch',
+          pageSubtitle: 'Track and manage answer sheet dispatches',
+        }
+      default:
+        return {
+          pageTitle: seg
+            .split('-')
+            .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+            .join(' '),
+          pageSubtitle: 'Management',
+        }
+    }
+  }, [location.pathname])
 
   const handleLogout = () => {
     dispatch(logout())
@@ -20,29 +74,19 @@ const Header: React.FC = () => {
   ]
 
   return (
-    <header className="glass border-b border-secondary-200 dark:border-secondary-700 sticky top-0 z-40">
+    <header className="border-b border-secondary-200 dark:border-secondary-700 sticky top-0 z-40 bg-gradient-to-r from-primary-600 to-primary-400">
       <div className="px-6 py-4">
         <div className="flex items-center justify-between">
-          {/* Left side - Logo and System Name */}
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-medium">
-                <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-              <div className="hidden sm:block">
-                <h1 className="text-xl font-bold text-secondary-900 dark:text-white">
-                  SEMS
-                </h1>
-                <p className="text-xs text-secondary-500 dark:text-secondary-400 -mt-1">
-                  Examination Management
-                </p>
-              </div>
+          {/* Left: Page context */}
+          <div className="min-w-0 mr-4 hidden sm:block">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl md:text-2xl font-bold text-white truncate">{pageTitle}</h1>
+              <span className="hidden md:inline text-xs px-2 py-1 rounded-full bg-white/70 dark:bg-secondary-800 text-secondary-700 dark:text-secondary-300 border border-secondary-200 dark:border-secondary-700">Live</span>
             </div>
+            <p className="mt-0.5 text-sm md:text-base text-white truncate">{pageSubtitle}</p>
           </div>
 
-          {/* Right side - Actions and User menu */}
+          {/* Actions and User menu */}
           <div className="flex items-center space-x-3">
             {/* Search */}
             <div className="hidden md:block">

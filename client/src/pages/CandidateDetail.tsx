@@ -8,6 +8,9 @@ interface Candidate {
   _id: string
   name: string
   rollNumber: string
+  schoolName?: string
+  schoolCode?: string
+  class?: string
   motherName?: string
   fatherName?: string
   sex?: string
@@ -300,40 +303,50 @@ const CandidateDetail: React.FC = () => {
             </div>
           )}
 
-          {/* Academic Information */}
-          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Academic Information
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Course
-                </label>
-                <p className="text-gray-900 dark:text-white">{candidate.course || 'Not specified'}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Semester
-                </label>
-                <p className="text-gray-900 dark:text-white">
-                  {candidate.semester ? `Semester ${candidate.semester}` : 'Not specified'}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Batch
-                </label>
-                <p className="text-gray-900 dark:text-white">{candidate.batch || 'Not specified'}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Department
-                </label>
-                <p className="text-gray-900 dark:text-white">{candidate.department || 'Not specified'}</p>
+          {/* School Information */}
+          {(candidate.schoolCode || candidate.schoolName || candidate.class) && (
+            <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                School Information
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {candidate.schoolCode && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                      School Code
+                    </label>
+                    <p className="text-gray-900 dark:text-white font-mono font-semibold text-primary-600 dark:text-primary-400">
+                      {candidate.schoolCode}
+                    </p>
+                  </div>
+                )}
+                {candidate.schoolName && (
+                  <div className={candidate.schoolCode ? 'md:col-span-1' : 'md:col-span-2'}>
+                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                      School Name
+                    </label>
+                    <p className="text-gray-900 dark:text-white">
+                      🏫 {candidate.schoolName}
+                    </p>
+                  </div>
+                )}
+                {candidate.class && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                      Class
+                    </label>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      candidate.class === '12th' 
+                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    }`}>
+                      {candidate.class}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
-          </div>
+          )}
 
           {/* Subject Codes */}
           {candidate.subjectCodes && candidate.subjectCodes.length > 0 && (
@@ -345,14 +358,33 @@ const CandidateDetail: React.FC = () => {
                 {candidate.subjectCodes.map((item, index) => {
                   const code = typeof item === 'string' ? item : item.code;
                   const medium = typeof item === 'object' && item.medium ? item.medium : '';
+                  const isHindi = medium === '2';
+                  const isEnglish = medium === '1';
+                  const mediumLabel = isHindi ? 'Hindi' : isEnglish ? 'English' : '';
+                  
                   return (
-                    <div key={index} className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
-                      <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                    <div 
+                      key={index} 
+                      className={`px-4 py-2 rounded-lg ${
+                        isHindi 
+                          ? 'bg-orange-50 dark:bg-orange-900/30'
+                          : 'bg-blue-50 dark:bg-blue-900/30'
+                      }`}
+                    >
+                      <span className={`text-sm font-medium ${
+                        isHindi
+                          ? 'text-orange-900 dark:text-orange-200'
+                          : 'text-blue-900 dark:text-blue-200'
+                      }`}>
                         {code}
                       </span>
-                      {medium && (
-                        <span className="ml-2 text-xs text-blue-700 dark:text-blue-300">
-                          ({medium})
+                      {mediumLabel && (
+                        <span className={`ml-2 text-xs ${
+                          isHindi
+                            ? 'text-orange-700 dark:text-orange-300'
+                            : 'text-blue-700 dark:text-blue-300'
+                        }`}>
+                          ({mediumLabel})
                         </span>
                       )}
                     </div>

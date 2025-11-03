@@ -12,9 +12,42 @@ const extractCandidatesFromText = (text) => {
   
   // Pattern for date of birth (DD.MM.YYYY)
   const dobPattern = /^(\d{2})\.(\d{2})\.(\d{4})$/;
+  
+  // Pattern for school/centre line with code
+  const schoolPattern = /(?:CENTRE|SCHOOL)\s*[:：-]\s*(\d+)\s+(.+?)(?:ROHTAK|$)/i;
+  
+  // Pattern for class/examination type (handles both full and abbreviated forms)
+  const classPattern = /(?:SENIOR\s+SEC(?:ONDARY)?|SECONDARY)\s+(?:SCH|SCHOOL)\s+(?:CERT\s+)?EXAMINATION/i;
+  
+  // Track current school name, code, and class
+  let currentSchoolName = '';
+  let currentSchoolCode = '';
+  let currentClass = '';
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    
+    // Check if this line contains class/examination information
+    const classMatch = line.match(classPattern);
+    if (classMatch) {
+      const examType = classMatch[0].toUpperCase();
+      // Check for SENIOR SEC/SECONDARY first (12th), then SECONDARY (10th)
+      if (examType.includes('SENIOR')) {
+        currentClass = '12th';
+      } else if (examType.includes('SECONDARY')) {
+        currentClass = '10th';
+      }
+      console.log('Found class:', currentClass, 'from line:', line);
+      continue;
+    }
+    
+    // Check if this line contains school/centre information
+    const schoolMatch = line.match(schoolPattern);
+    if (schoolMatch) {
+      currentSchoolName = schoolMatch[1].trim();
+      console.log('Found school:', currentSchoolName);
+      continue;
+    }
     
     // Check if line starts with a roll number
     const rollMatch = line.match(rollNumberPattern);
@@ -38,6 +71,9 @@ const extractCandidatesFromText = (text) => {
         rollNumber: rollNumber,
         name: candidateName,
         flc: flc,
+        schoolName: currentSchoolName,
+        schoolCode: currentSchoolCode,
+        class: currentClass,
         status: 'active',
         subjectCodes: []
       };
@@ -207,6 +243,8 @@ async function testPdfParsing() {
     console.log('--- First 5 candidates ---\n');
     candidates.slice(0, 5).forEach((candidate, index) => {
       console.log(`${index + 1}. ${candidate.name} (${candidate.rollNumber})`);
+      if (candidate.schoolCode && candidate.schoolName) console.log(`   School: ${candidate.schoolCode} - ${candidate.schoolName}`);
+      if (candidate.class) console.log(`   Class: ${candidate.class}`);
       if (candidate.motherName) console.log(`   Mother: ${candidate.motherName}`);
       if (candidate.fatherName) console.log(`   Father: ${candidate.fatherName}`);
       if (candidate.sex) console.log(`   Sex: ${candidate.sex}`);

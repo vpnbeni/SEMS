@@ -27,10 +27,16 @@ const subjectSchema = new mongoose.Schema({
 
   duration: {
     type: Number,
+    enum: [2, 3],
     required: [true, 'Exam duration is required'],
-    min: [0.5, 'Duration must be at least 0.5 hours'],
-    max: [5, 'Duration cannot exceed 5 hours'],
     default: 3
+  },
+
+  // Answer sheet type for this subject
+  answerSheet: {
+    type: String,
+    enum: ['none', '32_pages', '20_pages', '40_graph'],
+    default: 'none'
   },
 
 

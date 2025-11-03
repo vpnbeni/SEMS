@@ -14,6 +14,21 @@ const candidateSchema = new mongoose.Schema({
     trim: true,
     uppercase: true
   },
+  schoolName: {
+    type: String,
+    trim: true,
+    maxlength: [200, 'School name cannot exceed 200 characters']
+  },
+  schoolCode: {
+    type: String,
+    trim: true,
+    maxlength: [20, 'School code cannot exceed 20 characters']
+  },
+  class: {
+    type: String,
+    enum: ['10th', '12th', ''],
+    default: ''
+  },
   motherName: {
     type: String,
     trim: true,

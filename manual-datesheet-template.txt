@@ -1,0 +1,18 @@
+EXAMINATION SCHEDULE - [CLASS NAME]
+
+TUESDAY 17TH FEBRUARY, 2026
+09:00 AM - 12:00 PM 041 MATHEMATICS STANDARD
+02:00 PM - 05:00 PM 042 PHYSICS
+
+WEDNESDAY 18TH FEBRUARY, 2026
+09:00 AM - 12:00 PM 043 CHEMISTRY
+02:00 PM - 05:00 PM 044 BIOLOGY
+
+[Add more entries following the same pattern]
+
+Instructions:
+1. Replace [CLASS NAME] with your class
+2. Update dates, times, codes, and subjects
+3. Save this file
+4. Convert to PDF (File → Save As → PDF in Word/Notepad)
+5. Upload the PDF

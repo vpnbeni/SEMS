@@ -251,31 +251,7 @@ const Teachers: React.FC = () => {
         </div>
       )}
 
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-secondary-900 dark:text-white mb-2">
-              Teachers
-            </h1>
-            <p className="text-lg text-secondary-600 dark:text-secondary-400">
-              Manage teacher information and assignments
-            </p>
-          </div>
-          <div className="flex items-center space-x-3">
-            <span className="badge badge-secondary">
-              Total: {loading ? "..." : pagination.totalItems}
-            </span>
-            <span className="badge badge-success">
-              Active:{" "}
-              {loading
-                ? "..."
-                : displayTeachers.filter((t: Teacher) => t.status === "active")
-                  .length}
-            </span>
-          </div>
-        </div>
-      </div>
+      {/* Header removed (top bar is dynamic) */}
 
       {/* Action Bar */}
       <div className="card mb-6">

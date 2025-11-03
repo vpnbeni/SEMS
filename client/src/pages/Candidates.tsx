@@ -1,45 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useDropzone } from 'react-dropzone'
 import toast from 'react-hot-toast'
 import candidateService from '../services/candidateService'
 import Loader from '../components/common/Loader'
 import CandidateTable from '../components/candidates/CandidateTable'
-import CandidateFilters from '../components/candidates/CandidateFilters'
 import ImportModal from '../components/candidates/ImportModal'
-
-interface Candidate {
-  _id: string
-  name: string
-  rollNumber: string
-  email?: string
-  phone?: string
-  course?: string
-  semester?: number
-  batch?: string
-  department?: string
-  status: 'active' | 'inactive' | 'graduated' | 'suspended'
-  admissionDate?: string
-  subjects?: Array<{ _id: string; name: string; code: string }>
-  subjectCodes?: string[]
-  importedFrom?: {
-    fileName: string
-    uploadDate: string
-    cloudinaryUrl: string
-  }
-  createdAt: string
-  updatedAt: string
-}
-
-interface CandidateStats {
-  totalCandidates: number
-  active: number
-  inactive: number
-  graduated: number
-  suspended: number
-  byCourse: Array<{ _id: string; count: number }>
-  byDepartment: Array<{ _id: string; count: number }>
-}
+import { Candidate, CandidateStats } from '../types/candidate'
 
 const Candidates: React.FC = () => {
   const navigate = useNavigate()
@@ -52,7 +18,7 @@ const Candidates: React.FC = () => {
     page: 1,
     pages: 1,
     total: 0,
-    limit: 10
+    limit: 50
   })
   const [filters, setFilters] = useState({
     search: '',
@@ -104,27 +70,7 @@ const Candidates: React.FC = () => {
     fetchStats()
   }, [])
 
-  // Handle file drop for import
-  const onDrop = async (acceptedFiles: File[]) => {
-    const file = acceptedFiles[0]
-    if (!file) return
-
-    if (file.type !== 'application/pdf') {
-      toast.error('Please upload a PDF file')
-      return
-    }
-
-    await handleImport(file)
-  }
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'application/pdf': ['.pdf']
-    },
-    multiple: false,
-    disabled: importing
-  })
+  // Drag-and-drop import removed; import handled via modal/button only
 
   // Handle PDF import
   const handleImport = async (file: File) => {
@@ -201,17 +147,37 @@ const Candidates: React.FC = () => {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Candidates
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Manage examination candidates and import from PDF files
-          </p>
-        </div>
-        <div className="mt-4 sm:mt-0 flex space-x-3">
+      {/* Header actions and inline filters */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-2 sm:mt-0 flex flex-col sm:flex-row sm:items-center gap-3">
+          {/* Inline Filters */}
+          <div className="flex items-center gap-3">
+            <div className="relative w-64">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Search candidates..."
+                value={filters.search}
+                onChange={(e) => handleFilterChange({ ...filters, search: e.target.value })}
+                className="block w-full pl-10 pr-3 py-2 border border-secondary-300 dark:border-secondary-600 rounded-lg bg-white dark:bg-secondary-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              />
+            </div>
+            <select
+              value={filters.status}
+              onChange={(e) => handleFilterChange({ ...filters, status: e.target.value })}
+              className="block w-40 px-3 py-2 border border-secondary-300 dark:border-secondary-600 rounded-lg bg-white dark:bg-secondary-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+          {/* Actions */}
+          <div className="flex items-center gap-3">
           <button
             onClick={() => setShowImportModal(true)}
             className="btn btn-secondary"
@@ -230,12 +196,13 @@ const Candidates: React.FC = () => {
             </svg>
             Add Candidate
           </button>
+          </div>
         </div>
       </div>
 
       {/* Statistics Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
             <div className="flex items-center">
               <div className="flex-shrink-0">
@@ -261,36 +228,16 @@ const Candidates: React.FC = () => {
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Active
+                  Class 10th
                 </p>
                 <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {stats.active.toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Inactive
-                </p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {stats.inactive.toLocaleString()}
+                  {stats.class10th.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -301,16 +248,17 @@ const Candidates: React.FC = () => {
               <div className="flex-shrink-0">
                 <div className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center">
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
                   </svg>
                 </div>
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Graduated
+                  Class 12th
                 </p>
                 <p className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {stats.graduated.toLocaleString()}
+                  {stats.class12th.toLocaleString()}
                 </p>
               </div>
             </div>
@@ -318,46 +266,7 @@ const Candidates: React.FC = () => {
         </div>
       )}
 
-      {/* Filters */}
-      <CandidateFilters
-        filters={filters}
-        onFilterChange={handleFilterChange}
-        stats={stats}
-      />
-
-      {/* Import Drop Zone */}
-      <div
-        {...getRootProps()}
-        className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors ${
-          isDragActive
-            ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-            : 'border-gray-300 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500'
-        } ${importing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-      >
-        <input {...getInputProps()} />
-        <div className="flex flex-col items-center">
-          <svg className="w-12 h-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-          </svg>
-          {importing ? (
-            <div className="flex items-center">
-              <Loader size="sm" />
-              <span className="ml-2 text-gray-600 dark:text-gray-400">
-                Processing PDF...
-              </span>
-            </div>
-          ) : (
-            <>
-              <p className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                {isDragActive ? 'Drop the PDF here' : 'Drag & drop a PDF file here'}
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                or click to select a file
-              </p>
-            </>
-          )}
-        </div>
-      </div>
+      {/* Removed separate filters panel and drag-and-drop import area */}
 
       {/* Candidates Table */}
       <CandidateTable

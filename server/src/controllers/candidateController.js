@@ -14,7 +14,7 @@ const getCandidates = asyncHandler(async (req, res) => {
 
   // Build query
   let query = {};
-  
+
   // Search functionality
   if (req.query.search) {
     const searchRegex = new RegExp(req.query.search, 'i');
@@ -32,7 +32,7 @@ const getCandidates = asyncHandler(async (req, res) => {
   const candidates = await Candidate.find(query)
     .populate('subjects', 'name code')
     .populate('createdBy', 'name email')
-    .sort({ createdAt: -1 })
+    .sort({ rollNumber: 1 })
     .skip(skip)
     .limit(limit);
 
@@ -176,7 +176,7 @@ const deleteCandidate = asyncHandler(async (req, res) => {
 const importCandidatesFromPDF = asyncHandler(async (req, res) => {
   console.log('Import request received');
   console.log('Files:', req.files);
-  
+
   if (!req.files || !req.files.pdf) {
     console.log('No PDF file in request');
     return res.status(400).json({
@@ -199,7 +199,7 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
 
   try {
     console.log('Starting PDF processing...');
-    
+
     // Parse PDF content first (faster than Cloudinary upload)
     console.log('Reading PDF file...');
     const pdfBuffer = fs.readFileSync(pdfFile.tempFilePath);
@@ -212,7 +212,7 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
     console.log('Extracting candidates...');
     const candidates = extractCandidatesFromText(pdfText);
     console.log('Extracted candidates:', candidates.length);
-    
+
     // Upload PDF to Cloudinary (do this after extraction to save time)
     console.log('Uploading to Cloudinary...');
     const cloudinaryResult = await cloudinary.uploader.upload(pdfFile.tempFilePath, {
@@ -236,16 +236,16 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
 
     // Get all roll numbers to check for duplicates in one query
     const rollNumbers = candidates.map(c => c.rollNumber);
-    const existingCandidates = await Candidate.find({ 
-      rollNumber: { $in: rollNumbers } 
+    const existingCandidates = await Candidate.find({
+      rollNumber: { $in: rollNumbers }
     }).select('rollNumber');
     const existingRollNumbers = new Set(existingCandidates.map(c => c.rollNumber));
-    
+
     console.log('Found existing candidates:', existingRollNumbers.size);
 
     // Prepare candidates for bulk insert
     const candidatesToInsert = [];
-    
+
     for (const candidateData of candidates) {
       if (existingRollNumbers.has(candidateData.rollNumber)) {
         errors.push({
@@ -263,7 +263,7 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
         cloudinaryPublicId: cloudinaryResult.public_id
       };
       candidateData.createdBy = req.user.id;
-      
+
       candidatesToInsert.push(candidateData);
     }
 
@@ -271,7 +271,7 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
     if (candidatesToInsert.length > 0) {
       console.log('Inserting', candidatesToInsert.length, 'candidates...');
       try {
-        const insertedCandidates = await Candidate.insertMany(candidatesToInsert, { 
+        const insertedCandidates = await Candidate.insertMany(candidatesToInsert, {
           ordered: false // Continue on error
         });
         savedCandidates.push(...insertedCandidates);
@@ -334,42 +334,79 @@ const extractCandidatesFromText = (text) => {
 
   // Pattern for roll number (8 digits)
   const rollNumberPattern = /^(\d{8})(.+)$/;
-  
+
   // Pattern for date of birth (DD.MM.YYYY)
   const dobPattern = /^(\d{2})\.(\d{2})\.(\d{4})$/;
 
+  // Pattern for school/centre line with code
+  const schoolPattern = /(?:CENTRE|SCHOOL)\s*[:：-]\s*(\d+)\s+(.+?)(?:ROHTAK|$)/i;
+
+  // Pattern for class/examination type (handles both full and abbreviated forms)
+  const classPattern = /(?:SENIOR\s+SEC(?:ONDARY)?|SECONDARY)\s+(?:SCH|SCHOOL)\s+(?:CERT\s+)?EXAMINATION/i;
+
+  // Track current school name, code, and class
+  let currentSchoolName = '';
+  let currentSchoolCode = '';
+  let currentClass = '';
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    
+
+    // Check if this line contains class/examination information
+    const classMatch = line.match(classPattern);
+    if (classMatch) {
+      const examType = classMatch[0].toUpperCase();
+      // Check for SENIOR SEC/SECONDARY first (12th), then SECONDARY (10th)
+      if (examType.includes('SENIOR')) {
+        currentClass = '12th';
+      } else if (examType.includes('SECONDARY')) {
+        currentClass = '10th';
+      }
+      console.log('Found class:', currentClass, 'from line:', line);
+      continue;
+    }
+
+    // Check if this line contains school/centre information
+    const schoolMatch = line.match(schoolPattern);
+    if (schoolMatch) {
+      currentSchoolCode = schoolMatch[1].trim();
+      currentSchoolName = schoolMatch[2].trim();
+      console.log('Found school:', currentSchoolCode, '-', currentSchoolName);
+      continue;
+    }
+
     // Check if line starts with a roll number
     const rollMatch = line.match(rollNumberPattern);
     if (rollMatch) {
       const rollNumber = rollMatch[1];
       let candidateName = rollMatch[2].trim();
-      
+
       // Skip header rows or invalid entries
       if (!candidateName || candidateName.length < 2 || line.includes('Roll No')) {
         continue;
       }
-      
+
       // Extract FLC if present (single letter followed by space at start of name)
       let flc = '';
       if (candidateName.length > 2 && /^[A-Z]\s/.test(candidateName)) {
         flc = candidateName[0];
         candidateName = candidateName.substring(2).trim();
       }
-      
+
       const candidate = {
         rollNumber: rollNumber,
         name: candidateName,
         flc: flc,
+        schoolName: currentSchoolName,
+        schoolCode: currentSchoolCode,
+        class: currentClass,
         status: 'active',
         subjectCodes: []
       };
-      
+
       // Parse the next lines for additional information
       let lineOffset = 1;
-      
+
       // Line i+1: Mother Name
       if (i + lineOffset < lines.length) {
         const motherName = lines[i + lineOffset].trim();
@@ -378,7 +415,7 @@ const extractCandidatesFromText = (text) => {
         }
         lineOffset++;
       }
-      
+
       // Line i+2: Father Name
       if (i + lineOffset < lines.length) {
         const fatherName = lines[i + lineOffset].trim();
@@ -387,7 +424,7 @@ const extractCandidatesFromText = (text) => {
         }
         lineOffset++;
       }
-      
+
       // Line i+3: Sex (M/F/G)
       if (i + lineOffset < lines.length) {
         const sex = lines[i + lineOffset].trim();
@@ -396,7 +433,7 @@ const extractCandidatesFromText = (text) => {
         }
         lineOffset++;
       }
-      
+
       // Line i+4: Category (G/C/S/NA)
       if (i + lineOffset < lines.length) {
         const category = lines[i + lineOffset].trim();
@@ -407,7 +444,7 @@ const extractCandidatesFromText = (text) => {
         }
         lineOffset++;
       }
-      
+
       // Line i+5: PwD (NA or code)
       if (i + lineOffset < lines.length) {
         const pwd = lines[i + lineOffset].trim();
@@ -416,15 +453,15 @@ const extractCandidatesFromText = (text) => {
         }
         lineOffset++;
       }
-      
+
       // Lines i+6 onwards: Subject codes and mediums
       // First line after PwD contains first 3 subject codes concatenated (e.g., "184002041")
       // Then alternating: code, medium, code, medium...
       const subjectCodes = [];
-      
+
       if (i + lineOffset < lines.length) {
         const firstSubjectLine = lines[i + lineOffset].trim();
-        
+
         // Check if this line contains concatenated subject codes (9 digits = 3 codes)
         if (/^\d{9}$/.test(firstSubjectLine)) {
           // Extract first 3 subject codes
@@ -432,7 +469,7 @@ const extractCandidatesFromText = (text) => {
           subjectCodes.push({ code: firstSubjectLine.substring(3, 6), medium: '' });
           subjectCodes.push({ code: firstSubjectLine.substring(6, 9), medium: '' });
           lineOffset++;
-          
+
           // Next line might be medium for the 3rd subject
           if (i + lineOffset < lines.length) {
             const medLine = lines[i + lineOffset].trim();
@@ -442,11 +479,11 @@ const extractCandidatesFromText = (text) => {
             }
           }
         }
-        
+
         // Continue extracting remaining subject codes (alternating code, medium)
         for (let j = 0; j < 15 && i + lineOffset + j < lines.length; j++) {
           const currentLine = lines[i + lineOffset + j].trim();
-          
+
           // Check if this is the date of birth line
           if (dobPattern.test(currentLine)) {
             const dobMatch = currentLine.match(dobPattern);
@@ -458,7 +495,7 @@ const extractCandidatesFromText = (text) => {
             }
             break;
           }
-          
+
           // Check if this is a 3-digit subject code
           if (/^\d{3}$/.test(currentLine)) {
             const code = currentLine;
@@ -473,16 +510,16 @@ const extractCandidatesFromText = (text) => {
             }
             subjectCodes.push({ code: code, medium: medium });
           }
-          
+
           // Stop if we hit another roll number or dash
           if (rollNumberPattern.test(currentLine) || currentLine === '-') {
             break;
           }
         }
       }
-      
+
       candidate.subjectCodes = subjectCodes;
-      
+
       candidates.push(candidate);
     }
   }
@@ -495,10 +532,9 @@ const extractCandidatesFromText = (text) => {
 // @access  Private
 const getCandidateStats = asyncHandler(async (req, res) => {
   const stats = await Promise.all([
-    Candidate.countDocuments({ status: 'active' }),
-    Candidate.countDocuments({ status: 'inactive' }),
-    Candidate.countDocuments({ status: 'graduated' }),
-    Candidate.countDocuments({ status: 'suspended' }),
+    Candidate.countDocuments({}),
+    Candidate.countDocuments({ class: '10th' }),
+    Candidate.countDocuments({ class: '12th' }),
     Candidate.aggregate([
       { $group: { _id: '$course', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
@@ -512,13 +548,11 @@ const getCandidateStats = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: {
-      totalCandidates: stats[0] + stats[1] + stats[2] + stats[3],
-      active: stats[0],
-      inactive: stats[1],
-      graduated: stats[2],
-      suspended: stats[3],
-      byCourse: stats[4],
-      byDepartment: stats[5]
+      totalCandidates: stats[0],
+      class10th: stats[1],
+      class12th: stats[2],
+      byCourse: stats[3],
+      byDepartment: stats[4]
     }
   });
 });

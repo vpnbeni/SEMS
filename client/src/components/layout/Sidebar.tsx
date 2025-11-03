@@ -17,24 +17,24 @@ const Sidebar: React.FC = () => {
       badge: null,
     },
     {
-      name: 'Teachers',
-      href: '/teachers',
+      name: 'Datesheets',
+      href: '/datesheets',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Exam Functionaries',
+      href: '/exam-functionaries',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       ),
       badge: '85',
-    },
-    {
-      name: 'Students',
-      href: '/students',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-        </svg>
-      ),
-      badge: '1.2K',
     },
     {
       name: 'Candidates',
@@ -55,16 +55,6 @@ const Sidebar: React.FC = () => {
         </svg>
       ),
       badge: '24',
-    },
-    {
-      name: 'Date Sheets',
-      href: '/datesheets',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      ),
-      badge: null,
     },
     {
       name: 'Room Allocation',
@@ -89,13 +79,13 @@ const Sidebar: React.FC = () => {
   ]
 
   return (
-    <div className={`glass border-r border-secondary-200 dark:border-secondary-700 min-h-screen transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col`}>
+    <div className={`glass border-r border-secondary-200 dark:border-secondary-700 h-screen transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-64'} flex flex-col overflow-hidden`}>
       {/* Logo and Header */}
-      <div className="p-6 border-b border-secondary-200 dark:border-secondary-700">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
+      <div className={`border-b border-secondary-200 dark:border-secondary-700 transition-all duration-300 ${isCollapsed ? 'p-3' : 'p-6'}`}>
+        <div className={`flex items-center ${isCollapsed ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
+          <div className={`flex items-center ${isCollapsed ? 'flex-col' : ''}`}>
             <div className="flex-shrink-0">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-medium">
+              <div className={`bg-gradient-to-br from-primary-500 to-primary-600 rounded-xl flex items-center justify-center shadow-medium transition-all duration-300 ${isCollapsed ? 'w-10 h-10' : 'w-10 h-10'}`}>
                 <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
@@ -115,32 +105,43 @@ const Sidebar: React.FC = () => {
           
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1.5 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 transition-colors"
+            className={`p-1.5 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 transition-colors flex-shrink-0 ${isCollapsed ? 'w-full flex justify-center mt-2' : ''}`}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
-            <svg className={`w-4 h-4 text-secondary-600 dark:text-secondary-400 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
+            {isCollapsed ? (
+              <svg className="w-4 h-4 text-secondary-600 dark:text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 text-secondary-600 dark:text-secondary-400 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 mt-6 px-3 pb-6">
-        <div className="space-y-2">
+      <nav className={`flex-1 pb-6 transition-all duration-300 ${isCollapsed ? 'mt-4 px-2' : 'mt-6 px-3'}`}>
+        <div className={`space-y-2 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
           {navigation.map((item) => {
             const isActive = location.pathname === item.href
             return (
               <NavLink
                 key={item.name}
                 to={item.href}
-                className={`group relative flex items-center px-3 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${
+                className={`group relative flex items-center text-sm font-medium rounded-xl transition-all duration-200 ${
+                  isCollapsed 
+                    ? 'justify-center w-12 h-12 p-0' 
+                    : 'px-3 py-3'
+                } ${
                   isActive
-                    ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-medium transform scale-105'
-                    : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-100 dark:hover:bg-secondary-700 hover:text-secondary-900 dark:hover:text-white hover:scale-105'
+                    ? 'bg-gradient-to-r from-primary-500 to-primary-600 text-white shadow-medium'
+                    : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-100 dark:hover:bg-secondary-700 hover:text-secondary-900 dark:hover:text-white'
                 }`}
                 title={isCollapsed ? item.name : undefined}
               >
-                <span className={`flex-shrink-0 transition-all duration-200 ${isActive ? 'text-white' : 'text-secondary-500 group-hover:text-secondary-700 dark:text-secondary-400 dark:group-hover:text-secondary-200'}`}>
+                <span className={`flex-shrink-0 transition-all duration-200 ${isActive ? 'text-white' : 'text-secondary-500 group-hover:text-secondary-700 dark:text-secondary-400 dark:group-hover:text-secondary-200'} ${isCollapsed ? 'mx-auto' : ''}`}>
                   {item.icon}
                 </span>
                 
@@ -162,14 +163,17 @@ const Sidebar: React.FC = () => {
                 )}
 
                 {isCollapsed && item.badge && (
-                  <span className="absolute -top-1 -right-1 inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-primary-500 text-white animate-pulse">
+                  <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-[20px] h-[20px] px-1.5 rounded-full text-[11px] font-semibold bg-primary-500 text-white border-2 border-white dark:border-secondary-900 shadow-sm z-10">
                     {item.badge}
                   </span>
                 )}
 
                 {/* Active indicator */}
-                {isActive && (
+                {isActive && !isCollapsed && (
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-white rounded-r-full"></div>
+                )}
+                {isActive && isCollapsed && (
+                  <div className="absolute right-0 top-1 bottom-1 w-1 bg-white rounded-l-full"></div>
                 )}
               </NavLink>
             )

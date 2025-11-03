@@ -10,8 +10,7 @@ import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
-import Students from './pages/Students'
-import StudentDetail from './pages/StudentDetail'
+// Students feature removed
 import Candidates from './pages/Candidates'
 import CandidateDetail from './pages/CandidateDetail'
 import Subjects from './pages/Subjects'
@@ -68,10 +67,12 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
-              <Route path="teachers" element={<Teachers />} />
-              <Route path="teachers/:id" element={<TeacherDetail />} />
-              <Route path="students" element={<Students />} />
-              <Route path="students/:id" element={<StudentDetail />} />
+              <Route path="exam-functionaries" element={<Teachers />} />
+              <Route path="exam-functionaries/:id" element={<TeacherDetail />} />
+              {/* Legacy redirects */}
+              <Route path="teachers" element={<Navigate to="/exam-functionaries" replace />} />
+              <Route path="teachers/:id" element={<Navigate to="/exam-functionaries/:id" replace />} />
+              {/* Students feature removed */}
               <Route path="candidates" element={<Candidates />} />
               <Route path="candidates/:id" element={<CandidateDetail />} />
               <Route path="subjects" element={<Subjects />} />

@@ -3,14 +3,6 @@ import React from 'react'
 const AnswerSheetDispatch: React.FC = () => {
   return (
     <div className="p-6">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Answer Sheet Dispatch
-        </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Manage answer sheet collection and dispatch for evaluation
-        </p>
-      </div>
 
       {/* Action Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">

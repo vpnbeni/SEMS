@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+import SubjectsImportModal from '../components/subjects/ImportModal'
+import subjectService from '../services/subjectService'
 
 interface Subject {
   _id: string
@@ -7,6 +9,7 @@ interface Subject {
   class: string
   duration: number
   isActive: boolean
+  answerSheet?: string
 }
 
 const Subjects: React.FC = () => {
@@ -20,6 +23,8 @@ const Subjects: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null)
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     fetchSubjects()
@@ -94,9 +99,11 @@ const Subjects: React.FC = () => {
     setIsEditModalOpen(false)
     setIsAddModalOpen(false)
     setEditingSubject(null)
+    setError(null) // Clear errors when closing modal
   }
 
   const handleAddClick = () => {
+    setError(null) // Clear any previous errors
     setIsAddModalOpen(true)
   }
 
@@ -207,16 +214,67 @@ const Subjects: React.FC = () => {
       setIsSubmitting(false)
     }
   }
+
+  const handleDeleteSubject = async (subject: Subject) => {
+    if (!window.confirm(`Are you sure you want to delete "${subject.name}"?`)) {
+      return
+    }
+
+    try {
+      setError(null)
+      const token = localStorage.getItem('token')
+      
+      if (!token) {
+        setError('Authentication required')
+        return
+      }
+
+      const response = await fetch(`/api/subjects/${subject._id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const data = await response.json()
+      
+      if (!response.ok) {
+        setError(data.message || `Failed to delete subject (${response.status})`)
+        return
+      }
+
+      if (data.success) {
+        // Remove the subject from local state
+        setSubjects(prev => prev.filter(s => s._id !== subject._id))
+        setSuccessMessage('Subject deleted successfully!')
+        setTimeout(() => setSuccessMessage(null), 3000)
+      } else {
+        setError(data.message || 'Failed to delete subject')
+      }
+    } catch (err) {
+      console.error('Delete subject error:', err)
+      setError(err instanceof Error ? err.message : 'Network error occurred')
+    }
+  }
+
+  const handleImportSubjects = async (file: File) => {
+    try {
+      setImporting(true)
+      await subjectService.importFromPDF(file)
+      await fetchSubjects()
+      setShowImportModal(false)
+      setSuccessMessage('Subjects imported successfully!')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import subjects')
+    } finally {
+      setImporting(false)
+    }
+  }
   return (
     <div className="p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-          Subjects
-        </h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-400">
-          Manage subjects and course curriculum
-        </p>
-        
         {/* Success Message */}
         {successMessage && (
           <div className="mt-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-md">
@@ -248,12 +306,45 @@ const Subjects: React.FC = () => {
             </div>
           </div>
         </div>
+        <div className="flex gap-3">
+        <button onClick={() => setShowImportModal(true)} className="btn btn-secondary">
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          Import PDF
+        </button>
         <button onClick={handleAddClick} className="btn btn-primary">
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
           </svg>
           Add Subject
         </button>
+        <button
+          onClick={async () => {
+            if (!window.confirm('Permanently delete ALL subjects? This cannot be undone.')) return
+            try {
+              const token = localStorage.getItem('token')
+              if (!token) { setError('Authentication required'); return }
+              const response = await fetch('/api/subjects', {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+              })
+              if (!response.ok) {
+                const data = await response.json().catch(() => ({}))
+                throw new Error(data?.message || 'Failed to delete all subjects')
+              }
+              setSubjects([])
+              setSuccessMessage('All subjects permanently deleted!')
+              setTimeout(() => setSuccessMessage(null), 3000)
+            } catch (err) {
+              setError(err instanceof Error ? err.message : 'Failed to delete all subjects')
+            }
+          }}
+          className="btn btn-outline text-red-600 border-red-300 hover:bg-red-50"
+        >
+          Delete All
+        </button>
+        </div>
       </div>
 
       {/* Subjects Table */}
@@ -262,42 +353,26 @@ const Subjects: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Sub Code</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  <button 
-                    onClick={handleSortByName}
-                    className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none"
-                  >
+                  <button onClick={handleSortByName} className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none">
                     <span>Subject Name</span>
                     <div className="flex flex-col">
-                      <svg 
-                        className={`w-3 h-3 ${sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} 
-                        fill="currentColor" 
-                        viewBox="0 0 20 20"
-                      >
-                        <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                      </svg>
-                      <svg 
-                        className={`w-3 h-3 -mt-1 ${sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} 
-                        fill="currentColor" 
-                        viewBox="0 0 20 20"
-                      >
-                        <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
+                      <svg className={`w-3 h-3 ${sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                      <svg className={`w-3 h-3 -mt-1 ${sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                     </div>
                   </button>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Subject Code
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Class
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Exam Duration (Hours)
+                  Duration (Hours)
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Actions
+                  Answer Sheet
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -347,13 +422,13 @@ const Subjects: React.FC = () => {
                 sortedSubjects.map((subject) => (
                   <tr key={subject._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {subject.name}
+                      <div className="text-sm text-gray-900 dark:text-white">
+                        {subject.code}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">
-                        {subject.code}
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        {subject.name}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -366,6 +441,13 @@ const Subjects: React.FC = () => {
                         {subject.duration ? `${subject.duration} hrs` : 'N/A'}
                       </div>
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900 dark:text-white">{
+                        subject.answerSheet === '32_pages' ? '32 Pages' :
+                        subject.answerSheet === '20_pages' ? '20 Pages' :
+                        subject.answerSheet === '40_graph' ? '40 Graph' : '—'
+                      }</div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
                         <button 
@@ -374,7 +456,10 @@ const Subjects: React.FC = () => {
                         >
                           Edit
                         </button>
-                        <button className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
+                        <button 
+                          onClick={() => handleDeleteSubject(subject)}
+                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                        >
                           Delete
                         </button>
                       </div>
@@ -407,6 +492,16 @@ const Subjects: React.FC = () => {
           isSubmitting={isSubmitting}
         />
       )}
+
+      {/* Import Subjects Modal */}
+      {showImportModal && (
+        <SubjectsImportModal
+          isOpen={showImportModal}
+          onClose={() => setShowImportModal(false)}
+          onImport={handleImportSubjects}
+          importing={importing}
+        />
+      )}
     </div>
   )
 }
@@ -431,7 +526,8 @@ const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
     name: subject.name || '',
     code: subject.code || '',
     class: subject.class || '',
-    duration: subject.duration || 3
+    duration: subject.duration || 3,
+    answerSheet: subject.answerSheet || '32_pages'
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -498,40 +594,30 @@ const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Class
-            </label>
-            <select
-              name="class"
-              value={formData.class}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="">Select Class</option>
-              <option value="10th">Class 10</option>
-              <option value="12th">Class 12</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class</label>
+            <div className="inline-flex rounded-md shadow-sm border border-gray-300 dark:border-gray-600 overflow-hidden">
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, class: '10th' }))} className={`px-4 py-2 text-sm ${formData.class === '10th' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>Class 10</button>
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, class: '12th' }))} className={`px-4 py-2 text-sm border-l border-gray-300 dark:border-gray-600 ${formData.class === '12th' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>Class 12</button>
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Exam Duration (hours)
-            </label>
-            <input
-              type="number"
-              name="duration"
-              value={formData.duration}
-              onChange={handleChange}
-              min="1"
-              max="5"
-              step="0.5"
-              required
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Exam Duration (hours)</label>
+            <div className="inline-flex rounded-md shadow-sm border border-gray-300 dark:border-gray-600 overflow-hidden">
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, duration: 2 }))} className={`px-4 py-2 text-sm ${formData.duration === 2 ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>2 Hours</button>
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, duration: 3 }))} className={`px-4 py-2 text-sm border-l border-gray-300 dark:border-gray-600 ${formData.duration === 3 ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>3 Hours</button>
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Answer Sheet</label>
+              <div className="inline-flex rounded-md shadow-sm border border-gray-300 dark:border-gray-600 overflow-hidden">
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, answerSheet: '32_pages' }))} className={`px-3 py-2 text-sm ${formData.answerSheet === '32_pages' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>32 Pages</button>
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, answerSheet: '20_pages' }))} className={`px-3 py-2 text-sm border-l border-gray-300 dark:border-gray-600 ${formData.answerSheet === '20_pages' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>20 Pages</button>
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, answerSheet: '40_graph' }))} className={`px-3 py-2 text-sm border-l border-gray-300 dark:border-gray-600 ${formData.answerSheet === '40_graph' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>40 Graph</button>
+              </div>
+            </div>
             <button
               type="button"
               onClick={onClose}
@@ -579,7 +665,8 @@ const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
     name: '',
     code: '',
     class: '',
-    duration: 3
+    duration: 3,
+    answerSheet: '32_pages'
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -602,7 +689,8 @@ const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
         name: '',
         code: '',
         class: '',
-        duration: 3
+        duration: 3,
+        answerSheet: '32_pages'
       })
     }
   }, [isOpen])
@@ -660,40 +748,30 @@ const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Class
-            </label>
-            <select
-              name="class"
-              value={formData.class}
-              onChange={handleChange}
-              required
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            >
-              <option value="">Select Class</option>
-              <option value="10th">Class 10</option>
-              <option value="12th">Class 12</option>
-            </select>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Class</label>
+            <div className="inline-flex rounded-md shadow-sm border border-gray-300 dark:border-gray-600 overflow-hidden">
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, class: '10th' }))} className={`px-4 py-2 text-sm ${formData.class === '10th' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>Class 10</button>
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, class: '12th' }))} className={`px-4 py-2 text-sm border-l border-gray-300 dark:border-gray-600 ${formData.class === '12th' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>Class 12</button>
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Exam Duration (hours)
-            </label>
-            <input
-              type="number"
-              name="duration"
-              value={formData.duration}
-              onChange={handleChange}
-              min="1"
-              max="5"
-              step="0.5"
-              required
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Exam Duration (hours)</label>
+            <div className="inline-flex rounded-md shadow-sm border border-gray-300 dark:border-gray-600 overflow-hidden">
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, duration: 2 }))} className={`px-4 py-2 text-sm ${formData.duration === 2 ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>2 Hours</button>
+              <button type="button" onClick={() => setFormData(prev => ({ ...prev, duration: 3 }))} className={`px-4 py-2 text-sm border-l border-gray-300 dark:border-gray-600 ${formData.duration === 3 ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>3 Hours</button>
+            </div>
           </div>
 
           <div className="flex justify-end space-x-3 pt-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Answer Sheet</label>
+              <div className="inline-flex rounded-md shadow-sm border border-gray-300 dark:border-gray-600 overflow-hidden">
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, answerSheet: '32_pages' }))} className={`px-3 py-2 text-sm ${formData.answerSheet === '32_pages' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>32 Pages</button>
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, answerSheet: '20_pages' }))} className={`px-3 py-2 text-sm border-l border-gray-300 dark:border-gray-600 ${formData.answerSheet === '20_pages' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>20 Pages</button>
+                <button type="button" onClick={() => setFormData(prev => ({ ...prev, answerSheet: '40_graph' }))} className={`px-3 py-2 text-sm border-l border-gray-300 dark:border-gray-600 ${formData.answerSheet === '40_graph' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>40 Graph</button>
+              </div>
+            </div>
             <button
               type="button"
               onClick={onClose}

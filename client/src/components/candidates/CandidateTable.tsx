@@ -6,6 +6,9 @@ interface Candidate {
   _id: string
   name: string
   rollNumber: string
+  schoolName?: string
+  schoolCode?: string
+  class?: string
   motherName?: string
   fatherName?: string
   sex?: string
@@ -115,6 +118,9 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
                 Candidate Info
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                Class
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
                 Parents
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
@@ -159,6 +165,19 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
                     </div>
                   )}
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {candidate.class ? (
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      candidate.class === '12th' 
+                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    }`}>
+                      {candidate.class}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+                  )}
+                </td>
                 <td className="px-6 py-4">
                   {candidate.motherName && (
                     <div className="text-xs text-gray-700 dark:text-gray-300">
@@ -194,19 +213,32 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
                   </div>
                 </td>
                 <td className="px-6 py-4">
+                  {candidate.schoolName && (
+                    <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
+                      🏫 {candidate.schoolCode && <span className="font-bold text-primary-600 dark:text-primary-400">{candidate.schoolCode}</span>} {candidate.schoolName}
+                    </div>
+                  )}
                   {candidate.subjectCodes && candidate.subjectCodes.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
                       {candidate.subjectCodes.map((item, index) => {
                         const code = typeof item === 'string' ? item : item.code;
                         const medium = typeof item === 'object' && item.medium ? item.medium : '';
+                        const isHindi = medium === '2';
+                        const isEnglish = medium === '1';
+                        const mediumLabel = isHindi ? 'Hindi' : isEnglish ? 'English' : '';
+                        
                         return (
                           <span
                             key={index}
-                            className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                            title={medium ? `Medium: ${medium}` : ''}
+                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                              isHindi 
+                                ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                                : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                            }`}
+                            title={mediumLabel ? `Medium: ${mediumLabel}` : ''}
                           >
                             {code}
-                            {medium && <span className="ml-1 text-[10px]">({medium})</span>}
+                            {mediumLabel && <span className="ml-1 text-[10px]">({mediumLabel[0]})</span>}
                           </span>
                         );
                       })}

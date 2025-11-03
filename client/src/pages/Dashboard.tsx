@@ -4,22 +4,6 @@ import { Link } from 'react-router-dom'
 const Dashboard: React.FC = () => {
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      {/* Header with gradient background */}
-      <div className="mb-8 relative overflow-hidden bg-gradient-to-r from-primary-600 to-primary-400 rounded-xl p-6 text-white shadow-elegant">
-        <div className="relative z-10">
-          <h1 className="text-4xl font-bold mb-2 text-white">
-            Dashboard
-          </h1>
-          <p className="text-primary-100 text-lg">
-            Welcome to School Examination Management System
-          </p>
-        </div>
-        <div className="absolute top-0 right-0 -mt-4 -mr-16 opacity-20">
-          <svg className="w-48 h-48" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clipRule="evenodd" />
-          </svg>
-        </div>
-      </div>
 
       {/* Quick Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -160,7 +144,7 @@ const Dashboard: React.FC = () => {
           <div className="card-content">
             <div className="grid grid-cols-1 gap-3">
               <Link
-                to="/teachers"
+                to="/exam-functionaries"
                 className="group flex items-center p-4 rounded-xl border-2 border-secondary-200 dark:border-secondary-700 hover:border-primary-300 dark:hover:border-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all duration-200"
               >
                 <div className="flex-shrink-0 w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-lg flex items-center justify-center group-hover:bg-primary-200 dark:group-hover:bg-primary-800 transition-colors">
@@ -170,7 +154,7 @@ const Dashboard: React.FC = () => {
                 </div>
                 <div className="ml-4 flex-1">
                   <h3 className="text-sm font-semibold text-secondary-900 dark:text-white group-hover:text-primary-700 dark:group-hover:text-primary-300">
-                    Manage Teachers
+                    Manage Exam Functionaries
                   </h3>
                   <p className="text-xs text-secondary-500 dark:text-secondary-400">
                     Add, edit, and view teacher profiles
@@ -181,27 +165,7 @@ const Dashboard: React.FC = () => {
                 </svg>
               </Link>
 
-              <Link
-                to="/students"
-                className="group flex items-center p-4 rounded-xl border-2 border-secondary-200 dark:border-secondary-700 hover:border-primary-300 dark:hover:border-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all duration-200"
-              >
-                <div className="flex-shrink-0 w-10 h-10 bg-success-100 dark:bg-success-900 rounded-lg flex items-center justify-center group-hover:bg-success-200 dark:group-hover:bg-success-800 transition-colors">
-                  <svg className="w-5 h-5 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                  </svg>
-                </div>
-                <div className="ml-4 flex-1">
-                  <h3 className="text-sm font-semibold text-secondary-900 dark:text-white group-hover:text-primary-700 dark:group-hover:text-primary-300">
-                    Manage Students
-                  </h3>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                    Student enrollment and records
-                  </p>
-                </div>
-                <svg className="w-5 h-5 text-secondary-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
+              {/* Students quick action removed */}
 
               <Link
                 to="/datesheets"

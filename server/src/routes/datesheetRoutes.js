@@ -1,30 +1,31 @@
 const express = require('express');
 const { protect } = require('../middleware/auth');
+const {
+  importFromPdf,
+  getAllDatesheets,
+  getDatesheetById,
+  createDatesheet,
+  updateDatesheet,
+  deleteDatesheet,
+  publishDatesheet
+} = require('../controllers/datesheetController');
 
 const router = express.Router();
 
 // Apply authentication to all routes
 router.use(protect);
 
-// Placeholder routes - to be implemented
-router.get('/', (req, res) => {
-  res.json({ message: 'Date sheet routes - Coming soon' });
-});
+// Import datesheet from PDF
+router.post('/import-pdf', importFromPdf);
 
-router.post('/', (req, res) => {
-  res.json({ message: 'Create date sheet - Coming soon' });
-});
+// CRUD operations
+router.get('/', getAllDatesheets);
+router.post('/', createDatesheet);
+router.get('/:id', getDatesheetById);
+router.put('/:id', updateDatesheet);
+router.delete('/:id', deleteDatesheet);
 
-router.get('/:id', (req, res) => {
-  res.json({ message: 'Get date sheet - Coming soon' });
-});
-
-router.put('/:id', (req, res) => {
-  res.json({ message: 'Update date sheet - Coming soon' });
-});
-
-router.delete('/:id', (req, res) => {
-  res.json({ message: 'Delete date sheet - Coming soon' });
-});
+// Publish datesheet
+router.post('/:id/publish', publishDatesheet);
 
 module.exports = router;

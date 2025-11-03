@@ -1,14 +1,5 @@
 import React from 'react'
-
-interface CandidateStats {
-  totalCandidates: number
-  active: number
-  inactive: number
-  graduated: number
-  suspended: number
-  byCourse: Array<{ _id: string; count: number }>
-  byDepartment: Array<{ _id: string; count: number }>
-}
+import { CandidateStats } from '../../types/candidate'
 
 interface Filters {
   search: string
