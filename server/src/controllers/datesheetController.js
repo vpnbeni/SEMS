@@ -5,6 +5,9 @@ const Tesseract = require('tesseract.js')
 const os = require('os')
 const asyncHandler = require('../middleware/asyncHandler')
 const { generateResponse, HTTP_STATUS } = require('../utils/constants')
+const CBSEDatesheetParser = require('../utils/cbseDatesheetParser')
+const CBSEDatesheet = require('../models/CBSEDatesheet')
+const { getDayNameForDate } = require('../utils/calendarSeeder')
 
 // Helper: map month names to numbers
 const MONTHS = {
@@ -35,6 +38,90 @@ function parseDateHeader(line) {
   const year = parseInt(m[4], 10)
   return { dateISO: new Date(Date.UTC(year, month, day)).toISOString().slice(0, 10), dayName: m[1].toUpperCase() }
 }
+
+// GET /api/datesheets/cbse-full
+exports.getCBSEFullDatesheet = asyncHandler(async (req, res) => {
+  try {
+    console.log('📄 Fetching active CBSE datesheet...')
+    
+    const cbseDatesheet = await CBSEDatesheet.getActive()
+    
+    if (!cbseDatesheet) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        success: false,
+        message: 'No CBSE datesheet found. Please import a CBSE datesheet first.',
+        data: { entries: [], count: 0 }
+      })
+    }
+    
+    console.log(`✅ Found CBSE datesheet with ${cbseDatesheet.totalEntries} entries`)
+    
+    // Get sorting parameters
+    const sortField = req.query.sortField || null
+    const sortOrder = req.query.sortOrder || 'asc'
+    
+    // Apply sorting if requested
+    let sortedEntries = [...cbseDatesheet.entries]
+    if (sortField) {
+      sortedEntries.sort((a, b) => {
+        let comparison = 0
+        
+        if (sortField === 'date') {
+          comparison = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
+        } else if (sortField === 'class') {
+          comparison = a.subject.class.localeCompare(b.subject.class)
+        } else if (sortField === 'subjectName') {
+          comparison = a.subject.name.toLowerCase().localeCompare(b.subject.name.toLowerCase())
+        } else if (sortField === 'subjectCode') {
+          comparison = a.subject.code.localeCompare(b.subject.code)
+        } else if (sortField === 'duration') {
+          comparison = a.subject.duration - b.subject.duration
+        }
+        
+        return sortOrder === 'asc' ? comparison : -comparison
+      })
+    }
+    
+    // Apply pagination after sorting
+    const page = parseInt(req.query.page) || 1
+    const limit = parseInt(req.query.limit) || 50
+    const skip = (page - 1) * limit
+    
+    const paginatedEntries = sortedEntries.slice(skip, skip + limit)
+    const totalPages = Math.ceil(cbseDatesheet.totalEntries / limit)
+    
+    // Calculate unique dates from all entries (not just paginated)
+    const uniqueDates = new Set(cbseDatesheet.entries.map(e => e.examDate.toISOString().slice(0, 10))).size
+    
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      data: paginatedEntries,
+      meta: {
+        currentPage: page,
+        totalPages,
+        totalCount: cbseDatesheet.totalEntries,
+        limit,
+        uniqueDates  // Add unique dates to meta
+      },
+      datesheet: {
+        id: cbseDatesheet._id,
+        title: cbseDatesheet.title,
+        academicYear: cbseDatesheet.academicYear,
+        dateRange: cbseDatesheet.dateRange,
+        statistics: cbseDatesheet.statistics,
+        importDate: cbseDatesheet.importDate
+      }
+    })
+    
+  } catch (error) {
+    console.error('❌ Error fetching CBSE datesheet:', error)
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to fetch CBSE datesheet',
+      error: error.message
+    })
+  }
+})
 
 // POST /api/datesheets/import-pdf
 exports.importFromPdf = asyncHandler(async (req, res) => {
@@ -165,6 +252,99 @@ exports.importFromPdf = asyncHandler(async (req, res) => {
     }
   }
 
+  // Try CBSE format parser first
+  console.log('🔍 Attempting CBSE format parsing...')
+  try {
+    const cbseParser = new CBSEDatesheetParser()
+    const cbseResult = await cbseParser.parsePDF(buffer)
+    
+    if (cbseResult.success && cbseResult.data.count > 0) {
+      console.log('✅ CBSE format detected and parsed successfully!')
+      console.log(`📊 Found ${cbseResult.data.count} entries`)
+      
+      // Get day names for all dates
+      console.log('📅 Fetching day names from calendar...')
+      const entriesWithDays = await Promise.all(
+        cbseResult.data.entries.map(async (entry) => {
+          try {
+            const dayName = await getDayNameForDate(entry.examDate)
+            return {
+              ...entry,
+              dayName: dayName || 'Unknown'
+            }
+          } catch (error) {
+            console.warn(`Failed to get day name for ${entry.examDate}:`, error.message)
+            return {
+              ...entry,
+              dayName: 'Unknown'
+            }
+          }
+        })
+      )
+      
+      // Determine academic year from dates
+      const dates = cbseResult.data.entries.map(e => new Date(e.examDate))
+      const minDate = new Date(Math.min(...dates))
+      const maxDate = new Date(Math.max(...dates))
+      const academicYear = `${minDate.getFullYear()}-${maxDate.getFullYear()}`
+      
+      // Save to database
+      console.log('💾 Saving CBSE datesheet to database...')
+      
+      // Deactivate any existing active datesheets
+      await CBSEDatesheet.updateMany({ isActive: true }, { isActive: false })
+      
+      const cbseDatesheet = new CBSEDatesheet({
+        title: 'CBSE Full Datesheet',
+        academicYear,
+        totalEntries: entriesWithDays.length,
+        dateRange: {
+          startDate: minDate,
+          endDate: maxDate
+        },
+        statistics: cbseParser.getStatistics(cbseResult.data.entries),
+        entries: entriesWithDays,
+        isActive: true,
+        createdBy: req.user?.id || null
+      })
+      
+      await cbseDatesheet.save()
+      console.log('✅ CBSE datesheet saved to database')
+      
+      // Convert CBSE format to response format
+      const cbseEntries = entriesWithDays.map(entry => ({
+        date: entry.examDate,
+        day: entry.dayName,
+        startTime: entry.timeSlot.start,
+        endTime: entry.timeSlot.end,
+        subjectCode: entry.subject.code,
+        subjectName: entry.subject.name,
+        class: entry.subject.class,
+        duration: entry.subject.duration,
+        answerSheet: entry.answerSheet
+      }))
+      
+      return res.status(HTTP_STATUS.OK).json({
+        success: true,
+        message: `Successfully imported ${cbseEntries.length} exam entries from CBSE datesheet`,
+        data: {
+          count: cbseEntries.length,
+          entries: cbseEntries,
+          format: 'CBSE Full Datesheet',
+          stats: cbseParser.getStatistics(cbseResult.data.entries),
+          datesheetId: cbseDatesheet._id
+        }
+      })
+    } else {
+      console.log('⚠️  CBSE format parsing failed or found no entries, trying standard format...')
+    }
+  } catch (cbseError) {
+    console.log('⚠️  CBSE parser error:', cbseError.message, '- trying standard format...')
+  }
+
+  // Fallback to standard datesheet parsing
+  console.log('🔍 Attempting standard datesheet format parsing...')
+  
   // Normalize and parse
   const normalize = (s) => {
     let out = s
@@ -512,4 +692,192 @@ exports.publishDatesheet = asyncHandler(async (req, res) => {
     message: 'Datesheet published successfully',
     data: { datesheet }
   })
+})
+
+// GET /api/datesheets/centre-datesheet - Generate centre-specific datesheet based on candidate subject choices
+exports.getCentreDatesheet = asyncHandler(async (req, res) => {
+  try {
+    console.log('📄 Generating centre-specific datesheet...')
+    
+    // Get CBSE datesheet
+    const cbseDatesheet = await CBSEDatesheet.getActive()
+    if (!cbseDatesheet) {
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        success: false,
+        message: 'No CBSE datesheet found. Please import a CBSE datesheet first.',
+        data: { entries: [], count: 0 }
+      })
+    }
+    
+    // Get all candidates to find their subject choices
+    const Candidate = require('../models/Candidate')
+    console.log('🔍 Fetching candidates...')
+    
+    const candidates = await Candidate.find({ isActive: true })
+      .populate('subjects', 'code name class')
+      .lean()
+    
+    console.log(`📊 Found ${candidates.length} candidates`)
+    
+    if (!candidates || candidates.length === 0) {
+      console.log('❌ No candidates found')
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        success: false,
+        message: 'No candidates found.',
+        data: { entries: [], count: 0 }
+      })
+    }
+    
+    // Check if any candidates have subjects
+    const candidatesWithSubjects = candidates.filter(c => c.subjects && c.subjects.length > 0)
+    console.log(`📊 Candidates with subjects: ${candidatesWithSubjects.length}/${candidates.length}`)
+    
+    if (candidatesWithSubjects.length === 0) {
+      console.log('❌ No candidates have subjects linked')
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        success: false,
+        message: 'No candidates have subjects linked. Please ensure candidates have selected their subjects.',
+        data: { entries: [], count: 0 }
+      })
+    }
+    
+    // Extract unique subject codes from all candidates
+    // Using Set to automatically handle different subject combinations
+    const candidateSubjectCodes = new Set()
+    const subjectFrequency = new Map() // Track how many candidates have each subject
+    
+    candidates.forEach(candidate => {
+      if (candidate.subjects && candidate.subjects.length > 0) {
+        candidate.subjects.forEach(subject => {
+          // subject is now the populated Subject document
+          if (subject && subject.code) {
+            candidateSubjectCodes.add(subject.code)
+            
+            // Track frequency
+            const count = subjectFrequency.get(subject.code) || 0
+            subjectFrequency.set(subject.code, count + 1)
+          }
+        })
+      }
+    })
+    
+    console.log(`📊 Found ${candidateSubjectCodes.size} unique subject codes from ${candidates.length} candidates`)
+    
+    if (candidateSubjectCodes.size === 0) {
+      console.log('❌ No subject codes extracted from candidates')
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        success: false,
+        message: 'Could not extract subject codes from candidates. Subjects may not be properly linked.',
+        data: { entries: [], count: 0 }
+      })
+    }
+    
+    console.log(`📋 Subject distribution (showing subjects chosen by candidates):`)
+    
+    // Show top 10 most common subjects
+    const sortedSubjects = Array.from(subjectFrequency.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+    
+    sortedSubjects.forEach(([code, count]) => {
+      console.log(`   ${code}: ${count} candidates (${Math.round(count/candidates.length*100)}%)`)
+    })
+    
+    // Filter CBSE datesheet entries to only include subjects that candidates have chosen
+    const centreEntries = cbseDatesheet.entries.filter(entry => {
+      return candidateSubjectCodes.has(entry.subject.code)
+    })
+    
+    console.log(`📋 Filtered to ${centreEntries.length} centre-specific entries`)
+    
+    if (centreEntries.length === 0) {
+      console.log('❌ No matching subjects found between candidates and CBSE datesheet')
+      console.log(`   Candidate subject codes: ${Array.from(candidateSubjectCodes).slice(0, 10).join(', ')}`)
+      console.log(`   CBSE subject codes: ${cbseDatesheet.entries.slice(0, 10).map(e => e.subject.code).join(', ')}`)
+      return res.status(HTTP_STATUS.NOT_FOUND).json({
+        success: false,
+        message: `No matching subjects found. Candidates have ${candidateSubjectCodes.size} subjects but none match the CBSE datesheet.`,
+        data: { entries: [], count: 0 },
+        debug: {
+          candidateSubjectCodes: Array.from(candidateSubjectCodes).slice(0, 20),
+          cbseSubjectCodes: cbseDatesheet.entries.slice(0, 20).map(e => e.subject.code)
+        }
+      })
+    }
+    
+    // Apply sorting if requested
+    const sortField = req.query.sortField || null
+    const sortOrder = req.query.sortOrder || 'asc'
+    
+    let sortedEntries = [...centreEntries]
+    if (sortField) {
+      sortedEntries.sort((a, b) => {
+        let comparison = 0
+        
+        if (sortField === 'date') {
+          comparison = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
+        } else if (sortField === 'class') {
+          comparison = a.subject.class.localeCompare(b.subject.class)
+        } else if (sortField === 'subjectName') {
+          comparison = a.subject.name.toLowerCase().localeCompare(b.subject.name.toLowerCase())
+        } else if (sortField === 'subjectCode') {
+          comparison = a.subject.code.localeCompare(b.subject.code)
+        } else if (sortField === 'duration') {
+          comparison = a.subject.duration - b.subject.duration
+        }
+        
+        return sortOrder === 'asc' ? comparison : -comparison
+      })
+    } else {
+      // Default sort by date
+      sortedEntries.sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
+    }
+    
+    // Apply pagination
+    const page = parseInt(req.query.page) || 1
+    const limit = parseInt(req.query.limit) || 50
+    const skip = (page - 1) * limit
+    
+    const paginatedEntries = sortedEntries.slice(skip, skip + limit)
+    const totalPages = Math.ceil(sortedEntries.length / limit)
+    
+    // Generate statistics
+    const class10thEntries = sortedEntries.filter(e => e.subject.class === '10th')
+    const class12thEntries = sortedEntries.filter(e => e.subject.class === '12th')
+    const candidates10th = candidates.filter(c => c.class === '10th')
+    const candidates12th = candidates.filter(c => c.class === '12th')
+    
+    const stats = {
+      total: sortedEntries.length,
+      class10th: class10thEntries.length,
+      class10thDays: [...new Set(class10thEntries.map(e => e.examDate.toISOString().slice(0, 10)))].length,
+      class10thCandidates: candidates10th.length,
+      class12th: class12thEntries.length,
+      class12thDays: [...new Set(class12thEntries.map(e => e.examDate.toISOString().slice(0, 10)))].length,
+      class12thCandidates: candidates12th.length,
+      uniqueDates: [...new Set(sortedEntries.map(e => e.examDate.toISOString().slice(0, 10)))].length,
+      candidateCount: candidates.length
+    }
+    
+    return res.status(HTTP_STATUS.OK).json({
+      success: true,
+      data: paginatedEntries,
+      meta: {
+        currentPage: page,
+        totalPages,
+        totalCount: sortedEntries.length,
+        limit
+      },
+      stats,
+      message: `Generated centre datesheet with ${sortedEntries.length} unique subjects from ${candidateSubjectCodes.size} different subject codes chosen by ${candidates.length} candidates`
+    })
+    
+  } catch (error) {
+    console.error('❌ Error generating centre datesheet:', error)
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to generate centre datesheet',
+      error: error.message
+    })
+  }
 })

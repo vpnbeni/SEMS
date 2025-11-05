@@ -1,76 +1,90 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
 const Subject = require('./src/models/Subject');
 
-// Load environment variables
-dotenv.config();
-
-const connectDB = async () => {
+async function verifySubjects() {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-    console.log(`MongoDB Connected: ${conn.connection.host}`);
-  } catch (error) {
-    console.error('Database connection error:', error);
-    process.exit(1);
-  }
-};
-
-const verifySubjects = async () => {
-  try {
-    console.log('🔍 Verifying CBSE subjects in database...\n');
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('Connected to MongoDB\n');
     
-    // Connect to database
-    await connectDB();
+    // Check subjects with different answer sheets
+    console.log('=== Subjects by Answer Sheet Type ===\n');
     
-    // Get all subjects grouped by class
-    const class10Subjects = await Subject.find({ class: '10th' }).sort({ name: 1 });
-    const class12Subjects = await Subject.find({ class: '12th' }).sort({ name: 1 });
+    const answerSheetTypes = ['32_pages', '20_pages', '40_graph', 'none'];
     
-    console.log('📚 CLASS 10 SUBJECTS:');
-    console.log('=====================');
-    class10Subjects.forEach((subject, index) => {
-      console.log(`${index + 1}. ${subject.name} (Code: ${subject.code})`);
+    for (const type of answerSheetTypes) {
+      const count = await Subject.countDocuments({ answerSheet: type });
+      console.log(`${type}: ${count} subjects`);
+      
+      if (count > 0 && count < 5) {
+        const samples = await Subject.find({ answerSheet: type })
+          .select('code name class answerSheet')
+          .limit(3);
+        samples.forEach(s => {
+          console.log(`  - ${s.code} ${s.name} (${s.class})`);
+        });
+      }
+    }
+    
+    // Check subjects with same code across classes
+    console.log('\n=== Subjects with Same Code Across Classes ===\n');
+    
+    const allSubjects = await Subject.find().select('code name class').lean();
+    const codeMap = new Map();
+    
+    allSubjects.forEach(s => {
+      if (!codeMap.has(s.code)) {
+        codeMap.set(s.code, []);
+      }
+      codeMap.get(s.code).push(s);
     });
     
-    console.log('\n📚 CLASS 12 SUBJECTS:');
-    console.log('=====================');
-    class12Subjects.forEach((subject, index) => {
-      console.log(`${index + 1}. ${subject.name} (Code: ${subject.code})`);
+    const multiClass = Array.from(codeMap.entries())
+      .filter(([code, subjects]) => subjects.length > 1);
+    
+    console.log(`Found ${multiClass.length} codes used in multiple classes:\n`);
+    
+    multiClass.forEach(([code, subjects]) => {
+      console.log(`Code ${code}:`);
+      subjects.forEach(s => {
+        console.log(`  - ${s.name} (${s.class})`);
+      });
+      console.log();
     });
     
-    console.log('\n📊 SUMMARY:');
-    console.log('===========');
-    console.log(`Total Class 10 subjects: ${class10Subjects.length}`);
-    console.log(`Total Class 12 subjects: ${class12Subjects.length}`);
-    console.log(`Total subjects: ${class10Subjects.length + class12Subjects.length}`);
+    // Check duration distribution
+    console.log('=== Duration Distribution ===\n');
+    const duration2 = await Subject.countDocuments({ duration: 2 });
+    const duration3 = await Subject.countDocuments({ duration: 3 });
+    console.log(`2 hours: ${duration2} subjects`);
+    console.log(`3 hours: ${duration3} subjects`);
     
-    // Group Class 12 subjects by stream
-    const scienceSubjects = class12Subjects.filter(s => 
-      ['Mathematics', 'Physics', 'Chemistry', 'Biology', 'Computer Science'].includes(s.name)
-    );
-    const commerceSubjects = class12Subjects.filter(s => 
-      ['Accountancy', 'Business Studies', 'Economics'].includes(s.name)
-    );
-    const artsSubjects = class12Subjects.filter(s => 
-      ['History', 'Geography', 'Political Science', 'Psychology', 'Sociology'].includes(s.name)
-    );
-    const languageSubjects = class12Subjects.filter(s => 
-      s.name.includes('English') || s.name.includes('Hindi') || s.name.includes('Sanskrit')
-    );
+    // Sample subjects from each class
+    console.log('\n=== Sample Subjects ===\n');
     
-    console.log(`\n📈 CLASS 12 BY STREAM:`);
-    console.log(`Science Stream: ${scienceSubjects.length} subjects`);
-    console.log(`Commerce Stream: ${commerceSubjects.length} subjects`);
-    console.log(`Arts/Humanities: ${artsSubjects.length} subjects`);
-    console.log(`Languages: ${languageSubjects.length} subjects`);
-    console.log(`Additional/Vocational: ${class12Subjects.length - scienceSubjects.length - commerceSubjects.length - artsSubjects.length - languageSubjects.length} subjects`);
+    console.log('Class 10th (first 5):');
+    const class10 = await Subject.find({ class: '10th' })
+      .select('code name duration answerSheet')
+      .limit(5);
+    class10.forEach(s => {
+      console.log(`  ${s.code} - ${s.name} (${s.duration}h, ${s.answerSheet})`);
+    });
     
-    process.exit(0);
+    console.log('\nClass 12th (first 5):');
+    const class12 = await Subject.find({ class: '12th' })
+      .select('code name duration answerSheet')
+      .limit(5);
+    class12.forEach(s => {
+      console.log(`  ${s.code} - ${s.name} (${s.duration}h, ${s.answerSheet})`);
+    });
+    
+    await mongoose.connection.close();
+    console.log('\nDone!');
+    
   } catch (error) {
-    console.error('❌ Error verifying subjects:', error);
+    console.error('Error:', error);
     process.exit(1);
   }
-};
+}
 
-// Run the verification
 verifySubjects();

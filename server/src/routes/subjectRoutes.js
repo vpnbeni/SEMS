@@ -7,7 +7,8 @@ const {
   updateSubject,
   deleteSubject,
   deleteAllSubjects,
-  importSubjectsFromPdf
+  importSubjectsFromPdf,
+  getSubjectStats
 } = require('../controllers/subjectController');
 
 const router = express.Router();
@@ -20,6 +21,7 @@ router.route('/')
   .post(createSubject)
   .delete(deleteAllSubjects);
 
+router.get('/stats', getSubjectStats);
 router.post('/import-pdf', importSubjectsFromPdf);
 
 router.route('/:id')

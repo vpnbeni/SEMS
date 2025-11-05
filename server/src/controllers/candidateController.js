@@ -29,6 +29,11 @@ const getCandidates = asyncHandler(async (req, res) => {
     query.status = req.query.status;
   }
 
+  // Filter by class
+  if (req.query.class) {
+    query.class = req.query.class;
+  }
+
   const candidates = await Candidate.find(query)
     .populate('subjects', 'name code')
     .populate('createdBy', 'name email')
@@ -293,6 +298,46 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
           console.error('Bulk insert error:', error);
         }
       }
+    }
+
+    // Automatically link subjects for imported candidates
+    if (savedCandidates.length > 0) {
+      console.log('🔗 Linking subjects for imported candidates...');
+      const Subject = require('../models/Subject');
+      
+      // Get all subjects for reference
+      const subjects = await Subject.find({ isActive: true });
+      const subjectMap = new Map();
+      subjects.forEach(subject => {
+        const key = `${subject.code}-${subject.class}`;
+        subjectMap.set(key, subject);
+      });
+      
+      let linkedCount = 0;
+      
+      // Link subjects for each candidate
+      for (const candidate of savedCandidates) {
+        if (candidate.subjectCodes && candidate.subjectCodes.length > 0) {
+          const linkedSubjects = [];
+          
+          for (const subjectCode of candidate.subjectCodes) {
+            const key = `${subjectCode.code}-${candidate.class}`;
+            const subject = subjectMap.get(key);
+            
+            if (subject) {
+              linkedSubjects.push(subject._id);
+            }
+          }
+          
+          if (linkedSubjects.length > 0) {
+            candidate.subjects = linkedSubjects;
+            await candidate.save();
+            linkedCount++;
+          }
+        }
+      }
+      
+      console.log(`✅ Linked subjects for ${linkedCount}/${savedCandidates.length} candidates`);
     }
 
     // Clean up temp file

@@ -2,6 +2,8 @@ const express = require('express');
 const { protect } = require('../middleware/auth');
 const {
   importFromPdf,
+  getCBSEFullDatesheet,
+  getCentreDatesheet,
   getAllDatesheets,
   getDatesheetById,
   createDatesheet,
@@ -17,6 +19,12 @@ router.use(protect);
 
 // Import datesheet from PDF
 router.post('/import-pdf', importFromPdf);
+
+// Get CBSE full datesheet
+router.get('/cbse-full', getCBSEFullDatesheet);
+
+// Get centre-specific datesheet based on candidate subject choices
+router.get('/centre-datesheet', getCentreDatesheet);
 
 // CRUD operations
 router.get('/', getAllDatesheets);

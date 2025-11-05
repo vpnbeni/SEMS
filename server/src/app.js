@@ -10,6 +10,7 @@ const compression = require('compression');
 const cookieParser = require('cookie-parser');
 const fileUpload = require('express-fileupload');
 const path = require('path');
+const os = require('os');
 
 // Import custom middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -25,6 +26,7 @@ const datesheetRoutes = require('./routes/datesheetRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const dispatchRoutes = require('./routes/dispatchRoutes');
 const exportRoutes = require('./routes/exportRoutes');
+// const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
 const app = express();
@@ -79,7 +81,7 @@ app.use(fileUpload({
   abortOnLimit: true,
   createParentPath: true,
   useTempFiles: true,
-  tempFileDir: '/tmp/'
+  tempFileDir: os.tmpdir() // Cross-platform temp directory
 }));
 
 // Data sanitization against NoSQL query injection
@@ -124,6 +126,7 @@ app.use('/api/datesheets', datesheetRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/dispatch', dispatchRoutes);
 app.use('/api/export', exportRoutes);
+// app.use('/api/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 // API documentation endpoint
 app.get('/api', (req, res) => {
@@ -140,7 +143,8 @@ app.get('/api', (req, res) => {
       datesheets: '/api/datesheets',
       rooms: '/api/rooms',
       dispatch: '/api/dispatch',
-      export: '/api/export'
+      export: '/api/export',
+      // calendar: '/api/calendar' // Temporarily disabled for debugging
     },
     documentation: 'See README.md for detailed API documentation'
   });

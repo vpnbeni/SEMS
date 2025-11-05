@@ -1,11 +1,12 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const Subject = require('../models/Subject');
 const { generateResponse, getPaginationParams, buildPaginationResponse } = require('../utils/helpers');
-const pdf = require('pdf-parse')
-const { fromPath: pdfToPic } = require('pdf2pic')
-const Tesseract = require('tesseract.js')
-const os = require('os')
-const { uploadToCloudinary } = require('../config/cloudinary')
+const pdf = require('pdf-parse');
+const fs = require('fs');
+const { fromPath: pdfToPic } = require('pdf2pic');
+const Tesseract = require('tesseract.js');
+const os = require('os');
+const { uploadToCloudinary } = require('../config/cloudinary');
 const { SUCCESS_MESSAGES, HTTP_STATUS } = require('../utils/constants');
 
 // @desc    Get all subjects
@@ -13,7 +14,7 @@ const { SUCCESS_MESSAGES, HTTP_STATUS } = require('../utils/constants');
 // @access  Private
 const getSubjects = asyncHandler(async (req, res) => {
   const { page, limit, skip } = getPaginationParams(req);
-  const { isActive } = req.query;
+  const { isActive, search, class: classFilter, sortField, sortOrder } = req.query;
 
   // Build filter object
   const filter = {};
@@ -21,13 +22,37 @@ const getSubjects = asyncHandler(async (req, res) => {
     filter.isActive = isActive === 'true';
   }
 
+  // Add class filter
+  if (classFilter) {
+    filter.class = classFilter;
+  }
+
+  // Add search functionality
+  if (search) {
+    const searchRegex = new RegExp(search, 'i');
+    filter.$or = [
+      { name: searchRegex },
+      { code: searchRegex }
+    ];
+  }
+
+  // Build sort object
+  let sortObj = { name: 1 }; // Default sort by name ascending
+  if (sortField) {
+    const validSortFields = ['name', 'code', 'class', 'duration', 'answerSheet'];
+    if (validSortFields.includes(sortField)) {
+      const sortDirection = sortOrder === 'desc' ? -1 : 1;
+      sortObj = { [sortField]: sortDirection };
+    }
+  }
+
   // Get total count for pagination
   const totalCount = await Subject.countDocuments(filter);
 
-  // Get subjects with pagination
+  // Get subjects with pagination and sorting
   const subjects = await Subject.find(filter)
-    .select('_id name code class duration isActive')
-    .sort('name')
+    .select('_id name code class duration isActive answerSheet')
+    .sort(sortObj)
     .skip(skip)
     .limit(limit)
     .lean();
@@ -61,11 +86,15 @@ const getSubject = asyncHandler(async (req, res) => {
 // @route   POST /api/subjects
 // @access  Private
 const createSubject = asyncHandler(async (req, res) => {
-  // Check if subject code already exists
-  const existingCode = await Subject.findOne({ code: req.body.code });
-  if (existingCode) {
+  // Check if subject with same code and class already exists
+  const existingSubject = await Subject.findOne({ 
+    code: req.body.code,
+    class: req.body.class 
+  });
+  
+  if (existingSubject) {
     return res.status(HTTP_STATUS.CONFLICT).json(
-      generateResponse(false, 'Subject with this code already exists')
+      generateResponse(false, `Subject with code ${req.body.code} already exists for class ${req.body.class}`)
     );
   }
 
@@ -88,15 +117,23 @@ const updateSubject = asyncHandler(async (req, res) => {
     );
   }
 
-  // Check for code conflicts (exclude current subject)
-  if (req.body.code && req.body.code !== subject.code) {
-    const existingCode = await Subject.findOne({ 
-      code: req.body.code,
+  // Check for code+class conflicts (exclude current subject)
+  const codeChanged = req.body.code && req.body.code !== subject.code;
+  const classChanged = req.body.class && req.body.class !== subject.class;
+  
+  if (codeChanged || classChanged) {
+    const checkCode = req.body.code || subject.code;
+    const checkClass = req.body.class || subject.class;
+    
+    const existingSubject = await Subject.findOne({ 
+      code: checkCode,
+      class: checkClass,
       _id: { $ne: req.params.id }
     });
-    if (existingCode) {
+    
+    if (existingSubject) {
       return res.status(HTTP_STATUS.CONFLICT).json(
-        generateResponse(false, 'Subject with this code already exists')
+        generateResponse(false, `Subject with code ${checkCode} already exists for class ${checkClass}`)
       );
     }
   }
@@ -133,12 +170,30 @@ const deleteSubject = asyncHandler(async (req, res) => {
   )
 })
 
+// @desc    Get subject statistics
+// @route   GET /api/subjects/stats
+// @access  Private
+const getSubjectStats = asyncHandler(async (req, res) => {
+  const total = await Subject.countDocuments({ isActive: true });
+  const class10th = await Subject.countDocuments({ class: '10th', isActive: true });
+  const class12th = await Subject.countDocuments({ class: '12th', isActive: true });
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.FETCHED, {
+      total,
+      class10th,
+      class12th
+    })
+  );
+});
+
 module.exports = {
   getSubjects,
   getSubject,
   createSubject,
   updateSubject,
-  deleteSubject
+  deleteSubject,
+  getSubjectStats
 };
 
 // @desc    Delete ALL subjects (permanent)
@@ -153,96 +208,176 @@ const deleteAllSubjects = asyncHandler(async (req, res) => {
 
 module.exports.deleteAllSubjects = deleteAllSubjects
 
-// --- Import subjects from PDF ---
-const normalize = (s) => {
-  let out = (s || '')
-    .replace(/[\u2013\u2014]/g, '-')
-    .replace(/[|]/g, ' ')
-    .replace(/O/g, '0')
-    .toUpperCase()
-  out = out.replace(/\s+/g, ' ').trim()
-  return out
-}
+// Helper function to parse answer sheet format
+const parseAnswerSheet = (text) => {
+  if (!text) return 'none';
+  const normalized = text.toLowerCase().trim();
+  if (normalized.includes('32')) return '32_pages';
+  if (normalized.includes('20')) return '20_pages';
+  if (normalized.includes('40') && normalized.includes('graph')) return '40_graph';
+  return 'none';
+};
 
-// @desc    Import subjects from PDF; store PDF to Cloudinary
+// Helper function to extract subjects from CBSE PDF format
+const extractSubjectsFromCBSEPDF = (text) => {
+  const subjects = [];
+  const lines = text.split('\n').map(line => line.trim()).filter(Boolean);
+  
+  // Pattern: SubCode | SubjectName | Class | Duration(Hours) | AnswerSheet
+  // Example: 002HINDI COURSE - A10th332 Pages
+  // Format: CODE(3 digits) + NAME + CLASS(10th/12th) + DURATION(1 digit) + REST(answer sheet info)
+  const subjectPattern = /^(\d{3})(.+?)(10th|12th)(\d)(.+)$/;
+  
+  for (const line of lines) {
+    // Skip header lines
+    if (line.includes('SubCode') || line.includes('SubjectName')) continue;
+    
+    const match = line.match(subjectPattern);
+    if (match) {
+      const code = match[1];
+      const name = match[2].trim();
+      const studentClass = match[3];
+      const duration = parseInt(match[4]);
+      const answerSheetText = match[5]; // This contains "32 Pages", "20 Pages", etc.
+      
+      subjects.push({
+        code,
+        name,
+        class: studentClass,
+        duration,
+        answerSheet: parseAnswerSheet(answerSheetText),
+        isActive: true
+      });
+    }
+  }
+  
+  return subjects;
+};
+
+// @desc    Import subjects from CBSE PDF
 // @route   POST /api/subjects/import-pdf
 // @access  Private
 module.exports.importSubjectsFromPdf = asyncHandler(async (req, res) => {
+  console.log('Import request received');
+  console.log('Files:', req.files);
+  console.log('Body:', req.body);
+  
   if (!req.files || !req.files.file) {
-    return res.status(HTTP_STATUS.BAD_REQUEST).json(generateResponse(false, 'PDF file is required'))
+    console.log('No file found in request');
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, 'PDF file is required')
+    );
   }
-  const file = req.files.file
-
-  // Upload original PDF to Cloudinary (raw)
-  let uploadedUrl = null
-  try {
-    const up = await uploadToCloudinary(file.tempFilePath, 'subjects/pdfs', `subjects_${Date.now()}`)
-    uploadedUrl = up.url
-  } catch (e) {
-    // Non-fatal; continue parsing
+  
+  const file = req.files.file;
+  console.log('File details:', { name: file.name, size: file.size, mimetype: file.mimetype });
+  
+  // Validate file type
+  if (file.mimetype !== 'application/pdf') {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, 'Please upload a valid PDF file')
+    );
   }
-
-  let text = ''
+  
   try {
-    const data = await pdf(file)
-    text = data.text
-  } catch (e) {}
-
-  if (!text || text.trim().length < 10) {
+    // Upload PDF to Cloudinary
+    let uploadedUrl = null;
     try {
-      const converter = pdfToPic(file.tempFilePath, { density: 200, format: 'png', savePath: os.tmpdir() })
-      const pages = []
-      for (let p = 1; p <= 5; p++) {
-        const result = await converter(p, { responseType: 'image' })
-        if (!result || !result.path) break
-        const { data } = await Tesseract.recognize(result.path, 'eng', { logger: () => {} })
-        if (data && data.text) pages.push(data.text)
+      const upload = await uploadToCloudinary(
+        file.tempFilePath, 
+        'subjects/pdfs', 
+        `subjects_${Date.now()}`
+      );
+      uploadedUrl = upload.url;
+    } catch (error) {
+      console.error('Cloudinary upload error:', error);
+    }
+    
+    // Parse PDF content
+    const dataBuffer = fs.readFileSync(file.tempFilePath);
+    const pdfData = await pdf(dataBuffer);
+    const text = pdfData.text;
+    
+    if (!text || text.trim().length < 10) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        generateResponse(false, 'Could not extract text from PDF')
+      );
+    }
+    
+    // Extract subjects from PDF
+    const extractedSubjects = extractSubjectsFromCBSEPDF(text);
+    
+    if (extractedSubjects.length === 0) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        generateResponse(false, 'No subjects found in PDF. Please check the format.')
+      );
+    }
+    
+    // Process subjects for insertion
+    const inserted = [];
+    const updated = [];
+    const skipped = [];
+    const errors = [];
+    
+    for (const subjectData of extractedSubjects) {
+      try {
+        // Check if subject with same code and class exists
+        const existing = await Subject.findOne({ 
+          code: subjectData.code, 
+          class: subjectData.class 
+        });
+        
+        if (existing) {
+          // Update existing subject
+          existing.name = subjectData.name;
+          existing.duration = subjectData.duration;
+          existing.answerSheet = subjectData.answerSheet;
+          await existing.save();
+          updated.push({ code: subjectData.code, class: subjectData.class });
+        } else {
+          // Create new subject
+          const newSubject = await Subject.create(subjectData);
+          inserted.push({ code: newSubject.code, class: newSubject.class });
+        }
+      } catch (error) {
+        if (error.code === 11000) {
+          // Duplicate key error
+          skipped.push({ 
+            code: subjectData.code, 
+            class: subjectData.class,
+            reason: 'Already exists'
+          });
+        } else {
+          errors.push({ 
+            code: subjectData.code, 
+            class: subjectData.class,
+            error: error.message 
+          });
+        }
       }
-      text = pages.join('\n')
-    } catch (e) {}
-  }
-
-  if (!text || text.trim().length < 10) {
-    return res.status(HTTP_STATUS.BAD_REQUEST).json(generateResponse(false, 'Could not read PDF text'))
-  }
-
-  const lines = text.split(/\r?\n/).map(normalize).filter(Boolean)
-  const subjectsFound = []
-  // Match either "CODE NAME" or "NAME CODE"
-  const codeName = /(\b\d{2,4}\b)\s+([A-Z][A-Z0-9 .,&/\-]{3,})/
-  const nameCode = /([A-Z][A-Z0-9 .,&/\-]{3,})\s+(\b\d{2,4}\b)/
-
-  for (const ln of lines) {
-    let m = ln.match(codeName)
-    if (m) {
-      subjectsFound.push({ code: m[1], name: m[2] })
-      continue
     }
-    m = ln.match(nameCode)
-    if (m) {
-      subjectsFound.push({ code: m[2], name: m[1] })
-    }
+    
+    return res.status(HTTP_STATUS.OK).json(
+      generateResponse(true, 'Subjects import completed', {
+        total: extractedSubjects.length,
+        inserted: inserted.length,
+        updated: updated.length,
+        skipped: skipped.length,
+        errors: errors.length,
+        details: {
+          inserted,
+          updated,
+          skipped,
+          errors
+        },
+        pdfUrl: uploadedUrl
+      })
+    );
+    
+  } catch (error) {
+    console.error('PDF import error:', error);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
+      generateResponse(false, 'Error processing PDF file', { error: error.message })
+    );
   }
-
-  // Deduplicate by code
-  const dedup = new Map()
-  for (const s of subjectsFound) {
-    if (!dedup.has(s.code)) dedup.set(s.code, s)
-  }
-
-  const toInsert = []
-  for (const s of dedup.values()) {
-    const exists = await Subject.findOne({ code: s.code }).lean()
-    if (!exists) {
-      toInsert.push({ name: s.name, code: s.code, class: '12th', duration: 3, isActive: true })
-    }
-  }
-
-  if (toInsert.length) {
-    await Subject.insertMany(toInsert)
-  }
-
-  return res.status(HTTP_STATUS.OK).json(
-    generateResponse(true, 'Subjects imported', { inserted: toInsert.length, storedPdfUrl: uploadedUrl })
-  )
-})
+});

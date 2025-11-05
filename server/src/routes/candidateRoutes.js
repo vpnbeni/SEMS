@@ -9,6 +9,8 @@ const {
   getCandidateStats
 } = require('../controllers/candidateController');
 
+const { linkCandidateSubjects } = require('../controllers/linkCandidateSubjects');
+
 const { protect, authorize } = require('../middleware/auth');
 const { validateCandidate } = require('../validations/candidateValidation');
 
@@ -30,6 +32,10 @@ router
 router
   .route('/import')
   .post(authorize('admin', 'staff'), importCandidatesFromPDF);
+
+router
+  .route('/link-subjects')
+  .post(authorize('admin', 'staff'), linkCandidateSubjects);
 
 router
   .route('/:id')

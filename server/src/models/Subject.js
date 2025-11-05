@@ -11,7 +11,6 @@ const subjectSchema = new mongoose.Schema({
   code: {
     type: String,
     required: [true, 'Subject code is required'],
-    unique: true,
     trim: true,
     uppercase: true,
     match: [
@@ -141,6 +140,8 @@ subjectSchema.index({ createdAt: -1 });
 
 // Compound indexes
 subjectSchema.index({ class: 1, isActive: 1 });
+// Unique constraint: code + class combination must be unique
+subjectSchema.index({ code: 1, class: 1 }, { unique: true });
 
 // Virtual for display name
 subjectSchema.virtual('displayName').get(function() {

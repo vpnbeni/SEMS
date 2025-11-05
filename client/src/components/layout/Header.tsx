@@ -20,7 +20,7 @@ const Header: React.FC = () => {
       case 'dashboard':
         return {
           pageTitle: 'Dashboard',
-          pageSubtitle: 'Welcome to School Examination Management System',
+          pageSubtitle: 'Welcome to Board Examination Centre Management System',
         }
       case 'datesheets':
         return {

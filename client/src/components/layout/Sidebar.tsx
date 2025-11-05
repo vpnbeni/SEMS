@@ -1,9 +1,88 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
+import { debugSidebarCounts } from '../../utils/debugSidebar'
 
 const Sidebar: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const location = useLocation()
+  const [counts, setCounts] = useState({
+    examFunctionaries: 50, // Default fallback values
+    candidates: 507,
+    subjects: 264,
+    answerSheets: 7
+  })
+
+  useEffect(() => {
+    fetchCounts()
+  }, [])
+
+  // Refresh counts when location changes (user navigates)
+  useEffect(() => {
+    // Refresh counts after a delay when navigating to relevant pages
+    const relevantPaths = ['/candidates', '/subjects', '/exam-functionaries']
+    if (relevantPaths.some(path => location.pathname.includes(path))) {
+      const timer = setTimeout(() => {
+        fetchCounts()
+      }, 1000)
+      return () => clearTimeout(timer)
+    }
+  }, [location.pathname])
+
+  const fetchCounts = async () => {
+    try {
+      // Check if we have cached counts (valid for 5 minutes)
+      const cachedCounts = localStorage.getItem('sidebarCounts')
+      const cacheTime = localStorage.getItem('sidebarCountsTime')
+      
+      if (cachedCounts && cacheTime) {
+        const age = Date.now() - parseInt(cacheTime)
+        if (age < 5 * 60 * 1000) { // 5 minutes
+          setCounts(JSON.parse(cachedCounts))
+          return
+        }
+      }
+
+      const token = localStorage.getItem('token')
+      if (!token) return
+
+      // Fetch all counts in parallel with error handling
+      const results = await Promise.allSettled([
+        fetch('/api/teachers?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
+        fetch('/api/candidates?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
+        fetch('/api/subjects/stats', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json())
+      ])
+
+      console.log('API Results:', results) // Debug log
+      
+      // Call debug function in development
+      if (process.env.NODE_ENV === 'development') {
+        debugSidebarCounts()
+      }
+
+      const newCounts = {
+        examFunctionaries: results[0].status === 'fulfilled' ? (results[0].value.data?.pagination?.totalCount || results[0].value.meta?.totalCount || 0) : 0,
+        candidates: results[1].status === 'fulfilled' ? (results[1].value.total || results[1].value.meta?.totalCount || 0) : 0,
+        subjects: results[2].status === 'fulfilled' ? (results[2].value.data?.total || 0) : 0,
+        answerSheets: 7
+      }
+
+      console.log('Calculated counts:', newCounts) // Debug log
+
+      // Only update if we got valid counts, otherwise keep existing/default values
+      if (newCounts.examFunctionaries > 0 || newCounts.candidates > 0 || newCounts.subjects > 0) {
+        setCounts(newCounts)
+        
+        // Cache the counts
+        localStorage.setItem('sidebarCounts', JSON.stringify(newCounts))
+        localStorage.setItem('sidebarCountsTime', Date.now().toString())
+      } else {
+        console.warn('API returned zero counts, keeping existing values')
+      }
+    } catch (error) {
+      console.error('Failed to fetch counts:', error)
+      // Keep the default/existing counts on error
+    }
+  }
 
   const navigation = [
     {
@@ -34,7 +113,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       ),
-      badge: '85',
+      badge: counts.examFunctionaries.toString(),
     },
     {
       name: 'Candidates',
@@ -44,7 +123,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
       ),
-      badge: null,
+      badge: counts.candidates.toString(),
     },
     {
       name: 'Subjects',
@@ -54,7 +133,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
         </svg>
       ),
-      badge: '24',
+      badge: counts.subjects.toString(),
     },
     {
       name: 'Room Allocation',
@@ -74,7 +153,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       ),
-      badge: '7',
+      badge: counts.answerSheets.toString(),
     },
   ]
 
@@ -94,7 +173,7 @@ const Sidebar: React.FC = () => {
             {!isCollapsed && (
               <div className="ml-3 transition-all duration-300">
                 <h2 className="text-xl font-bold text-secondary-900 dark:text-white">
-                  SEMS
+                  BECMS
                 </h2>
                 <p className="text-xs text-secondary-500 dark:text-secondary-400 -mt-1">
                   Examination Management

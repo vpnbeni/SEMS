@@ -10,6 +10,9 @@ const connectDB = require('./config/database');
 // Import app
 const app = require('./app');
 
+// Import calendar seeder (temporarily disabled for debugging)
+// const { initializeCurrentYearCalendar } = require('./utils/calendarSeeder');
+
 // Handle uncaught exceptions
 process.on('uncaughtException', (err) => {
   console.log('UNCAUGHT EXCEPTION! 💥 Shutting down...'.red.bold);
@@ -17,8 +20,35 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-// Connect to database
-connectDB();
+// Connect to database (calendar initialization temporarily disabled)
+const initializeServer = async () => {
+  try {
+    // Connect to database first
+    await connectDB();
+    console.log('✅ Database connected successfully'.green.bold);
+    
+    // TODO: Re-enable calendar initialization after debugging
+    // setTimeout(async () => {
+    //   try {
+    //     await initializeCurrentYearCalendar();
+    //     console.log('✅ Calendar initialized successfully'.green.bold);
+    //   } catch (calendarError) {
+    //     console.warn('⚠️  Calendar initialization failed (server will continue):'.yellow.bold, calendarError.message);
+    //   }
+    // }, 2000);
+    
+    console.log('✅ Server initialization completed successfully'.green.bold);
+  } catch (error) {
+    console.error('❌ Server initialization failed:'.red.bold, error.message);
+    // For database connection errors, we should exit
+    if (error.message.includes('Database connection failed')) {
+      process.exit(1);
+    }
+  }
+};
+
+// Initialize server
+initializeServer();
 
 // Start server
 const PORT = process.env.PORT || 5000;
