@@ -243,4 +243,78 @@ subjectSchema.methods.hasTeacher = function(teacherId) {
   return this.teachers.some(teacher => teacher.toString() === teacherId.toString());
 };
 
+// Post-save hook to update CBSE Datesheet entries when subject is updated
+subjectSchema.post('save', async function(doc) {
+  try {
+    // Only update if name, code, or duration was modified
+    if (this.isModified('name') || this.isModified('code') || this.isModified('duration')) {
+      const CBSEDatesheet = mongoose.model('CBSEDatesheet');
+      
+      // Update all datesheet entries that match this subject code and class
+      await CBSEDatesheet.updateMany(
+        {
+          'entries.subject.code': doc.code,
+          'entries.subject.class': doc.class
+        },
+        {
+          $set: {
+            'entries.$[elem].subject.name': doc.name,
+            'entries.$[elem].subject.duration': doc.duration
+          }
+        },
+        {
+          arrayFilters: [
+            { 
+              'elem.subject.code': doc.code,
+              'elem.subject.class': doc.class
+            }
+          ],
+          multi: true
+        }
+      );
+      
+      console.log(`✅ Updated datesheet entries for subject ${doc.code} (${doc.class})`);
+    }
+  } catch (error) {
+    console.error('Error updating datesheet entries:', error);
+    // Don't throw error to prevent subject update from failing
+  }
+});
+
+// Post-findOneAndUpdate hook to update CBSE Datesheet entries
+subjectSchema.post('findOneAndUpdate', async function(doc) {
+  if (!doc) return;
+  
+  try {
+    const CBSEDatesheet = mongoose.model('CBSEDatesheet');
+    
+    // Update all datesheet entries that match this subject code and class
+    await CBSEDatesheet.updateMany(
+      {
+        'entries.subject.code': doc.code,
+        'entries.subject.class': doc.class
+      },
+      {
+        $set: {
+          'entries.$[elem].subject.name': doc.name,
+          'entries.$[elem].subject.duration': doc.duration
+        }
+      },
+      {
+        arrayFilters: [
+          { 
+            'elem.subject.code': doc.code,
+            'elem.subject.class': doc.class
+          }
+        ],
+        multi: true
+      }
+    );
+    
+    console.log(`✅ Updated datesheet entries for subject ${doc.code} (${doc.class})`);
+  } catch (error) {
+    console.error('Error updating datesheet entries:', error);
+  }
+});
+
 module.exports = mongoose.model('Subject', subjectSchema);

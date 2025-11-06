@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Download Endpoint</title>
+</head>
+<body>
+    <h1>Test Answer Sheets Download</h1>
+    <button onclick="testDownload()">Test Download</button>
+    <div id="result"></div>
+
+    <script>
+        async function testDownload() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                console.log('Fetching from: http://localhost:5000/api/answersheets/template/download');
+                
+                const response = await fetch('http://localhost:5000/api/answersheets/template/download');
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', [...response.headers.entries()]);
+                
+                if (!response.ok) {
+                    const text = await response.text();
+                    resultDiv.innerHTML = `<p style="color: red;">Error: ${response.status} - ${text}</p>`;
+                    return;
+                }
+                
+                const blob = await response.blob();
+                console.log('Blob size:', blob.size);
+                console.log('Blob type:', blob.type);
+                
+                // Create download
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Test_Download.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                resultDiv.innerHTML = `<p style="color: green;">Success! Downloaded ${blob.size} bytes</p>`;
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Answer Sheets Upload</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ddd;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        input[type="file"] {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Answer Sheets Excel Upload</h1>
+        
+        <div>
+            <h3>Step 1: Download Template</h3>
+            <button onclick="downloadTemplate()">Download Template</button>
+        </div>
+        
+        <div>
+            <h3>Step 2: Upload Filled Excel</h3>
+            <input type="file" id="fileInput" accept=".xlsx,.xls">
+            <button onclick="uploadExcel()" id="uploadBtn">Upload Excel</button>
+        </div>
+        
+        <div>
+            <h3>Step 3: View Results</h3>
+            <button onclick="fetchAnswerSheets()">Fetch Answer Sheets</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+        
+        <div class="log" id="log"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type;
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        async function downloadTemplate() {
+            try {
+                log('📥 Downloading template...', 'info');
+                
+                const response = await fetch(`${API_URL}/answersheets/template/download`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'Answer_Sheets_Template.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                log('✅ Template downloaded successfully!', 'success');
+            } catch (error) {
+                log(`❌ Error downloading template: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        async function uploadExcel() {
+            try {
+                const fileInput = document.getElementById('fileInput');
+                const file = fileInput.files[0];
+                
+                if (!file) {
+                    log('⚠️  Please select a file first', 'error');
+                    return;
+                }
+                
+                log(`📤 Uploading file: ${file.name} (${file.size} bytes)`, 'info');
+                log(`   Type: ${file.type}`, 'info');
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                log('🔄 Sending request to server...', 'info');
+                
+                const uploadBtn = document.getElementById('uploadBtn');
+                uploadBtn.disabled = true;
+                uploadBtn.textContent = 'Uploading...';
+                
+                const response = await fetch(`${API_URL}/answersheets/upload/excel`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload Excel';
+                
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    log('✅ Upload successful!', 'success');
+                    log(`   Created: ${data.data.created} entries`, 'success');
+                    log(`   Failed: ${data.data.failed} entries`, data.data.failed > 0 ? 'error' : 'info');
+                    log(`   Skipped: ${data.data.skipped} entries`, data.data.skipped > 0 ? 'info' : 'info');
+                    
+                    if (data.data.entries && data.data.entries.length > 0) {
+                        log('\n📝 Created Entries:', 'success');
+                        data.data.entries.forEach((entry, idx) => {
+                            log(`   ${idx + 1}. ${entry.answerSheetType} (${entry.class}) - ${entry.serialFrom} to ${entry.serialTo} = ${entry.total} sheets`, 'success');
+                        });
+                    }
+                    
+                    if (data.data.skippedEntries && data.data.skippedEntries.length > 0) {
+                        log('\n⚠️  Skipped Entries:', 'info');
+                        data.data.skippedEntries.forEach((entry, idx) => {
+                            log(`   ${idx + 1}. ${entry.type} - ${entry.reason}`, 'info');
+                        });
+                    }
+                    
+                    if (data.data.errors && data.data.errors.length > 0) {
+                        log('\n❌ Errors:', 'error');
+                        data.data.errors.forEach((error, idx) => {
+                            log(`   ${idx + 1}. ${error.entry.answerSheetType} - ${error.error}`, 'error');
+                        });
+                    }
+                } else {
+                    log(`❌ Upload failed: ${data.error || 'Unknown error'}`, 'error');
+                }
+                
+                log('\n📋 Full Response:', 'info');
+                log(JSON.stringify(data, null, 2), 'info');
+                
+            } catch (error) {
+                log(`❌ Error uploading file: ${error.message}`, 'error');
+                console.error(error);
+                
+                document.getElementById('uploadBtn').disabled = false;
+                document.getElementById('uploadBtn').textContent = 'Upload Excel';
+            }
+        }
+        
+        async function fetchAnswerSheets() {
+            try {
+                log('📥 Fetching answer sheets...', 'info');
+                
+                const response = await fetch(`${API_URL}/answersheets`);
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    log(`✅ Found ${data.count} answer sheets`, 'success');
+                    
+                    if (data.data && data.data.length > 0) {
+                        log('\n📋 Answer Sheets:', 'success');
+                        data.data.forEach((sheet, idx) => {
+                            log(`   ${idx + 1}. ${sheet.answerSheetType} (${sheet.class}) - ${sheet.total} sheets`, 'success');
+                            log(`      Serial: ${sheet.serialFrom} to ${sheet.serialTo}`, 'info');
+                            log(`      Used: ${sheet.used}, Discarded: ${sheet.discarded}, Balance: ${sheet.total - sheet.used - sheet.discarded}`, 'info');
+                        });
+                    } else {
+                        log('   No answer sheets found', 'info');
+                    }
+                } else {
+                    log(`❌ Failed to fetch: ${data.error || 'Unknown error'}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Error fetching answer sheets: ${error.message}`, 'error');
+                console.error(error);
+            }
+        }
+        
+        // Log initial state
+        log('🚀 Test page loaded. Ready to test!', 'info');
+        log('📝 Instructions:', 'info');
+        log('   1. Click "Download Template" to get the Excel file', 'info');
+        log('   2. Fill in the serial numbers in the Excel file', 'info');
+        log('   3. Select the filled file and click "Upload Excel"', 'info');
+        log('   4. Check the results below', 'info');
+    </script>
+</body>
+</html>

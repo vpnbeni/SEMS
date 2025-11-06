@@ -26,6 +26,9 @@ const datesheetRoutes = require('./routes/datesheetRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const dispatchRoutes = require('./routes/dispatchRoutes');
 const exportRoutes = require('./routes/exportRoutes');
+const guidelinesRoutes = require('./routes/guidelines');
+const answerSheetRoutes = require('./routes/answerSheets');
+const centreDatesheetRoutes = require('./routes/centreDatesheet');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -126,6 +129,9 @@ app.use('/api/datesheets', datesheetRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/dispatch', dispatchRoutes);
 app.use('/api/export', exportRoutes);
+app.use('/api/guidelines', guidelinesRoutes);
+app.use('/api/answersheets', answerSheetRoutes);
+app.use('/api/centre-datesheet', centreDatesheetRoutes);
 // app.use('/api/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 // API documentation endpoint
@@ -144,6 +150,7 @@ app.get('/api', (req, res) => {
       rooms: '/api/rooms',
       dispatch: '/api/dispatch',
       export: '/api/export',
+      answersheets: '/api/answersheets',
       // calendar: '/api/calendar' // Temporarily disabled for debugging
     },
     documentation: 'See README.md for detailed API documentation'

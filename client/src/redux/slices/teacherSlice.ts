@@ -72,7 +72,7 @@ const initialState: TeacherState = {
     currentPage: 1,
     totalPages: 1,
     totalItems: 0,
-    itemsPerPage: 10
+    itemsPerPage: 50
   }
 }
 

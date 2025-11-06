@@ -1,0 +1,260 @@
+require('dotenv').config({ path: './server/.env' });
+const pdfParse = require('pdf-parse');
+const fs = require('fs');
+
+// Copy the updated extraction function
+const extractCandidatesFromText = (text) => {
+  const candidates = [];
+  const lines = text.split('\n').map(line => line.trim());
+
+  // Pattern for roll number (8 digits)
+  const rollNumberPattern = /^(\d{8})(.+)$/;
+
+  // Pattern for date of birth (DD.MM.YYYY)
+  const dobPattern = /^(\d{2})\.(\d{2})\.(\d{4})$/;
+
+  // Pattern for school/centre line with code
+  const schoolPattern = /(?:CENTRE|SCHOOL)\s*[:：-]\s*(\d+)\s+(.+?)(?:ROHTAK|$)/i;
+
+  // Pattern for class/examination type (handles both full and abbreviated forms)
+  const classPattern = /(?:SENIOR\s+SEC(?:ONDARY)?|SECONDARY)\s+(?:SCH|SCHOOL)\s+(?:CERT\s+)?EXAMINATION/i;
+
+  // Track current school name, code, and class
+  let currentSchoolName = '';
+  let currentSchoolCode = '';
+  let currentClass = '';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Check if this line contains class/examination information
+    const classMatch = line.match(classPattern);
+    if (classMatch) {
+      const examType = classMatch[0].toUpperCase();
+      // Check for SENIOR SEC/SECONDARY first (12th), then SECONDARY (10th)
+      if (examType.includes('SENIOR')) {
+        currentClass = '12th';
+      } else if (examType.includes('SECONDARY')) {
+        currentClass = '10th';
+      }
+      console.log('Found class:', currentClass, 'from line:', line);
+      continue;
+    }
+
+    // Check if this line contains school/centre information
+    const schoolMatch = line.match(schoolPattern);
+    if (schoolMatch) {
+      currentSchoolCode = schoolMatch[1].trim();
+      currentSchoolName = schoolMatch[2].trim();
+      console.log('Found school:', currentSchoolCode, '-', currentSchoolName);
+      continue;
+    }
+
+    // Check if line starts with a roll number
+    const rollMatch = line.match(rollNumberPattern);
+    if (rollMatch) {
+      const rollNumber = rollMatch[1];
+      let candidateName = rollMatch[2].trim();
+
+      // Skip header rows or invalid entries
+      if (!candidateName || candidateName.length < 2 || line.includes('Roll No')) {
+        continue;
+      }
+
+      // Extract FLC if present (single letter followed by space at start of name)
+      let flc = '';
+      if (candidateName.length > 2 && /^[A-Z]\s/.test(candidateName)) {
+        flc = candidateName[0];
+        candidateName = candidateName.substring(2).trim();
+      }
+
+      const candidate = {
+        rollNumber: rollNumber,
+        name: candidateName,
+        flc: flc,
+        schoolName: currentSchoolName,
+        schoolCode: currentSchoolCode,
+        class: currentClass,
+        status: 'active',
+        subjectCodes: []
+      };
+
+      // Parse the next lines for additional information
+      let lineOffset = 1;
+
+      // Line i+1: Mother Name
+      if (i + lineOffset < lines.length) {
+        const motherName = lines[i + lineOffset].trim();
+        if (motherName && !rollNumberPattern.test(motherName) && motherName.length > 1) {
+          candidate.motherName = motherName;
+        }
+        lineOffset++;
+      }
+
+      // Line i+2: Father Name
+      if (i + lineOffset < lines.length) {
+        const fatherName = lines[i + lineOffset].trim();
+        if (fatherName && !rollNumberPattern.test(fatherName) && fatherName.length > 1) {
+          candidate.fatherName = fatherName;
+        }
+        lineOffset++;
+      }
+
+      // Check next line - could be Sex (M/F/G) or an extra surname line
+      // If it's not Sex, skip it and check the next line
+      if (i + lineOffset < lines.length) {
+        const nextLine = lines[i + lineOffset].trim();
+        if (nextLine && /^[MFG]$/.test(nextLine)) {
+          // This is Sex
+          candidate.sex = nextLine;
+          lineOffset++;
+        } else if (nextLine && nextLine.length > 1 && nextLine.length < 30 && !/^\d/.test(nextLine)) {
+          // This might be an extra surname/family name line - skip it
+          console.log(`  Skipping extra line for ${rollNumber}: "${nextLine}"`);
+          lineOffset++;
+          // Now check for Sex again
+          if (i + lineOffset < lines.length) {
+            const sex = lines[i + lineOffset].trim();
+            if (sex && /^[MFG]$/.test(sex)) {
+              candidate.sex = sex;
+              lineOffset++;
+            }
+          }
+        } else {
+          lineOffset++;
+        }
+      }
+
+      // Line i+4: Category (G/C/S/NA)
+      if (i + lineOffset < lines.length) {
+        const category = lines[i + lineOffset].trim();
+        if (category && /^[GCS]$/.test(category)) {
+          candidate.category = category;
+        } else if (category === 'NA') {
+          candidate.category = '';
+        }
+        lineOffset++;
+      }
+
+      // Line i+5: PwD (NA or code)
+      if (i + lineOffset < lines.length) {
+        const pwd = lines[i + lineOffset].trim();
+        if (pwd && pwd !== 'NA' && pwd.length <= 5) {
+          candidate.pwd = pwd;
+        }
+        lineOffset++;
+      }
+
+      // Lines i+6 onwards: Subject codes and mediums
+      // First line after PwD contains first 3 subject codes concatenated (e.g., "184002041")
+      // Then alternating: code, medium, code, medium...
+      const subjectCodes = [];
+
+      if (i + lineOffset < lines.length) {
+        const firstSubjectLine = lines[i + lineOffset].trim();
+
+        // Check if this line contains concatenated subject codes (9 digits = 3 codes)
+        if (/^\d{9}$/.test(firstSubjectLine)) {
+          // Extract first 3 subject codes
+          subjectCodes.push({ code: firstSubjectLine.substring(0, 3), medium: '' });
+          subjectCodes.push({ code: firstSubjectLine.substring(3, 6), medium: '' });
+          subjectCodes.push({ code: firstSubjectLine.substring(6, 9), medium: '' });
+          lineOffset++;
+
+          // Next line might be medium for the 3rd subject
+          if (i + lineOffset < lines.length) {
+            const medLine = lines[i + lineOffset].trim();
+            if (/^[0-9]$/.test(medLine)) {
+              subjectCodes[2].medium = medLine;
+              lineOffset++;
+            }
+          }
+        }
+
+        // Continue extracting remaining subject codes (alternating code, medium)
+        for (let j = 0; j < 15 && i + lineOffset + j < lines.length; j++) {
+          const currentLine = lines[i + lineOffset + j].trim();
+
+          // Check if this is the date of birth line
+          if (dobPattern.test(currentLine)) {
+            const dobMatch = currentLine.match(dobPattern);
+            if (dobMatch) {
+              const day = dobMatch[1];
+              const month = dobMatch[2];
+              const year = dobMatch[3];
+              candidate.dateOfBirth = new Date(`${year}-${month}-${day}`);
+            }
+            break;
+          }
+
+          // Check if this is a 3-digit subject code
+          if (/^\d{3}$/.test(currentLine)) {
+            const code = currentLine;
+            // Next line might be the medium
+            let medium = '';
+            if (i + lineOffset + j + 1 < lines.length) {
+              const nextLine = lines[i + lineOffset + j + 1].trim();
+              if (/^[0-9]$/.test(nextLine)) {
+                medium = nextLine;
+                j++; // Skip the medium line in next iteration
+              }
+            }
+            subjectCodes.push({ code: code, medium: medium });
+          }
+
+          // Stop if we hit another roll number or dash
+          if (rollNumberPattern.test(currentLine) || currentLine === '-') {
+            break;
+          }
+        }
+      }
+
+      candidate.subjectCodes = subjectCodes;
+
+      candidates.push(candidate);
+    }
+  }
+
+  return candidates;
+};
+
+async function testParsing() {
+  try {
+    const pdfPath = './client/src/public/Centre List of Candidates 10th.pdf';
+    
+    console.log('📄 Reading PDF...');
+    const pdfBuffer = fs.readFileSync(pdfPath);
+    const pdfData = await pdfParse(pdfBuffer);
+    
+    console.log('🔍 Extracting candidates...');
+    const candidates = extractCandidatesFromText(pdfData.text);
+    
+    console.log(`\n✅ Extracted ${candidates.length} candidates\n`);
+    
+    // Find our specific candidate
+    const targetCandidate = candidates.find(c => c.rollNumber === '17248921');
+    
+    if (targetCandidate) {
+      console.log('✅ Found candidate 17248921:');
+      console.log(JSON.stringify(targetCandidate, null, 2));
+    } else {
+      console.log('❌ Candidate 17248921 not found');
+    }
+    
+    // Also show a few candidates around it
+    const index = candidates.findIndex(c => c.rollNumber === '17248921');
+    if (index >= 0) {
+      console.log('\n📋 Candidates around 17248921:');
+      for (let i = Math.max(0, index - 2); i <= Math.min(candidates.length - 1, index + 2); i++) {
+        const c = candidates[i];
+        console.log(`\n${i === index ? '>>>' : '   '} ${c.rollNumber} - ${c.name}`);
+        console.log(`    Sex: ${c.sex}, Category: ${c.category}, Subjects: ${c.subjectCodes.length}`);
+      }
+    }
+
+  } catch (error) {
+    console.error('❌ Error:', error);
+  }
+}
+
+testParsing();

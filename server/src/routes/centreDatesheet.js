@@ -1,0 +1,101 @@
+const express = require('express')
+const router = express.Router()
+const { protect } = require('../middleware/auth')
+const asyncHandler = require('../middleware/asyncHandler')
+const CBSEDatesheet = require('../models/CBSEDatesheet')
+const Candidate = require('../models/Candidate')
+
+/**
+ * @desc    Get centre datesheet entries for answer sheet linking
+ * @route   GET /api/centre-datesheet/entries
+ * @access  Private
+ */
+router.get('/entries', protect, asyncHandler(async (req, res) => {
+  try {
+    console.log('📄 Fetching centre datesheet entries for answer sheet linking...')
+    
+    // Get active CBSE datesheet
+    const cbseDatesheet = await CBSEDatesheet.getActive()
+    
+    if (!cbseDatesheet) {
+      return res.status(404).json({
+        success: false,
+        message: 'No CBSE datesheet found',
+        data: []
+      })
+    }
+    
+    // Get all candidates with their subjects
+    const candidates = await Candidate.find({ isActive: true })
+      .populate('subjects', 'code name class')
+      .lean()
+    
+    // Get all subjects to fetch answer sheet types
+    const Subject = require('../models/Subject')
+    const subjects = await Subject.find({ isActive: true }).lean()
+    
+    // Create a map of subject code+class to answer sheet type
+    const subjectAnswerSheetMap = new Map()
+    subjects.forEach(subject => {
+      const key = `${subject.code}-${subject.class}`
+      subjectAnswerSheetMap.set(key, subject.answerSheet || 'none')
+    })
+    
+    // Calculate candidate count per subject
+    const subjectFrequency = new Map()
+    
+    candidates.forEach(candidate => {
+      if (candidate.subjects && candidate.subjects.length > 0) {
+        candidate.subjects.forEach(subject => {
+          if (subject && subject.code && subject.class) {
+            const key = `${subject.code}-${subject.class}`
+            const count = subjectFrequency.get(key) || 0
+            subjectFrequency.set(key, count + 1)
+          }
+        })
+      }
+    })
+    
+    // Filter and format entries
+    const entries = cbseDatesheet.entries
+      .map(entry => {
+        const key = `${entry.subject.code}-${entry.subject.class}`
+        const candidateCount = subjectFrequency.get(key) || 0
+        const answerSheetType = subjectAnswerSheetMap.get(key) || 'none'
+        
+        return {
+          _id: entry._id,
+          examDate: entry.examDate,
+          dayName: entry.dayName,
+          subjectCode: entry.subject.code,
+          subjectName: entry.subject.name,
+          class: entry.subject.class,
+          timeSlot: entry.timeSlot,
+          duration: entry.subject.duration,
+          candidateCount,
+          roomsNeeded: Math.ceil(candidateCount / 24),
+          answerSheetType
+        }
+      })
+      .filter(entry => entry.candidateCount > 0)
+      .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
+    
+    console.log(`✅ Found ${entries.length} centre datesheet entries`)
+    
+    return res.status(200).json({
+      success: true,
+      data: entries,
+      count: entries.length
+    })
+    
+  } catch (error) {
+    console.error('❌ Error fetching centre datesheet entries:', error)
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch centre datesheet entries',
+      error: error.message
+    })
+  }
+}))
+
+module.exports = router

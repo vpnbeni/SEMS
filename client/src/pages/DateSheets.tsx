@@ -38,7 +38,7 @@ const DateSheets: React.FC = () => {
     centre12thDays: 0,
     centre12thCandidates: 0
   })
-  const [sortField, setSortField] = useState<'date' | 'class' | 'subjectName' | 'subjectCode' | 'duration' | null>(null)
+  const [sortField, setSortField] = useState<'date' | 'class' | 'subjectName' | 'subjectCode' | 'duration' | null>('date')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [pagination, setPagination] = useState({
     page: 1,
@@ -272,8 +272,8 @@ const DateSheets: React.FC = () => {
       loadCentreDatesheet()
     }
     
-    // Reset sorting when switching tabs
-    setSortField(null)
+    // Reset sorting to date when switching tabs
+    setSortField('date')
     setSortOrder('asc')
   }, [activeTab])
 
@@ -421,7 +421,9 @@ const DateSheets: React.FC = () => {
       subjectCode: entry.subject.code,
       duration: entry.subject.duration || 0,
       timeSlot: entry.timeSlot,
-      dayName: entry.dayName
+      dayName: entry.dayName,
+      candidateCount: entry.candidateCount || 0,
+      roomsNeeded: entry.roomsNeeded || 0
     }))
   } else if (activeTab === 'centre10th') {
     // For "Centre 10th Datesheet" tab, show only 10th class entries from centre datesheet
@@ -436,7 +438,9 @@ const DateSheets: React.FC = () => {
         subjectCode: entry.subject.code,
         duration: entry.subject.duration || 0,
         timeSlot: entry.timeSlot,
-        dayName: entry.dayName
+        dayName: entry.dayName,
+        candidateCount: entry.candidateCount || 0,
+        roomsNeeded: entry.roomsNeeded || 0
       }))
   } else if (activeTab === 'centre12th') {
     // For "Centre 12th Datesheet" tab, show only 12th class entries from centre datesheet
@@ -451,7 +455,9 @@ const DateSheets: React.FC = () => {
         subjectCode: entry.subject.code,
         duration: entry.subject.duration || 0,
         timeSlot: entry.timeSlot,
-        dayName: entry.dayName
+        dayName: entry.dayName,
+        candidateCount: entry.candidateCount || 0,
+        roomsNeeded: entry.roomsNeeded || 0
       }))
   } else {
     // For other tabs, show datesheet subjects as before
@@ -471,44 +477,39 @@ const DateSheets: React.FC = () => {
   }
 
   // Apply sorting (only for non-Full Datesheet tabs, as Full Datesheet uses server-side sorting)
-  if (activeTab !== 'all') {
-    if (sortField) {
-      tableRows = [...tableRows].sort((a, b) => {
-        let comparison = 0
-        
-        if (sortField === 'date') {
-          // Handle null dates
-          if (!a.examDate && !b.examDate) return 0
-          if (!a.examDate) return 1
-          if (!b.examDate) return -1
-          comparison = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
-        } else if (sortField === 'class') {
-          comparison = a.class.localeCompare(b.class)
-        } else if (sortField === 'subjectName') {
-          comparison = a.subjectName.toLowerCase().localeCompare(b.subjectName.toLowerCase())
-        } else if (sortField === 'subjectCode') {
-          comparison = a.subjectCode.localeCompare(b.subjectCode)
-        } else if (sortField === 'duration') {
-          comparison = a.duration - b.duration
-        }
-        
-        return sortOrder === 'asc' ? comparison : -comparison
-      })
-    } else {
-      // Default sort for other tabs - sort by date
-      tableRows = tableRows.sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
-    }
+  if (activeTab !== 'all' && sortField) {
+    tableRows = [...tableRows].sort((a, b) => {
+      let comparison = 0
+      
+      if (sortField === 'date') {
+        // Handle null dates
+        if (!a.examDate && !b.examDate) return 0
+        if (!a.examDate) return 1
+        if (!b.examDate) return -1
+        comparison = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
+      } else if (sortField === 'class') {
+        comparison = a.class.localeCompare(b.class)
+      } else if (sortField === 'subjectName') {
+        comparison = a.subjectName.toLowerCase().localeCompare(b.subjectName.toLowerCase())
+      } else if (sortField === 'subjectCode') {
+        comparison = a.subjectCode.localeCompare(b.subjectCode)
+      } else if (sortField === 'duration') {
+        comparison = a.duration - b.duration
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison
+    })
   }
   // Note: Full Datesheet tab (activeTab === 'all') uses server-side sorting, so no client-side sorting needed
 
   // Handle sort
   const handleSort = (field: 'date' | 'class' | 'subjectName' | 'subjectCode' | 'duration') => {
     if (sortField === field) {
-      // Toggle sort order or reset
+      // Toggle sort order or reset to default (date)
       if (sortOrder === 'asc') {
         setSortOrder('desc')
       } else {
-        setSortField(null)
+        setSortField('date')
         setSortOrder('asc')
       }
     } else {
@@ -528,20 +529,11 @@ const DateSheets: React.FC = () => {
   }
 
   // Helper function to format duration
-  const formatDuration = (duration: number, isFromSubject: boolean = false) => {
-    // For subjects from the Full Datesheet tab, duration is stored in hours
-    // For scheduled exams, duration might be in minutes
-    if (isFromSubject) {
-      // Duration is in hours for subjects
-      return `${duration}h`
-    } else {
-      // Duration is in minutes for scheduled exams
-      const hours = Math.floor(duration / 60)
-      const mins = duration % 60
-      if (hours > 0 && mins > 0) return `${hours}h ${mins}m`
-      if (hours > 0) return `${hours}h`
-      return `${mins}m`
-    }
+  const formatDuration = (duration: number) => {
+    // Duration is always stored in hours in the Subject model (2 or 3)
+    // Display as "X Hours" format
+    if (!duration || duration === 0) return '—'
+    return `${duration} ${duration === 1 ? 'Hour' : 'Hours'}`
   }
 
   return (
@@ -645,13 +637,13 @@ const DateSheets: React.FC = () => {
           onClick={() => setActiveTab('centre10th')}
           className={`p-4 rounded-lg border-2 transition-all ${
             activeTab === 'centre10th'
-              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
+              ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
               : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
           }`}
         >
           <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-lg ${activeTab === 'centre10th' ? 'bg-purple-500' : 'bg-purple-100 dark:bg-purple-900'}`}>
-              <svg className={`w-6 h-6 ${activeTab === 'centre10th' ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className={`p-2 rounded-lg ${activeTab === 'centre10th' ? 'bg-green-500' : 'bg-green-100 dark:bg-green-900'}`}>
+              <svg className={`w-6 h-6 ${activeTab === 'centre10th' ? 'text-white' : 'text-green-600 dark:text-green-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             </div>
@@ -685,13 +677,13 @@ const DateSheets: React.FC = () => {
           onClick={() => setActiveTab('centre12th')}
           className={`p-4 rounded-lg border-2 transition-all ${
             activeTab === 'centre12th'
-              ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
+              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
               : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
           }`}
         >
           <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-lg ${activeTab === 'centre12th' ? 'bg-orange-500' : 'bg-orange-100 dark:bg-orange-900'}`}>
-              <svg className={`w-6 h-6 ${activeTab === 'centre12th' ? 'text-white' : 'text-orange-600 dark:text-orange-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className={`p-2 rounded-lg ${activeTab === 'centre12th' ? 'bg-purple-500' : 'bg-purple-100 dark:bg-purple-900'}`}>
+              <svg className={`w-6 h-6 ${activeTab === 'centre12th' ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             </div>
@@ -773,13 +765,13 @@ const DateSheets: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-auto">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-16">
                     Sr No
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-28">
                     {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
                       <span>Date</span>
                     ) : (
@@ -799,10 +791,10 @@ const DateSheets: React.FC = () => {
                       </button>
                     )}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-28">
                     Day
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-16">
                     {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
                       <span>Class</span>
                     ) : (
@@ -822,27 +814,7 @@ const DateSheets: React.FC = () => {
                       </button>
                     )}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
-                      <span>Subject Name</span>
-                    ) : (
-                      <button 
-                        onClick={() => handleSort('subjectName')} 
-                        className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none"
-                      >
-                        <span>Subject Name</span>
-                        <div className="flex flex-col">
-                          <svg className={`w-3 h-3 ${sortField === 'subjectName' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                          </svg>
-                          <svg className={`w-3 h-3 -mt-1 ${sortField === 'subjectName' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      </button>
-                    )}
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-24">
                     {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
                       <span>Subject Code</span>
                     ) : (
@@ -862,7 +834,27 @@ const DateSheets: React.FC = () => {
                       </button>
                     )}
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
+                      <span>Subject Name</span>
+                    ) : (
+                      <button 
+                        onClick={() => handleSort('subjectName')} 
+                        className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none"
+                      >
+                        <span>Subject Name</span>
+                        <div className="flex flex-col">
+                          <svg className={`w-3 h-3 ${sortField === 'subjectName' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                          </svg>
+                          <svg className={`w-3 h-3 -mt-1 ${sortField === 'subjectName' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      </button>
+                    )}
+                  </th>
+                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-24">
                     {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
                       <span>Duration</span>
                     ) : (
@@ -882,42 +874,114 @@ const DateSheets: React.FC = () => {
                       </button>
                     )}
                   </th>
+                  {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') && (
+                    <>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-24">
+                        Candidates
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-20">
+                        Rooms
+                      </th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {tableRows.map((row, index) => (
-                  <tr key={`${row.datesheetId}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {activeTab === 'all' ? (pagination.page - 1) * pagination.limit + index + 1 : index + 1}
+                {tableRows.map((row, index) => {
+                  // Determine row background color and text color based on class
+                  let rowClassName = "hover:bg-gray-50 dark:hover:bg-gray-700"
+                  let textClassName = "text-gray-900 dark:text-white"
+                  
+                  // Apply color highlighting for all tabs based on class
+                  if (row.class === '10th') {
+                    rowClassName = "bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/40"
+                    textClassName = "text-green-800 dark:text-green-200"
+                  } else if (row.class === '12th') {
+                    rowClassName = "bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/40"
+                    textClassName = "text-purple-800 dark:text-purple-200"
+                  }
+                  
+                  // Calculate Sr No based on unique dates within the current tableRows
+                  // This ensures each tab (10th, 12th) has independent Sr No counting
+                  let srNo = 1
+                  const currentDate = row.examDate ? new Date(row.examDate).toDateString() : null
+                  
+                  // Count unique dates before current row
+                  const uniqueDatesBefore = new Set<string>()
+                  for (let i = 0; i < index; i++) {
+                    const checkDate = tableRows[i].examDate ? new Date(tableRows[i].examDate).toDateString() : null
+                    if (checkDate) {
+                      uniqueDatesBefore.add(checkDate)
+                    }
+                  }
+                  
+                  // If current date is already in the set, use the same Sr No as first occurrence
+                  if (currentDate && uniqueDatesBefore.has(currentDate)) {
+                    // Find the first row with this date
+                    for (let i = 0; i < index; i++) {
+                      const checkDate = tableRows[i].examDate ? new Date(tableRows[i].examDate).toDateString() : null
+                      if (checkDate === currentDate) {
+                        // Count unique dates before that first occurrence
+                        const uniqueDatesBeforeFirst = new Set<string>()
+                        for (let j = 0; j < i; j++) {
+                          const prevDate = tableRows[j].examDate ? new Date(tableRows[j].examDate).toDateString() : null
+                          if (prevDate) {
+                            uniqueDatesBeforeFirst.add(prevDate)
+                          }
+                        }
+                        srNo = uniqueDatesBeforeFirst.size + 1
+                        break
+                      }
+                    }
+                  } else {
+                    // New date, increment Sr No
+                    srNo = uniqueDatesBefore.size + 1
+                  }
+                  
+                  return (
+                  <tr key={`${row.datesheetId}-${index}`} className={rowClassName}>
+                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
+                      {srNo}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
                       {row.examDate ? new Date(row.examDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
                       {row.examDate ? (row.dayName && row.dayName !== 'Unknown' ? row.dayName : getDayName(row.examDate)) : '—'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
                       {row.class}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                      {row.subjectName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
                       {row.subjectCode}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {formatDuration(row.duration, activeTab === 'all' || activeTab === 'centre')}
+                    <td className={`px-3 py-3 text-sm font-medium ${textClassName}`}>
+                      {row.subjectName}
                     </td>
+                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
+                      {formatDuration(row.duration)}
+                    </td>
+                    {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') && (
+                      <>
+                        <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
+                          {row.candidateCount || 0}
+                        </td>
+                        <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
+                          {row.roomsNeeded || 0}
+                        </td>
+                      </>
+                    )}
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
         )}
 
-        {/* Pagination - Show for Full Datesheet and Centre Datesheet tabs */}
-        {(activeTab === 'all' || activeTab === 'centre') && pagination.pages > 1 && (
-          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 sm:px-6">
+        {/* Pagination - Show for all tabs when there are multiple pages */}
+        {!loading && !cbseLoading && !centreLoading && pagination.pages > 1 && (
+          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 sm:px-6 mt-4">
             <div className="flex items-center justify-between">
               <div className="flex-1 flex justify-between sm:hidden">
                 <button
@@ -995,67 +1059,6 @@ const DateSheets: React.FC = () => {
         )}
       </div>
 
-      {/* Quick Actions */}
-      <div className="mt-8">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Quick Actions
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                  Generate Date Sheet
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Auto-generate based on subjects
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                  Import Template
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Upload from Excel/CSV
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <div className="ml-4">
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                  Copy from Previous
-                </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Use existing date sheet as template
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       {/* Import Modal */}
       {showImportModal && (
         <DatesheetImportModal

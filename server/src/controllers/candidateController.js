@@ -470,13 +470,28 @@ const extractCandidatesFromText = (text) => {
         lineOffset++;
       }
 
-      // Line i+3: Sex (M/F/G)
+      // Check next line - could be Sex (M/F/G) or an extra surname line
+      // If it's not Sex, skip it and check the next line
       if (i + lineOffset < lines.length) {
-        const sex = lines[i + lineOffset].trim();
-        if (sex && /^[MFG]$/.test(sex)) {
-          candidate.sex = sex;
+        const nextLine = lines[i + lineOffset].trim();
+        if (nextLine && /^[MFG]$/.test(nextLine)) {
+          // This is Sex
+          candidate.sex = nextLine;
+          lineOffset++;
+        } else if (nextLine && nextLine.length > 1 && nextLine.length < 30 && !/^\d/.test(nextLine)) {
+          // This might be an extra surname/family name line - skip it
+          lineOffset++;
+          // Now check for Sex again
+          if (i + lineOffset < lines.length) {
+            const sex = lines[i + lineOffset].trim();
+            if (sex && /^[MFG]$/.test(sex)) {
+              candidate.sex = sex;
+              lineOffset++;
+            }
+          }
+        } else {
+          lineOffset++;
         }
-        lineOffset++;
       }
 
       // Line i+4: Category (G/C/S/NA)

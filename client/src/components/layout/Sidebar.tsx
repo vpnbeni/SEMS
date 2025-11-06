@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { debugSidebarCounts } from '../../utils/debugSidebar'
 
 const Sidebar: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -9,7 +8,8 @@ const Sidebar: React.FC = () => {
     examFunctionaries: 50, // Default fallback values
     candidates: 507,
     subjects: 264,
-    answerSheets: 7
+    answerSheets: 7,
+    datesheetDays: 0
   })
 
   useEffect(() => {
@@ -49,27 +49,24 @@ const Sidebar: React.FC = () => {
       const results = await Promise.allSettled([
         fetch('/api/teachers?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
         fetch('/api/candidates?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
-        fetch('/api/subjects/stats', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json())
+        fetch('/api/subjects/stats', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
+        fetch('/api/datesheets/centre-datesheet?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json())
       ])
 
       console.log('API Results:', results) // Debug log
-      
-      // Call debug function in development
-      if (process.env.NODE_ENV === 'development') {
-        debugSidebarCounts()
-      }
 
       const newCounts = {
         examFunctionaries: results[0].status === 'fulfilled' ? (results[0].value.data?.pagination?.totalCount || results[0].value.meta?.totalCount || 0) : 0,
         candidates: results[1].status === 'fulfilled' ? (results[1].value.total || results[1].value.meta?.totalCount || 0) : 0,
         subjects: results[2].status === 'fulfilled' ? (results[2].value.data?.total || 0) : 0,
-        answerSheets: 7
+        answerSheets: 7,
+        datesheetDays: results[3].status === 'fulfilled' ? (results[3].value.stats?.uniqueDates || 0) : 0
       }
 
       console.log('Calculated counts:', newCounts) // Debug log
 
       // Only update if we got valid counts, otherwise keep existing/default values
-      if (newCounts.examFunctionaries > 0 || newCounts.candidates > 0 || newCounts.subjects > 0) {
+      if (newCounts.examFunctionaries > 0 || newCounts.candidates > 0 || newCounts.subjects > 0 || newCounts.datesheetDays > 0) {
         setCounts(newCounts)
         
         // Cache the counts
@@ -96,6 +93,16 @@ const Sidebar: React.FC = () => {
       badge: null,
     },
     {
+      name: 'Centre Guidelines',
+      href: '/centre-guidelines',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
       name: 'Datesheets',
       href: '/datesheets',
       icon: (
@@ -103,7 +110,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
-      badge: null,
+      badge: counts.datesheetDays > 0 ? counts.datesheetDays.toString() : null,
     },
     {
       name: 'Exam Functionaries',
@@ -136,8 +143,8 @@ const Sidebar: React.FC = () => {
       badge: counts.subjects.toString(),
     },
     {
-      name: 'Room Allocation',
-      href: '/rooms',
+      name: 'Exam Room/Hall',
+      href: '/examrooms',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -146,8 +153,8 @@ const Sidebar: React.FC = () => {
       badge: null,
     },
     {
-      name: 'Answer Sheet Dispatch',
-      href: '/dispatch',
+      name: 'Answer Sheets',
+      href: '/answersheets',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

@@ -744,21 +744,36 @@ exports.getCentreDatesheet = asyncHandler(async (req, res) => {
     // Extract unique subject codes from all candidates
     // Using Set to automatically handle different subject combinations
     const candidateSubjectCodes = new Set()
-    const subjectFrequency = new Map() // Track how many candidates have each subject
+    const subjectFrequency = new Map() // Track how many candidates have each subject (by code + class)
+    const candidatesByClass = new Map() // Track unique candidates per class
     
     candidates.forEach(candidate => {
+      // Track unique candidates by class
+      if (candidate.class) {
+        const classSet = candidatesByClass.get(candidate.class) || new Set()
+        classSet.add(candidate._id.toString())
+        candidatesByClass.set(candidate.class, classSet)
+      }
+      
       if (candidate.subjects && candidate.subjects.length > 0) {
         candidate.subjects.forEach(subject => {
           // subject is now the populated Subject document
-          if (subject && subject.code) {
+          if (subject && subject.code && subject.class) {
             candidateSubjectCodes.add(subject.code)
             
-            // Track frequency
-            const count = subjectFrequency.get(subject.code) || 0
-            subjectFrequency.set(subject.code, count + 1)
+            // Track frequency by subject code + class combination
+            const key = `${subject.code}-${subject.class}`
+            const count = subjectFrequency.get(key) || 0
+            subjectFrequency.set(key, count + 1)
           }
         })
       }
+    })
+    
+    // Log candidate counts by class
+    console.log(`📊 Candidates by class:`)
+    candidatesByClass.forEach((candidateSet, classLevel) => {
+      console.log(`   ${classLevel}: ${candidateSet.size} candidates`)
     })
     
     console.log(`📊 Found ${candidateSubjectCodes.size} unique subject codes from ${candidates.length} candidates`)
@@ -779,14 +794,30 @@ exports.getCentreDatesheet = asyncHandler(async (req, res) => {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
     
-    sortedSubjects.forEach(([code, count]) => {
-      console.log(`   ${code}: ${count} candidates (${Math.round(count/candidates.length*100)}%)`)
+    sortedSubjects.forEach(([key, count]) => {
+      console.log(`   ${key}: ${count} candidates (${Math.round(count/candidates.length*100)}%)`)
     })
     
     // Filter CBSE datesheet entries to only include subjects that candidates have chosen
-    const centreEntries = cbseDatesheet.entries.filter(entry => {
-      return candidateSubjectCodes.has(entry.subject.code)
-    })
+    // and add candidate count and rooms for each entry
+    const centreEntries = cbseDatesheet.entries
+      .map(entry => {
+        // Get candidate count by subject code + class combination
+        const key = `${entry.subject.code}-${entry.subject.class}`
+        const candidateCount = subjectFrequency.get(key) || 0
+        // Calculate rooms needed: 1 room per 24 candidates (standard exam room capacity)
+        const roomsNeeded = Math.ceil(candidateCount / 24)
+        
+        return {
+          ...entry.toObject(),
+          candidateCount,
+          roomsNeeded
+        }
+      })
+      .filter(entry => {
+        // Only include subjects that have at least 1 candidate
+        return entry.candidateCount > 0
+      })
     
     console.log(`📋 Filtered to ${centreEntries.length} centre-specific entries`)
     

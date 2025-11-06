@@ -42,15 +42,20 @@ const Header: React.FC = () => {
           pageTitle: 'Subjects',
           pageSubtitle: 'Manage subjects, codes, and related settings',
         }
-      case 'rooms':
+      case 'examrooms':
         return {
-          pageTitle: 'Room Allocation',
-          pageSubtitle: 'Assign rooms for examinations',
+          pageTitle: 'Exam Room/Hall',
+          pageSubtitle: 'Assign rooms and halls for examinations',
         }
-      case 'dispatch':
+      case 'answersheets':
         return {
-          pageTitle: 'Answer Sheet Dispatch',
+          pageTitle: 'Answer Sheets',
           pageSubtitle: 'Track and manage answer sheet dispatches',
+        }
+      case 'centre-guidelines':
+        return {
+          pageTitle: 'Centre Guidelines',
+          pageSubtitle: 'Important guidelines and instructions for examination centre management',
         }
       default:
         return {

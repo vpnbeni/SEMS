@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Centre Datesheet API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+        .info {
+            color: #2196F3;
+        }
+        pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .entry {
+            padding: 10px;
+            margin: 10px 0;
+            background: #f9f9f9;
+            border-left: 3px solid #2196F3;
+        }
+        input {
+            padding: 8px;
+            margin: 5px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Centre Datesheet API Test</h1>
+        
+        <div class="test-section">
+            <h2>Authentication</h2>
+            <p>Enter your authentication token (from localStorage or login):</p>
+            <input type="text" id="tokenInput" placeholder="Bearer token..." />
+            <button onclick="saveToken()">Save Token</button>
+            <button onclick="clearToken()">Clear Token</button>
+            <div id="tokenStatus"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 1: Get Centre Datesheet Entries</h2>
+            <p>Fetch centre-specific datesheet entries with candidate counts</p>
+            <button onclick="testGetEntries()">Test GET /api/centre-datesheet/entries</button>
+            <div id="result1" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 2: Check CBSE Datesheet</h2>
+            <p>Verify CBSE datesheet exists</p>
+            <button onclick="testCBSEDatesheet()">Test GET /api/datesheets/cbse-full</button>
+            <div id="result2" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test 3: Check Candidates</h2>
+            <p>Verify candidates with subjects exist</p>
+            <button onclick="testCandidates()">Test GET /api/candidates</button>
+            <div id="result3" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000/api';
+        let authToken = localStorage.getItem('token') || '';
+
+        // Initialize
+        window.onload = function() {
+            if (authToken) {
+                document.getElementById('tokenInput').value = authToken;
+                updateTokenStatus();
+            }
+        };
+
+        function saveToken() {
+            authToken = document.getElementById('tokenInput').value.trim();
+            if (authToken) {
+                localStorage.setItem('token', authToken);
+                updateTokenStatus();
+                showMessage('tokenStatus', 'Token saved!', 'success');
+            } else {
+                showMessage('tokenStatus', 'Please enter a token', 'error');
+            }
+        }
+
+        function clearToken() {
+            authToken = '';
+            localStorage.removeItem('token');
+            document.getElementById('tokenInput').value = '';
+            updateTokenStatus();
+            showMessage('tokenStatus', 'Token cleared!', 'info');
+        }
+
+        function updateTokenStatus() {
+            const status = document.getElementById('tokenStatus');
+            if (authToken) {
+                status.innerHTML = '<p class="success">✓ Token is set</p>';
+            } else {
+                status.innerHTML = '<p class="error">✗ No token set</p>';
+            }
+        }
+
+        function getHeaders() {
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            if (authToken) {
+                headers['Authorization'] = `Bearer ${authToken}`;
+            }
+            return headers;
+        }
+
+        async function testGetEntries() {
+            const resultDiv = document.getElementById('result1');
+            resultDiv.innerHTML = '<p class="info">Loading...</p>';
+
+            try {
+                const response = await fetch(`${API_URL}/centre-datesheet/entries`, {
+                    method: 'GET',
+                    headers: getHeaders()
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    let html = `<p class="success">✓ Success! Status: ${response.status}</p>`;
+                    html += `<p><strong>Count:</strong> ${data.count || 0} entries</p>`;
+                    
+                    if (data.data && data.data.length > 0) {
+                        html += '<h3>Entries:</h3>';
+                        data.data.forEach((entry, index) => {
+                            html += `
+                                <div class="entry">
+                                    <strong>${index + 1}. ${new Date(entry.examDate).toLocaleDateString()} - ${entry.dayName}</strong><br>
+                                    Class: ${entry.class}<br>
+                                    Subject: ${entry.subjectCode} - ${entry.subjectName}<br>
+                                    Time: ${entry.timeSlot.start} - ${entry.timeSlot.end}<br>
+                                    Candidates: ${entry.candidateCount}<br>
+                                    Rooms Needed: ${entry.roomsNeeded}
+                                </div>
+                            `;
+                        });
+                    } else {
+                        html += '<p class="error">No entries found. Make sure:</p>';
+                        html += '<ul>';
+                        html += '<li>CBSE datesheet is imported</li>';
+                        html += '<li>Candidates have subjects linked</li>';
+                        html += '</ul>';
+                    }
+                    
+                    html += '<h3>Raw Response:</h3>';
+                    html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">✗ Error! Status: ${response.status}</p>
+                        <p><strong>Message:</strong> ${data.message || data.error || 'Unknown error'}</p>
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">✗ Request Failed!</p>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                    <p>Make sure the server is running on http://localhost:5000</p>
+                `;
+            }
+        }
+
+        async function testCBSEDatesheet() {
+            const resultDiv = document.getElementById('result2');
+            resultDiv.innerHTML = '<p class="info">Loading...</p>';
+
+            try {
+                const response = await fetch(`${API_URL}/datesheets/cbse-full?limit=5`, {
+                    method: 'GET',
+                    headers: getHeaders()
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    let html = `<p class="success">✓ Success! Status: ${response.status}</p>`;
+                    
+                    if (data.datesheet) {
+                        html += `<p><strong>Title:</strong> ${data.datesheet.title}</p>`;
+                        html += `<p><strong>Academic Year:</strong> ${data.datesheet.academicYear}</p>`;
+                        html += `<p><strong>Total Entries:</strong> ${data.meta.totalCount}</p>`;
+                        html += `<p><strong>Unique Dates:</strong> ${data.meta.uniqueDates}</p>`;
+                    }
+                    
+                    html += '<h3>Raw Response:</h3>';
+                    html += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">✗ Error! Status: ${response.status}</p>
+                        <p><strong>Message:</strong> ${data.message || 'No CBSE datesheet found'}</p>
+                        <p>Please import a CBSE datesheet first from the Datesheets page.</p>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">✗ Request Failed!</p>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                `;
+            }
+        }
+
+        async function testCandidates() {
+            const resultDiv = document.getElementById('result3');
+            resultDiv.innerHTML = '<p class="info">Loading...</p>';
+
+            try {
+                const response = await fetch(`${API_URL}/candidates?limit=5`, {
+                    method: 'GET',
+                    headers: getHeaders()
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    let html = `<p class="success">✓ Success! Status: ${response.status}</p>`;
+                    html += `<p><strong>Total Candidates:</strong> ${data.count || 0}</p>`;
+                    
+                    if (data.data && data.data.length > 0) {
+                        const withSubjects = data.data.filter(c => c.subjects && c.subjects.length > 0);
+                        html += `<p><strong>With Subjects:</strong> ${withSubjects.length}</p>`;
+                        
+                        html += '<h3>Sample Candidates:</h3>';
+                        data.data.slice(0, 5).forEach((candidate, index) => {
+                            html += `
+                                <div class="entry">
+                                    <strong>${index + 1}. ${candidate.name}</strong><br>
+                                    Roll No: ${candidate.rollNumber}<br>
+                                    Class: ${candidate.class}<br>
+                                    Subjects: ${candidate.subjects ? candidate.subjects.length : 0}
+                                </div>
+                            `;
+                        });
+                    }
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `
+                        <p class="error">✗ Error! Status: ${response.status}</p>
+                        <p><strong>Message:</strong> ${data.message || 'Failed to fetch candidates'}</p>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <p class="error">✗ Request Failed!</p>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                `;
+            }
+        }
+
+        function showMessage(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.innerHTML = `<p class="${type}">${message}</p>`;
+            setTimeout(() => {
+                element.innerHTML = '';
+            }, 3000);
+        }
+    </script>
+</body>
+</html>

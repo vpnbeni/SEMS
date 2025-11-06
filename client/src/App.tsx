@@ -16,7 +16,8 @@ import CandidateDetail from './pages/CandidateDetail'
 import Subjects from './pages/Subjects'
 import DateSheets from './pages/DateSheets'
 import RoomAllocation from './pages/RoomAllocation'
-import AnswerSheetDispatch from './pages/AnswerSheetDispatch'
+import AnswerSheets from './pages/AnswerSheets'
+import CentreGuidelines from './pages/CentreGuidelines'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -77,8 +78,11 @@ function App() {
               <Route path="candidates/:id" element={<CandidateDetail />} />
               <Route path="subjects" element={<Subjects />} />
               <Route path="datesheets" element={<DateSheets />} />
-              <Route path="rooms" element={<RoomAllocation />} />
-              <Route path="dispatch" element={<AnswerSheetDispatch />} />
+              <Route path="examrooms" element={<RoomAllocation />} />
+              {/* Legacy redirect */}
+              <Route path="rooms" element={<Navigate to="/examrooms" replace />} />
+              <Route path="answersheets" element={<AnswerSheets />} />
+              <Route path="centre-guidelines" element={<CentreGuidelines />} />
             </Route>
           </Route>
 

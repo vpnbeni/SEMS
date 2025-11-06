@@ -591,29 +591,65 @@ const Subjects: React.FC = () => {
                 </tr>
               ) : (
                 sortedSubjects.map((subject) => (
-                  <tr key={subject._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <tr key={subject._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                    subject.class === '10th' 
+                      ? 'bg-green-50 dark:bg-green-900/20' 
+                      : subject.class === '12th' 
+                      ? 'bg-purple-50 dark:bg-purple-900/20' 
+                      : ''
+                  }`}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">
+                      <div className={`text-sm font-medium ${
+                        subject.class === '10th'
+                          ? 'text-green-800 dark:text-green-300'
+                          : subject.class === '12th'
+                          ? 'text-purple-800 dark:text-purple-300'
+                          : 'text-gray-900 dark:text-white'
+                      }`}>
                         {subject.code}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      <div className={`text-sm font-medium ${
+                        subject.class === '10th'
+                          ? 'text-green-800 dark:text-green-300'
+                          : subject.class === '12th'
+                          ? 'text-purple-800 dark:text-purple-300'
+                          : 'text-gray-900 dark:text-white'
+                      }`}>
                         {subject.name}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">
+                      <div className={`text-sm font-semibold ${
+                        subject.class === '10th'
+                          ? 'text-green-700 dark:text-green-400'
+                          : subject.class === '12th'
+                          ? 'text-purple-700 dark:text-purple-400'
+                          : 'text-gray-900 dark:text-white'
+                      }`}>
                         {subject.class}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">
-                        {subject.duration ? `${subject.duration} hrs` : 'N/A'}
+                      <div className={`text-sm ${
+                        subject.class === '10th'
+                          ? 'text-green-700 dark:text-green-400'
+                          : subject.class === '12th'
+                          ? 'text-purple-700 dark:text-purple-400'
+                          : 'text-gray-900 dark:text-white'
+                      }`}>
+                        {subject.duration ? `${subject.duration} ${subject.duration === 1 ? 'Hour' : 'Hours'}` : 'N/A'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 dark:text-white">{
+                      <div className={`text-sm ${
+                        subject.class === '10th'
+                          ? 'text-green-700 dark:text-green-400'
+                          : subject.class === '12th'
+                          ? 'text-purple-700 dark:text-purple-400'
+                          : 'text-gray-900 dark:text-white'
+                      }`}>{
                         subject.answerSheet === '32_pages' ? '32 Pages' :
                         subject.answerSheet === '20_pages' ? '20 Pages' :
                         subject.answerSheet === '40_graph' ? '40 Graph' :
