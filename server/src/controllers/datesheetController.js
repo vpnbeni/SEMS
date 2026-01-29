@@ -8,6 +8,7 @@ const { generateResponse, HTTP_STATUS } = require('../utils/constants')
 const CBSEDatesheetParser = require('../utils/cbseDatesheetParser')
 const CBSEDatesheet = require('../models/CBSEDatesheet')
 const { getDayNameForDate } = require('../utils/calendarSeeder')
+const { getDayName, addDayNameToEntry } = require('../utils/dateHelper')
 
 // Helper: map month names to numbers
 const MONTHS = {
@@ -608,10 +609,11 @@ exports.updateDatesheet = asyncHandler(async (req, res) => {
 
   // Replace subjects if provided
   if (Array.isArray(subjects)) {
-    // Normalize
+    // Normalize and add day names automatically
     datesheet.subjects = subjects.map((s) => ({
       subject: s.subject,
       examDate: s.examDate,
+      dayName: getDayName(s.examDate), // Automatically calculate day name
       timeSlot: { start: s.timeSlot?.start || s.start, end: s.timeSlot?.end || s.end },
       duration: s.duration || 180,
       instructions: s.instructions || '',

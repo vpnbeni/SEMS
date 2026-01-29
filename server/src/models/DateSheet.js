@@ -48,6 +48,10 @@ const dateSheetSchema = new mongoose.Schema({
       type: Date,
       required: true
     },
+    dayName: {
+      type: String,
+      required: false // Will be auto-calculated from examDate
+    },
     timeSlot: {
       start: {
         type: String,
@@ -222,12 +226,19 @@ dateSheetSchema.virtual('examPeriod').get(function() {
   return `${start} to ${end}`;
 });
 
-// Pre-save middleware to validate subjects
+// Pre-save middleware to validate subjects and add day names
 dateSheetSchema.pre('save', function(next) {
   // Validate that all subject exam dates are within the date sheet period
   for (const subjectEntry of this.subjects) {
     if (subjectEntry.examDate < this.startDate || subjectEntry.examDate > this.endDate) {
       return next(new Error(`Subject exam date must be between ${this.startDate} and ${this.endDate}`));
+    }
+    
+    // Automatically add day name if not present
+    if (subjectEntry.examDate && !subjectEntry.dayName) {
+      const date = new Date(subjectEntry.examDate)
+      const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+      subjectEntry.dayName = days[date.getDay()]
     }
   }
   

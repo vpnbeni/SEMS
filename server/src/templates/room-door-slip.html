@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Room Door Slip - Seating Plan</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 10mm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.2;
+        }
+        
+        .slip-container {
+            height: 50vh;
+            page-break-inside: avoid;
+            padding: 10px 0;
+        }
+        
+        .slip-container:first-child {
+            border-bottom: 1px dashed #000;
+        }
+        
+        .slip-title {
+            text-align: center;
+            font-size: 16pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+        }
+        
+        .info-table td {
+            border: 2px solid #000;
+            padding: 5px 8px;
+            font-size: 10pt;
+        }
+        
+        .info-table td:first-child {
+            font-weight: bold;
+            width: 130px;
+            background-color: #f5f5f5;
+        }
+        
+        .info-table .value-cell {
+            text-align: center;
+        }
+        
+        .info-table .label-cell {
+            font-weight: bold;
+            width: 90px;
+            text-align: center;
+            background-color: #f5f5f5;
+        }
+        
+        .seating-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .seating-table th,
+        .seating-table td {
+            border: 2px solid #000;
+            padding: 6px 8px;
+            text-align: center;
+            font-size: 10pt;
+        }
+        
+        .seating-table th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+            font-size: 11pt;
+        }
+        
+        .seating-table .sub-header {
+            font-weight: bold;
+            font-size: 10pt;
+            background-color: #fff;
+        }
+        
+        .seating-table td.roll-number {
+            font-family: 'Courier New', monospace;
+            font-weight: normal;
+        }
+        
+        .page-break {
+            page-break-after: always;
+        }
+    </style>
+</head>
+<body>
+    {{#slips}}
+    <div class="slip-container">
+        <div class="slip-title">SEATING PLAN</div>
+        
+        <table class="info-table">
+            <tr>
+                <td>Name Of Centre</td>
+                <td colspan="2" class="value-cell">
+                    {{schoolName}}<br>{{schoolAddress}}
+                </td>
+                <td class="label-cell">Centre No</td>
+                <td class="value-cell"><strong>{{centreNo}}</strong></td>
+                <td class="label-cell">Class : {{className}}</td>
+            </tr>
+            <tr>
+                <td>Name Of<br>Examination</td>
+                <td colspan="2" class="value-cell">
+                    {{examName}}<br>{{examYear}}
+                </td>
+                <td class="label-cell">Subject</td>
+                <td colspan="2" class="value-cell">{{subjectCode}} ; {{subjectName}}</td>
+            </tr>
+            <tr>
+                <td>Date</td>
+                <td colspan="2" class="value-cell">{{examDate}}</td>
+                <td class="label-cell">Room No.</td>
+                <td colspan="2" class="value-cell"><strong>{{roomNo}} - {{roomName}}</strong></td>
+            </tr>
+        </table>
+        
+        <table class="seating-table">
+            <thead>
+                <tr>
+                    <th>Row 1</th>
+                    <th>Row 2</th>
+                    <th>Row 3</th>
+                </tr>
+                <tr class="sub-header">
+                    <td>Roll No</td>
+                    <td>Roll No</td>
+                    <td>Roll No</td>
+                </tr>
+            </thead>
+            <tbody>
+                {{#rows}}
+                <tr>
+                    <td class="roll-number">{{row1RollNo}}</td>
+                    <td class="roll-number">{{row2RollNo}}</td>
+                    <td class="roll-number">{{row3RollNo}}</td>
+                </tr>
+                {{/rows}}
+            </tbody>
+        </table>
+    </div>
+    {{/slips}}
+</body>
+</html>

@@ -1,4 +1,5 @@
 const pdf = require('pdf-parse')
+const { getDayName } = require('./dateHelper')
 
 /**
  * Parse CBSE Full Datesheet PDF format
@@ -153,6 +154,7 @@ class CBSEDatesheetParser {
       
       const entry = {
         examDate,
+        dayName: getDayName(examDate), // Automatically calculate day name
         subject: {
           code: subjectCode,
           name: subjectName,

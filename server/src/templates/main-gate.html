@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main Gate - Seating Plan</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 15mm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.3;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .header h1 {
+            font-size: 16pt;
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        
+        .header h2 {
+            font-size: 13pt;
+            font-weight: normal;
+            margin-bottom: 2px;
+        }
+        
+        .header h3 {
+            font-size: 12pt;
+            font-weight: normal;
+        }
+        
+        .exam-details {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-size: 11pt;
+            font-weight: bold;
+        }
+        
+        .exam-details .left,
+        .exam-details .right {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        
+        .room-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+        
+        .room-table caption {
+            font-size: 12pt;
+            font-weight: bold;
+            text-align: center;
+            padding: 8px;
+            border: 2px solid #000;
+            border-bottom: none;
+            background-color: #fff;
+        }
+        
+        .room-table th,
+        .room-table td {
+            border: 1px solid #000;
+            padding: 6px 8px;
+            text-align: center;
+        }
+        
+        .room-table th {
+            background-color: #fff;
+            font-weight: bold;
+            font-size: 11pt;
+        }
+        
+        .room-table td {
+            font-size: 10pt;
+        }
+        
+        .room-table td:first-child {
+            font-weight: bold;
+            width: 80px;
+        }
+        
+        .room-table td.roll-number {
+            font-family: 'Courier New', monospace;
+        }
+        
+        .footer {
+            text-align: right;
+            margin-top: 30px;
+            font-size: 12pt;
+            font-weight: bold;
+        }
+        
+        .page-break {
+            page-break-after: always;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>{{schoolName}}</h1>
+        <h2>Seating Plan CBSE Board Exam</h2>
+        <h3>Centre No: {{centreNo}}</h3>
+    </div>
+    
+    <div class="exam-details">
+        <div class="left">
+            <div>Date: {{examDate}}</div>
+            <div>Subject: {{subjectName}}</div>
+        </div>
+        <div class="right">
+            <div>Class: {{className}}</div>
+            <div>Code: {{subjectCode}}</div>
+        </div>
+    </div>
+    
+    {{#rooms}}
+    <table class="room-table">
+        <caption>Room No. {{roomNo}} - {{roomName}} ({{floor}})</caption>
+        <thead>
+            <tr>
+                <th>Row</th>
+                <th>Row 1</th>
+                <th>Row 2</th>
+                <th>Row 3</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{#rows}}
+            <tr>
+                <td>Roll No</td>
+                <td class="roll-number">{{col1}}</td>
+                <td class="roll-number">{{col2}}</td>
+                <td class="roll-number">{{col3}}</td>
+            </tr>
+            {{/rows}}
+        </tbody>
+    </table>
+    {{/rooms}}
+    
+    <div class="footer">
+        CENTRE SUPERINTENDENT
+    </div>
+</body>
+</html>

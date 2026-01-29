@@ -18,6 +18,8 @@ import DateSheets from './pages/DateSheets'
 import RoomAllocation from './pages/RoomAllocation'
 import AnswerSheets from './pages/AnswerSheets'
 import CentreGuidelines from './pages/CentreGuidelines'
+import Form66 from './pages/Form66'
+import SeatingPlan from './pages/SeatingPlan'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -76,6 +78,8 @@ function App() {
               {/* Students feature removed */}
               <Route path="candidates" element={<Candidates />} />
               <Route path="candidates/:id" element={<CandidateDetail />} />
+              <Route path="form66" element={<Form66 />} />
+              <Route path="seatingplan" element={<SeatingPlan />} />
               <Route path="subjects" element={<Subjects />} />
               <Route path="datesheets" element={<DateSheets />} />
               <Route path="examrooms" element={<RoomAllocation />} />

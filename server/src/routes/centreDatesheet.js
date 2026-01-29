@@ -59,17 +59,22 @@ router.get('/entries', protect, asyncHandler(async (req, res) => {
     // Filter and format entries
     const entries = cbseDatesheet.entries
       .map(entry => {
+        // Normalize class format (10th -> 10, 12th -> 12)
+        const normalizedClass = entry.subject.class.replace(/th$/i, '')
         const key = `${entry.subject.code}-${entry.subject.class}`
-        const candidateCount = subjectFrequency.get(key) || 0
-        const answerSheetType = subjectAnswerSheetMap.get(key) || 'none'
+        const normalizedKey = `${entry.subject.code}-${normalizedClass}`
+        
+        // Try both formats for candidate count
+        const candidateCount = subjectFrequency.get(key) || subjectFrequency.get(normalizedKey) || 0
+        const answerSheetType = subjectAnswerSheetMap.get(key) || subjectAnswerSheetMap.get(normalizedKey) || 'none'
         
         return {
           _id: entry._id,
           examDate: entry.examDate,
-          dayName: entry.dayName,
+          dayName: entry.dayName || 'Unknown',
           subjectCode: entry.subject.code,
           subjectName: entry.subject.name,
-          class: entry.subject.class,
+          class: normalizedClass, // Return normalized class (10, 12)
           timeSlot: entry.timeSlot,
           duration: entry.subject.duration,
           candidateCount,

@@ -95,6 +95,21 @@ const cbseDatesheetSchema = new mongoose.Schema({
   timestamps: true
 })
 
+// Pre-save middleware to automatically add day names
+cbseDatesheetSchema.pre('save', function(next) {
+  // Ensure all entries have dayName calculated from examDate
+  if (this.entries && this.entries.length > 0) {
+    this.entries.forEach(entry => {
+      if (entry.examDate && !entry.dayName) {
+        const date = new Date(entry.examDate)
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+        entry.dayName = days[date.getDay()]
+      }
+    })
+  }
+  next()
+})
+
 // Index for faster queries
 cbseDatesheetSchema.index({ academicYear: 1, isActive: 1 })
 cbseDatesheetSchema.index({ 'entries.examDate': 1 })

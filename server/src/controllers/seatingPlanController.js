@@ -1,0 +1,138 @@
+const pdfGenerator = require('../utils/pdfGenerator');
+const seatingPlanBuilder = require('../utils/seatingPlanBuilder');
+const Room = require('../models/Room');
+
+// Get all rooms
+exports.getRooms = async (req, res) => {
+  try {
+    const rooms = await Room.find({ isActive: true }).sort({ roomNo: 1 });
+    res.json(rooms);
+  } catch (error) {
+    console.error('Get Rooms Error:', error);
+    res.status(500).json({ message: 'Failed to fetch rooms', error: error.message });
+  }
+};
+
+// Create room
+exports.createRoom = async (req, res) => {
+  try {
+    const room = new Room(req.body);
+    await room.save();
+    res.status(201).json(room);
+  } catch (error) {
+    console.error('Create Room Error:', error);
+    res.status(500).json({ message: 'Failed to create room', error: error.message });
+  }
+};
+
+// Update room
+exports.updateRoom = async (req, res) => {
+  try {
+    const room = await Room.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true, runValidators: true }
+    );
+    
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+    
+    res.json(room);
+  } catch (error) {
+    console.error('Update Room Error:', error);
+    res.status(500).json({ message: 'Failed to update room', error: error.message });
+  }
+};
+
+// Delete room
+exports.deleteRoom = async (req, res) => {
+  try {
+    const room = await Room.findByIdAndUpdate(
+      req.params.id,
+      { isActive: false },
+      { new: true }
+    );
+    
+    if (!room) {
+      return res.status(404).json({ message: 'Room not found' });
+    }
+    
+    res.json({ message: 'Room deleted successfully' });
+  } catch (error) {
+    console.error('Delete Room Error:', error);
+    res.status(500).json({ message: 'Failed to delete room', error: error.message });
+  }
+};
+
+// Generate Main Gate PDF
+exports.generateMainGate = async (req, res) => {
+  try {
+    const { datesheetId } = req.params;
+    
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId);
+    const templateData = seatingPlanBuilder.buildMainGateData(seatingData);
+    const pdfBuffer = await pdfGenerator.generateMainGate(templateData);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=main-gate.pdf');
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Generate Main Gate PDF Error:', error);
+    res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
+  }
+};
+
+// Generate Room Folder Slip PDF
+exports.generateRoomFolderSlip = async (req, res) => {
+  try {
+    const { datesheetId } = req.params;
+    
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId);
+    const templateData = seatingPlanBuilder.buildRoomFolderSlipData(seatingData);
+    const pdfBuffer = await pdfGenerator.generateRoomFolderSlip(templateData);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=room-folder-slip.pdf');
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Generate Room Folder Slip PDF Error:', error);
+    res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
+  }
+};
+
+// Generate Room Door Slip PDF
+exports.generateRoomDoorSlip = async (req, res) => {
+  try {
+    const { datesheetId } = req.params;
+    
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId);
+    const templateData = seatingPlanBuilder.buildRoomDoorSlipData(seatingData);
+    const pdfBuffer = await pdfGenerator.generateRoomDoorSlip(templateData);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=room-door-slip.pdf');
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Generate Room Door Slip PDF Error:', error);
+    res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
+  }
+};
+
+// Generate CBSE Copy PDF
+exports.generateCBSECopy = async (req, res) => {
+  try {
+    const { datesheetId } = req.params;
+    
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId);
+    const templateData = seatingPlanBuilder.buildCBSECopyData(seatingData);
+    const pdfBuffer = await pdfGenerator.generateCBSECopy(templateData);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=cbse-copy.pdf');
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Generate CBSE Copy PDF Error:', error);
+    res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
+  }
+};
