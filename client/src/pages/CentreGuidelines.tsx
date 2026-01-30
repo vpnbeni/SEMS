@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react'
+import { Tabs } from '../components/common/Tabs'
+import type { TabConfig } from '../components/common/Tabs'
 
 interface Chapter {
   number: string
@@ -56,7 +58,7 @@ const CentreGuidelines: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
-  const [activeTab, setActiveTab] = useState<'viewer' | 'chapters' | 'appendices' | 'search'>('viewer')
+  const [activeTab, setActiveTab] = useState<'viewer' | 'chapters' | 'appendices' | 'search'>('chapters')
   const [expandedAppendix, setExpandedAppendix] = useState<string | null>(null)
   const [expandedChapter, setExpandedChapter] = useState<string | null>(null)
 
@@ -170,117 +172,123 @@ const CentreGuidelines: React.FC = () => {
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                Centre Guidelines
-              </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Important guidelines and instructions for examination centre management
-              </p>
-            </div>
-            <button 
-              onClick={() => setShowUploadModal(true)}
-              className="btn btn-primary"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Upload Guidelines
-            </button>
-          </div>
-
-          {/* Search Bar */}
-          {uploadedPdf && (
-            <div className="flex gap-2">
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  placeholder="Search within guidelines..."
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-                <svg className="absolute right-3 top-3 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-              <button
-                onClick={handleSearch}
-                disabled={searching || searchQuery.length < 3}
-                className="btn btn-primary"
-              >
-                {searching ? 'Searching...' : 'Search'}
-              </button>
-            </div>
-          )}
-        </div>
-
         {uploadedPdf && guidelinesData && (
           <>
-            {/* Navigation Tabs */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
-              <div className="border-b border-gray-200 dark:border-gray-700">
-                <nav className="flex -mb-px">
-                  <button
-                    onClick={() => setActiveTab('viewer')}
-                    className={`px-6 py-3 text-sm font-medium border-b-2 ${
-                      activeTab === 'viewer'
-                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-                    }`}
-                  >
-                    <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    PDF Viewer
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('chapters')}
-                    className={`px-6 py-3 text-sm font-medium border-b-2 ${
-                      activeTab === 'chapters'
-                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-                    }`}
-                  >
-                    <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                    Chapters ({guidelinesData.structure.chapters.length})
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('appendices')}
-                    className={`px-6 py-3 text-sm font-medium border-b-2 ${
-                      activeTab === 'appendices'
-                        ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-                    }`}
-                  >
-                    <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {/* Stats cards at top */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <div className="flex items-center">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg mr-3">
+                    <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Appendices ({guidelinesData.structure.appendices.length})
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {guidelinesData.metadata.pages}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Total Pages</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <div className="flex items-center">
+                  <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg mr-3">
+                    <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {guidelinesData.structure.chapters.length}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Chapters</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <div className="flex items-center">
+                  <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg mr-3">
+                    <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {guidelinesData.structure.appendices.length}
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Appendices</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <div className="flex items-center">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg mr-3">
+                    <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {guidelinesData.structure.guidelines.length}+
+                    </p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Guidelines</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Navigation Tabs - same style as Date Sheets (pill, ribbon) */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 py-3 bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                <Tabs<'viewer' | 'chapters' | 'appendices' | 'search'>
+                  tabs={[
+                    {
+                      id: 'chapters',
+                      label: 'Chapters',
+                      badge: String(guidelinesData.structure.chapters.length),
+                      color: 'blue'
+                    },
+                    {
+                      id: 'appendices',
+                      label: 'Appendices',
+                      badge: String(guidelinesData.structure.appendices.length),
+                      color: 'emerald'
+                    },
+                    {
+                      id: 'viewer',
+                      label: 'PDF Viewer',
+                      color: 'indigo'
+                    },
+                    ...(searchResults.length > 0
+                      ? [{
+                          id: 'search' as const,
+                          label: 'Search Results',
+                          badge: String(searchResults.length),
+                          color: 'purple' as const
+                        }]
+                      : [])
+                  ] as TabConfig<'viewer' | 'chapters' | 'appendices' | 'search'>[]}
+                  activeTab={activeTab}
+                  onChange={(tabId) => setActiveTab(tabId)}
+                  variant="pill"
+                  size="sm"
+                  ariaLabel="Centre guidelines sections"
+                />
+                <div className="flex gap-3 shrink-0">
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                  >
+                    <svg className="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Upload Guidelines
                   </button>
-                  {searchResults.length > 0 && (
-                    <button
-                      onClick={() => setActiveTab('search')}
-                      className={`px-6 py-3 text-sm font-medium border-b-2 ${
-                        activeTab === 'search'
-                          ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
-                      }`}
-                    >
-                      <svg className="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      Search Results ({searchResults.length})
-                    </button>
-                  )}
-                </nav>
+                </div>
               </div>
 
               {/* Tab Content */}
@@ -636,73 +644,6 @@ const CentreGuidelines: React.FC = () => {
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Statistics */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                <div className="flex items-center">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg mr-3">
-                    <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {guidelinesData.metadata.pages}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Total Pages</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                <div className="flex items-center">
-                  <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg mr-3">
-                    <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {guidelinesData.structure.chapters.length}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Chapters</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                <div className="flex items-center">
-                  <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg mr-3">
-                    <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {guidelinesData.structure.appendices.length}
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Appendices</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-                <div className="flex items-center">
-                  <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg mr-3">
-                    <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {guidelinesData.structure.guidelines.length}+
-                    </p>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Guidelines</p>
-                  </div>
-                </div>
               </div>
             </div>
           </>

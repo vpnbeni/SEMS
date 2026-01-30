@@ -3,8 +3,11 @@ import toast from 'react-hot-toast'
 import DatesheetImportModal from '../components/datesheets/ImportModal'
 import CreateDatesheetModal, { DatesheetFormData } from '../components/datesheets/CreateModal'
 import ScheduleModal, { ScheduleRow } from '../components/datesheets/ScheduleModal'
+import { Tabs } from '../components/common/Tabs'
 import datesheetService from '../services/datesheetService'
 import calendarService from '../services/calendarService'
+
+type DateSheetTabId = 'all' | 'centre' | 'centre10th' | 'centre12th'
 
 const DateSheets: React.FC = () => {
   const [showImportModal, setShowImportModal] = useState(false)
@@ -53,12 +56,12 @@ const DateSheets: React.FC = () => {
       const res = await datesheetService.getAll()
       const list = res.data?.data?.datesheets || []
       setDatesheets(list)
-      
+
       // Calculate stats for datesheet tabs (not including full datesheet)
       const centre = list.filter((ds: any) => ds.centre).length
       const centre10th = list.filter((ds: any) => ds.centre && ds.class === '10th').length
       const centre12th = list.filter((ds: any) => ds.centre && ds.class === '12th').length
-      
+
       setStats({ fullDatesheet: 0, fullDatesheetDays: 0, centre, centreDays: 0, centreCandidates: 0, centre10th, centre10thDays: 0, centre10thCandidates: 0, centre12th, centre12thDays: 0, centre12thCandidates: 0 }) // fullDatesheet will be set from CBSE datesheet or subjects
     } catch (e) {
       // silently ignore; empty state will show
@@ -89,7 +92,7 @@ const DateSheets: React.FC = () => {
         if (data.success) {
           const subjectsList = data.data || []
           setSubjects(subjectsList)
-          
+
           // Update pagination info
           setPagination({
             page: data.meta?.currentPage || 1,
@@ -97,7 +100,7 @@ const DateSheets: React.FC = () => {
             total: data.meta?.totalCount || 0,
             limit: pagination.limit
           })
-          
+
           // Update stats with total subject count for full datesheet
           setStats(prev => ({ ...prev, fullDatesheet: data.meta?.totalCount || 0 }))
         }
@@ -117,7 +120,7 @@ const DateSheets: React.FC = () => {
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
       })
-      
+
       // Add sorting parameters if active
       if (sortField) {
         queryParams.append('sortField', sortField)
@@ -137,7 +140,7 @@ const DateSheets: React.FC = () => {
         if (data.success) {
           const cbseEntries = data.data || []
           setCbseDatesheet(cbseEntries)
-          
+
           // Update pagination info for CBSE datesheet
           setPagination({
             page: data.meta?.currentPage || 1,
@@ -145,18 +148,18 @@ const DateSheets: React.FC = () => {
             total: data.meta?.totalCount || 0,
             limit: pagination.limit
           })
-          
+
           // Get unique days from API meta or statistics
           const uniqueDays = data.meta?.uniqueDates || data.datesheet?.statistics?.uniqueDates || 0
           console.log('📅 Unique days from API:', uniqueDays)
-          
+
           // Update stats with CBSE datesheet count and unique days
-          setStats(prev => ({ 
-            ...prev, 
+          setStats(prev => ({
+            ...prev,
             fullDatesheet: data.meta?.totalCount || 0,
             fullDatesheetDays: uniqueDays
           }))
-          
+
           console.log(`✅ Loaded ${cbseEntries.length} CBSE datesheet entries`)
         }
       } else if (response.status === 404) {
@@ -186,7 +189,7 @@ const DateSheets: React.FC = () => {
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
       })
-      
+
       // Add sorting parameters if active
       if (sortField) {
         queryParams.append('sortField', sortField)
@@ -207,7 +210,7 @@ const DateSheets: React.FC = () => {
           const centreEntries = data.data || []
           console.log('📊 Centre entries:', centreEntries.length, centreEntries.slice(0, 2))
           setCentreDatesheet(centreEntries)
-          
+
           // Update pagination info for centre datesheet
           setPagination({
             page: data.meta?.currentPage || 1,
@@ -215,10 +218,10 @@ const DateSheets: React.FC = () => {
             total: data.meta?.totalCount || 0,
             limit: pagination.limit
           })
-          
+
           // Update stats with centre datesheet count
-          setStats(prev => ({ 
-            ...prev, 
+          setStats(prev => ({
+            ...prev,
             centre: data.meta?.totalCount || 0,
             centreDays: data.stats?.uniqueDates || 0,
             centreCandidates: data.stats?.candidateCount || 0,
@@ -229,7 +232,7 @@ const DateSheets: React.FC = () => {
             centre12thDays: data.stats?.class12thDays || 0,
             centre12thCandidates: data.stats?.class12thCandidates || 0
           }))
-          
+
           console.log(`✅ Loaded ${centreEntries.length} centre datesheet entries`)
         } else {
           console.log('❌ Centre datesheet API returned success=false:', data.message)
@@ -265,13 +268,13 @@ const DateSheets: React.FC = () => {
   useEffect(() => {
     // Reset pagination when switching tabs
     setPagination(prev => ({ ...prev, page: 1 }))
-    
+
     if (activeTab === 'all') {
       loadSubjects()
     } else if (activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') {
       loadCentreDatesheet()
     }
-    
+
     // Reset sorting to date when switching tabs
     setSortField('date')
     setSortOrder('asc')
@@ -281,7 +284,7 @@ const DateSheets: React.FC = () => {
   useEffect(() => {
     if (activeTab === 'all') {
       loadCBSEDatesheet() // Try CBSE first, fallback to subjects
-    } else if (activeTab === 'centre') {
+    } else if (activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') {
       loadCentreDatesheet()
     }
   }, [pagination.page])
@@ -305,9 +308,9 @@ const DateSheets: React.FC = () => {
       setImporting(true)
       setImportErrorMsg(undefined)
       setImportErrorSample(undefined)
-      
+
       const response = await datesheetService.importFromPDF(file)
-      
+
       if (response.data?.success) {
         const count = response.data?.data?.count || 0
         toast.success(`Datesheet imported successfully! Found ${count} entries.`)
@@ -315,7 +318,7 @@ const DateSheets: React.FC = () => {
         setImportErrorMsg(undefined)
         setImportErrorSample(undefined)
         setImportDebug(undefined)
-        
+
         // Reload CBSE datesheet data after successful import
         await loadCBSEDatesheet()
         await loadDatesheets()
@@ -327,11 +330,11 @@ const DateSheets: React.FC = () => {
       const msg = error.response?.data?.message || error.message || 'Failed to import datesheet'
       const sample = error.response?.data?.sample as string[] | undefined
       const debug = error.response?.data?.debug
-      
+
       setImportErrorMsg(msg)
       setImportErrorSample(sample)
       setImportDebug(debug)
-      
+
       // Log debug info to console for troubleshooting
       if (debug) {
         console.log('Debug info:', debug)
@@ -339,7 +342,7 @@ const DateSheets: React.FC = () => {
       if (sample) {
         console.log('Sample lines:', sample)
       }
-      
+
       // Don't show toast if we're displaying error in modal
       if (!sample) {
         toast.error(msg)
@@ -353,7 +356,7 @@ const DateSheets: React.FC = () => {
     try {
       setCreating(true)
       const response = await datesheetService.create(data)
-      
+
       if (response.data?.success) {
         toast.success('Date sheet created successfully!')
         setShowCreateModal(false)
@@ -381,7 +384,7 @@ const DateSheets: React.FC = () => {
 
   // Generate table rows based on active tab
   let tableRows: any[] = []
-  
+
   if (activeTab === 'all') {
     // For "Full Datesheet" tab, show CBSE datesheet data if available, otherwise subjects
     if (cbseDatesheet.length > 0) {
@@ -394,7 +397,8 @@ const DateSheets: React.FC = () => {
         subjectCode: entry.subject.code,
         duration: entry.subject.duration || 0,
         timeSlot: entry.timeSlot,
-        dayName: entry.dayName
+        dayName: entry.dayName,
+        answerSheet: entry.answerSheet || 'none'
       }))
     } else {
       // Fallback to subjects if no CBSE datesheet available
@@ -407,7 +411,8 @@ const DateSheets: React.FC = () => {
         subjectCode: subject.code,
         duration: subject.duration || 0,
         timeSlot: null,
-        dayName: null
+        dayName: null,
+        answerSheet: subject.answerSheet || 'none'
       }))
     }
   } else if (activeTab === 'centre') {
@@ -423,7 +428,8 @@ const DateSheets: React.FC = () => {
       timeSlot: entry.timeSlot,
       dayName: entry.dayName,
       candidateCount: entry.candidateCount || 0,
-      roomsNeeded: entry.roomsNeeded || 0
+      roomsNeeded: entry.roomsNeeded || 0,
+      answerSheet: entry.answerSheet || entry.answerSheetType || 'none'
     }))
   } else if (activeTab === 'centre10th') {
     // For "Centre 10th Datesheet" tab, show only 10th class entries from centre datesheet
@@ -440,7 +446,8 @@ const DateSheets: React.FC = () => {
         timeSlot: entry.timeSlot,
         dayName: entry.dayName,
         candidateCount: entry.candidateCount || 0,
-        roomsNeeded: entry.roomsNeeded || 0
+        roomsNeeded: entry.roomsNeeded || 0,
+        answerSheet: entry.answerSheet || entry.answerSheetType || 'none'
       }))
   } else if (activeTab === 'centre12th') {
     // For "Centre 12th Datesheet" tab, show only 12th class entries from centre datesheet
@@ -457,7 +464,8 @@ const DateSheets: React.FC = () => {
         timeSlot: entry.timeSlot,
         dayName: entry.dayName,
         candidateCount: entry.candidateCount || 0,
-        roomsNeeded: entry.roomsNeeded || 0
+        roomsNeeded: entry.roomsNeeded || 0,
+        answerSheet: entry.answerSheet || entry.answerSheetType || 'none'
       }))
   } else {
     // For other tabs, show datesheet subjects as before
@@ -480,7 +488,7 @@ const DateSheets: React.FC = () => {
   if (activeTab !== 'all' && sortField) {
     tableRows = [...tableRows].sort((a, b) => {
       let comparison = 0
-      
+
       if (sortField === 'date') {
         // Handle null dates
         if (!a.examDate && !b.examDate) return 0
@@ -496,7 +504,7 @@ const DateSheets: React.FC = () => {
       } else if (sortField === 'duration') {
         comparison = a.duration - b.duration
       }
-      
+
       return sortOrder === 'asc' ? comparison : -comparison
     })
   }
@@ -516,7 +524,7 @@ const DateSheets: React.FC = () => {
       setSortField(field)
       setSortOrder('asc')
     }
-    
+
     // Reset to first page when sorting changes
     setPagination(prev => ({ ...prev, page: 1 }))
   }
@@ -536,350 +544,276 @@ const DateSheets: React.FC = () => {
     return `${duration} ${duration === 1 ? 'Hour' : 'Hours'}`
   }
 
-  return (
-    <div className="p-6">
+  // Helper function to format answer sheet with colored dot
+  const formatAnswerSheet = (answerSheet: string) => {
+    const answerSheetConfig: Record<string, { color: string; label: string }> = {
+      '32_pages': { color: '#3B82F6', label: '32 Pages' },
+      '20_pages': { color: '#10B981', label: '20 Pages' },
+      '40_graph': { color: '#F59E0B', label: '40 Pages (Graph)' },
+      'none': { color: '#9CA3AF', label: 'Not specified' }
+    }
 
-      {/* Action Bar */}
-      <div className="flex justify-end items-center mb-6">
-        <div className="flex gap-3">
-        <button onClick={() => setShowImportModal(true)} className="btn btn-secondary">
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-          </svg>
-          Import PDF
-        </button>
-        <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
-          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-          </svg>
-          Create Date Sheet
-        </button>
-        </div>
+    const config = answerSheetConfig[answerSheet] || answerSheetConfig['none']
+
+    return (
+      <div className="flex items-center gap-2">
+        <div
+          className="w-2 h-2 rounded-full flex-shrink-0"
+          style={{ backgroundColor: config.color }}
+        />
+        <span>{config.label}</span>
       </div>
+    )
+  }
 
-      {/* Stats Tabs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <button
-          onClick={() => setActiveTab('all')}
-          className={`p-4 rounded-lg border-2 transition-all ${
-            activeTab === 'all'
-              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-          }`}
-        >
-          <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-lg ${activeTab === 'all' ? 'bg-blue-500' : 'bg-blue-100 dark:bg-blue-900'}`}>
-              <svg className={`w-6 h-6 ${activeTab === 'all' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  return (
+    <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-gray-50/50 dark:bg-gray-900">
+
+      {/* Stats cards (display only) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
-            <div className="text-left flex-1">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Full Datesheet</p>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.fullDatesheetDays}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.fullDatesheet}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Full Datesheet</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.fullDatesheetDays}</span>
+                <span className="text-xs text-gray-400 font-medium">days</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.fullDatesheet}</span>
+                <span className="text-xs text-gray-400 font-medium">sub</span>
               </div>
             </div>
           </div>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('centre')}
-          className={`p-4 rounded-lg border-2 transition-all ${
-            activeTab === 'centre'
-              ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-          }`}
-        >
-          <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-lg ${activeTab === 'centre' ? 'bg-green-500' : 'bg-green-100 dark:bg-green-900'}`}>
-              <svg className={`w-6 h-6 ${activeTab === 'centre' ? 'text-white' : 'text-green-600 dark:text-green-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
               </svg>
             </div>
-            <div className="text-left flex-1">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Centre Datesheet</p>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.centreDays}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.centre}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.centreCandidates}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Centre Datesheet</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centreDays}</span>
+                <span className="text-xs text-gray-400 font-medium">days</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centre}</span>
+                <span className="text-xs text-gray-400 font-medium">sub</span>
               </div>
             </div>
           </div>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('centre10th')}
-          className={`p-4 rounded-lg border-2 transition-all ${
-            activeTab === 'centre10th'
-              ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-          }`}
-        >
-          <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-lg ${activeTab === 'centre10th' ? 'bg-green-500' : 'bg-green-100 dark:bg-green-900'}`}>
-              <svg className={`w-6 h-6 ${activeTab === 'centre10th' ? 'text-white' : 'text-green-600 dark:text-green-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-indigo-50 text-indigo-500 dark:bg-indigo-900/20 dark:text-indigo-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             </div>
-            <div className="text-left flex-1">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Centre 10th Datesheet</p>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.centre10thDays}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.centre10th}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.centre10thCandidates}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Class 10th</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centre10thDays}</span>
+                <span className="text-xs text-gray-400 font-medium">days</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centre10thCandidates}</span>
+                <span className="text-xs text-gray-400 font-medium">std</span>
               </div>
             </div>
           </div>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('centre12th')}
-          className={`p-4 rounded-lg border-2 transition-all ${
-            activeTab === 'centre12th'
-              ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-          }`}
-        >
-          <div className="flex items-center space-x-3">
-            <div className={`p-2 rounded-lg ${activeTab === 'centre12th' ? 'bg-purple-500' : 'bg-purple-100 dark:bg-purple-900'}`}>
-              <svg className={`w-6 h-6 ${activeTab === 'centre12th' ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-violet-50 text-violet-500 dark:bg-violet-900/20 dark:text-violet-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
               </svg>
             </div>
-            <div className="text-left flex-1">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Centre 12th Datesheet</p>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.centre12thDays}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.centre12th}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 dark:text-white">{stats.centre12thCandidates}</span>
-                  <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Class 12th</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centre12thDays}</span>
+                <span className="text-xs text-gray-400 font-medium">days</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centre12thCandidates}</span>
+                <span className="text-xs text-gray-400 font-medium">std</span>
               </div>
             </div>
           </div>
-        </button>
+        </div>
       </div>
 
       {/* Info Banner for Full Datesheet without CBSE data */}
       {activeTab === 'all' && cbseDatesheet.length === 0 && subjects.length > 0 && (
-        <div className="mb-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="mb-6 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl p-5 shadow-sm">
           <div className="flex items-start">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="h-6 w-6 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
             </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                Showing subjects without exam dates
+            <div className="ml-4">
+              <h3 className="text-base font-semibold text-blue-800 dark:text-blue-200">
+                Displaying Subjects (No Exam Dates Found)
               </h3>
               <div className="mt-2 text-sm text-blue-700 dark:text-blue-300">
                 <p>
-                  To see actual exam dates and days, import a CBSE Full Datesheet PDF using the "Import PDF" button above.
-                  The system will automatically parse the dates and display them here.
+                  You are currently viewing all subjects. To generate a complete schedule with exam dates and days, please import a CBSE Full Datesheet PDF.
+                  The system will automatically parse and organize the dates for you.
                 </p>
               </div>
             </div>
           </div>
         </div>
-      )}
+      )
+      }
 
-      {/* Datesheet Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {/* Ribbon: Tabs + actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 py-3 bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+          <Tabs<DateSheetTabId>
+            tabs={[
+              { id: 'all', label: 'Full Datesheet', color: 'blue' },
+              { id: 'centre', label: 'Centre Datesheet', color: 'emerald' },
+              { id: 'centre10th', label: 'Class 10th', color: 'indigo' },
+              { id: 'centre12th', label: 'Class 12th', color: 'purple' }
+            ]}
+            activeTab={activeTab}
+            onChange={(id) => setActiveTab(id)}
+            variant="pill"
+            size="sm"
+            ariaLabel="Date sheet views"
+          />
+          <div className="flex gap-3 shrink-0">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="inline-flex items-center px-4 py-2 border border-blue-600 shadow-sm text-sm font-medium rounded-lg text-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            >
+              <svg className="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Import PDF
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            >
+              <svg className="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Create Date Sheet
+            </button>
+          </div>
+        </div>
+        {/* Datesheet Table */}
         {(loading || (activeTab === 'all' && cbseLoading) || ((activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') && centreLoading)) ? (
-          <div className="p-8 text-center text-gray-600 dark:text-gray-400">Loading...</div>
-        ) : tableRows.length === 0 ? (
-          <div className="p-12 text-center">
-            <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+          <div className="p-12 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400">
+            <svg className="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No Exam Schedule Found</h3>
-            <p className="text-gray-500 dark:text-gray-400 mb-6">
-              {activeTab === 'all' 
-                ? 'No exam dates available. Import a CBSE Full Datesheet PDF to see exam dates, or add subjects to see them without dates.'
+            <span className="text-sm font-medium">Loading datesheet data...</span>
+          </div>
+        ) : tableRows.length === 0 ? (
+          <div className="p-16 text-center">
+            <div className="mx-auto h-24 w-24 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
+              <svg className="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Exam Schedule Found</h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-8 leading-relaxed">
+              {activeTab === 'all'
+                ? 'No exam dates available. Import a CBSE Full Datesheet PDF to see exam dates, or add subjects manually.'
                 : activeTab === 'centre'
-                ? 'No centre datesheet available. The centre datesheet is automatically generated based on candidate subject choices. Please ensure candidates are registered and have selected their subjects.'
-                : `No exam schedule found for ${activeTab === 'centre10th' ? 'Centre 10th Datesheet' : 'Centre 12th Datesheet'}.`
+                  ? 'No centre datesheet available. The centre datesheet is automatically generated based on candidate subject choices.'
+                  : `No exam schedule found for ${activeTab === 'centre10th' ? 'Centre 10th Datesheet' : 'Centre 12th Datesheet'}.`
               }
             </p>
-            <button onClick={() => setShowCreateModal(true)} className="btn btn-primary">
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+            <button onClick={() => setShowCreateModal(true)} className="inline-flex items-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
+              <svg className="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
               Create Date Sheet
             </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-auto">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50/50 dark:bg-gray-900/50">
                 <tr>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-16">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-16">
                     Sr No
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-28">
-                    {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32 cursor-pointer group" onClick={() => (activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? null : handleSort('date')}>
+                    <div className="flex items-center gap-2">
                       <span>Date</span>
-                    ) : (
-                      <button 
-                        onClick={() => handleSort('date')} 
-                        className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none"
-                      >
-                        <span>Date</span>
-                        <div className="flex flex-col">
-                          <svg className={`w-3 h-3 ${sortField === 'date' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                          </svg>
-                          <svg className={`w-3 h-3 -mt-1 ${sortField === 'date' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
+                      {activeTab === 'all' && (
+                        <div className="inline-flex flex-col -space-y-1.5">
+                          <svg className={`w-3 h-3 shrink-0 ${sortField === 'date' && sortOrder === 'asc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                          <svg className={`w-3 h-3 shrink-0 ${sortField === 'date' && sortOrder === 'desc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                         </div>
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-28">
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
                     Day
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-16">
-                    {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24 cursor-pointer group" onClick={() => (activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? null : handleSort('class')}>
+                    <div className="flex items-center gap-2">
                       <span>Class</span>
-                    ) : (
-                      <button 
-                        onClick={() => handleSort('class')} 
-                        className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none"
-                      >
-                        <span>Class</span>
-                        <div className="flex flex-col">
-                          <svg className={`w-3 h-3 ${sortField === 'class' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                          </svg>
-                          <svg className={`w-3 h-3 -mt-1 ${sortField === 'class' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
+                      {activeTab === 'all' && (
+                        <div className="inline-flex flex-col -space-y-1.5">
+                          <svg className={`w-3 h-3 shrink-0 ${sortField === 'class' && sortOrder === 'asc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                          <svg className={`w-3 h-3 shrink-0 ${sortField === 'class' && sortOrder === 'desc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                         </div>
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-24">
-                    {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
-                      <span>Subject Code</span>
-                    ) : (
-                      <button 
-                        onClick={() => handleSort('subjectCode')} 
-                        className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none"
-                      >
-                        <span>Subject Code</span>
-                        <div className="flex flex-col">
-                          <svg className={`w-3 h-3 ${sortField === 'subjectCode' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                          </svg>
-                          <svg className={`w-3 h-3 -mt-1 ${sortField === 'subjectCode' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32 cursor-pointer group" onClick={() => (activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? null : handleSort('subjectCode')}>
+                    <div className="flex items-center gap-2">
+                      <span>Code</span>
+                      {activeTab === 'all' && (
+                        <div className="inline-flex flex-col -space-y-1.5">
+                          <svg className={`w-3 h-3 shrink-0 ${sortField === 'subjectCode' && sortOrder === 'asc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                          <svg className={`w-3 h-3 shrink-0 ${sortField === 'subjectCode' && sortOrder === 'desc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                         </div>
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
-                      <span>Subject Name</span>
-                    ) : (
-                      <button 
-                        onClick={() => handleSort('subjectName')} 
-                        className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none"
-                      >
-                        <span>Subject Name</span>
-                        <div className="flex flex-col">
-                          <svg className={`w-3 h-3 ${sortField === 'subjectName' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                          </svg>
-                          <svg className={`w-3 h-3 -mt-1 ${sortField === 'subjectName' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer group" onClick={() => (activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? null : handleSort('subjectName')}>
+                    <div className="flex items-center gap-2">
+                      <span>Subject</span>
+                      {activeTab === 'all' && (
+                        <div className="inline-flex flex-col -space-y-1.5">
+                          <svg className={`w-3 h-3 shrink-0 ${sortField === 'subjectName' && sortOrder === 'asc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                          <svg className={`w-3 h-3 shrink-0 ${sortField === 'subjectName' && sortOrder === 'desc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                         </div>
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-24">
-                    {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? (
-                      <span>Duration</span>
-                    ) : (
-                      <button 
-                        onClick={() => handleSort('duration')} 
-                        className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none"
-                      >
-                        <span>Duration</span>
-                        <div className="flex flex-col">
-                          <svg className={`w-3 h-3 ${sortField === 'duration' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                          </svg>
-                          <svg className={`w-3 h-3 -mt-1 ${sortField === 'duration' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40">
+                    Answer Sheet
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32 cursor-pointer group" onClick={() => (activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') ? null : handleSort('duration')}>
+                    <div className="flex items-center gap-2">
+                      <span>Time</span>
+                      {activeTab === 'all' && (
+                        <div className="inline-flex flex-col -space-y-1.5">
+                          <svg className={`w-3 h-3 shrink-0 ${sortField === 'duration' && sortOrder === 'asc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                          <svg className={`w-3 h-3 shrink-0 ${sortField === 'duration' && sortOrder === 'desc' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-300 dark:text-gray-600'}`} fill="currentColor" viewBox="0 0 20 20" aria-hidden><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 011.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                         </div>
-                      </button>
-                    )}
+                      )}
+                    </div>
                   </th>
                   {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') && (
                     <>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-24">
+                      <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
                         Candidates
                       </th>
-                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-20">
+                      <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
                         Rooms
                       </th>
                     </>
@@ -888,176 +822,212 @@ const DateSheets: React.FC = () => {
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {tableRows.map((row, index) => {
-                  // Determine row background color and text color based on class
-                  let rowClassName = "hover:bg-gray-50 dark:hover:bg-gray-700"
+                  let rowClassName = "hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                   let textClassName = "text-gray-900 dark:text-white"
-                  
-                  // Apply color highlighting for all tabs based on class
+                  let classBadgeColor = "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
+
                   if (row.class === '10th') {
-                    rowClassName = "bg-green-100 dark:bg-green-900/30 hover:bg-green-200 dark:hover:bg-green-900/40"
-                    textClassName = "text-green-800 dark:text-green-200"
+                    rowClassName = "bg-emerald-50/30 dark:bg-emerald-900/10 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-colors"
+                    classBadgeColor = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 ring-1 ring-emerald-500/20";
                   } else if (row.class === '12th') {
-                    rowClassName = "bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/40"
-                    textClassName = "text-purple-800 dark:text-purple-200"
+                    rowClassName = "bg-violet-50/30 dark:bg-violet-900/10 hover:bg-violet-50/50 dark:hover:bg-violet-900/20 transition-colors"
+                    classBadgeColor = "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 ring-1 ring-violet-500/20";
                   }
-                  
-                  // Calculate Sr No based on unique dates within the current tableRows
-                  // This ensures each tab (10th, 12th) has independent Sr No counting
+
                   let srNo = 1
                   const currentDate = row.examDate ? new Date(row.examDate).toDateString() : null
-                  
-                  // Count unique dates before current row
                   const uniqueDatesBefore = new Set<string>()
                   for (let i = 0; i < index; i++) {
                     const checkDate = tableRows[i].examDate ? new Date(tableRows[i].examDate).toDateString() : null
-                    if (checkDate) {
-                      uniqueDatesBefore.add(checkDate)
-                    }
+                    if (checkDate) uniqueDatesBefore.add(checkDate)
                   }
-                  
-                  // If current date is already in the set, use the same Sr No as first occurrence
                   if (currentDate && uniqueDatesBefore.has(currentDate)) {
-                    // Find the first row with this date
                     for (let i = 0; i < index; i++) {
                       const checkDate = tableRows[i].examDate ? new Date(tableRows[i].examDate).toDateString() : null
                       if (checkDate === currentDate) {
-                        // Count unique dates before that first occurrence
                         const uniqueDatesBeforeFirst = new Set<string>()
                         for (let j = 0; j < i; j++) {
                           const prevDate = tableRows[j].examDate ? new Date(tableRows[j].examDate).toDateString() : null
-                          if (prevDate) {
-                            uniqueDatesBeforeFirst.add(prevDate)
-                          }
+                          if (prevDate) uniqueDatesBeforeFirst.add(prevDate)
                         }
                         srNo = uniqueDatesBeforeFirst.size + 1
                         break
                       }
                     }
                   } else {
-                    // New date, increment Sr No
                     srNo = uniqueDatesBefore.size + 1
                   }
-                  
+
                   return (
-                  <tr key={`${row.datesheetId}-${index}`} className={rowClassName}>
-                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
-                      {srNo}
-                    </td>
-                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
-                      {row.examDate ? new Date(row.examDate).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}
-                    </td>
-                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
-                      {row.examDate ? (row.dayName && row.dayName !== 'Unknown' ? row.dayName : getDayName(row.examDate)) : '—'}
-                    </td>
-                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
-                      {row.class}
-                    </td>
-                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
-                      {row.subjectCode}
-                    </td>
-                    <td className={`px-3 py-3 text-sm font-medium ${textClassName}`}>
-                      {row.subjectName}
-                    </td>
-                    <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
-                      {formatDuration(row.duration)}
-                    </td>
-                    {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') && (
-                      <>
-                        <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
-                          {row.candidateCount || 0}
-                        </td>
-                        <td className={`px-3 py-3 whitespace-nowrap text-sm font-medium ${textClassName}`}>
-                          {row.roomsNeeded || 0}
-                        </td>
-                      </>
-                    )}
-                  </tr>
+                    <tr key={`${row.datesheetId}-${index}`} className={rowClassName}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-mono">
+                        {String(srNo).padStart(2, '0')}
+                      </td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${textClassName}`}>
+                        {row.examDate ? new Date(row.examDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {row.examDate ? (row.dayName && row.dayName !== 'Unknown' ? row.dayName : getDayName(row.examDate)) : <span className="text-gray-400">—</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${classBadgeColor}`}>
+                          {row.class}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
+                        {row.subjectCode}
+                      </td>
+                      <td className={`px-6 py-4 text-sm font-medium ${textClassName}`}>
+                        {row.subjectName}
+                        {row.timeSlot && typeof row.timeSlot === 'string' ? (
+                          <div className="text-xs text-gray-400 font-normal mt-0.5">{row.timeSlot}</div>
+                        ) : row.timeSlot && typeof row.timeSlot === 'object' ? (
+                          <div className="text-xs text-gray-400 font-normal mt-0.5">
+                            {row.timeSlot.start} - {row.timeSlot.end}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {formatAnswerSheet(row.answerSheet || 'none')}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        {formatDuration(row.duration)}
+                      </td>
+                      {(activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') && (
+                        <>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right text-gray-900 dark:text-white">
+                            {row.candidateCount || 0}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
+                            {row.roomsNeeded || 0}
+                          </td>
+                        </>
+                      )}
+                    </tr>
                   )
                 })}
               </tbody>
             </table>
           </div>
         )}
-
-        {/* Pagination - Show for all tabs when there are multiple pages */}
-        {!loading && !cbseLoading && !centreLoading && pagination.pages > 1 && (
-          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 sm:px-6 mt-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => handlePageChange(pagination.page - 1)}
-                  disabled={pagination.page === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => handlePageChange(pagination.page + 1)}
-                  disabled={pagination.page === pagination.pages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
+      </div>
+      {/* Pagination - Show for all tabs when there are multiple pages */}
+      {!loading && !cbseLoading && !centreLoading && pagination.pages > 1 && (
+        <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 sm:px-6 mt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => handlePageChange(pagination.page - 1)}
+                disabled={pagination.page === 1}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => handlePageChange(pagination.page + 1)}
+                disabled={pagination.page === pagination.pages}
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                  Showing{' '}
+                  <span className="font-medium">
+                    {(pagination.page - 1) * pagination.limit + 1}
+                  </span>{' '}
+                  to{' '}
+                  <span className="font-medium">
+                    {Math.min(pagination.page * pagination.limit, pagination.total)}
+                  </span>{' '}
+                  of{' '}
+                  <span className="font-medium">{pagination.total}</span> results
+                </p>
               </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                    Showing{' '}
-                    <span className="font-medium">
-                      {(pagination.page - 1) * pagination.limit + 1}
-                    </span>{' '}
-                    to{' '}
-                    <span className="font-medium">
-                      {Math.min(pagination.page * pagination.limit, pagination.total)}
-                    </span>{' '}
-                    of{' '}
-                    <span className="font-medium">{pagination.total}</span> results
-                  </p>
-                </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                    <button
-                      onClick={() => handlePageChange(pagination.page - 1)}
-                      disabled={pagination.page === 1}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="sr-only">Previous</span>
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                    
-                    {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
+              <div>
+                <nav className="relative z-0 inline-flex rounded-lg shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    disabled={pagination.page === 1}
+                    className="relative inline-flex items-center px-3 py-2 rounded-l-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:z-20"
+                  >
+                    <span className="sr-only">Previous</span>
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+
+                  {/* Show limited page numbers with ellipsis if many pages */}
+                  {/* Use an IIFE to generate pagination items */}
+                  {(() => {
+                    const pages: (number | string)[] = [];
+                    const { page, pages: totalPages } = pagination;
+
+                    if (totalPages <= 7) {
+                      for (let i = 1; i <= totalPages; i++) {
+                        pages.push(i);
+                      }
+                    } else {
+                      // Always show first page
+                      pages.push(1);
+
+                      // Add left ellipsis
+                      if (page > 3) {
+                        pages.push('...');
+                      }
+
+                      // Show current page and neighbors
+                      const start = Math.max(2, page - 1);
+                      const end = Math.min(totalPages - 1, page + 1);
+
+                      for (let i = start; i <= end; i++) {
+                        pages.push(i);
+                      }
+
+                      // Add right ellipsis
+                      if (page < totalPages - 2) {
+                        pages.push('...');
+                      }
+
+                      // Always show last page
+                      pages.push(totalPages);
+                    }
+
+                    return pages.map((p, i) => (
                       <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          page === pagination.page
-                            ? 'z-10 bg-blue-50 dark:bg-blue-900 border-blue-500 text-blue-600 dark:text-blue-400'
-                            : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}
+                        key={i}
+                        onClick={() => typeof p === 'number' && handlePageChange(p)}
+                        disabled={p === '...'}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium focus:z-20 transition-colors ${p === pagination.page
+                            ? 'z-10 bg-blue-600 border-blue-600 text-white'
+                            : p === '...'
+                              ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-default'
+                              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                          }`}
                       >
-                        {page}
+                        {p}
                       </button>
-                    ))}
-                    
-                    <button
-                      onClick={() => handlePageChange(pagination.page + 1)}
-                      disabled={pagination.page === pagination.pages}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="sr-only">Next</span>
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </nav>
-                </div>
+                    ));
+                  })()}
+
+                  <button
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    disabled={pagination.page === pagination.pages}
+                    className="relative inline-flex items-center px-3 py-2 rounded-r-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors focus:z-20"
+                  >
+                    <span className="sr-only">Next</span>
+                    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </nav>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Import Modal */}
       {showImportModal && (
@@ -1084,8 +1054,8 @@ const DateSheets: React.FC = () => {
             examType: editingData.examType,
             class: editingData.class,
             academicYear: editingData.academicYear,
-            startDate: editingData.startDate?.slice(0,10),
-            endDate: editingData.endDate?.slice(0,10),
+            startDate: editingData.startDate?.slice(0, 10),
+            endDate: editingData.endDate?.slice(0, 10),
             generalInstructions: editingData.generalInstructions || []
           } : undefined}
           titleText={editing ? 'Edit Date Sheet' : 'Create Date Sheet'}
@@ -1093,13 +1063,14 @@ const DateSheets: React.FC = () => {
         />
       )}
 
+      {/* Schedule Modal */}
       {showScheduleModal && editingData && (
         <ScheduleModal
           isOpen={showScheduleModal}
           onClose={() => setShowScheduleModal(false)}
-          initialRows={(editingData.subjects || []).map((s:any)=>({
+          initialRows={(editingData.subjects || []).map((s: any) => ({
             subject: s.subject?._id || s.subject,
-            examDate: s.examDate?.slice(0,10),
+            examDate: s.examDate?.slice(0, 10),
             start: s.timeSlot?.start,
             end: s.timeSlot?.end,
             duration: s.duration || 180,
@@ -1107,14 +1078,16 @@ const DateSheets: React.FC = () => {
             isOptional: s.isOptional,
           }))}
           onSave={async (rows: ScheduleRow[]) => {
-            await datesheetService.update(editingData._id, { subjects: rows.map(r=>({
-              subject: r.subject,
-              examDate: r.examDate,
-              timeSlot: { start: r.start, end: r.end },
-              duration: r.duration,
-              instructions: r.instructions,
-              isOptional: r.isOptional,
-            })) })
+            await datesheetService.update(editingData._id, {
+              subjects: rows.map(r => ({
+                subject: r.subject,
+                examDate: r.examDate,
+                timeSlot: { start: r.start, end: r.end },
+                duration: r.duration,
+                instructions: r.instructions,
+                isOptional: r.isOptional,
+              }))
+            })
             setShowScheduleModal(false)
             await loadDatesheets()
           }}

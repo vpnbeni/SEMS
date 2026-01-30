@@ -20,6 +20,8 @@ import AnswerSheets from './pages/AnswerSheets'
 import CentreGuidelines from './pages/CentreGuidelines'
 import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
+import AnswerSheetDetails from './pages/AnswerSheetDetails'
+import DropdownExamples from './pages/DropdownExamples'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -34,7 +36,7 @@ function App() {
   useEffect(() => {
     // Initialize auth on app startup
     authService.initializeAuth()
-    
+
     // Get current user if token exists
     const token = authService.getToken()
     if (token && !isAuthenticated) {
@@ -58,11 +60,11 @@ function App() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Routes>
           {/* Public Routes */}
-          <Route 
-            path="/login" 
+          <Route
+            path="/login"
             element={
               isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
-            } 
+            }
           />
 
           {/* Protected Routes */}
@@ -86,27 +88,29 @@ function App() {
               {/* Legacy redirect */}
               <Route path="rooms" element={<Navigate to="/examrooms" replace />} />
               <Route path="answersheets" element={<AnswerSheets />} />
+              <Route path="answersheets/:id" element={<AnswerSheetDetails />} />
               <Route path="centre-guidelines" element={<CentreGuidelines />} />
+              <Route path="dropdown-examples" element={<DropdownExamples />} />
             </Route>
           </Route>
 
           {/* Catch all route */}
-          <Route 
-            path="*" 
+          <Route
+            path="*"
             element={
               <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="text-center">
                   <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">404</h1>
                   <p className="text-gray-600 dark:text-gray-400 mb-8">Page not found</p>
-                  <a 
-                    href="/dashboard" 
+                  <a
+                    href="/dashboard"
                     className="btn btn-primary"
                   >
                     Go to Dashboard
                   </a>
                 </div>
               </div>
-            } 
+            }
           />
         </Routes>
       </div>

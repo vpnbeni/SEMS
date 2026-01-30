@@ -11,7 +11,9 @@ const {
   getStatistics,
   parseTemplate,
   downloadTemplate,
-  uploadExcel
+  uploadExcel,
+  getAnswerSheetDetails,
+  getSerialAllocation
 } = require('../controllers/answerSheetController')
 
 // Statistics route (must be before :id routes)
@@ -31,6 +33,10 @@ router.route('/:id')
   .get(getAnswerSheetById)
   .put(updateAnswerSheet)
   .delete(deleteAnswerSheet)
+
+// Details and allocation routes (must be before other :id routes to avoid conflicts)
+router.get('/:id/details', getAnswerSheetDetails)
+router.get('/:id/allocation', getSerialAllocation)
 
 // Action routes
 router.post('/:id/use', useAnswerSheets)

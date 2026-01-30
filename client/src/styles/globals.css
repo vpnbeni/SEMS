@@ -75,13 +75,13 @@
     @apply hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300;
   }
 
-  /* Input variants */
+  /* Input variants - single focus indicator: 1px default, 2px on focus (no ring) */
   .input {
-    @apply flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-400;
+    @apply flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-0 focus-visible:border-2 focus-visible:border-primary-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus-visible:border-primary-400;
   }
 
   .input-error {
-    @apply border-error-500 focus-visible:ring-error-500;
+    @apply border-error-500 focus-visible:border-error-500;
   }
 
   /* Card variants */
@@ -228,6 +228,11 @@
   .animate-slide-in-left {
     animation: slideInLeft 0.3s ease-out;
   }
+
+  /* Small number pop-in for stat cards (like datesheet) */
+  .animate-number-in {
+    animation: numberIn 0.4s ease-out;
+  }
 }
 
 /* Keyframes */
@@ -272,6 +277,17 @@
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+@keyframes numberIn {
+  from {
+    opacity: 0.6;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 

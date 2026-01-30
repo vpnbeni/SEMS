@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import answerSheetService, { AnswerSheetEntry } from '../services/answerSheetService'
 import centreDatesheetService, { CentreDatesheetEntry } from '../services/centreDatesheetService'
+import { Dropdown } from '../components/common/Dropdown'
+import type { DropdownOption } from '../components/common/Dropdown'
+import { Tabs } from '../components/common/Tabs'
+import type { TabConfig } from '../components/common/Tabs'
 
 const AnswerSheets: React.FC = () => {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'received' | 'used' | 'balance' | 'discarded'>('received')
   const [showAddModal, setShowAddModal] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
@@ -28,6 +34,21 @@ const AnswerSheets: React.FC = () => {
     exam: '',
     subject: ''
   })
+  const [selectedExam, setSelectedExam] = useState<string | number>('')
+  const [selectedSubject, setSelectedSubject] = useState<string | number>('')
+
+  const examOptions: DropdownOption[] = [
+    { value: '', label: 'Select Exam' },
+    { value: 'term1', label: 'Term 1 Examination' },
+    { value: 'term2', label: 'Term 2 Examination' },
+    { value: 'annual', label: 'Annual Examination' }
+  ]
+  const subjectOptions: DropdownOption[] = [
+    { value: '', label: 'All Subjects' },
+    { value: 'math', label: 'Mathematics' },
+    { value: 'science', label: 'Science' },
+    { value: 'english', label: 'English' }
+  ]
 
   // Load data on mount
   useEffect(() => {
@@ -65,12 +86,12 @@ const AnswerSheets: React.FC = () => {
     try {
       setLoading(true)
       const blob = await answerSheetService.downloadTemplate()
-      
+
       // Generate filename with timestamp
       const now = new Date()
       const timestamp = now.toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-')
       const filename = `Answer_Sheets_Template_${timestamp}.xlsx`
-      
+
       // Create download link
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -80,7 +101,7 @@ const AnswerSheets: React.FC = () => {
       link.click()
       document.body.removeChild(link)
       window.URL.revokeObjectURL(url)
-      
+
       alert(`Template downloaded as "${filename}".\n\nPlease:\n1. Open the file in Excel\n2. Fill in the "From" and "To" serial numbers\n3. Save the file\n4. Upload it back here`)
     } catch (err: any) {
       console.error('Error downloading template:', err)
@@ -89,7 +110,7 @@ const AnswerSheets: React.FC = () => {
       setLoading(false)
     }
   }
-  
+
   // Handle file selection
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -97,18 +118,18 @@ const AnswerSheets: React.FC = () => {
       setUploadFile(file)
     }
   }
-  
+
   // Upload Excel file
   const handleUploadExcel = async () => {
     if (!uploadFile) {
       alert('Please select a file to upload')
       return
     }
-    
+
     try {
       setLoading(true)
       const response = await answerSheetService.uploadExcel(uploadFile)
-      
+
       if (response.success) {
         let message = `Successfully added ${response.data.created} answer sheet entries!`
         if (response.data.skipped > 0) {
@@ -148,12 +169,12 @@ const AnswerSheets: React.FC = () => {
 
     const serialFrom = parseInt(formData.serialFrom.replace(/\D/g, ''))
     const serialTo = parseInt(formData.serialTo.replace(/\D/g, ''))
-    
+
     if (isNaN(serialFrom) || isNaN(serialTo)) {
       alert('Please enter valid serial numbers')
       return
     }
-    
+
     if (serialTo < serialFrom) {
       alert('Serial To must be greater than Serial From')
       return
@@ -176,13 +197,13 @@ const AnswerSheets: React.FC = () => {
 
       await answerSheetService.createAnswerSheet(newEntry)
       await fetchAnswerSheets()
-      
-      setFormData({ 
-        answerSheetType: '', 
-        pages: '', 
-        colour: '', 
-        class: '', 
-        serialFrom: '', 
+
+      setFormData({
+        answerSheetType: '',
+        pages: '',
+        colour: '',
+        class: '',
+        serialFrom: '',
         serialTo: '',
         exam: '',
         subject: ''
@@ -223,10 +244,10 @@ const AnswerSheets: React.FC = () => {
 
     try {
       setLoading(true)
-      
+
       // Find selected datesheet entry
       const datesheetEntry = centreDatesheetEntries.find(e => e._id === selectedDatesheetEntry)
-      
+
       const linkData = datesheetEntry ? {
         centreDatesheetEntryId: datesheetEntry._id,
         examDate: datesheetEntry.examDate,
@@ -237,7 +258,7 @@ const AnswerSheets: React.FC = () => {
 
       await answerSheetService.useSheets(linkingEntry.id, linkingEntry.quantity, linkData)
       await fetchAnswerSheets()
-      
+
       setShowLinkModal(false)
       setLinkingEntry(null)
       setSelectedDatesheetEntry('')
@@ -251,7 +272,7 @@ const AnswerSheets: React.FC = () => {
 
   const handleSaveUsed = async (datesheetEntry: CentreDatesheetEntry) => {
     const newValue = parseInt(editUsedValue)
-    
+
     if (isNaN(newValue) || newValue < 0) {
       alert('Please enter a valid number')
       return
@@ -259,47 +280,47 @@ const AnswerSheets: React.FC = () => {
 
     try {
       setLoading(true)
-      
+
       // Find existing answer sheets linked to this exam
-      const existingSheets = entries.filter(e => 
-        e.linkedExamDate && 
+      const existingSheets = entries.filter(e =>
+        e.linkedExamDate &&
         new Date(e.linkedExamDate).toDateString() === new Date(datesheetEntry.examDate).toDateString() &&
         e.linkedSubjectCode === datesheetEntry.subjectCode
       )
-      
+
       const currentTotal = existingSheets.reduce((sum, e) => sum + e.used, 0)
       const difference = newValue - currentTotal
-      
+
       if (difference === 0) {
         // No change
         setEditingUsedEntry(null)
         setEditUsedValue('')
         return
       }
-      
+
       // Find an answer sheet of the correct type to use
       const answerSheetType = datesheetEntry.answerSheetType
       let targetSheet = entries.find(e => {
         const balance = e.total - e.used - e.discarded
-        return balance > 0 && 
-               e.class === datesheetEntry.class &&
-               matchesAnswerSheetType(e.answerSheetType, answerSheetType)
+        return balance > 0 &&
+          e.class === datesheetEntry.class &&
+          matchesAnswerSheetType(e.answerSheetType, answerSheetType)
       })
-      
+
       if (!targetSheet) {
         alert(`No available answer sheets found for ${formatAnswerSheetType(answerSheetType)} in Class ${datesheetEntry.class}`)
         return
       }
-      
+
       const balance = targetSheet.total - targetSheet.used - targetSheet.discarded
-      
+
       if (difference > 0) {
         // Increase used count
         if (difference > balance) {
           alert(`Not enough answer sheets available. Only ${balance} sheets remaining.`)
           return
         }
-        
+
         const linkData = {
           centreDatesheetEntryId: datesheetEntry._id,
           examDate: datesheetEntry.examDate,
@@ -307,21 +328,21 @@ const AnswerSheets: React.FC = () => {
           subjectName: datesheetEntry.subjectName,
           candidateCount: datesheetEntry.candidateCount
         }
-        
+
         await answerSheetService.useSheets(targetSheet._id!, difference, linkData)
       } else {
         // Decrease used count - find the most recently used sheet
-        const mostRecentSheet = existingSheets.sort((a, b) => 
+        const mostRecentSheet = existingSheets.sort((a, b) =>
           new Date(b.receivedDate || 0).getTime() - new Date(a.receivedDate || 0).getTime()
         )[0]
-        
+
         if (mostRecentSheet && mostRecentSheet._id) {
           const decreaseAmount = Math.abs(difference)
           const newUsed = Math.max(0, mostRecentSheet.used - decreaseAmount)
           await answerSheetService.updateAnswerSheet(mostRecentSheet._id, { used: newUsed })
         }
       }
-      
+
       await fetchAnswerSheets()
       setEditingUsedEntry(null)
       setEditUsedValue('')
@@ -342,7 +363,7 @@ const AnswerSheets: React.FC = () => {
       '40_graph': ['Graph'],
       'none': ['Main', 'Graph', 'Supplementary']
     }
-    
+
     const acceptableTypes = typeMap[requiredType] || []
     return acceptableTypes.includes(sheetType)
   }
@@ -364,7 +385,7 @@ const AnswerSheets: React.FC = () => {
     if (!confirm('Are you sure you want to delete this entry?')) {
       return
     }
-    
+
     try {
       setLoading(true)
       await answerSheetService.deleteAnswerSheet(id)
@@ -394,7 +415,7 @@ const AnswerSheets: React.FC = () => {
   const handleSaveEdit = async (entry: AnswerSheetEntry) => {
     try {
       setLoading(true)
-      
+
       // Validate serial numbers
       if (!editValues.serialFrom || !editValues.serialTo) {
         alert('Please enter both serial numbers')
@@ -403,12 +424,12 @@ const AnswerSheets: React.FC = () => {
 
       const fromNum = parseInt(editValues.serialFrom.replace(/\D/g, ''))
       const toNum = parseInt(editValues.serialTo.replace(/\D/g, ''))
-      
+
       if (isNaN(fromNum) || isNaN(toNum)) {
         alert('Please enter valid serial numbers')
         return
       }
-      
+
       if (toNum < fromNum) {
         alert('Serial To must be greater than or equal to Serial From')
         return
@@ -464,9 +485,9 @@ const AnswerSheets: React.FC = () => {
   // Get centre datesheet entries for Used tab
   const getUsedTabEntries = () => {
     if (activeTab !== 'used') return []
-    
+
     // Return centre datesheet entries sorted by date
-    return centreDatesheetEntries.sort((a, b) => 
+    return centreDatesheetEntries.sort((a, b) =>
       new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
     )
   }
@@ -482,115 +503,88 @@ const AnswerSheets: React.FC = () => {
     return typeMap[type] || type
   }
 
+  // Define tabs configuration
+  const tabs: TabConfig<'received' | 'used' | 'balance' | 'discarded'>[] = [
+    {
+      id: 'received',
+      label: 'Received',
+      badge: totals.received,
+      color: 'blue',
+      icon: (
+        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      )
+    },
+    {
+      id: 'used',
+      label: 'Used',
+      badge: totals.used,
+      color: 'emerald',
+      icon: (
+        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+      )
+    },
+    {
+      id: 'balance',
+      label: 'Balance',
+      badge: balance,
+      color: 'amber',
+      icon: (
+        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    },
+    {
+      id: 'discarded',
+      label: 'Discarded',
+      badge: totals.discarded,
+      color: 'rose',
+      icon: (
+        <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+        </svg>
+      )
+    }
+  ]
+
   return (
     <div className="p-6">
-      {/* Action Bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
-        <div className="flex space-x-4">
-          <select className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-            <option value="">Select Exam</option>
-            <option value="term1">Term 1 Examination</option>
-            <option value="term2">Term 2 Examination</option>
-            <option value="annual">Annual Examination</option>
-          </select>
-          <select className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white">
-            <option value="">All Subjects</option>
-            <option value="math">Mathematics</option>
-            <option value="science">Science</option>
-            <option value="english">English</option>
-          </select>
-        </div>
-        <div className="text-sm text-gray-600 dark:text-gray-400">
-          Click "Edit" to enter serial numbers for received answer sheets
-        </div>
-      </div>
-
-      {/* Status Overview - Clickable Tabs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <button
-          onClick={() => setActiveTab('received')}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${
-            activeTab === 'received' ? 'ring-2 ring-blue-500' : 'hover:shadow-lg'
-          }`}
-        >
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-              <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{totals.received}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Received</p>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('used')}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${
-            activeTab === 'used' ? 'ring-2 ring-green-500' : 'hover:shadow-lg'
-          }`}
-        >
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-              <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{totals.used}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Used</p>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('balance')}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${
-            activeTab === 'balance' ? 'ring-2 ring-yellow-500' : 'hover:shadow-lg'
-          }`}
-        >
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-              <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{balance}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Balance</p>
-            </div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('discarded')}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${
-            activeTab === 'discarded' ? 'ring-2 ring-red-500' : 'hover:shadow-lg'
-          }`}
-        >
-          <div className="flex items-center">
-            <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-              <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{totals.discarded}</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Discarded</p>
-            </div>
-          </div>
-        </button>
-      </div>
-
       {/* Data Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Answer Sheets
-          </h3>
+        {/* Ribbon: tabs left, dropdowns right */}
+        <div className="px-6 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+          <Tabs
+            tabs={tabs}
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            variant="pill"
+            size="md"
+            ariaLabel="Answer sheet status"
+          />
+          <div className="flex space-x-4 min-w-0">
+            <Dropdown
+              options={examOptions}
+              value={selectedExam}
+              onChange={(v) => setSelectedExam(Array.isArray(v) ? v[0] ?? '' : v)}
+              placeholder="Select Exam"
+              size="md"
+              className="w-52"
+            />
+            <Dropdown
+              options={subjectOptions}
+              value={selectedSubject}
+              onChange={(v) => setSelectedSubject(Array.isArray(v) ? v[0] ?? '' : v)}
+              placeholder="All Subjects"
+              size="md"
+              className="w-52"
+            />
+          </div>
         </div>
+
         <div className="overflow-x-auto">
           {activeTab === 'received' ? (
             // Received Tab - Special Table
@@ -631,15 +625,17 @@ const AnswerSheets: React.FC = () => {
                   entries.map((entry, index) => {
                     const entryKey = `${entry.sortOrder}`
                     const isEditing = editingEntry === entryKey
-                    
+
                     return (
-                      <tr key={entry._id || index} className={
-                        entry.class === '10' 
-                          ? 'bg-green-50 dark:bg-green-900/20' 
-                          : entry.class === '12' 
-                          ? 'bg-purple-50 dark:bg-purple-900/20' 
-                          : ''
-                      }>
+                      <tr
+                        key={entry._id || index}
+                        onClick={() => {
+                          if (!isEditing && entry._id && !entry.isTemplate) {
+                            navigate(`/answersheets/${entry._id}`)
+                          }
+                        }}
+                        className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'} ${!isEditing && entry._id && !entry.isTemplate ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors' : ''}`}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                           {entry.sortOrder || index + 1}
                         </td>
@@ -650,14 +646,13 @@ const AnswerSheets: React.FC = () => {
                           {entry.pages} Pages
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            entry.colour.toLowerCase() === 'blue' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${entry.colour.toLowerCase() === 'blue' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
                             entry.colour.toLowerCase() === 'red' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                            entry.colour.toLowerCase() === 'yellow' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                            entry.colour.toLowerCase() === 'pink' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' :
-                            entry.colour.toLowerCase() === 'white' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' :
-                            'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                          }`}>
+                              entry.colour.toLowerCase() === 'yellow' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                                entry.colour.toLowerCase() === 'pink' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' :
+                                  entry.colour.toLowerCase() === 'white' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' :
+                                    'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                            }`}>
                             {entry.colour}
                           </span>
                         </td>
@@ -670,6 +665,7 @@ const AnswerSheets: React.FC = () => {
                               type="text"
                               value={editValues.serialFrom}
                               onChange={(e) => setEditValues({ ...editValues, serialFrom: e.target.value })}
+                              onClick={(e) => e.stopPropagation()}
                               className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                               placeholder="e.g., 1001"
                             />
@@ -685,6 +681,7 @@ const AnswerSheets: React.FC = () => {
                               type="text"
                               value={editValues.serialTo}
                               onChange={(e) => setEditValues({ ...editValues, serialTo: e.target.value })}
+                              onClick={(e) => e.stopPropagation()}
                               className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                               placeholder="e.g., 2000"
                             />
@@ -701,14 +698,20 @@ const AnswerSheets: React.FC = () => {
                           {isEditing ? (
                             <>
                               <button
-                                onClick={() => handleSaveEdit(entry)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleSaveEdit(entry)
+                                }}
                                 className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
                                 disabled={loading}
                               >
                                 Save
                               </button>
                               <button
-                                onClick={handleCancelEdit}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleCancelEdit()
+                                }}
                                 className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
                                 disabled={loading}
                               >
@@ -717,11 +720,18 @@ const AnswerSheets: React.FC = () => {
                             </>
                           ) : (
                             <button
-                              onClick={() => handleEditClick(entry)}
-                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleEditClick(entry)
+                              }}
+                              className="inline-flex items-center justify-center p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-colors duration-150"
                               disabled={loading}
+                              title="Edit"
+                              aria-label="Edit"
                             >
-                              Edit
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
                             </button>
                           )}
                         </td>
@@ -823,21 +833,15 @@ const AnswerSheets: React.FC = () => {
                   getUsedTabEntries().length > 0 ? (
                     getUsedTabEntries().map((datesheetEntry, index) => {
                       // Find matching answer sheets used for this exam
-                      const usedSheets = entries.filter(e => 
-                        e.linkedExamDate && 
+                      const usedSheets = entries.filter(e =>
+                        e.linkedExamDate &&
                         new Date(e.linkedExamDate).toDateString() === new Date(datesheetEntry.examDate).toDateString() &&
                         e.linkedSubjectCode === datesheetEntry.subjectCode
                       )
                       const totalUsed = usedSheets.reduce((sum, e) => sum + e.used, 0)
-                      
+
                       return (
-                        <tr key={datesheetEntry._id} className={
-                          datesheetEntry.class === '10' 
-                            ? 'bg-green-50 dark:bg-green-900/20' 
-                            : datesheetEntry.class === '12' 
-                            ? 'bg-purple-50 dark:bg-purple-900/20' 
-                            : ''
-                        }>
+                        <tr key={datesheetEntry._id} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {index + 1}
                           </td>
@@ -854,12 +858,11 @@ const AnswerSheets: React.FC = () => {
                             {datesheetEntry.subjectName}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              datesheetEntry.answerSheetType === '32_pages' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${datesheetEntry.answerSheetType === '32_pages' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
                               datesheetEntry.answerSheetType === '20_pages' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                              datesheetEntry.answerSheetType === '40_graph' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
-                              'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                            }`}>
+                                datesheetEntry.answerSheetType === '40_graph' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
+                                  'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                              }`}>
                               {formatAnswerSheetType(datesheetEntry.answerSheetType)}
                             </span>
                           </td>
@@ -907,7 +910,7 @@ const AnswerSheets: React.FC = () => {
                                 </button>
                               </div>
                             ) : (
-                              <div 
+                              <div
                                 className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded"
                                 onClick={() => {
                                   setEditingUsedEntry(datesheetEntry._id)
@@ -965,13 +968,7 @@ const AnswerSheets: React.FC = () => {
                     getFilteredEntries().map((entry, index) => {
                       const entryBalance = entry.total - entry.used - entry.discarded
                       return (
-                        <tr key={entry._id} className={
-                          entry.class === '10' 
-                            ? 'bg-green-50 dark:bg-green-900/20' 
-                            : entry.class === '12' 
-                            ? 'bg-purple-50 dark:bg-purple-900/20' 
-                            : ''
-                        }>
+                        <tr key={entry._id} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {entry.sortOrder || index + 1}
                           </td>

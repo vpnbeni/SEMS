@@ -29,14 +29,14 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, onSave, 
 
   useEffect(() => {
     if (!isOpen) return
-    ;(async () => {
-      try {
-        const token = localStorage.getItem('token')
-        const res = await fetch('/api/subjects?isActive=true&limit=200', { headers: { Authorization: `Bearer ${token}` } })
-        const data = await res.json()
-        setSubjects(data?.data || [])
-      } catch (e) {}
-    })()
+      ; (async () => {
+        try {
+          const token = localStorage.getItem('token')
+          const res = await fetch('/api/subjects?isActive=true&limit=200', { headers: { Authorization: `Bearer ${token}` } })
+          const data = await res.json()
+          setSubjects(data?.data || [])
+        } catch (e) { }
+      })()
   }, [isOpen])
 
   const addRow = () => setRows(prev => ([...prev, { subject: '', examDate: '', start: '10:30', end: '13:30', duration: 180 }]))
@@ -60,30 +60,30 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, onSave, 
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">Manage Schedule</h3>
               <button type="button" onClick={onClose} disabled={saving} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <div className="space-y-3">
               {rows.map((row, i) => (
                 <div key={i} className="grid grid-cols-12 gap-2 items-end">
                   <div className="col-span-4">
-                    <label className="block text-xs mb-1">Subject</label>
-                    <select value={row.subject} onChange={e => updateRow(i, { subject: e.target.value })} className="w-full px-2 py-2 border rounded">
+                    <label className="block text-xs mb-1 text-gray-700 dark:text-gray-300">Subject</label>
+                    <select value={row.subject} onChange={e => updateRow(i, { subject: e.target.value })} className="w-full px-2 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-secondary-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent">
                       <option value="">Select subject</option>
                       {subjects.map(s => (<option key={s._id} value={s._id}>{s.code} - {s.name}</option>))}
                     </select>
                   </div>
                   <div className="col-span-3">
-                    <label className="block text-xs mb-1">Exam Date</label>
-                    <input type="date" value={row.examDate} onChange={e => updateRow(i, { examDate: e.target.value })} className="w-full px-2 py-2 border rounded" />
+                    <label className="block text-xs mb-1 text-gray-700 dark:text-gray-300">Exam Date</label>
+                    <input type="date" value={row.examDate} onChange={e => updateRow(i, { examDate: e.target.value })} className="w-full px-2 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-secondary-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs mb-1">Start</label>
-                    <input type="time" value={row.start} onChange={e => updateRow(i, { start: e.target.value })} className="w-full px-2 py-2 border rounded" />
+                    <label className="block text-xs mb-1 text-gray-700 dark:text-gray-300">Start</label>
+                    <input type="time" value={row.start} onChange={e => updateRow(i, { start: e.target.value })} className="w-full px-2 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-secondary-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-xs mb-1">End</label>
-                    <input type="time" value={row.end} onChange={e => updateRow(i, { end: e.target.value })} className="w-full px-2 py-2 border rounded" />
+                    <label className="block text-xs mb-1 text-gray-700 dark:text-gray-300">End</label>
+                    <input type="time" value={row.end} onChange={e => updateRow(i, { end: e.target.value })} className="w-full px-2 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-secondary-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
                   </div>
                   <div className="col-span-1 flex gap-2">
                     <button onClick={() => removeRow(i)} className="text-red-600 hover:text-red-800">Remove</button>
