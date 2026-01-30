@@ -27,7 +27,7 @@ interface SubjectGroup {
 const Form66: React.FC = () => {
   const [uploading, setUploading] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null)
-  const [pastedText, setPastedText] = useState('')
+  const [_pastedText, _setPastedText] = useState('')
   const [records, setRecords] = useState<Form66Record[]>([])
   const [dateGroups, setDateGroups] = useState<DateGroup[]>([])
   const [loadingRecords, setLoadingRecords] = useState(false)

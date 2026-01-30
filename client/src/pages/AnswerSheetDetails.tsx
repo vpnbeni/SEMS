@@ -58,12 +58,11 @@ const AnswerSheetDetails: React.FC = () => {
     const navigate = useNavigate()
 
     const [answerSheet, setAnswerSheet] = useState<AnswerSheetEntry | null>(null)
-    const [relatedExams, setRelatedExams] = useState<RelatedExam[]>([])
+    const [, setRelatedExams] = useState<RelatedExam[]>([])
     const [allocation, setAllocation] = useState<AllocationData | null>(null)
     const [loading, setLoading] = useState(true)
     const [editMode, setEditMode] = useState(false)
     const [editValues, setEditValues] = useState({ serialFrom: '', serialTo: '' })
-    const [searchTerm, setSearchTerm] = useState('')
 
     useEffect(() => {
         if (id) {

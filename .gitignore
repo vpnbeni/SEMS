@@ -113,3 +113,5 @@ public/uploads/
 # Database
 *.sqlite
 *.db
+.vercel
+.env*.local

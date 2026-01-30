@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Dropdown } from '../components/common/Dropdown'
-import type { DropdownOption } from '../components/common/Dropdown'
+import type { DropdownOption, DropdownValue } from '../components/common/Dropdown'
 
 const DropdownExamples = () => {
   // Example 1: Basic Single Select
@@ -129,7 +129,7 @@ const DropdownExamples = () => {
                 label="Status"
                 options={statusOptions}
                 value={basicValue}
-                onChange={setBasicValue}
+                onChange={(val: DropdownValue) => setBasicValue(Array.isArray(val) ? (val[0] ?? '') : val)}
                 placeholder="Select status"
                 size="md"
               />
@@ -153,7 +153,7 @@ const DropdownExamples = () => {
                 label="Teachers"
                 options={teacherOptions}
                 value={multiValue}
-                onChange={setMultiValue}
+                onChange={(val: DropdownValue) => setMultiValue(Array.isArray(val) ? val : [val])}
                 placeholder="Select multiple teachers"
                 multiple
                 size="md"
@@ -178,7 +178,7 @@ const DropdownExamples = () => {
                 label="Subject"
                 options={subjectOptions}
                 value={searchableValue}
-                onChange={setSearchableValue}
+                onChange={(val: DropdownValue) => setSearchableValue(Array.isArray(val) ? (val[0] ?? '') : val)}
                 placeholder="Search subjects..."
                 searchable
                 size="md"
@@ -203,7 +203,7 @@ const DropdownExamples = () => {
                 label="Candidate"
                 options={largeOptions}
                 value={virtualizedValue}
-                onChange={setVirtualizedValue}
+                onChange={(val: DropdownValue) => setVirtualizedValue(Array.isArray(val) ? (val[0] ?? '') : val)}
                 placeholder="Search from 1000 candidates..."
                 searchable
                 virtualized
@@ -230,8 +230,8 @@ const DropdownExamples = () => {
                 label="Required Field"
                 options={statusOptions}
                 value={validatedValue}
-                onChange={(val) => {
-                  setValidatedValue(val)
+                onChange={(val: DropdownValue) => {
+                  setValidatedValue(Array.isArray(val) ? (val[0] ?? '') : val)
                   setHasError(false)
                 }}
                 placeholder="This field is required"
@@ -260,7 +260,7 @@ const DropdownExamples = () => {
                 label="Async Items"
                 options={asyncOptions}
                 value={asyncValue}
-                onChange={setAsyncValue}
+                onChange={(val: DropdownValue) => setAsyncValue(Array.isArray(val) ? (val[0] ?? '') : val)}
                 placeholder="Scroll to load more..."
                 searchable
                 onLoadMore={handleLoadMore}

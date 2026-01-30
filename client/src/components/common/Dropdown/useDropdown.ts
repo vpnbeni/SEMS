@@ -32,7 +32,7 @@ export const useDropdown = ({
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const typeaheadRef = useRef<string>('')
-  const typeaheadTimeoutRef = useRef<NodeJS.Timeout>()
+  const typeaheadTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
 
   // Controlled vs uncontrolled component logic
   const selectedValues = value !== undefined 

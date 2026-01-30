@@ -3,7 +3,7 @@ import { ChevronDown, X, Search, Loader2, Check } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useDropdown } from './useDropdown'
 import { VirtualList } from './VirtualList'
-import type { DropdownProps, DropdownOption } from './DropdownTypes'
+import type { DropdownProps } from './DropdownTypes'
 
 export const Dropdown: React.FC<DropdownProps> = ({
   options,
