@@ -54,7 +54,6 @@ const CentreGuidelines: React.FC = () => {
   const [uploading, setUploading] = useState(false)
   const [uploadedPdf, setUploadedPdf] = useState<string | null>(null)
   const [guidelinesData, setGuidelinesData] = useState<GuidelinesData | null>(null)
-  const [loading, setLoading] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
   const [searching, setSearching] = useState(false)
@@ -80,7 +79,6 @@ const CentreGuidelines: React.FC = () => {
   }
 
   const loadGuidelinesData = async () => {
-    setLoading(true)
     try {
       const response = await fetch('/api/guidelines/parse', {
         headers: {
@@ -94,8 +92,6 @@ const CentreGuidelines: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading guidelines data:', error)
-    } finally {
-      setLoading(false)
     }
   }
 

@@ -121,46 +121,47 @@ const Form66: React.FC = () => {
     fileInputRef.current?.click()
   }
 
-  const handlePasteSubmit = async () => {
-    if (!pastedText.trim()) return
+  // Paste submit handler (commented out - paste feature currently disabled)
+  // const handlePasteSubmit = async () => {
+  //   if (!pastedText.trim()) return
 
-    try {
-      setUploading(true)
-      setUploadStatus(null)
+  //   try {
+  //     setUploading(true)
+  //     setUploadStatus(null)
 
-      const response = await fetch('http://localhost:5000/api/form66/paste', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ content: pastedText })
-      })
+  //     const response = await fetch('http://localhost:5000/api/form66/paste', {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json'
+  //       },
+  //       body: JSON.stringify({ content: pastedText })
+  //     })
 
-      const data = await response.json()
+  //     const data = await response.json()
 
-      if (response.ok) {
-        setUploadStatus({ 
-          type: 'success', 
-          message: `Successfully imported! Processed ${data.count || 0} records.` 
-        })
-        setPastedText('')
-        fetchRecords() // Refresh the records table
-      } else {
-        setUploadStatus({ 
-          type: 'error', 
-          message: data.message || 'Import failed' 
-        })
-      }
-    } catch (error) {
-      console.error('Paste import error:', error)
-      setUploadStatus({ 
-        type: 'error', 
-        message: 'Failed to import data. Please try again.' 
-      })
-    } finally {
-      setUploading(false)
-    }
-  }
+  //     if (response.ok) {
+  //       setUploadStatus({ 
+  //         type: 'success', 
+  //         message: `Successfully imported! Processed ${data.count || 0} records.` 
+  //       })
+  //       setPastedText('')
+  //       fetchRecords() // Refresh the records table
+  //     } else {
+  //       setUploadStatus({ 
+  //         type: 'error', 
+  //         message: data.message || 'Import failed' 
+  //       })
+  //     }
+  //   } catch (error) {
+  //     console.error('Paste import error:', error)
+  //     setUploadStatus({ 
+  //       type: 'error', 
+  //       message: 'Failed to import data. Please try again.' 
+  //     })
+  //   } finally {
+  //     setUploading(false)
+  //   }
+  // }
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]

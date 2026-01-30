@@ -81,35 +81,35 @@ const AnswerSheets: React.FC = () => {
     }
   }
 
-  // Download Excel template
-  const downloadTemplate = async () => {
-    try {
-      setLoading(true)
-      const blob = await answerSheetService.downloadTemplate()
+  // Download Excel template (commented out - not currently used in UI)
+  // const downloadTemplate = async () => {
+  //   try {
+  //     setLoading(true)
+  //     const blob = await answerSheetService.downloadTemplate()
 
-      // Generate filename with timestamp
-      const now = new Date()
-      const timestamp = now.toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-')
-      const filename = `Answer_Sheets_Template_${timestamp}.xlsx`
+  //     // Generate filename with timestamp
+  //     const now = new Date()
+  //     const timestamp = now.toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-')
+  //     const filename = `Answer_Sheets_Template_${timestamp}.xlsx`
 
-      // Create download link
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+  //     // Create download link
+  //     const url = window.URL.createObjectURL(blob)
+  //     const link = document.createElement('a')
+  //     link.href = url
+  //     link.download = filename
+  //     document.body.appendChild(link)
+  //     link.click()
+  //     document.body.removeChild(link)
+  //     window.URL.revokeObjectURL(url)
 
-      alert(`Template downloaded as "${filename}".\n\nPlease:\n1. Open the file in Excel\n2. Fill in the "From" and "To" serial numbers\n3. Save the file\n4. Upload it back here`)
-    } catch (err: any) {
-      console.error('Error downloading template:', err)
-      alert(err.response?.data?.error || 'Failed to download template')
-    } finally {
-      setLoading(false)
-    }
-  }
+  //     alert(`Template downloaded as "${filename}".\n\nPlease:\n1. Open the file in Excel\n2. Fill in the "From" and "To" serial numbers\n3. Save the file\n4. Upload it back here`)
+  //   } catch (err: any) {
+  //     console.error('Error downloading template:', err)
+  //     alert(err.response?.data?.error || 'Failed to download template')
+  //   } finally {
+  //     setLoading(false)
+  //   }
+  // }
 
   // Handle file selection
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -381,22 +381,23 @@ const AnswerSheets: React.FC = () => {
     }
   }
 
-  const handleDeleteEntry = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this entry?')) {
-      return
-    }
+  // Delete entry (commented out - not currently used in UI)
+  // const handleDeleteEntry = async (id: string) => {
+  //   if (!confirm('Are you sure you want to delete this entry?')) {
+  //     return
+  //   }
 
-    try {
-      setLoading(true)
-      await answerSheetService.deleteAnswerSheet(id)
-      await fetchAnswerSheets()
-    } catch (err: any) {
-      console.error('Error deleting entry:', err)
-      alert(err.response?.data?.error || 'Failed to delete entry')
-    } finally {
-      setLoading(false)
-    }
-  }
+  //   try {
+  //     setLoading(true)
+  //     await answerSheetService.deleteAnswerSheet(id)
+  //     await fetchAnswerSheets()
+  //   } catch (err: any) {
+  //     console.error('Error deleting entry:', err)
+  //     alert(err.response?.data?.error || 'Failed to delete entry')
+  //   } finally {
+  //     setLoading(false)
+  //   }
+  // }
 
   const handleEditClick = (entry: AnswerSheetEntry) => {
     const key = `${entry.sortOrder}`

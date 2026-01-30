@@ -1,4 +1,4 @@
-import api, { uploadFile } from './api'
+import { uploadFile } from './api'
 
 const importFromPDF = (file: File) => {
   return uploadFile('/subjects/import-pdf', file)
