@@ -914,3 +914,88 @@ exports.getCentreDatesheet = asyncHandler(async (req, res) => {
     })
   }
 })
+
+// GET /api/datesheets/stats - Get datesheet stats for top cards (no list data)
+exports.getDatesheetStats = asyncHandler(async (req, res) => {
+  const Subject = require('../models/Subject')
+  const Candidate = require('../models/Candidate')
+
+  const stats = {
+    fullDatesheet: 0,
+    fullDatesheetDays: 0,
+    centre: 0,
+    centreDays: 0,
+    centreCandidates: 0,
+    centre10th: 0,
+    centre10thDays: 0,
+    centre10thCandidates: 0,
+    centre12th: 0,
+    centre12thDays: 0,
+    centre12thCandidates: 0
+  }
+
+  try {
+    const cbseDatesheet = await CBSEDatesheet.getActive()
+    if (cbseDatesheet) {
+      stats.fullDatesheet = cbseDatesheet.totalEntries || 0
+      stats.fullDatesheetDays = new Set(
+        cbseDatesheet.entries.map(e => e.examDate.toISOString().slice(0, 10))
+      ).size
+    } else {
+      const subjectCount = await Subject.countDocuments()
+      stats.fullDatesheet = subjectCount
+    }
+  } catch (e) {
+    // leave fullDatesheet stats at 0
+  }
+
+  try {
+    const cbseDatesheet = await CBSEDatesheet.getActive()
+    if (!cbseDatesheet) return res.status(HTTP_STATUS.OK).json({ success: true, data: stats })
+
+    const candidates = await Candidate.find({ isActive: true })
+      .populate('subjects', 'code name class')
+      .lean()
+    if (!candidates || candidates.length === 0) return res.status(HTTP_STATUS.OK).json({ success: true, data: stats })
+
+    const subjectFrequency = new Map()
+    candidates.forEach(candidate => {
+      if (candidate.subjects && candidate.subjects.length > 0) {
+        candidate.subjects.forEach(subject => {
+          if (subject && subject.code && subject.class) {
+            const key = `${subject.code}-${subject.class}`
+            subjectFrequency.set(key, (subjectFrequency.get(key) || 0) + 1)
+          }
+        })
+      }
+    })
+
+    const centreEntries = cbseDatesheet.entries
+      .map(entry => ({
+        ...entry.toObject(),
+        candidateCount: subjectFrequency.get(`${entry.subject.code}-${entry.subject.class}`) || 0
+      }))
+      .filter(entry => entry.candidateCount > 0)
+
+    if (centreEntries.length === 0) return res.status(HTTP_STATUS.OK).json({ success: true, data: stats })
+
+    const class10thEntries = centreEntries.filter(e => e.subject.class === '10th')
+    const class12thEntries = centreEntries.filter(e => e.subject.class === '12th')
+    const candidates10th = candidates.filter(c => c.class === '10th')
+    const candidates12th = candidates.filter(c => c.class === '12th')
+
+    stats.centre = centreEntries.length
+    stats.centreDays = [...new Set(centreEntries.map(e => e.examDate.toISOString().slice(0, 10)))].length
+    stats.centreCandidates = candidates.length
+    stats.centre10th = class10thEntries.length
+    stats.centre10thDays = [...new Set(class10thEntries.map(e => e.examDate.toISOString().slice(0, 10)))].length
+    stats.centre10thCandidates = candidates10th.length
+    stats.centre12th = class12thEntries.length
+    stats.centre12thDays = [...new Set(class12thEntries.map(e => e.examDate.toISOString().slice(0, 10)))].length
+    stats.centre12thCandidates = candidates12th.length
+  } catch (e) {
+    // leave centre stats at 0
+  }
+
+  return res.status(HTTP_STATUS.OK).json({ success: true, data: stats })
+})

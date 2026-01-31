@@ -4,6 +4,7 @@ const {
   importFromPdf,
   getCBSEFullDatesheet,
   getCentreDatesheet,
+  getDatesheetStats,
   getAllDatesheets,
   getDatesheetById,
   createDatesheet,
@@ -25,6 +26,9 @@ router.get('/cbse-full', getCBSEFullDatesheet);
 
 // Get centre-specific datesheet based on candidate subject choices
 router.get('/centre-datesheet', getCentreDatesheet);
+
+// Get datesheet stats for top cards (no list data)
+router.get('/stats', getDatesheetStats);
 
 // CRUD operations
 router.get('/', getAllDatesheets);

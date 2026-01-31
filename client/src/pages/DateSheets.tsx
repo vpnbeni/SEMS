@@ -1,34 +1,65 @@
-import React, { useEffect, useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import toast from 'react-hot-toast'
 import DatesheetImportModal from '../components/datesheets/ImportModal'
 import CreateDatesheetModal, { DatesheetFormData } from '../components/datesheets/CreateModal'
 import ScheduleModal, { ScheduleRow } from '../components/datesheets/ScheduleModal'
 import { Tabs } from '../components/common/Tabs'
-import datesheetService from '../services/datesheetService'
 import calendarService from '../services/calendarService'
+import {
+  useDatesheets,
+  useCBSEDatesheet,
+  useCentreDatesheet,
+  useSubjects,
+  useDatesheetStats,
+  useImportDatesheetMutation,
+  useCreateDatesheetMutation,
+  useUpdateDatesheetMutation,
+} from '../hooks/useDatesheets'
 
 type DateSheetTabId = 'all' | 'centre' | 'centre10th' | 'centre12th'
+
+const limit = 50
 
 const DateSheets: React.FC = () => {
   const [showImportModal, setShowImportModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [importing, setImporting] = useState(false)
-  const [creating, setCreating] = useState(false)
   const [importErrorMsg, setImportErrorMsg] = useState<string | undefined>()
   const [importErrorSample, setImportErrorSample] = useState<string[] | undefined>()
   const [importDebug, setImportDebug] = useState<any>(undefined)
-  const [datesheets, setDatesheets] = useState<any[]>([])
-  const [subjects, setSubjects] = useState<any[]>([])
-  const [cbseDatesheet, setCbseDatesheet] = useState<any[]>([])
-  const [cbseLoading, setCbseLoading] = useState<boolean>(false)
-  const [centreDatesheet, setCentreDatesheet] = useState<any[]>([])
-  const [centreLoading, setCentreLoading] = useState<boolean>(false)
-  const [loading, setLoading] = useState<boolean>(false)
   const [editing, setEditing] = useState<boolean>(false)
   const [editingData, setEditingData] = useState<any | null>(null)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
-  const [activeTab, setActiveTab] = useState<'all' | 'centre' | 'centre10th' | 'centre12th'>('all')
-  const [stats, setStats] = useState({
+  const [activeTab, setActiveTab] = useState<DateSheetTabId>('all')
+  const [sortField, setSortField] = useState<'date' | 'class' | 'subjectName' | 'subjectCode' | 'duration' | null>('date')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
+  const [page, setPage] = useState(1)
+
+  const cbseParams = useMemo(() => ({
+    page,
+    limit,
+    ...(sortField && { sortField, sortOrder }),
+  }), [page, sortField, sortOrder])
+  const centreParams = useMemo(() => ({
+    page,
+    limit,
+    ...(sortField && { sortField, sortOrder }),
+  }), [page, sortField, sortOrder])
+  const subjectParams = useMemo(() => ({ page, limit }), [page])
+
+  const { data: datesheets = [], isLoading: loading } = useDatesheets()
+  const { data: cbseData, isLoading: cbseLoading } = useCBSEDatesheet(
+    cbseParams,
+    { enabled: activeTab === 'all' }
+  )
+  const { data: centreData, isLoading: centreLoading } = useCentreDatesheet(
+    centreParams,
+    { enabled: activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th' }
+  )
+  const { data: subjectsData } = useSubjects(
+    subjectParams,
+    { enabled: activeTab === 'all' }
+  )
+  const { data: stats = {
     fullDatesheet: 0,
     fullDatesheetDays: 0,
     centre: 0,
@@ -39,337 +70,104 @@ const DateSheets: React.FC = () => {
     centre10thCandidates: 0,
     centre12th: 0,
     centre12thDays: 0,
-    centre12thCandidates: 0
-  })
-  const [sortField, setSortField] = useState<'date' | 'class' | 'subjectName' | 'subjectCode' | 'duration' | null>('date')
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pages: 1,
-    total: 0,
-    limit: 50
-  })
+    centre12thCandidates: 0,
+  } } = useDatesheetStats()
 
-  const loadDatesheets = async () => {
-    try {
-      setLoading(true)
-      const res = await datesheetService.getAll()
-      const list = res.data?.data?.datesheets || []
-      setDatesheets(list)
+  const importMutation = useImportDatesheetMutation()
+  const createMutation = useCreateDatesheetMutation()
+  const updateMutation = useUpdateDatesheetMutation()
 
-      // Calculate stats for datesheet tabs (not including full datesheet)
-      const centre = list.filter((ds: any) => ds.centre).length
-      const centre10th = list.filter((ds: any) => ds.centre && ds.class === '10th').length
-      const centre12th = list.filter((ds: any) => ds.centre && ds.class === '12th').length
+  const cbseDatesheet = cbseData?.entries ?? []
+  const centreDatesheet = centreData?.entries ?? []
+  const subjects = subjectsData?.subjects ?? []
 
-      setStats({ fullDatesheet: 0, fullDatesheetDays: 0, centre, centreDays: 0, centreCandidates: 0, centre10th, centre10thDays: 0, centre10thCandidates: 0, centre12th, centre12thDays: 0, centre12thCandidates: 0 }) // fullDatesheet will be set from CBSE datesheet or subjects
-    } catch (e) {
-      // silently ignore; empty state will show
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadSubjects = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      if (!token) return
-
-      const queryParams = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
-      })
-
-      const response = await fetch(`/api/subjects?${queryParams}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          const subjectsList = data.data || []
-          setSubjects(subjectsList)
-
-          // Update pagination info
-          setPagination({
-            page: data.meta?.currentPage || 1,
-            pages: data.meta?.totalPages || 1,
-            total: data.meta?.totalCount || 0,
-            limit: pagination.limit
-          })
-
-          // Update stats with total subject count for full datesheet
-          setStats(prev => ({ ...prev, fullDatesheet: data.meta?.totalCount || 0 }))
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch subjects:', err)
-    }
-  }
-
-  const loadCBSEDatesheet = async () => {
-    try {
-      setCbseLoading(true)
-      const token = localStorage.getItem('token')
-      if (!token) return
-
-      const queryParams = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
-      })
-
-      // Add sorting parameters if active
-      if (sortField) {
-        queryParams.append('sortField', sortField)
-        queryParams.append('sortOrder', sortOrder)
-      }
-
-      const response = await fetch(`/api/datesheets/cbse-full?${queryParams}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        console.log('🔍 Full API response:', data)
-        if (data.success) {
-          const cbseEntries = data.data || []
-          setCbseDatesheet(cbseEntries)
-
-          // Update pagination info for CBSE datesheet
-          setPagination({
-            page: data.meta?.currentPage || 1,
-            pages: data.meta?.totalPages || 1,
-            total: data.meta?.totalCount || 0,
-            limit: pagination.limit
-          })
-
-          // Get unique days from API meta or statistics
-          const uniqueDays = data.meta?.uniqueDates || data.datesheet?.statistics?.uniqueDates || 0
-          console.log('📅 Unique days from API:', uniqueDays)
-
-          // Update stats with CBSE datesheet count and unique days
-          setStats(prev => ({
-            ...prev,
-            fullDatesheet: data.meta?.totalCount || 0,
-            fullDatesheetDays: uniqueDays
-          }))
-
-          console.log(`✅ Loaded ${cbseEntries.length} CBSE datesheet entries`)
-        }
-      } else if (response.status === 404) {
-        // No CBSE datesheet found, fall back to subjects
-        console.log('📄 No CBSE datesheet found, using subjects as fallback')
-        setCbseDatesheet([])
-      } else {
-        console.log('❌ CBSE API Error:', response.status, response.statusText)
-        setCbseDatesheet([])
-      }
-    } catch (err) {
-      console.error('Failed to load CBSE datesheet:', err)
-      // Fall back to subjects on error
-      setCbseDatesheet([])
-    } finally {
-      setCbseLoading(false)
-    }
-  }
-
-  const loadCentreDatesheet = async () => {
-    try {
-      setCentreLoading(true)
-      const token = localStorage.getItem('token')
-      if (!token) return
-
-      const queryParams = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
-      })
-
-      // Add sorting parameters if active
-      if (sortField) {
-        queryParams.append('sortField', sortField)
-        queryParams.append('sortOrder', sortOrder)
-      }
-
-      const response = await fetch(`/api/datesheets/centre-datesheet?${queryParams}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        console.log('🔍 Centre datesheet API response:', data)
-        if (data.success) {
-          const centreEntries = data.data || []
-          console.log('📊 Centre entries:', centreEntries.length, centreEntries.slice(0, 2))
-          setCentreDatesheet(centreEntries)
-
-          // Update pagination info for centre datesheet
-          setPagination({
-            page: data.meta?.currentPage || 1,
-            pages: data.meta?.totalPages || 1,
-            total: data.meta?.totalCount || 0,
-            limit: pagination.limit
-          })
-
-          // Update stats with centre datesheet count
-          setStats(prev => ({
-            ...prev,
-            centre: data.meta?.totalCount || 0,
-            centreDays: data.stats?.uniqueDates || 0,
-            centreCandidates: data.stats?.candidateCount || 0,
-            centre10th: data.stats?.class10th || 0,
-            centre10thDays: data.stats?.class10thDays || 0,
-            centre10thCandidates: data.stats?.class10thCandidates || 0,
-            centre12th: data.stats?.class12th || 0,
-            centre12thDays: data.stats?.class12thDays || 0,
-            centre12thCandidates: data.stats?.class12thCandidates || 0
-          }))
-
-          console.log(`✅ Loaded ${centreEntries.length} centre datesheet entries`)
-        } else {
-          console.log('❌ Centre datesheet API returned success=false:', data.message)
-          setCentreDatesheet([])
-        }
-      } else if (response.status === 404) {
-        console.log('📄 No centre datesheet data found (404)')
-        const errorData = await response.json()
-        console.log('Error details:', errorData)
-        setCentreDatesheet([])
-      } else {
-        console.log('❌ Centre datesheet API Error:', response.status, response.statusText)
-        const errorData = await response.json().catch(() => ({}))
-        console.log('Error details:', errorData)
-        setCentreDatesheet([])
-      }
-    } catch (err) {
-      console.error('Failed to load centre datesheet:', err)
-      setCentreDatesheet([])
-    } finally {
-      setCentreLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    loadDatesheets()
-    loadSubjects()
-    loadCBSEDatesheet()
-    loadCentreDatesheet() // Load centre datesheet stats on initial mount
-  }, [])
-
-  // Refresh data when tab changes to ensure latest subjects are shown
-  useEffect(() => {
-    // Reset pagination when switching tabs
-    setPagination(prev => ({ ...prev, page: 1 }))
-
+  const pagination = useMemo(() => {
     if (activeTab === 'all') {
-      loadSubjects()
-    } else if (activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') {
-      loadCentreDatesheet()
+      const meta = cbseData?.meta ?? subjectsData?.meta
+      return {
+        page,
+        pages: meta?.totalPages ?? 1,
+        total: meta?.totalCount ?? 0,
+        limit,
+      }
     }
+    if (activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') {
+      const meta = centreData?.meta
+      return {
+        page,
+        pages: meta?.totalPages ?? 1,
+        total: meta?.totalCount ?? 0,
+        limit,
+      }
+    }
+    return { page, pages: 1, total: 0, limit }
+  }, [activeTab, page, cbseData?.meta, subjectsData?.meta, centreData?.meta])
 
-    // Reset sorting to date when switching tabs
+  const handleTabChange = (id: DateSheetTabId) => {
+    setActiveTab(id)
+    setPage(1)
     setSortField('date')
     setSortOrder('asc')
-  }, [activeTab])
+  }
 
-  // Reload data when pagination changes
-  useEffect(() => {
-    if (activeTab === 'all') {
-      loadCBSEDatesheet() // Try CBSE first, fallback to subjects
-    } else if (activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') {
-      loadCentreDatesheet()
-    }
-  }, [pagination.page])
-
-  // Reload data when sort parameters change
-  useEffect(() => {
-    if (activeTab === 'all') {
-      loadCBSEDatesheet()
-    } else if (activeTab === 'centre') {
-      loadCentreDatesheet()
-    }
-  }, [sortField, sortOrder])
-
-  // Handle page change
-  const handlePageChange = (page: number) => {
-    setPagination(prev => ({ ...prev, page }))
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
   }
 
   const handleImport = async (file: File) => {
-    try {
-      setImporting(true)
-      setImportErrorMsg(undefined)
-      setImportErrorSample(undefined)
-
-      const response = await datesheetService.importFromPDF(file)
-
-      if (response.data?.success) {
-        const count = response.data?.data?.count || 0
-        toast.success(`Datesheet imported successfully! Found ${count} entries.`)
-        setShowImportModal(false)
-        setImportErrorMsg(undefined)
-        setImportErrorSample(undefined)
-        setImportDebug(undefined)
-
-        // Reload CBSE datesheet data after successful import
-        await loadCBSEDatesheet()
-        await loadDatesheets()
-      } else {
-        throw new Error(response.data?.message || 'Import failed')
-      }
-    } catch (error: any) {
-      console.error('Import error:', error)
-      const msg = error.response?.data?.message || error.message || 'Failed to import datesheet'
-      const sample = error.response?.data?.sample as string[] | undefined
-      const debug = error.response?.data?.debug
-
-      setImportErrorMsg(msg)
-      setImportErrorSample(sample)
-      setImportDebug(debug)
-
-      // Log debug info to console for troubleshooting
-      if (debug) {
-        console.log('Debug info:', debug)
-      }
-      if (sample) {
-        console.log('Sample lines:', sample)
-      }
-
-      // Don't show toast if we're displaying error in modal
-      if (!sample) {
-        toast.error(msg)
-      }
-    } finally {
-      setImporting(false)
-    }
+    setImportErrorMsg(undefined)
+    setImportErrorSample(undefined)
+    importMutation.mutate(file, {
+      onSuccess: (response) => {
+        if (response?.data?.success) {
+          const count = response.data?.data?.count || 0
+          toast.success(`Datesheet imported successfully! Found ${count} entries.`)
+          setShowImportModal(false)
+          setImportErrorMsg(undefined)
+          setImportErrorSample(undefined)
+          setImportDebug(undefined)
+        } else {
+          throw new Error(response?.data?.message || 'Import failed')
+        }
+      },
+      onError: (error: any) => {
+        const msg = error.response?.data?.message || error.message || 'Failed to import datesheet'
+        const sample = error.response?.data?.sample as string[] | undefined
+        const debug = error.response?.data?.debug
+        setImportErrorMsg(msg)
+        setImportErrorSample(sample)
+        setImportDebug(debug)
+        if (!sample) toast.error(msg)
+      },
+    })
   }
 
   const handleCreate = async (data: DatesheetFormData) => {
     try {
-      setCreating(true)
-      const response = await datesheetService.create(data)
-
-      if (response.data?.success) {
-        toast.success('Date sheet created successfully!')
-        setShowCreateModal(false)
-        await loadDatesheets()
+      if (editing && editingData) {
+        await updateMutation.mutateAsync({
+          id: editingData._id,
+          data: {
+            title: data.title,
+            examType: data.examType,
+            class: data.class,
+            academicYear: data.academicYear,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            generalInstructions: data.generalInstructions,
+          },
+        })
+        toast.success('Date sheet updated successfully!')
       } else {
-        throw new Error(response.data?.message || 'Failed to create date sheet')
+        await createMutation.mutateAsync(data)
+        toast.success('Date sheet created successfully!')
       }
+      setShowCreateModal(false)
+      setEditing(false)
+      setEditingData(null)
     } catch (error: any) {
-      console.error('Create error:', error)
-      const msg = error.response?.data?.message || error.message || 'Failed to create date sheet'
+      const msg = error.response?.data?.message || error.message || 'Failed to save date sheet'
       toast.error(msg)
-    } finally {
-      setCreating(false)
     }
   }
 
@@ -525,8 +323,7 @@ const DateSheets: React.FC = () => {
       setSortOrder('asc')
     }
 
-    // Reset to first page when sorting changes
-    setPagination(prev => ({ ...prev, page: 1 }))
+    setPage(1)
   }
 
   // Helper function to get day name (with fallback to calendar service)
@@ -681,7 +478,7 @@ const DateSheets: React.FC = () => {
               { id: 'centre12th', label: 'Class 12th', color: 'purple' }
             ]}
             activeTab={activeTab}
-            onChange={(id) => setActiveTab(id)}
+            onChange={handleTabChange}
             variant="pill"
             size="sm"
             ariaLabel="Date sheet views"
@@ -708,7 +505,7 @@ const DateSheets: React.FC = () => {
           </div>
         </div>
         {/* Datesheet Table */}
-        {(loading || (activeTab === 'all' && cbseLoading) || ((activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th') && centreLoading)) ? (
+        {(loading || (activeTab === 'all' && cbseLoading) || (['centre', 'centre10th', 'centre12th'].includes(activeTab) && centreLoading)) ? (
           <div className="p-12 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400">
             <svg className="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1035,7 +832,7 @@ const DateSheets: React.FC = () => {
           isOpen={showImportModal}
           onClose={() => setShowImportModal(false)}
           onImport={handleImport}
-          importing={importing}
+          importing={importMutation.isPending}
           errorMessage={importErrorMsg}
           errorSample={importErrorSample}
           debug={importDebug}
@@ -1048,7 +845,7 @@ const DateSheets: React.FC = () => {
           isOpen={showCreateModal}
           onClose={() => { setShowCreateModal(false); setEditing(false); setEditingData(null) }}
           onCreate={handleCreate}
-          creating={creating}
+          creating={createMutation.isPending}
           initialData={editingData ? {
             title: editingData.title,
             examType: editingData.examType,
@@ -1078,18 +875,24 @@ const DateSheets: React.FC = () => {
             isOptional: s.isOptional,
           }))}
           onSave={async (rows: ScheduleRow[]) => {
-            await datesheetService.update(editingData._id, {
-              subjects: rows.map(r => ({
-                subject: r.subject,
-                examDate: r.examDate,
-                timeSlot: { start: r.start, end: r.end },
-                duration: r.duration,
-                instructions: r.instructions,
-                isOptional: r.isOptional,
-              }))
-            })
-            setShowScheduleModal(false)
-            await loadDatesheets()
+            updateMutation.mutate(
+              {
+                id: editingData._id,
+                data: {
+                  subjects: rows.map(r => ({
+                    subject: r.subject,
+                    examDate: r.examDate,
+                    timeSlot: { start: r.start, end: r.end },
+                    duration: r.duration,
+                    instructions: r.instructions,
+                    isOptional: r.isOptional,
+                  })),
+                },
+              },
+              {
+                onSuccess: () => setShowScheduleModal(false),
+              }
+            )
           }}
         />
       )}
