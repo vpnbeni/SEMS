@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Tabs } from '../components/common/Tabs'
 import type { TabConfig } from '../components/common/Tabs'
 
@@ -51,6 +51,7 @@ interface GuidelinesData {
 const CentreGuidelines: React.FC = () => {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadedPdf, setUploadedPdf] = useState<string | null>(null)
   const [guidelinesData, setGuidelinesData] = useState<GuidelinesData | null>(null)
@@ -60,21 +61,84 @@ const CentreGuidelines: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'viewer' | 'chapters' | 'appendices' | 'search'>('chapters')
   const [expandedAppendix, setExpandedAppendix] = useState<string | null>(null)
   const [expandedChapter, setExpandedChapter] = useState<string | null>(null)
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
+  const [pdfViewerLoading, setPdfViewerLoading] = useState(false)
+  const pdfBlobUrlRef = useRef<string | null>(null)
+  const previousUploadedPdfRef = useRef<string | null>(null)
 
   useEffect(() => {
     checkForExistingPdf()
   }, [])
 
+  // Invalidate PDF viewer cache when the guidelines document changes (new upload)
+  useEffect(() => {
+    if (previousUploadedPdfRef.current !== null && previousUploadedPdfRef.current !== uploadedPdf) {
+      if (pdfBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfBlobUrlRef.current)
+        pdfBlobUrlRef.current = null
+        setPdfViewerUrl(null)
+      }
+    }
+    previousUploadedPdfRef.current = uploadedPdf
+  }, [uploadedPdf])
+
+  // Fetch PDF as blob only when on PDF Viewer tab and no cached URL (cache persists when switching tabs)
+  useEffect(() => {
+    if (activeTab !== 'viewer' || !uploadedPdf) return
+    if (pdfViewerUrl) return // use cached blob URL, no refetch
+
+    let cancelled = false
+    setPdfViewerLoading(true)
+    fetch('/api/guidelines/file', {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load PDF')
+        return res.blob()
+      })
+      .then((blob) => {
+        if (cancelled) return
+        const url = URL.createObjectURL(blob)
+        pdfBlobUrlRef.current = url
+        setPdfViewerUrl(url)
+      })
+      .catch(() => {
+        if (!cancelled) setPdfViewerUrl(null)
+      })
+      .finally(() => {
+        if (!cancelled) setPdfViewerLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, uploadedPdf, pdfViewerUrl])
+
+  // Unmount: revoke blob URL to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (pdfBlobUrlRef.current) {
+        URL.revokeObjectURL(pdfBlobUrlRef.current)
+        pdfBlobUrlRef.current = null
+      }
+    }
+  }, [])
+
   const checkForExistingPdf = async () => {
-    const pdfPath = '/centre-guidelines.pdf'
     try {
-      const response = await fetch(pdfPath, { method: 'HEAD' })
+      const response = await fetch('/api/guidelines/check', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      })
       if (response.ok) {
-        setUploadedPdf(pdfPath)
-        loadGuidelinesData()
+        const data = await response.json()
+        if (data.exists && data.path) {
+          setUploadedPdf(data.path)
+          loadGuidelinesData()
+        }
       }
     } catch {
-      // PDF doesn't exist yet
+      // PDF doesn't exist yet or API error
     }
   }
 
@@ -95,13 +159,36 @@ const CentreGuidelines: React.FC = () => {
     }
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const setFileIfPdf = (file: File | null) => {
     if (file && file.type === 'application/pdf') {
       setSelectedFile(file)
-    } else {
+    } else if (file) {
       alert('Please select a PDF file')
     }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFileIfPdf(e.target.files?.[0] ?? null)
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    const file = e.dataTransfer.files?.[0]
+    setFileIfPdf(file ?? null)
   }
 
   const handleUpload = async () => {
@@ -335,12 +422,30 @@ const CentreGuidelines: React.FC = () => {
                         Download PDF
                       </a>
                     </div>
-                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden" style={{ height: '700px' }}>
-                      <iframe
-                        src={uploadedPdf}
-                        className="w-full h-full"
-                        title="Centre Guidelines PDF"
-                      />
+                    <div className="border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900" style={{ height: '700px' }}>
+                      {pdfViewerLoading && (
+                        <div className="h-full flex items-center justify-center">
+                          <div className="text-gray-500 dark:text-gray-400 flex flex-col items-center gap-3">
+                            <svg className="w-10 h-10 animate-spin" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            <span>Loading PDF…</span>
+                          </div>
+                        </div>
+                      )}
+                      {!pdfViewerLoading && pdfViewerUrl && (
+                        <iframe
+                          src={pdfViewerUrl}
+                          className="w-full h-full"
+                          title="Centre Guidelines PDF"
+                        />
+                      )}
+                      {!pdfViewerLoading && !pdfViewerUrl && (
+                        <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+                          Unable to load PDF
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -720,10 +825,19 @@ const CentreGuidelines: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Select PDF File
                 </label>
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                    isDragging
+                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400'
+                      : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                >
                   <input
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,application/pdf"
                     onChange={handleFileSelect}
                     className="hidden"
                     id="pdf-upload"
@@ -736,7 +850,9 @@ const CentreGuidelines: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
                     <span className="text-sm text-gray-600 dark:text-gray-400">
-                      {selectedFile ? selectedFile.name : 'Click to select PDF file'}
+                      {selectedFile
+                        ? selectedFile.name
+                        : 'Drag and drop your PDF here, or click to select'}
                     </span>
                   </label>
                 </div>

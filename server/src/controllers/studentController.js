@@ -5,7 +5,7 @@ const { generateResponse, getPaginationParams, buildPaginationResponse } = requi
 const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/constants');
 const path = require('path');
 const fs = require('fs').promises;
-const { uploadToCloudinary, deleteFromCloudinary, extractPublicId } = require('../config/cloudinary');
+const { uploadToCloudinary, deleteFromCloudinary, extractPublicId, uploadDocumentToCloudinary, deleteRawFromCloudinary } = require('../config/cloudinary');
 
 // @desc    Get all students
 // @route   GET /api/students
@@ -264,13 +264,15 @@ const deleteStudent = asyncHandler(async (req, res) => {
     );
   }
 
-  // Delete associated files if any
+  // Delete associated documents from Cloudinary if any
   if (student.documents && student.documents.length > 0) {
     for (const doc of student.documents) {
-      try {
-        await fs.unlink(doc.path);
-      } catch (error) {
-        console.error(`Failed to delete file: ${doc.path}`, error);
+      if (doc.cloudinaryPublicId) {
+        try {
+          await deleteRawFromCloudinary(doc.cloudinaryPublicId);
+        } catch (error) {
+          console.error(`Failed to delete document from Cloudinary: ${doc.cloudinaryPublicId}`, error);
+        }
       }
     }
   }
@@ -571,25 +573,23 @@ const uploadDocument = asyncHandler(async (req, res) => {
   }
 
   const file = req.files.document;
-  const uploadDir = path.join(__dirname, '../../uploads/documents');
-  
-  // Create upload directory if it doesn't exist
-  await fs.mkdir(uploadDir, { recursive: true });
-
-  // Generate unique filename
   const fileExtension = path.extname(file.name);
   const fileName = `${student.rollNumber}_${type}_${Date.now()}${fileExtension}`;
-  const filePath = path.join(uploadDir, fileName);
 
-  // Move file to upload directory
-  await file.mv(filePath);
+  // Upload to Cloudinary (use temp file or buffer)
+  const fileInput = file.tempFilePath || file.data;
+  const { url, publicId } = await uploadDocumentToCloudinary(
+    fileInput,
+    'student-documents',
+    null
+  );
 
-  // Add document to student
   const documentData = {
     type,
     filename: fileName,
     originalName: file.name,
-    path: filePath
+    path: url,
+    cloudinaryPublicId: publicId
   };
 
   await student.addDocument(documentData);
@@ -619,11 +619,13 @@ const deleteDocument = asyncHandler(async (req, res) => {
     );
   }
 
-  // Delete file from filesystem
-  try {
-    await fs.unlink(document.path);
-  } catch (error) {
-    console.error(`Failed to delete file: ${document.path}`, error);
+  // Delete from Cloudinary if stored there
+  if (document.cloudinaryPublicId) {
+    try {
+      await deleteRawFromCloudinary(document.cloudinaryPublicId);
+    } catch (error) {
+      console.error(`Failed to delete from Cloudinary: ${document.cloudinaryPublicId}`, error);
+    }
   }
 
   // Remove document from student

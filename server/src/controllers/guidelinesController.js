@@ -1,10 +1,28 @@
-const path = require('path');
-const fs = require('fs').promises;
+const { uploadDocumentToCloudinary, cloudinary, deleteRawFromCloudinary } = require('../config/cloudinary');
+
+const GUIDELINES_PUBLIC_ID = 'guidelines/centre-guidelines';
+
+/**
+ * Fetch the guidelines PDF buffer from Cloudinary (if uploaded).
+ * @returns {Promise<Buffer|null>} - PDF buffer or null if not found
+ */
+async function getGuidelinesPdfBuffer() {
+  try {
+    const resource = await cloudinary.api.resource(GUIDELINES_PUBLIC_ID, { resource_type: 'raw' });
+    const url = resource.secure_url;
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } catch (err) {
+    if (err.error?.http_code === 404) return null;
+    throw err;
+  }
+}
 
 // Upload guidelines PDF
 exports.uploadGuidelines = async (req, res) => {
   try {
-    // Check if file was uploaded using express-fileupload
     if (!req.files || !req.files.pdf) {
       return res.status(400).json({
         success: false,
@@ -14,7 +32,6 @@ exports.uploadGuidelines = async (req, res) => {
 
     const pdfFile = req.files.pdf;
 
-    // Validate file type
     if (pdfFile.mimetype !== 'application/pdf') {
       return res.status(400).json({
         success: false,
@@ -22,24 +39,17 @@ exports.uploadGuidelines = async (req, res) => {
       });
     }
 
-    // Define upload path
-    const uploadDir = path.join(__dirname, '../../../client/public');
-    const filePath = path.join(uploadDir, 'centre-guidelines.pdf');
-
-    // Ensure directory exists
-    try {
-      await fs.access(uploadDir);
-    } catch {
-      await fs.mkdir(uploadDir, { recursive: true });
-    }
-
-    // Move file to destination
-    await pdfFile.mv(filePath);
+    const fileInput = pdfFile.tempFilePath || pdfFile.data;
+    const { url } = await uploadDocumentToCloudinary(
+      fileInput,
+      'guidelines',
+      'centre-guidelines'
+    );
 
     res.json({
       success: true,
       message: 'Guidelines uploaded successfully',
-      path: '/centre-guidelines.pdf'
+      path: url
     });
   } catch (error) {
     console.error('Upload error:', error);
@@ -55,19 +65,13 @@ exports.uploadGuidelines = async (req, res) => {
 exports.parseGuidelines = async (req, res) => {
   try {
     const pdf = require('pdf-parse');
-    const filePath = path.join(__dirname, '../../../client/public/centre-guidelines.pdf');
-    
-    // Check if file exists
-    try {
-      await fs.access(filePath);
-    } catch {
+    const dataBuffer = await getGuidelinesPdfBuffer();
+    if (!dataBuffer) {
       return res.status(404).json({
         success: false,
         message: 'Guidelines PDF not found'
       });
     }
-
-    const dataBuffer = await fs.readFile(filePath);
     const data = await pdf(dataBuffer);
     const text = data.text;
 
@@ -308,9 +312,13 @@ exports.searchGuidelines = async (req, res) => {
     }
 
     const pdf = require('pdf-parse');
-    const filePath = path.join(__dirname, '../../../client/public/centre-guidelines.pdf');
-    
-    const dataBuffer = await fs.readFile(filePath);
+    const dataBuffer = await getGuidelinesPdfBuffer();
+    if (!dataBuffer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Guidelines PDF not found'
+      });
+    }
     const data = await pdf(dataBuffer);
     const text = data.text;
 
@@ -344,21 +352,51 @@ exports.searchGuidelines = async (req, res) => {
   }
 };
 
+// Stream PDF for in-browser viewing (inline, not download)
+exports.getGuidelinesFile = async (req, res) => {
+  try {
+    const buffer = await getGuidelinesPdfBuffer();
+    if (!buffer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Guidelines PDF not found'
+      });
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Content-Length', buffer.length);
+    res.send(buffer);
+  } catch (error) {
+    console.error('Get guidelines file error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error serving guidelines PDF',
+      error: error.message
+    });
+  }
+};
+
 // Check if guidelines exist
 exports.checkGuidelines = async (req, res) => {
   try {
-    const filePath = path.join(__dirname, '../../../client/public/centre-guidelines.pdf');
-    await fs.access(filePath);
-    
+    const resource = await cloudinary.api.resource(GUIDELINES_PUBLIC_ID, { resource_type: 'raw' }).catch((err) => {
+      if (err.error?.http_code === 404) return null;
+      throw err;
+    });
+    if (!resource) {
+      return res.json({ success: true, exists: false });
+    }
     res.json({
       success: true,
       exists: true,
-      path: '/centre-guidelines.pdf'
+      path: resource.secure_url
     });
-  } catch {
-    res.json({
-      success: true,
-      exists: false
+  } catch (error) {
+    console.error('Check guidelines error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error checking guidelines',
+      error: error.message
     });
   }
 };
@@ -366,14 +404,18 @@ exports.checkGuidelines = async (req, res) => {
 // Delete guidelines
 exports.deleteGuidelines = async (req, res) => {
   try {
-    const filePath = path.join(__dirname, '../../../client/public/centre-guidelines.pdf');
-    await fs.unlink(filePath);
-    
+    await deleteRawFromCloudinary(GUIDELINES_PUBLIC_ID);
     res.json({
       success: true,
       message: 'Guidelines deleted successfully'
     });
   } catch (error) {
+    if (error.message && error.message.includes('Failed to delete')) {
+      return res.status(404).json({
+        success: false,
+        message: 'Guidelines PDF not found'
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Error deleting guidelines',

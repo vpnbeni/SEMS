@@ -61,6 +61,56 @@ const deleteFromCloudinary = async (publicId) => {
 };
 
 /**
+ * Upload document/raw file (PDF, etc.) to Cloudinary
+ * @param {string|Buffer} filePathOrBuffer - Path to file or buffer
+ * @param {string} folder - Folder name in Cloudinary
+ * @param {string} publicId - Optional public ID (for overwrite, e.g. guidelines)
+ * @returns {Promise<Object>} - { url, publicId }
+ */
+const uploadDocumentToCloudinary = async (filePathOrBuffer, folder, publicId = null) => {
+  try {
+    const options = {
+      folder,
+      resource_type: 'raw',
+    };
+    if (publicId) {
+      options.public_id = publicId;
+      options.overwrite = true;
+    }
+    const result = typeof filePathOrBuffer === 'string'
+      ? await cloudinary.uploader.upload(filePathOrBuffer, options)
+      : await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload_stream(options, (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }).end(filePathOrBuffer);
+        });
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+    };
+  } catch (error) {
+    console.error('Cloudinary document upload error:', error);
+    throw new Error('Failed to upload document to Cloudinary');
+  }
+};
+
+/**
+ * Delete raw/document from Cloudinary
+ * @param {string} publicId - Public ID of the resource
+ * @returns {Promise<Object>} - Cloudinary delete response
+ */
+const deleteRawFromCloudinary = async (publicId) => {
+  try {
+    const result = await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
+    return result;
+  } catch (error) {
+    console.error('Cloudinary delete raw error:', error);
+    throw new Error('Failed to delete document from Cloudinary');
+  }
+};
+
+/**
  * Extract public ID from Cloudinary URL
  * @param {string} url - Cloudinary URL
  * @returns {string|null} - Public ID or null
@@ -95,5 +145,7 @@ module.exports = {
   cloudinary,
   uploadToCloudinary,
   deleteFromCloudinary,
-  extractPublicId
+  extractPublicId,
+  uploadDocumentToCloudinary,
+  deleteRawFromCloudinary,
 };

@@ -9,6 +9,9 @@ router.use(protect);
 // Upload guidelines PDF
 router.post('/upload', guidelinesController.uploadGuidelines);
 
+// Stream PDF for viewing in browser (inline)
+router.get('/file', guidelinesController.getGuidelinesFile);
+
 // Check if guidelines exist
 router.get('/check', guidelinesController.checkGuidelines);
 

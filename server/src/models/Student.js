@@ -193,6 +193,10 @@ const studentSchema = new mongoose.Schema({
       type: String,
       required: true
     },
+    cloudinaryPublicId: {
+      type: String,
+      default: null
+    },
     uploadedAt: {
       type: Date,
       default: Date.now
