@@ -341,6 +341,33 @@ const DateSheets: React.FC = () => {
     return `${duration} ${duration === 1 ? 'Hour' : 'Hours'}`
   }
 
+  // Helper function to calculate end time based on start time and duration
+  const calculateTimeRange = (timeSlot: any, duration: number) => {
+    // If timeSlot is a string, return as is
+    if (typeof timeSlot === 'string') {
+      return timeSlot
+    }
+
+    // If timeSlot is an object with start and end, calculate end time based on duration
+    if (timeSlot && typeof timeSlot === 'object' && timeSlot.start) {
+      const startTime = timeSlot.start
+      
+      // Parse start time (format: HH:MM)
+      const [hours, minutes] = startTime.split(':').map(Number)
+      
+      // Calculate end time by adding duration hours
+      const endHours = hours + duration
+      const endMinutes = minutes
+      
+      // Format end time
+      const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`
+      
+      return `${startTime} - ${endTime}`
+    }
+
+    return null
+  }
+
   // Helper function to format answer sheet with colored dot
   const formatAnswerSheet = (answerSheet: string) => {
     const answerSheetConfig: Record<string, { color: string; label: string }> = {
@@ -676,13 +703,12 @@ const DateSheets: React.FC = () => {
                       </td>
                       <td className={`px-6 py-4 text-sm font-medium ${textClassName}`}>
                         {row.subjectName}
-                        {row.timeSlot && typeof row.timeSlot === 'string' ? (
-                          <div className="text-xs text-gray-400 font-normal mt-0.5">{row.timeSlot}</div>
-                        ) : row.timeSlot && typeof row.timeSlot === 'object' ? (
-                          <div className="text-xs text-gray-400 font-normal mt-0.5">
-                            {row.timeSlot.start} - {row.timeSlot.end}
-                          </div>
-                        ) : null}
+                        {(() => {
+                          const timeRange = calculateTimeRange(row.timeSlot, row.duration)
+                          return timeRange ? (
+                            <div className="text-xs text-gray-400 font-normal mt-0.5">{timeRange}</div>
+                          ) : null
+                        })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         {formatAnswerSheet(row.answerSheet || 'none')}

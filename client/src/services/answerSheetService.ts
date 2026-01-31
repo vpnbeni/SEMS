@@ -1,5 +1,11 @@
 import api from './api'
 
+export interface DiscardedSerial {
+  serial: string
+  reason: string
+  discardedAt: string
+}
+
 export interface AnswerSheetEntry {
   _id?: string
   answerSheetType: string
@@ -12,6 +18,7 @@ export interface AnswerSheetEntry {
   total: number
   used: number
   discarded: number
+  discardedSerials?: DiscardedSerial[]
   balance?: number
   sortOrder?: number
   receivedDate?: string
@@ -184,6 +191,35 @@ class AnswerSheetService {
    */
   async getSerialAllocation(id: string) {
     const response = await api.get(`/answersheets/${id}/allocation`)
+    return response.data
+  }
+
+  /**
+   * Get discarded serials for an answer sheet
+   */
+  async getDiscardedSerials(id: string) {
+    const response = await api.get(`/answersheets/${id}/discarded`)
+    return response.data
+  }
+
+  /**
+   * Add discarded serial(s)
+   */
+  async addDiscardedSerials(id: string, data: {
+    serials?: string | string[]
+    fromSerial?: string
+    toSerial?: string
+    reason?: string
+  }) {
+    const response = await api.post(`/answersheets/${id}/discarded`, data)
+    return response.data
+  }
+
+  /**
+   * Remove a discarded serial
+   */
+  async removeDiscardedSerial(id: string, serial: string) {
+    const response = await api.delete(`/answersheets/${id}/discarded/${serial}`)
     return response.data
   }
 }

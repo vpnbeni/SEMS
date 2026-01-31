@@ -1,7 +1,16 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import answerSheetService, { AnswerSheetEntry } from '../services/answerSheetService'
-import centreDatesheetService, { CentreDatesheetEntry } from '../services/centreDatesheetService'
+import type { AnswerSheetEntry } from '../services/answerSheetService'
+import type { CentreDatesheetEntry } from '../services/centreDatesheetService'
+import {
+  useAnswerSheets as useAnswerSheetsQuery,
+  useCreateAnswerSheetMutation,
+  useUploadExcelMutation,
+  useUseSheetsMutation,
+  useUpdateAnswerSheetMutation,
+  useDiscardSheetsMutation,
+} from '../hooks/useAnswerSheets'
+import { useCentreDatesheetEntries } from '../hooks/useSeatingPlan'
 import { Dropdown } from '../components/common/Dropdown'
 import type { DropdownOption } from '../components/common/Dropdown'
 import { Tabs } from '../components/common/Tabs'
@@ -13,10 +22,6 @@ const AnswerSheets: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [showLinkModal, setShowLinkModal] = useState(false)
-  const [entries, setEntries] = useState<AnswerSheetEntry[]>([])
-  const [centreDatesheetEntries, setCentreDatesheetEntries] = useState<CentreDatesheetEntry[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [editingEntry, setEditingEntry] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<{ serialFrom: string; serialTo: string }>({ serialFrom: '', serialTo: '' })
@@ -34,52 +39,33 @@ const AnswerSheets: React.FC = () => {
     exam: '',
     subject: ''
   })
-  const [selectedExam, setSelectedExam] = useState<string | number>('')
-  const [selectedSubject, setSelectedSubject] = useState<string | number>('')
+  const [selectedClass, setSelectedClass] = useState<string | number>('')
 
-  const examOptions: DropdownOption[] = [
-    { value: '', label: 'Select Exam' },
-    { value: 'term1', label: 'Term 1 Examination' },
-    { value: 'term2', label: 'Term 2 Examination' },
-    { value: 'annual', label: 'Annual Examination' }
+  const { data: entries = [], isLoading: loadingList, isFetching, error: listError } = useAnswerSheetsQuery(
+    { class: selectedClass || undefined }
+  )
+  const { data: centreDatesheetEntries = [] } = useCentreDatesheetEntries()
+  const createMutation = useCreateAnswerSheetMutation()
+  const uploadMutation = useUploadExcelMutation()
+  const useSheetsMutation = useUseSheetsMutation()
+  const updateMutation = useUpdateAnswerSheetMutation()
+  const discardMutation = useDiscardSheetsMutation()
+
+  const loading =
+    loadingList ||
+    isFetching ||
+    createMutation.isPending ||
+    uploadMutation.isPending ||
+    useSheetsMutation.isPending ||
+    updateMutation.isPending ||
+    discardMutation.isPending
+  const error = listError?.message ?? null
+
+  const classOptions: DropdownOption[] = [
+    { value: '', label: 'All Classes' },
+    { value: '10', label: '10th' },
+    { value: '12', label: '12th' }
   ]
-  const subjectOptions: DropdownOption[] = [
-    { value: '', label: 'All Subjects' },
-    { value: 'math', label: 'Mathematics' },
-    { value: 'science', label: 'Science' },
-    { value: 'english', label: 'English' }
-  ]
-
-  // Load data on mount
-  useEffect(() => {
-    fetchAnswerSheets()
-    fetchCentreDatesheet()
-  }, [])
-
-  // Fetch answer sheets from API
-  const fetchAnswerSheets = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await answerSheetService.getAnswerSheets()
-      setEntries(response.data || [])
-    } catch (err: any) {
-      console.error('Error fetching answer sheets:', err)
-      setError(err.response?.data?.error || 'Failed to load answer sheets')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Fetch centre datesheet entries
-  const fetchCentreDatesheet = async () => {
-    try {
-      const response = await centreDatesheetService.getEntries()
-      setCentreDatesheetEntries(response.data || [])
-    } catch (err: any) {
-      console.error('Error fetching centre datesheet:', err)
-    }
-  }
 
   // Download Excel template (commented out - not currently used in UI)
   // const downloadTemplate = async () => {
@@ -127,10 +113,8 @@ const AnswerSheets: React.FC = () => {
     }
 
     try {
-      setLoading(true)
-      const response = await answerSheetService.uploadExcel(uploadFile)
-
-      if (response.success) {
+      const response = await uploadMutation.mutateAsync(uploadFile)
+      if (response?.success && response?.data) {
         let message = `Successfully added ${response.data.created} answer sheet entries!`
         if (response.data.skipped > 0) {
           message += `\n\nSkipped ${response.data.skipped} entries with no serial numbers (not received at centre).`
@@ -139,15 +123,12 @@ const AnswerSheets: React.FC = () => {
           message += `\n\n${response.data.failed} entries failed to import.`
         }
         alert(message)
-        await fetchAnswerSheets()
         setShowUploadModal(false)
         setUploadFile(null)
       }
     } catch (err: any) {
       console.error('Error uploading Excel:', err)
-      alert(err.response?.data?.error || 'Failed to upload Excel file')
-    } finally {
-      setLoading(false)
+      alert(err.response?.data?.error || err?.message || 'Failed to upload Excel file')
     }
   }
 
@@ -181,8 +162,7 @@ const AnswerSheets: React.FC = () => {
     }
 
     try {
-      setLoading(true)
-      const newEntry = {
+      await createMutation.mutateAsync({
         answerSheetType: formData.answerSheetType,
         pages: parseInt(formData.pages),
         colour: formData.colour,
@@ -193,11 +173,7 @@ const AnswerSheets: React.FC = () => {
         subject: formData.subject,
         used: 0,
         discarded: 0
-      }
-
-      await answerSheetService.createAnswerSheet(newEntry)
-      await fetchAnswerSheets()
-
+      })
       setFormData({
         answerSheetType: '',
         pages: '',
@@ -211,9 +187,7 @@ const AnswerSheets: React.FC = () => {
       setShowAddModal(false)
     } catch (err: any) {
       console.error('Error adding answer sheet:', err)
-      alert(err.response?.data?.error || 'Failed to add answer sheet')
-    } finally {
-      setLoading(false)
+      alert(err.response?.data?.error || err?.message || 'Failed to add answer sheet')
     }
   }
 
@@ -225,16 +199,11 @@ const AnswerSheets: React.FC = () => {
       setLinkingEntry({ id, quantity })
       setShowLinkModal(true)
     } else {
-      // Directly mark as used without linking
       try {
-        setLoading(true)
-        await answerSheetService.useSheets(id, quantity)
-        await fetchAnswerSheets()
+        await useSheetsMutation.mutateAsync({ id, quantity })
       } catch (err: any) {
         console.error('Error using sheets:', err)
-        alert(err.response?.data?.error || 'Failed to mark sheets as used')
-      } finally {
-        setLoading(false)
+        alert(err.response?.data?.error || err?.message || 'Failed to mark sheets as used')
       }
     }
   }
@@ -243,11 +212,7 @@ const AnswerSheets: React.FC = () => {
     if (!linkingEntry) return
 
     try {
-      setLoading(true)
-
-      // Find selected datesheet entry
       const datesheetEntry = centreDatesheetEntries.find(e => e._id === selectedDatesheetEntry)
-
       const linkData = datesheetEntry ? {
         centreDatesheetEntryId: datesheetEntry._id,
         examDate: datesheetEntry.examDate,
@@ -256,17 +221,17 @@ const AnswerSheets: React.FC = () => {
         candidateCount: datesheetEntry.candidateCount
       } : undefined
 
-      await answerSheetService.useSheets(linkingEntry.id, linkingEntry.quantity, linkData)
-      await fetchAnswerSheets()
-
+      await useSheetsMutation.mutateAsync({
+        id: linkingEntry.id,
+        quantity: linkingEntry.quantity,
+        linkData
+      })
       setShowLinkModal(false)
       setLinkingEntry(null)
       setSelectedDatesheetEntry('')
     } catch (err: any) {
       console.error('Error using sheets:', err)
-      alert(err.response?.data?.error || 'Failed to mark sheets as used')
-    } finally {
-      setLoading(false)
+      alert(err.response?.data?.error || err?.message || 'Failed to mark sheets as used')
     }
   }
 
@@ -279,9 +244,6 @@ const AnswerSheets: React.FC = () => {
     }
 
     try {
-      setLoading(true)
-
-      // Find existing answer sheets linked to this exam
       const existingSheets = entries.filter(e =>
         e.linkedExamDate &&
         new Date(e.linkedExamDate).toDateString() === new Date(datesheetEntry.examDate).toDateString() &&
@@ -292,17 +254,15 @@ const AnswerSheets: React.FC = () => {
       const difference = newValue - currentTotal
 
       if (difference === 0) {
-        // No change
         setEditingUsedEntry(null)
         setEditUsedValue('')
         return
       }
 
-      // Find an answer sheet of the correct type to use
       const answerSheetType = datesheetEntry.answerSheetType
-      let targetSheet = entries.find(e => {
-        const balance = e.total - e.used - e.discarded
-        return balance > 0 &&
+      const targetSheet = entries.find(e => {
+        const bal = e.total - e.used - e.discarded
+        return bal > 0 &&
           e.class === datesheetEntry.class &&
           matchesAnswerSheetType(e.answerSheetType, answerSheetType)
       })
@@ -315,42 +275,40 @@ const AnswerSheets: React.FC = () => {
       const balance = targetSheet.total - targetSheet.used - targetSheet.discarded
 
       if (difference > 0) {
-        // Increase used count
         if (difference > balance) {
           alert(`Not enough answer sheets available. Only ${balance} sheets remaining.`)
           return
         }
 
-        const linkData = {
-          centreDatesheetEntryId: datesheetEntry._id,
-          examDate: datesheetEntry.examDate,
-          subjectCode: datesheetEntry.subjectCode,
-          subjectName: datesheetEntry.subjectName,
-          candidateCount: datesheetEntry.candidateCount
-        }
-
-        await answerSheetService.useSheets(targetSheet._id!, difference, linkData)
+        await useSheetsMutation.mutateAsync({
+          id: targetSheet._id!,
+          quantity: difference,
+          linkData: {
+            centreDatesheetEntryId: datesheetEntry._id,
+            examDate: datesheetEntry.examDate,
+            subjectCode: datesheetEntry.subjectCode,
+            subjectName: datesheetEntry.subjectName,
+            candidateCount: datesheetEntry.candidateCount
+          }
+        })
       } else {
-        // Decrease used count - find the most recently used sheet
-        const mostRecentSheet = existingSheets.sort((a, b) =>
+        const sorted = [...existingSheets].sort((a, b) =>
           new Date(b.receivedDate || 0).getTime() - new Date(a.receivedDate || 0).getTime()
-        )[0]
+        )
+        const mostRecentSheet = sorted[0]
 
-        if (mostRecentSheet && mostRecentSheet._id) {
+        if (mostRecentSheet?._id) {
           const decreaseAmount = Math.abs(difference)
           const newUsed = Math.max(0, mostRecentSheet.used - decreaseAmount)
-          await answerSheetService.updateAnswerSheet(mostRecentSheet._id, { used: newUsed })
+          await updateMutation.mutateAsync({ id: mostRecentSheet._id, data: { used: newUsed } })
         }
       }
 
-      await fetchAnswerSheets()
       setEditingUsedEntry(null)
       setEditUsedValue('')
     } catch (err: any) {
       console.error('Error updating used sheets:', err)
-      alert(err.response?.data?.error || 'Failed to update used sheets')
-    } finally {
-      setLoading(false)
+      alert(err.response?.data?.error || err?.message || 'Failed to update used sheets')
     }
   }
 
@@ -370,14 +328,10 @@ const AnswerSheets: React.FC = () => {
 
   const handleDiscardSheets = async (id: string, quantity: number) => {
     try {
-      setLoading(true)
-      await answerSheetService.discardSheets(id, quantity)
-      await fetchAnswerSheets()
+      await discardMutation.mutateAsync({ id, quantity })
     } catch (err: any) {
       console.error('Error discarding sheets:', err)
-      alert(err.response?.data?.error || 'Failed to discard sheets')
-    } finally {
-      setLoading(false)
+      alert(err.response?.data?.error || err?.message || 'Failed to discard sheets')
     }
   }
 
@@ -415,9 +369,6 @@ const AnswerSheets: React.FC = () => {
 
   const handleSaveEdit = async (entry: AnswerSheetEntry) => {
     try {
-      setLoading(true)
-
-      // Validate serial numbers
       if (!editValues.serialFrom || !editValues.serialTo) {
         alert('Please enter both serial numbers')
         return
@@ -436,15 +387,13 @@ const AnswerSheets: React.FC = () => {
         return
       }
 
-      // If entry exists, update it; otherwise create new
       if (entry._id && !entry.isTemplate) {
-        await answerSheetService.updateAnswerSheet(entry._id, {
-          serialFrom: editValues.serialFrom,
-          serialTo: editValues.serialTo
+        await updateMutation.mutateAsync({
+          id: entry._id,
+          data: { serialFrom: editValues.serialFrom, serialTo: editValues.serialTo }
         })
       } else {
-        // Create new entry with template data
-        await answerSheetService.createAnswerSheet({
+        await createMutation.mutateAsync({
           answerSheetType: entry.answerSheetType,
           pages: entry.pages,
           colour: entry.colour,
@@ -452,43 +401,48 @@ const AnswerSheets: React.FC = () => {
           suffix: entry.suffix,
           sortOrder: entry.sortOrder,
           serialFrom: editValues.serialFrom,
-          serialTo: editValues.serialTo
+          serialTo: editValues.serialTo,
+          used: 0,
+          discarded: 0
         })
       }
 
-      await fetchAnswerSheets()
       setEditingEntry(null)
       setEditValues({ serialFrom: '', serialTo: '' })
     } catch (err: any) {
       console.error('Error saving entry:', err)
-      alert(err.response?.data?.error || 'Failed to save entry')
-    } finally {
-      setLoading(false)
+      alert(err.response?.data?.error || err?.message || 'Failed to save entry')
     }
   }
+
+  const classFilter = (e: { class?: string }) =>
+    !selectedClass || String(e.class) === String(selectedClass)
 
   const getFilteredEntries = () => {
+    const byClass = entries.filter(classFilter)
     switch (activeTab) {
       case 'received':
-        return entries
+        return byClass
       case 'used':
-        // For Used tab, show centre datesheet entries instead of answer sheets
         return []
       case 'balance':
-        return entries.filter(e => (e.total - e.used - e.discarded) > 0)
+        return byClass.filter(e => (e.total - e.used - e.discarded) > 0)
       case 'discarded':
-        return entries.filter(e => e.discarded > 0)
+        return byClass.filter(e => e.discarded > 0)
       default:
-        return entries
+        return byClass
     }
   }
 
-  // Get centre datesheet entries for Used tab
+  // Get centre datesheet entries for Used tab (optionally filtered by class)
   const getUsedTabEntries = () => {
     if (activeTab !== 'used') return []
 
-    // Return centre datesheet entries sorted by date
-    return centreDatesheetEntries.sort((a, b) =>
+    let list = [...centreDatesheetEntries]
+    if (selectedClass) {
+      list = list.filter(e => String(e.class) === String(selectedClass))
+    }
+    return list.sort((a, b) =>
       new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
     )
   }
@@ -568,20 +522,13 @@ const AnswerSheets: React.FC = () => {
           />
           <div className="flex space-x-4 min-w-0">
             <Dropdown
-              options={examOptions}
-              value={selectedExam}
-              onChange={(v) => setSelectedExam(Array.isArray(v) ? v[0] ?? '' : v)}
-              placeholder="Select Exam"
+              options={classOptions}
+              value={selectedClass}
+              onChange={(v) => setSelectedClass(Array.isArray(v) ? v[0] ?? '' : v)}
+              placeholder="All Classes"
               size="md"
               className="w-52"
-            />
-            <Dropdown
-              options={subjectOptions}
-              value={selectedSubject}
-              onChange={(v) => setSelectedSubject(Array.isArray(v) ? v[0] ?? '' : v)}
-              placeholder="All Subjects"
-              size="md"
-              className="w-52"
+              clearable={false}
             />
           </div>
         </div>
@@ -622,8 +569,22 @@ const AnswerSheets: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {entries.length > 0 ? (
-                  entries.map((entry, index) => {
+                {(() => {
+                  const receivedEntries = getFilteredEntries()
+                  if (loading) {
+                    return (
+                      <tr>
+                        <td colSpan={9} className="px-6 py-12 text-center">
+                          <div className="flex flex-col items-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  }
+                  return receivedEntries.length > 0 ? (
+                  receivedEntries.map((entry, index) => {
                     const entryKey = `${entry.sortOrder}`
                     const isEditing = editingEntry === entryKey
 
@@ -743,12 +704,7 @@ const AnswerSheets: React.FC = () => {
                   <tr>
                     <td colSpan={9} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center">
-                        {loading ? (
-                          <>
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading...</p>
-                          </>
-                        ) : error ? (
+                        {error ? (
                           <>
                             <svg className="mx-auto h-12 w-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -768,7 +724,7 @@ const AnswerSheets: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                )}
+                ); })()}
               </tbody>
             </table>
           ) : (
@@ -829,7 +785,16 @@ const AnswerSheets: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {activeTab === 'used' ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={12} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : activeTab === 'used' ? (
                   // Used Tab - Show Centre Datesheet Entries
                   getUsedTabEntries().length > 0 ? (
                     getUsedTabEntries().map((datesheetEntry, index) => {

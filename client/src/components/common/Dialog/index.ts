@@ -1,0 +1,6 @@
+export { default as Dialog } from './Dialog'
+export { DialogHeader } from './DialogHeader'
+export { DialogBody } from './DialogBody'
+export { DialogFooter } from './DialogFooter'
+export { useDialogContext } from './DialogContext'
+export * from './DialogTypes'

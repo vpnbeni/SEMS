@@ -1,36 +1,23 @@
-import React, { useState, useEffect } from 'react'
-import centreDatesheetService, { CentreDatesheetEntry } from '../services/centreDatesheetService'
-import { seatingPlanService } from '../services/seatingPlanService'
+import React, { useState } from 'react'
+import {
+  useCentreDatesheetEntries,
+  useGenerateSeatingPlanPDFMutation,
+  type SeatingPlanFormat,
+} from '../hooks/useSeatingPlan'
 import Loader from '../components/common/Loader'
 
 const SeatingPlan: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'mainGate' | 'roomFolderSlip' | 'roomDoorSlip' | 'cbseCopy'>('mainGate')
-  const [datesheetEntries, setDatesheetEntries] = useState<CentreDatesheetEntry[]>([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<SeatingPlanFormat>('mainGate')
 
-  useEffect(() => {
-    fetchDatesheetEntries()
-  }, [])
+  const { data: datesheetEntries = [], isLoading: loading, error: queryError, refetch } = useCentreDatesheetEntries()
+  const pdfMutation = useGenerateSeatingPlanPDFMutation({
+    onError: () => {
+      alert('Failed to generate PDF. Please try again.')
+    },
+  })
 
-  const fetchDatesheetEntries = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const response = await centreDatesheetService.getEntries()
-      console.log('📊 Datesheet entries received:', response.data)
-      if (response.data && response.data.length > 0) {
-        console.log('📋 First entry dayName:', response.data[0].dayName)
-      }
-      setDatesheetEntries(response.data || [])
-    } catch (err: any) {
-      console.error('Error fetching datesheet entries:', err)
-      setError(err.response?.data?.error || 'Failed to load datesheet entries')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const error = queryError?.message ?? null
+  const downloadingId = pdfMutation.isPending ? pdfMutation.variables?.datesheetId ?? null : null
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
@@ -41,54 +28,12 @@ const SeatingPlan: React.FC = () => {
     })
   }
 
-  const handleDownloadPDF = async (datesheetId: string, format: string) => {
-    try {
-      setDownloadingId(datesheetId)
-      let blob: Blob
-      let filename: string
-
-      switch (format) {
-        case 'mainGate':
-          blob = await seatingPlanService.generateMainGate(datesheetId)
-          filename = 'main-gate.pdf'
-          break
-        case 'roomFolderSlip':
-          blob = await seatingPlanService.generateRoomFolderSlip(datesheetId)
-          filename = 'room-folder-slip.pdf'
-          break
-        case 'roomDoorSlip':
-          blob = await seatingPlanService.generateRoomDoorSlip(datesheetId)
-          filename = 'room-door-slip.pdf'
-          break
-        case 'cbseCopy':
-          blob = await seatingPlanService.generateCBSECopy(datesheetId)
-          filename = 'cbse-copy.pdf'
-          break
-        default:
-          return
-      }
-
-      seatingPlanService.downloadPDF(blob, filename)
-    } catch (error) {
-      console.error('Failed to download PDF:', error)
-      alert('Failed to generate PDF. Please try again.')
-    } finally {
-      setDownloadingId(null)
-    }
+  const handleDownloadPDF = (datesheetId: string, format: SeatingPlanFormat) => {
+    pdfMutation.mutate({ datesheetId, format })
   }
 
   return (
     <div className="p-6">
-      {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-secondary-900 dark:text-white">
-          Seating Plan
-        </h1>
-        <p className="mt-1 text-sm text-secondary-500 dark:text-secondary-400">
-          Manage seating arrangements and room allocations
-        </p>
-      </div>
-
       {/* Status Overview - Clickable Tabs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <button
@@ -185,7 +130,7 @@ const SeatingPlan: React.FC = () => {
             <div className="p-6 text-center">
               <p className="text-red-600 dark:text-red-400">{error}</p>
               <button
-                onClick={fetchDatesheetEntries}
+                onClick={() => refetch()}
                 className="mt-4 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
               >
                 Retry
@@ -354,14 +299,97 @@ const SeatingPlan: React.FC = () => {
 
           {activeTab === 'cbseCopy' && (
             <div className="space-y-4">
-              <p className="text-secondary-600 dark:text-secondary-400">
-                CBSE Copy seating plan content will be displayed here.
-              </p>
-              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4">
+              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-4">
                 <p className="text-sm text-purple-800 dark:text-purple-200">
-                  This format is designed for submission to CBSE as per their requirements.
+                  This format is designed for submission to CBSE. Each room generates one page with 24 candidates (8 rows x 3 columns).
                 </p>
               </div>
+              
+              {/* CBSE Copy Preview */}
+              <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 max-w-4xl mx-auto">
+                {/* Header */}
+                <h2 className="text-xl font-bold text-center mb-4 text-gray-900 dark:text-white">SEATING PLAN</h2>
+                
+                {/* Info Table */}
+                <table className="w-full border-collapse mb-4">
+                  <tbody>
+                    <tr>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold w-32 text-gray-900 dark:text-white">Name Of Centre</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
+                        International Bharti School<br/>Gohana Road, Rohtak
+                      </td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center w-24 text-gray-900 dark:text-white">Centre No</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold w-28 text-gray-900 dark:text-white">827403</td>
+                    </tr>
+                    <tr>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Name Of<br/>Examination</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
+                        Sr. Secondary School Certificate Examination<br/>2026
+                      </td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Subject</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-sm text-gray-900 dark:text-white">ENGLISH (LANG. & LIT.)</td>
+                    </tr>
+                    <tr>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Date</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>15.02.2026</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Room No.</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">01</td>
+                    </tr>
+                  </tbody>
+                </table>
+                
+                {/* Seating Table */}
+                <table className="w-full border-collapse mb-4">
+                  <thead>
+                    <tr>
+                      <th className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white" colSpan={2}>Row 1</th>
+                      <th className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white" colSpan={2}>Row 2</th>
+                      <th className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white" colSpan={2}>Row 3</th>
+                    </tr>
+                    <tr>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Roll No</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Q.P. Code</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Roll No</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Q.P. Code</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Roll No</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Q.P. Code</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...Array(8)].map((_, i) => (
+                      <tr key={i}>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300">{17248737 + i}</td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-400 dark:text-gray-500"></td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300">{17248745 + i}</td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-400 dark:text-gray-500"></td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300">{17248753 + i}</td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-400 dark:text-gray-500"></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {/* Footer Section */}
+                <div className="flex justify-between mb-6 text-sm">
+                  <div className="w-1/2">
+                    <p className="font-bold text-gray-900 dark:text-white">Signature of Assistant</p>
+                    <p className="font-bold text-gray-900 dark:text-white mb-2">Superintendent</p>
+                    <p className="text-gray-700 dark:text-gray-300">1. ____________________</p>
+                    <p className="text-gray-700 dark:text-gray-300 mt-2">2. ____________________</p>
+                  </div>
+                  <div className="w-1/2 text-left pl-8">
+                    <p className="text-gray-700 dark:text-gray-300"><span className="font-bold text-gray-900 dark:text-white">Signature of Total Students Registered:</span> ________</p>
+                    <p className="text-gray-700 dark:text-gray-300 mt-1"><span className="font-bold text-gray-900 dark:text-white">Present:</span> ________</p>
+                    <p className="text-gray-700 dark:text-gray-300 mt-1"><span className="font-bold text-gray-900 dark:text-white">Absent:</span> ________</p>
+                  </div>
+                </div>
+                
+                <p className="text-right font-bold text-gray-900 dark:text-white">Signature of Centre Superintendent</p>
+              </div>
+              
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
+                Click the download button next to any exam to generate the CBSE Copy PDF with actual candidate data.
+              </p>
             </div>
           )}
         </div>

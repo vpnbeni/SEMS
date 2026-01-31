@@ -1,8 +1,12 @@
 import React from "react";
 import TeacherModal from "./TeacherModal";
 
-const AddTeacherModal: React.FC = () => {
-  return <TeacherModal mode="add" />;
+interface AddTeacherModalProps {
+  onSuccess?: () => void;
+}
+
+const AddTeacherModal: React.FC<AddTeacherModalProps> = ({ onSuccess }) => {
+  return <TeacherModal mode="add" onSuccess={onSuccess} />;
 };
 
 export default AddTeacherModal;

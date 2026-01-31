@@ -1,8 +1,12 @@
 import React from "react";
 import TeacherModal from "./TeacherModal";
 
-const EditTeacherModal: React.FC = () => {
-  return <TeacherModal mode="edit" />;
+interface EditTeacherModalProps {
+  onSuccess?: () => void;
+}
+
+const EditTeacherModal: React.FC<EditTeacherModalProps> = ({ onSuccess }) => {
+  return <TeacherModal mode="edit" onSuccess={onSuccess} />;
 };
 
 export default EditTeacherModal;

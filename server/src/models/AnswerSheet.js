@@ -105,6 +105,24 @@ const answerSheetSchema = new mongoose.Schema({
       message: 'Used + Discarded cannot exceed total'
     }
   },
+  // Store specific discarded serial numbers (damaged, misprinted, etc.)
+  // These will be skipped during allocation
+  discardedSerials: [{
+    serial: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    reason: {
+      type: String,
+      trim: true,
+      default: 'Damaged/Misprinted'
+    },
+    discardedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
   receivedDate: {
     type: Date,
     default: Date.now
@@ -273,6 +291,70 @@ answerSheetSchema.methods.discardSheets = function(quantity) {
   
   this.discarded += quantity
   return this.save()
+}
+
+// Instance method to add a discarded serial number
+answerSheetSchema.methods.addDiscardedSerial = function(serial, reason = 'Damaged/Misprinted') {
+  // Check if serial is already in the discarded list
+  const exists = this.discardedSerials.some(d => d.serial === serial)
+  if (exists) {
+    throw new Error(`Serial ${serial} is already marked as discarded`)
+  }
+  
+  // Validate serial is within range
+  const prefix = this.serialFrom.replace(/\d+$/, '')
+  const serialNum = parseInt(serial.replace(/\D/g, ''))
+  const fromNum = parseInt(this.serialFrom.replace(/\D/g, ''))
+  const toNum = parseInt(this.serialTo.replace(/\D/g, ''))
+  
+  if (isNaN(serialNum) || serialNum < fromNum || serialNum > toNum) {
+    throw new Error(`Serial ${serial} is outside the valid range (${this.serialFrom} - ${this.serialTo})`)
+  }
+  
+  this.discardedSerials.push({ serial, reason, discardedAt: new Date() })
+  return this.save()
+}
+
+// Instance method to remove a discarded serial number
+answerSheetSchema.methods.removeDiscardedSerial = function(serial) {
+  const index = this.discardedSerials.findIndex(d => d.serial === serial)
+  if (index === -1) {
+    throw new Error(`Serial ${serial} is not in the discarded list`)
+  }
+  
+  this.discardedSerials.splice(index, 1)
+  return this.save()
+}
+
+// Instance method to add multiple discarded serials (range)
+answerSheetSchema.methods.addDiscardedRange = function(fromSerial, toSerial, reason = 'Damaged/Misprinted') {
+  const prefix = this.serialFrom.replace(/\d+$/, '')
+  const padLength = this.serialFrom.replace(/\D/g, '').length
+  
+  const fromNum = parseInt(fromSerial.replace(/\D/g, ''))
+  const toNum = parseInt(toSerial.replace(/\D/g, ''))
+  const rangeStart = parseInt(this.serialFrom.replace(/\D/g, ''))
+  const rangeEnd = parseInt(this.serialTo.replace(/\D/g, ''))
+  
+  if (isNaN(fromNum) || isNaN(toNum) || fromNum > toNum) {
+    throw new Error('Invalid serial range')
+  }
+  
+  if (fromNum < rangeStart || toNum > rangeEnd) {
+    throw new Error(`Serial range is outside the valid range (${this.serialFrom} - ${this.serialTo})`)
+  }
+  
+  const added = []
+  for (let i = fromNum; i <= toNum; i++) {
+    const serial = prefix + i.toString().padStart(padLength, '0')
+    const exists = this.discardedSerials.some(d => d.serial === serial)
+    if (!exists) {
+      this.discardedSerials.push({ serial, reason, discardedAt: new Date() })
+      added.push(serial)
+    }
+  }
+  
+  return this.save().then(() => added)
 }
 
 module.exports = mongoose.model('AnswerSheet', answerSheetSchema)

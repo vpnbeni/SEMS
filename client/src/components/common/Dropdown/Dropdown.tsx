@@ -75,24 +75,27 @@ export const Dropdown: React.FC<DropdownProps> = ({
       .map(opt => opt.label)
   }
 
-  // Calculate dropdown position for portal
+  // Calculate dropdown direction (up/down) and position for portal
+  // Direction is always calculated when open so both portal and non-portal dropdowns can open upward when space is limited below.
   useEffect(() => {
-    if (isOpen && portal && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect()
-      const spaceBelow = window.innerHeight - rect.bottom
-      const spaceAbove = rect.top
-      
-      let direction: 'down' | 'up' = 'down'
-      if (position === 'top') {
-        direction = 'up'
-      } else if (position === 'bottom') {
-        direction = 'down'
-      } else {
-        // Auto: choose based on available space
-        direction = spaceBelow < maxHeight && spaceAbove > spaceBelow ? 'up' : 'down'
-      }
-      
-      setDropdownDirection(direction)
+    if (!isOpen || !containerRef.current) return
+
+    const rect = containerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+
+    let direction: 'down' | 'up' = 'down'
+    if (position === 'top') {
+      direction = 'up'
+    } else if (position === 'bottom') {
+      direction = 'down'
+    } else {
+      // Auto: open upward if not enough space below and more space above
+      direction = spaceBelow < maxHeight && spaceAbove > spaceBelow ? 'up' : 'down'
+    }
+
+    setDropdownDirection(direction)
+    if (portal) {
       setDropdownPosition({
         top: direction === 'down' ? rect.bottom + 4 : rect.top - 4,
         left: rect.left,

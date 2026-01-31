@@ -4,7 +4,11 @@ import { AppDispatch, RootState } from '../../redux/store'
 import { deleteTeacher, hideDeleteTeacherModal } from '../../redux/slices/teacherSlice'
 import Modal from '../common/Modal'
 
-const DeleteTeacherModal: React.FC = () => {
+interface DeleteTeacherModalProps {
+  onSuccess?: () => void
+}
+
+const DeleteTeacherModal: React.FC<DeleteTeacherModalProps> = ({ onSuccess }) => {
   const dispatch = useDispatch<AppDispatch>()
   const { showDeleteModal, loading, selectedTeacher } = useSelector((state: RootState) => state.teachers)
 
@@ -13,17 +17,19 @@ const DeleteTeacherModal: React.FC = () => {
   }
 
   const handleDelete = async () => {
-    if (!selectedTeacher || !selectedTeacher.id) return
+    if (!selectedTeacher || !teacherId) return
 
     try {
-      await dispatch(deleteTeacher(selectedTeacher.id)).unwrap()
+      await dispatch(deleteTeacher(teacherId)).unwrap()
+      onSuccess?.()
       handleClose()
     } catch (error) {
       console.error('Failed to delete teacher:', error)
     }
   }
 
-  if (!selectedTeacher) return null
+  const teacherId = selectedTeacher?.id ?? selectedTeacher?._id
+  if (!selectedTeacher || !teacherId) return null
 
   return (
     <Modal

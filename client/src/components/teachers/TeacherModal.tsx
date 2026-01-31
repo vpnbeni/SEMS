@@ -6,9 +6,7 @@ import {
   updateTeacher,
   hideAddTeacherModal,
   hideEditTeacherModal,
-  setLoading,
   fetchNextEmployeeId,
-  fetchTeachers,
 } from "../../redux/slices/teacherSlice";
 import { fetchSubjects } from "../../redux/slices/subjectSlice";
 import Modal from "../common/Modal";
@@ -21,9 +19,10 @@ interface Subject {
 
 interface TeacherModalProps {
   mode: "add" | "edit";
+  onSuccess?: () => void;
 }
 
-const TeacherModal: React.FC<TeacherModalProps> = ({ mode }) => {
+const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { showAddModal, showEditModal, loading, selectedTeacher } = useSelector(
     (state: RootState) => state.teachers
@@ -280,13 +279,8 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode }) => {
       };
 
       if (mode === "add") {
-        await dispatch(createTeacher(teacherData as any)).unwrap().then((res) => {
-          if (res.data.success) {
-            setLoading(false);
-          }
-        });
-        // Refresh the teachers list after creating
-        await dispatch(fetchTeachers({}));
+        await dispatch(createTeacher(teacherData as any)).unwrap();
+        onSuccess?.();
       } else if (selectedTeacher?._id) {
         const updateData = {
           _id: selectedTeacher._id,
@@ -294,8 +288,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode }) => {
           ...teacherData,
         };
         await dispatch(updateTeacher(updateData)).unwrap();
-        // Refresh the teachers list after updating
-        await dispatch(fetchTeachers({}));
+        onSuccess?.();
       }
 
       handleClose();

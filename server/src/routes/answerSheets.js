@@ -13,7 +13,10 @@ const {
   downloadTemplate,
   uploadExcel,
   getAnswerSheetDetails,
-  getSerialAllocation
+  getSerialAllocation,
+  addDiscardedSerials,
+  removeDiscardedSerial,
+  getDiscardedSerials
 } = require('../controllers/answerSheetController')
 
 // Statistics route (must be before :id routes)
@@ -41,5 +44,12 @@ router.get('/:id/allocation', getSerialAllocation)
 // Action routes
 router.post('/:id/use', useAnswerSheets)
 router.post('/:id/discard', discardAnswerSheets)
+
+// Discarded serials routes
+router.route('/:id/discarded')
+  .get(getDiscardedSerials)
+  .post(addDiscardedSerials)
+
+router.delete('/:id/discarded/:serial', removeDiscardedSerial)
 
 module.exports = router

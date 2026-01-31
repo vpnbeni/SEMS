@@ -1,4 +1,21 @@
 import api from './api'
+import type { CandidateStats } from '../types/candidate'
+
+export interface CandidateListParams {
+  page?: number
+  limit?: number
+  search?: string
+  status?: string
+  class?: string
+}
+
+export interface CandidateListResponse {
+  data: any[]
+  page: number
+  pages: number
+  total: number
+  limit: number
+}
 
 interface CandidateData {
   name: string
@@ -14,8 +31,27 @@ interface CandidateData {
   subjects?: string[]
 }
 
+function parseListResponse(res: any): CandidateListResponse {
+  const body = res.data ?? res
+  const data = body.data ?? []
+  const limit = parseInt(body.limit, 10) || 50
+  return {
+    data,
+    page: body.page ?? 1,
+    pages: body.pages ?? 1,
+    total: body.total ?? 0,
+    limit,
+  }
+}
+
 class CandidateService {
-  // Get all candidates with optional query parameters
+  /** Get candidates with params object (for TanStack Query). Returns normalized { data, page, pages, total, limit }. */
+  async getCandidatesWithParams(params?: CandidateListParams): Promise<CandidateListResponse> {
+    const res = await api.get('/candidates', { params })
+    return parseListResponse(res)
+  }
+
+  // Get all candidates with optional query string (legacy)
   async getCandidates(queryString?: string) {
     const url = queryString ? `/candidates?${queryString}` : '/candidates'
     return api.get(url)
@@ -54,9 +90,11 @@ class CandidateService {
     })
   }
 
-  // Get candidate statistics
-  async getStats() {
-    return api.get('/candidates/stats')
+  /** Get candidate statistics. Returns CandidateStats. */
+  async getStats(): Promise<CandidateStats> {
+    const res = await api.get('/candidates/stats')
+    const body = res.data ?? res
+    return body?.data ?? body
   }
 
   // Search candidates

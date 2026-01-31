@@ -1,183 +1,101 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import candidateService from '../services/candidateService'
 import Loader from '../components/common/Loader'
 import CandidateTable from '../components/candidates/CandidateTable'
 import ImportModal from '../components/candidates/ImportModal'
-import { Candidate, CandidateStats } from '../types/candidate'
+import {
+  useCandidates,
+  useCandidateStats,
+  useCandidatesWithoutSubjects,
+  useImportCandidatesMutation,
+  useDeleteCandidateMutation,
+} from '../hooks/useCandidates'
+
+const LIMIT = 50
 
 const Candidates: React.FC = () => {
   const navigate = useNavigate()
-  const [candidates, setCandidates] = useState<Candidate[]>([])
-  const [stats, setStats] = useState<CandidateStats | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [importing, setImporting] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
-  const [pagination, setPagination] = useState({
-    page: 1,
-    pages: 1,
-    total: 0,
-    limit: 50
-  })
+  const [page, setPage] = useState(1)
   const [filters, setFilters] = useState({
     search: '',
     status: '',
     class: ''
   })
-  const [candidatesWithoutSubjects, setCandidatesWithoutSubjects] = useState<Array<{rollNumber: string, name: string, page: number}>>([])
 
-  // Fetch candidates without subjects (all pages)
-  const fetchCandidatesWithoutSubjects = async () => {
-    try {
-      const token = localStorage.getItem('token')
-      if (!token) return
+  const queryParams = useMemo(
+    () => ({
+      page,
+      limit: LIMIT,
+      ...(filters.search && { search: filters.search }),
+      ...(filters.status && { status: filters.status }),
+      ...(filters.class && { class: filters.class }),
+    }),
+    [page, filters]
+  )
 
-      // Fetch ALL candidates to check for missing subjects
-      const response = await fetch('/api/candidates?limit=1000', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      })
+  const { data, isLoading: loading } = useCandidates(queryParams)
+  const { data: stats } = useCandidateStats()
+  const { data: candidatesWithoutSubjects = [] } = useCandidatesWithoutSubjects()
 
-      if (response.ok) {
-        const data = await response.json()
-        const allCandidates = data.data || []
-        
-        // Find candidates without subjects and calculate their page number
-        const missing = allCandidates
-          .map((c: Candidate, index: number) => ({
-            ...c,
-            globalIndex: index
-          }))
-          .filter((c: any) => !c.subjects || c.subjects.length === 0)
-          .map((c: any) => ({
-            rollNumber: c.rollNumber,
-            name: c.name,
-            page: Math.floor(c.globalIndex / pagination.limit) + 1
-          }))
-        
-        setCandidatesWithoutSubjects(missing)
-      }
-    } catch (error) {
-      console.error('Failed to check candidates without subjects:', error)
-    }
-  }
+  const importMutation = useImportCandidatesMutation()
+  const deleteMutation = useDeleteCandidateMutation()
 
-  // Fetch candidates
-  const fetchCandidates = async () => {
-    try {
-      setLoading(true)
-      const queryParams = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
-        ...Object.fromEntries(
-          Object.entries(filters).filter(([_, value]) => value !== '')
-        )
-      })
+  const candidates = data?.data ?? []
+  const pagination = useMemo(
+    () => ({
+      page: data?.page ?? 1,
+      pages: data?.pages ?? 1,
+      total: data?.total ?? 0,
+      limit: data?.limit ?? LIMIT,
+    }),
+    [data]
+  )
 
-      const response = await candidateService.getCandidates(queryParams.toString())
-      setCandidates(response.data.data)
-      setPagination({
-        page: response.data.page,
-        pages: response.data.pages,
-        total: response.data.total,
-        limit: pagination.limit
-      })
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to fetch candidates')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Fetch statistics
-  const fetchStats = async () => {
-    try {
-      const response = await candidateService.getStats()
-      setStats(response.data.data)
-    } catch (error: any) {
-      console.error('Failed to fetch stats:', error)
-    }
-  }
-
-  useEffect(() => {
-    fetchCandidates()
-  }, [pagination.page, pagination.limit, filters])
-
-  useEffect(() => {
-    fetchStats()
-    fetchCandidatesWithoutSubjects()
-  }, [])
-
-  // Drag-and-drop import removed; import handled via modal/button only
-
-  // Handle PDF import
-  const handleImport = async (file: File) => {
-    try {
-      setImporting(true)
-      console.log('Starting PDF import...', { fileName: file.name, fileSize: file.size, fileType: file.type })
-      
-      const response = await candidateService.importFromPDF(file)
-      
-      console.log('Import response:', response.data)
-      
-      toast.success(
-        `Successfully imported ${response.data.data.imported} candidates`
-      )
-      
-      if (response.data.data.errors > 0) {
-        toast.error(
-          `${response.data.data.errors} candidates had errors during import`
-        )
-      }
-
-      // Refresh data
-      await fetchCandidates()
-      await fetchStats()
-      await fetchCandidatesWithoutSubjects()
-      setShowImportModal(false)
-    } catch (error: any) {
-      console.error('Import error:', error)
-      if (error.code === 'ECONNABORTED') {
-        toast.error('Request timeout. The PDF file might be too large or complex.')
-      } else if (error.message === 'canceled') {
-        toast.error('Upload was canceled. Please try again.')
-      } else {
-        toast.error(error.response?.data?.message || 'Failed to import candidates')
-      }
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  // Handle delete candidate
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this candidate?')) {
-      return
-    }
-
-    try {
-      await candidateService.deleteCandidate(id)
-      toast.success('Candidate deleted successfully')
-      await fetchCandidates()
-      await fetchStats()
-      await fetchCandidatesWithoutSubjects()
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Failed to delete candidate')
-    }
-  }
-
-  // Handle filter changes
   const handleFilterChange = (newFilters: typeof filters) => {
     setFilters(newFilters)
-    setPagination(prev => ({ ...prev, page: 1 }))
+    setPage(1)
   }
 
-  // Handle page change
-  const handlePageChange = (page: number) => {
-    setPagination(prev => ({ ...prev, page }))
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage)
+  }
+
+  const handleImport = async (file: File) => {
+    importMutation.mutate(file, {
+      onSuccess: (response: any) => {
+        const payload = response?.data?.data ?? response?.data
+        const imported = payload?.imported ?? 0
+        const errors = payload?.errors ?? 0
+        toast.success(`Successfully imported ${imported} candidates`)
+        if (errors > 0) {
+          toast.error(`${errors} candidates had errors during import`)
+        }
+        setShowImportModal(false)
+      },
+      onError: (error: any) => {
+        if (error?.code === 'ECONNABORTED') {
+          toast.error('Request timeout. The PDF file might be too large or complex.')
+        } else if (error?.message === 'canceled') {
+          toast.error('Upload was canceled. Please try again.')
+        } else {
+          toast.error(error?.response?.data?.message || 'Failed to import candidates')
+        }
+      },
+    })
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this candidate?')) return
+    deleteMutation.mutate(id, {
+      onSuccess: () => {
+        toast.success('Candidate deleted successfully')
+      },
+      onError: (error: any) => {
+        toast.error(error?.response?.data?.message || 'Failed to delete candidate')
+      },
+    })
   }
 
   if (loading && candidates.length === 0) {
@@ -405,7 +323,7 @@ const Candidates: React.FC = () => {
           isOpen={showImportModal}
           onClose={() => setShowImportModal(false)}
           onImport={handleImport}
-          importing={importing}
+          importing={importMutation.isPending}
         />
       )}
     </div>

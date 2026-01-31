@@ -17,9 +17,12 @@ import {
     AlertCircle,
     BookOpen,
     CheckCircle2,
-    TrendingUp
+    TrendingUp,
+    Trash2,
+    Plus,
+    Ban
 } from 'lucide-react'
-import answerSheetService, { AnswerSheetEntry } from '../services/answerSheetService'
+import answerSheetService, { AnswerSheetEntry, DiscardedSerial } from '../services/answerSheetService'
 
 interface RelatedExam {
     _id: string
@@ -48,6 +51,9 @@ interface AllocationData {
     serialFrom?: string
     serialTo?: string
     total?: number
+    discardedCount?: number
+    discardedSerials?: DiscardedSerial[]
+    usableTotal?: number
     allocations: SerialAllocation[]
     totalAllocated?: number
     remaining?: number
@@ -63,6 +69,12 @@ const AnswerSheetDetails: React.FC = () => {
     const [loading, setLoading] = useState(true)
     const [editMode, setEditMode] = useState(false)
     const [editValues, setEditValues] = useState({ serialFrom: '', serialTo: '' })
+    
+    // Discarded serials management
+    const [showDiscardedModal, setShowDiscardedModal] = useState(false)
+    const [discardInput, setDiscardInput] = useState({ serial: '', fromSerial: '', toSerial: '', reason: 'Damaged/Misprinted' })
+    const [discardMode, setDiscardMode] = useState<'single' | 'range'>('single')
+    const [savingDiscard, setSavingDiscard] = useState(false)
 
     useEffect(() => {
         if (id) {
@@ -134,6 +146,44 @@ const AnswerSheetDetails: React.FC = () => {
         }
     }
 
+    const handleAddDiscarded = async () => {
+        if (discardMode === 'single' && !discardInput.serial) {
+            toast.error('Please enter a serial number')
+            return
+        }
+        if (discardMode === 'range' && (!discardInput.fromSerial || !discardInput.toSerial)) {
+            toast.error('Please enter both from and to serial numbers')
+            return
+        }
+
+        try {
+            setSavingDiscard(true)
+            const data = discardMode === 'single'
+                ? { serials: discardInput.serial, reason: discardInput.reason }
+                : { fromSerial: discardInput.fromSerial, toSerial: discardInput.toSerial, reason: discardInput.reason }
+
+            await answerSheetService.addDiscardedSerials(id!, data)
+            setShowDiscardedModal(false)
+            setDiscardInput({ serial: '', fromSerial: '', toSerial: '', reason: 'Damaged/Misprinted' })
+            await loadDetails()
+        } catch (error: any) {
+            console.error('Error adding discarded serials:', error)
+            toast.error(error.response?.data?.error || 'Failed to add discarded serials')
+        } finally {
+            setSavingDiscard(false)
+        }
+    }
+
+    const handleRemoveDiscarded = async (serial: string) => {
+        try {
+            await answerSheetService.removeDiscardedSerial(id!, serial)
+            await loadDetails()
+        } catch (error: any) {
+            console.error('Error removing discarded serial:', error)
+            toast.error(error.response?.data?.error || 'Failed to remove discarded serial')
+        }
+    }
+
     const formatDate = (dateString: string) => {
         const date = new Date(dateString)
         return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -183,7 +233,9 @@ const AnswerSheetDetails: React.FC = () => {
         )
     }
 
-    const usagePercentage = allocation?.total ? Math.round(((allocation.totalAllocated || 0) / allocation.total) * 100) : 0;
+    // Use usableTotal (total - discarded) for percentage calculation
+    const usableTotal = allocation?.usableTotal || allocation?.total || 0
+    const usagePercentage = usableTotal ? Math.round(((allocation?.totalAllocated || 0) / usableTotal) * 100) : 0;
 
     // Calculate color based on percentage
     const getProgressBarColor = (percentage: number) => {
@@ -365,7 +417,10 @@ const AnswerSheetDetails: React.FC = () => {
                                             <div>
                                                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Utilization</span>
                                                 <p className="text-xs text-gray-500 mt-1">
-                                                    <span className="font-medium text-gray-900 dark:text-white">{allocation.totalAllocated?.toLocaleString()}</span> used of <span className="font-medium text-gray-900 dark:text-white">{allocation.total?.toLocaleString()}</span> total
+                                                    <span className="font-medium text-gray-900 dark:text-white">{allocation.totalAllocated?.toLocaleString()}</span> allocated of <span className="font-medium text-gray-900 dark:text-white">{(allocation.usableTotal || allocation.total)?.toLocaleString()}</span> usable
+                                                    {(allocation.discardedCount || 0) > 0 && (
+                                                        <span className="text-red-500 ml-1">({allocation.discardedCount} discarded)</span>
+                                                    )}
                                                 </p>
                                             </div>
                                             <div className={`text-xl font-bold ${usagePercentage > 90 ? 'text-red-600' :
@@ -383,16 +438,20 @@ const AnswerSheetDetails: React.FC = () => {
                                             />
                                         </div>
 
-                                        <div className="mt-6 flex divide-x divide-gray-100 dark:divide-gray-700">
-                                            <div className="flex-1 px-4 text-center first:pl-0">
+                                        <div className="mt-6 grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-700">
+                                            <div className="px-3 text-center">
                                                 <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Allocated</div>
                                                 <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{allocation.totalAllocated?.toLocaleString()}</div>
                                             </div>
-                                            <div className="flex-1 px-4 text-center">
+                                            <div className="px-3 text-center">
+                                                <div className="text-xs font-medium uppercase tracking-wider text-red-500">Discarded</div>
+                                                <div className="mt-1 text-lg font-bold text-red-600">{(allocation.discardedCount || 0).toLocaleString()}</div>
+                                            </div>
+                                            <div className="px-3 text-center">
                                                 <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Remaining</div>
                                                 <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{allocation.remaining?.toLocaleString()}</div>
                                             </div>
-                                            <div className="flex-1 px-4 text-center last:pr-0">
+                                            <div className="px-3 text-center">
                                                 <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Expected</div>
                                                 <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">
                                                     {(allocation.allocations.reduce((acc, curr) => acc + curr.candidateCount, 0))?.toLocaleString()}
@@ -404,13 +463,70 @@ const AnswerSheetDetails: React.FC = () => {
                             </div>
                         </div>
 
+                        {/* Discarded Sheets Management Card */}
+                        {allocation && allocation.hasSerialNumbers && (
+                            <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700">
+                                <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/50">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="rounded-md bg-red-50 p-1.5 shadow-sm ring-1 ring-red-200 dark:bg-red-900/30 dark:ring-red-800">
+                                                <Ban className="h-4 w-4 text-red-500 dark:text-red-400" />
+                                            </div>
+                                            <div>
+                                                <h2 className="font-semibold text-gray-900 dark:text-white">Discarded Sheets</h2>
+                                                <p className="text-xs text-gray-500">Mark damaged or unusable sheets to skip in allocation</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowDiscardedModal(true)}
+                                            className="group inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm ring-1 ring-red-200 transition-all hover:bg-red-100 hover:ring-red-300 dark:bg-red-900/30 dark:text-red-300 dark:ring-red-800 dark:hover:bg-red-900/50"
+                                        >
+                                            <Plus className="h-3.5 w-3.5" />
+                                            Add Discarded
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="p-6">
+                                    {(allocation.discardedSerials?.length || 0) === 0 ? (
+                                        <div className="text-center py-8">
+                                            <Ban className="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
+                                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">No discarded sheets</p>
+                                            <p className="text-xs text-gray-400 dark:text-gray-500">Click "Add Discarded" to mark damaged or unusable sheets</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {allocation.discardedSerials?.map((item, index) => (
+                                                <div
+                                                    key={item.serial || index}
+                                                    className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50/50 px-3 py-2 dark:border-red-800 dark:bg-red-900/10"
+                                                >
+                                                    <div className="flex items-center gap-3">
+                                                        <span className="font-mono text-sm font-medium text-red-700 dark:text-red-400">{item.serial}</span>
+                                                        <span className="text-xs text-gray-500 dark:text-gray-400">{item.reason}</span>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => handleRemoveDiscarded(item.serial)}
+                                                        className="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 transition-colors"
+                                                        title="Remove from discarded"
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Date-wise Breakdown Table */}
                         {allocation && allocation.hasSerialNumbers && allocation.allocations.length > 0 && (
                             <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700">
                                 <div className="border-b border-gray-100 px-6 py-4 dark:border-gray-700 flex justify-between items-center">
                                     <div>
                                         <h3 className="font-semibold text-gray-900 dark:text-white">Allocation Schedule</h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">Date-wise distribution</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">Date-wise distribution (skips discarded)</p>
                                     </div>
                                     <div className="text-sm text-gray-500">
                                         {allocation.allocations.length} items
@@ -540,6 +656,144 @@ const AnswerSheetDetails: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Add Discarded Modal */}
+            {showDiscardedModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-800"
+                    >
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Add Discarded Sheets</h3>
+                            <button
+                                onClick={() => {
+                                    setShowDiscardedModal(false)
+                                    setDiscardInput({ serial: '', fromSerial: '', toSerial: '', reason: 'Damaged/Misprinted' })
+                                }}
+                                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {/* Mode Toggle */}
+                        <div className="mb-4 flex rounded-lg bg-gray-100 p-1 dark:bg-gray-700">
+                            <button
+                                onClick={() => setDiscardMode('single')}
+                                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                                    discardMode === 'single'
+                                        ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-600 dark:text-white'
+                                        : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                                }`}
+                            >
+                                Single Serial
+                            </button>
+                            <button
+                                onClick={() => setDiscardMode('range')}
+                                className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${
+                                    discardMode === 'range'
+                                        ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-600 dark:text-white'
+                                        : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                                }`}
+                            >
+                                Range
+                            </button>
+                        </div>
+
+                        {discardMode === 'single' ? (
+                            <div className="mb-4">
+                                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    Serial Number
+                                </label>
+                                <input
+                                    type="text"
+                                    value={discardInput.serial}
+                                    onChange={(e) => setDiscardInput({ ...discardInput, serial: e.target.value })}
+                                    className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 font-mono shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                    placeholder={`e.g. ${answerSheet?.serialFrom || '446351'}`}
+                                />
+                            </div>
+                        ) : (
+                            <div className="mb-4 grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        From Serial
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={discardInput.fromSerial}
+                                        onChange={(e) => setDiscardInput({ ...discardInput, fromSerial: e.target.value })}
+                                        className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 font-mono shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                        placeholder={answerSheet?.serialFrom || '446351'}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        To Serial
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={discardInput.toSerial}
+                                        onChange={(e) => setDiscardInput({ ...discardInput, toSerial: e.target.value })}
+                                        className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 font-mono shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                        placeholder={answerSheet?.serialTo || '446700'}
+                                    />
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="mb-6">
+                            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Reason
+                            </label>
+                            <select
+                                value={discardInput.reason}
+                                onChange={(e) => setDiscardInput({ ...discardInput, reason: e.target.value })}
+                                className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                            >
+                                <option value="Damaged/Misprinted">Damaged/Misprinted</option>
+                                <option value="Torn">Torn</option>
+                                <option value="Water Damage">Water Damage</option>
+                                <option value="Missing Pages">Missing Pages</option>
+                                <option value="Printing Defect">Printing Defect</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowDiscardedModal(false)
+                                    setDiscardInput({ serial: '', fromSerial: '', toSerial: '', reason: 'Damaged/Misprinted' })
+                                }}
+                                className="flex-1 rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleAddDiscarded}
+                                disabled={savingDiscard}
+                                className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {savingDiscard ? (
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                ) : (
+                                    <>
+                                        <Trash2 className="h-4 w-4" />
+                                        Mark as Discarded
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        <p className="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
+                            Valid range: {answerSheet?.serialFrom} - {answerSheet?.serialTo}
+                        </p>
+                    </motion.div>
+                </div>
+            )}
         </motion.div>
     )
 }

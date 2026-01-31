@@ -42,11 +42,26 @@ class SeatingPlanBuilder {
       let candidates = form66Records;
       if (form66Records.length === 0) {
         console.log('No Form 66 records found, falling back to Candidate model');
+        
+        // Class is stored in entry.subject.class (e.g., '10th' or '12th')
+        const classValue = entry.subject.class;
+        // Normalize class format just in case (model expects '10th' or '12th')
+        const normalizedClass = classValue && classValue.endsWith('th') ? classValue : `${classValue}th`;
+        
+        // Query using subjectCodes.code since subjects field contains ObjectIds
         candidates = await Candidate.find({
-          class: entry.class,
-          subjects: entry.subject.code,
-          isActive: true
-        }).sort({ rollNo: 1 });
+          class: normalizedClass,
+          'subjectCodes.code': entry.subject.code,
+          status: 'active'
+        }).sort({ rollNumber: 1 });
+        
+        // Map rollNumber to rollNo for consistency with Form66
+        candidates = candidates.map(c => ({
+          ...c.toObject(),
+          rollNo: c.rollNumber
+        }));
+        
+        console.log(`Found ${candidates.length} candidates from Candidate model`);
       }
 
       // Build room allocations
@@ -59,7 +74,7 @@ class SeatingPlanBuilder {
           dayName: entry.dayName,
           subjectCode: entry.subject.code,
           subjectName: entry.subject.name,
-          class: entry.class,
+          class: entry.subject.class,
           timeSlot: entry.timeSlot
         },
         rooms: roomAllocations,
@@ -183,6 +198,21 @@ class SeatingPlanBuilder {
     return `${day}.${month}.${year}`;
   }
 
+  getExamName(classValue) {
+    // Class 10 = Secondary School Certificate Examination
+    // Class 12 = Sr. Secondary School Certificate Examination
+    const normalizedClass = String(classValue).replace(/th$/i, '');
+    if (normalizedClass === '10') {
+      return 'Secondary School Certificate Examination';
+    }
+    return 'Sr. Secondary School Certificate Examination';
+  }
+
+  getExamYear(date) {
+    const d = new Date(date);
+    return d.getFullYear().toString();
+  }
+
   buildMainGateData(seatingData) {
     const { datesheet, rooms } = seatingData;
     
@@ -205,6 +235,8 @@ class SeatingPlanBuilder {
   buildRoomFolderSlipData(seatingData) {
     const { datesheet, rooms } = seatingData;
     const slips = [];
+    const examName = this.getExamName(datesheet.class);
+    const examYear = this.getExamYear(datesheet.date);
 
     for (let i = 0; i < rooms.length; i += 2) {
       const slip1 = rooms[i];
@@ -216,8 +248,8 @@ class SeatingPlanBuilder {
           schoolAddress: this.schoolAddress,
           centreNo: this.centreNo,
           className: datesheet.class,
-          examName: 'Sr. Secondary School Certificate',
-          examYear: 'Examination - 2025',
+          examName: examName,
+          examYear: examYear,
           subjectCode: datesheet.subjectCode,
           subjectName: datesheet.subjectName,
           examDate: this.formatDate(datesheet.date, true),
@@ -234,8 +266,8 @@ class SeatingPlanBuilder {
           schoolAddress: this.schoolAddress,
           centreNo: this.centreNo,
           className: datesheet.class,
-          examName: 'Sr. Secondary School Certificate',
-          examYear: 'Examination - 2025',
+          examName: examName,
+          examYear: examYear,
           subjectCode: datesheet.subjectCode,
           subjectName: datesheet.subjectName,
           examDate: this.formatDate(datesheet.date, true),
@@ -253,6 +285,8 @@ class SeatingPlanBuilder {
   buildRoomDoorSlipData(seatingData) {
     const { datesheet, rooms } = seatingData;
     const slips = [];
+    const examName = this.getExamName(datesheet.class);
+    const examYear = this.getExamYear(datesheet.date);
 
     for (let i = 0; i < rooms.length; i += 2) {
       const slip1 = rooms[i];
@@ -264,8 +298,8 @@ class SeatingPlanBuilder {
           schoolAddress: this.schoolAddress,
           centreNo: this.centreNo,
           className: datesheet.class,
-          examName: 'Sr. Secondary School Certificate',
-          examYear: 'Examination - 2025',
+          examName: examName,
+          examYear: examYear,
           subjectCode: datesheet.subjectCode,
           subjectName: datesheet.subjectName,
           examDate: this.formatDate(datesheet.date, true),
@@ -281,8 +315,8 @@ class SeatingPlanBuilder {
           schoolAddress: this.schoolAddress,
           centreNo: this.centreNo,
           className: datesheet.class,
-          examName: 'Sr. Secondary School Certificate',
-          examYear: 'Examination - 2025',
+          examName: examName,
+          examYear: examYear,
           subjectCode: datesheet.subjectCode,
           subjectName: datesheet.subjectName,
           examDate: this.formatDate(datesheet.date, true),
@@ -298,18 +332,21 @@ class SeatingPlanBuilder {
 
   buildCBSECopyData(seatingData) {
     const { datesheet, rooms } = seatingData;
+    const examName = this.getExamName(datesheet.class);
+    const examYear = this.getExamYear(datesheet.date);
     
     return {
       rooms: rooms.map((room, index) => ({
         schoolName: this.schoolName,
         schoolAddress: this.schoolAddress,
         centreNo: this.centreNo,
-        examName: 'Sr. Secondary School Certificate',
-        examYear: 'Examination - 2025',
-        subjectName: `${datesheet.subjectCode} ; ${datesheet.subjectName}`,
+        examName: examName,
+        examYear: `${examYear}`,
+        subjectName: datesheet.subjectName.toUpperCase(),
         examDate: this.formatDate(datesheet.date, false),
         roomNo: room.roomNo,
         rows: room.rows,
+        registered: room.registered,
         last: index === rooms.length - 1
       }))
     };

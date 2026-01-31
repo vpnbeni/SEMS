@@ -22,6 +22,7 @@ import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
 import AnswerSheetDetails from './pages/AnswerSheetDetails'
 import DropdownExamples from './pages/DropdownExamples'
+import DialogShowcase from './pages/DialogShowcase'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -91,6 +92,7 @@ function App() {
               <Route path="answersheets/:id" element={<AnswerSheetDetails />} />
               <Route path="centre-guidelines" element={<CentreGuidelines />} />
               <Route path="dropdown-examples" element={<DropdownExamples />} />
+              <Route path="dialog-showcase" element={<DialogShowcase />} />
             </Route>
           </Route>
 

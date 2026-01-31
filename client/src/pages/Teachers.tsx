@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { AppDispatch, RootState } from "../redux/store";
 import {
-  fetchTeachers,
   showAddTeacherModal,
   showEditTeacherModal,
   showDeleteTeacherModal,
   clearError,
   Teacher,
-  FetchTeachersParams,
 } from "../redux/slices/teacherSlice";
 import AddTeacherModal from "../components/teachers/AddTeacherModal";
 import EditTeacherModal from "../components/teachers/EditTeacherModal";
 import DeleteTeacherModal from "../components/teachers/DeleteTeacherModal";
 import ExportModal, { ExportFilters } from "../components/common/ExportModal";
 import { Dropdown } from "../components/common/Dropdown";
+import { useTeachers, teacherKeys } from "../hooks/useTeachers";
 import axios from "axios";
 
 const STATUS_OPTIONS = [
@@ -38,16 +38,12 @@ const DEPARTMENT_OPTIONS = [
   ...DEPARTMENTS_LIST.map((dept) => ({ value: dept, label: dept })),
 ];
 
+const LIMIT = 50;
+
 const Teachers: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const navigate = useNavigate();
-  const { teachers, loading, error, pagination } = useSelector(
-    (state: RootState) => state.teachers
-  );
-  console.log(teachers, "teachers");
-  console.log(loading, "loading");
-  console.log(error, "error");
-  console.log(pagination, "pagination");
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedDepartment, setSelectedDepartment] = useState("all");
@@ -59,89 +55,81 @@ const Teachers: React.FC = () => {
   const [yearsOfExperience, setYearsOfExperience] = useState("");
   const [showExportModal, setShowExportModal] = useState(false);
 
-  // Debounced filter states
   const [debouncedJoiningDateFrom, setDebouncedJoiningDateFrom] = useState("");
   const [debouncedJoiningDateTo, setDebouncedJoiningDateTo] = useState("");
   const [debouncedYearsOfExperience, setDebouncedYearsOfExperience] = useState("");
 
-  // Debounce search term with 500ms delay
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const t = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1); // Reset to first page on new search
+      setCurrentPage(1);
     }, 500);
-
-    return () => clearTimeout(timer);
+    return () => clearTimeout(t);
   }, [searchTerm]);
-
-  // Debounce joining date filters
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const t = setTimeout(() => {
       setDebouncedJoiningDateFrom(joiningDateFrom);
       setCurrentPage(1);
     }, 500);
-
-    return () => clearTimeout(timer);
+    return () => clearTimeout(t);
   }, [joiningDateFrom]);
-
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const t = setTimeout(() => {
       setDebouncedJoiningDateTo(joiningDateTo);
       setCurrentPage(1);
     }, 500);
-
-    return () => clearTimeout(timer);
+    return () => clearTimeout(t);
   }, [joiningDateTo]);
-
-  // Debounce years of experience filter
   useEffect(() => {
-    const timer = setTimeout(() => {
+    const t = setTimeout(() => {
       setDebouncedYearsOfExperience(yearsOfExperience);
       setCurrentPage(1);
     }, 500);
-
-    return () => clearTimeout(timer);
+    return () => clearTimeout(t);
   }, [yearsOfExperience]);
 
-  const fetchTeachersData = useCallback(() => {
-    const params: FetchTeachersParams = {
+  const queryParams = useMemo(
+    () => ({
       page: currentPage,
-      limit: 50, // Fixed limit of 50 items per page
+      limit: LIMIT,
       search: debouncedSearchTerm || undefined,
       department: selectedDepartment !== "all" ? selectedDepartment : undefined,
       isActive: statusFilter !== "all" ? statusFilter === "active" : undefined,
       joiningDateFrom: debouncedJoiningDateFrom || undefined,
       joiningDateTo: debouncedJoiningDateTo || undefined,
-      minExperience: debouncedYearsOfExperience ? parseInt(debouncedYearsOfExperience) : undefined,
+      minExperience: debouncedYearsOfExperience ? parseInt(debouncedYearsOfExperience, 10) : undefined,
       sort: "-createdAt",
-    };
-    dispatch(fetchTeachers(params));
-  }, [
-    dispatch,
-    currentPage,
-    debouncedSearchTerm,
-    selectedDepartment,
-    statusFilter,
-    debouncedJoiningDateFrom,
-    debouncedJoiningDateTo,
-    debouncedYearsOfExperience,
-  ]);
+    }),
+    [
+      currentPage,
+      debouncedSearchTerm,
+      selectedDepartment,
+      statusFilter,
+      debouncedJoiningDateFrom,
+      debouncedJoiningDateTo,
+      debouncedYearsOfExperience,
+    ]
+  );
 
-  useEffect(() => {
-    fetchTeachersData();
-  }, [fetchTeachersData]);
+  const { data, isLoading: loading, error: queryError } = useTeachers(queryParams);
+  const teachers = data?.items ?? null;
+  const pagination = data
+    ? {
+        currentPage: data.currentPage,
+        totalPages: data.totalPages,
+        totalItems: data.totalItems,
+        itemsPerPage: data.itemsPerPage,
+      }
+    : { currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: LIMIT };
+  const error = useSelector((state: RootState) => state.teachers.error) || queryError?.message || null;
 
   useEffect(() => {
     if (error) {
-      console.error("Teacher error:", error);
-      // You can add a toast notification here
-      setTimeout(() => {
-        dispatch(clearError());
-      }, 5000);
+      const t = setTimeout(() => dispatch(clearError()), 5000);
+      return () => clearTimeout(t);
     }
   }, [error, dispatch]);
 
-  // Transform backend data to frontend format
   const transformTeacher = (teacher: Teacher): Teacher => ({
     ...teacher,
     id: teacher._id || teacher.id,
@@ -149,21 +137,21 @@ const Teachers: React.FC = () => {
     avatar: teacher.profileImage
       ? teacher.name.charAt(0).toUpperCase()
       : teacher.name.charAt(0).toUpperCase(),
-    // Keep subjects as-is (they can be either IDs or populated objects)
     subjects: teacher.subjects || [],
   });
 
-  // Only use real teachers from API and transform them
   const displayTeachers = teachers ? teachers.map(transformTeacher) : [];
-  console.log(displayTeachers, "displayTeachers");
 
-  // Stats for stat cards (from current data / pagination)
   const totalTeachers = pagination.totalItems ?? 0;
   const activeCount = displayTeachers.filter((t) => t.status === "active").length;
   const inactiveCount = displayTeachers.filter((t) => t.status === "inactive").length;
   const departmentsCount = new Set(displayTeachers.map((t) => t.department).filter(Boolean)).size;
 
   const departments = DEPARTMENTS_LIST;
+
+  const invalidateTeachers = () => {
+    queryClient.invalidateQueries({ queryKey: teacherKeys.all });
+  };
 
   // Event handlers
   const handleAddTeacher = () => {
@@ -774,9 +762,9 @@ const Teachers: React.FC = () => {
       )}
 
       {/* Modals */}
-      <AddTeacherModal />
-      <EditTeacherModal />
-      <DeleteTeacherModal />
+      <AddTeacherModal onSuccess={invalidateTeachers} />
+      <EditTeacherModal onSuccess={invalidateTeachers} />
+      <DeleteTeacherModal onSuccess={invalidateTeachers} />
       <ExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}

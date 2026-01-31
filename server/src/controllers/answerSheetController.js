@@ -651,14 +651,23 @@ exports.getAnswerSheetDetails = async (req, res) => {
       // Normalize answer sheet class for comparison (10 -> 10th, 12 -> 12th)
       const normalizedClass = answerSheet.class.includes('th') ? answerSheet.class : `${answerSheet.class}th`
 
-      // Map answer sheet type from storage format to datesheet format
-      const answerSheetTypeMap = {
-        'Main': ['32_pages', '20_pages'],
-        'Graph': ['40_graph'],
-        'Supplementary': ['32_pages', '20_pages']
+      // Determine the expected answer sheet type based on BOTH answerSheetType AND pages
+      // This ensures 32-page Main sheets only match 32_pages subjects,
+      // and 20-page Main sheets only match 20_pages subjects
+      let expectedAnswerSheetType = null
+      
+      if (answerSheet.answerSheetType === 'Main' || answerSheet.answerSheetType === 'Supplementary') {
+        // Main/Supplementary sheets come in different page counts
+        if (answerSheet.pages === 32) {
+          expectedAnswerSheetType = '32_pages'
+        } else if (answerSheet.pages === 20) {
+          expectedAnswerSheetType = '20_pages'
+        }
+      } else if (answerSheet.answerSheetType === 'Graph') {
+        expectedAnswerSheetType = '40_graph'
+      } else if (answerSheet.answerSheetType === 'Drawing Sheets') {
+        expectedAnswerSheetType = 'drawing_sheets'
       }
-
-      const acceptableTypes = answerSheetTypeMap[answerSheet.answerSheetType] || []
 
       // Find related exam entries
       relatedExams = cbseDatesheet.entries
@@ -666,8 +675,8 @@ exports.getAnswerSheetDetails = async (req, res) => {
           // Match by class
           if (entry.subject.class !== normalizedClass) return false
 
-          // Match by answer sheet type
-          if (acceptableTypes.length > 0 && !acceptableTypes.includes(entry.answerSheet)) return false
+          // Match on the specific answer sheet type (including page count)
+          if (expectedAnswerSheetType && entry.answerSheet !== expectedAnswerSheetType) return false
 
           return true
         })
@@ -789,20 +798,30 @@ exports.getSerialAllocation = async (req, res) => {
     // Normalize answer sheet class
     const normalizedClass = answerSheet.class.includes('th') ? answerSheet.class : `${answerSheet.class}th`
 
-    // Map answer sheet type
-    const answerSheetTypeMap = {
-      'Main': ['32_pages', '20_pages'],
-      'Graph': ['40_graph'],
-      'Supplementary': ['32_pages', '20_pages']
+    // Determine the expected answer sheet type based on BOTH answerSheetType AND pages
+    // This ensures 32-page Main sheets only match 32_pages subjects,
+    // and 20-page Main sheets only match 20_pages subjects
+    let expectedAnswerSheetType = null
+    
+    if (answerSheet.answerSheetType === 'Main' || answerSheet.answerSheetType === 'Supplementary') {
+      // Main/Supplementary sheets come in different page counts
+      if (answerSheet.pages === 32) {
+        expectedAnswerSheetType = '32_pages'
+      } else if (answerSheet.pages === 20) {
+        expectedAnswerSheetType = '20_pages'
+      }
+    } else if (answerSheet.answerSheetType === 'Graph') {
+      expectedAnswerSheetType = '40_graph'
+    } else if (answerSheet.answerSheetType === 'Drawing Sheets') {
+      expectedAnswerSheetType = 'drawing_sheets'
     }
-
-    const acceptableTypes = answerSheetTypeMap[answerSheet.answerSheetType] || []
 
     // Find related exams and sort by date
     const relatedExams = cbseDatesheet.entries
       .filter(entry => {
         if (entry.subject.class !== normalizedClass) return false
-        if (acceptableTypes.length > 0 && !acceptableTypes.includes(entry.answerSheet)) return false
+        // Match on the specific answer sheet type (including page count)
+        if (expectedAnswerSheetType && entry.answerSheet !== expectedAnswerSheetType) return false
         return true
       })
       .map(entry => {
@@ -825,25 +844,75 @@ exports.getSerialAllocation = async (req, res) => {
       .filter(exam => exam.candidateCount > 0)
       .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
 
-    // Calculate serial number allocation
+    // Calculate serial number allocation, skipping discarded serials
     const fromNum = parseInt(answerSheet.serialFrom.replace(/\D/g, ''))
-    let currentSerial = fromNum
+    const toNum = parseInt(answerSheet.serialTo.replace(/\D/g, ''))
+    const prefix = answerSheet.serialFrom.replace(/\d+$/, '')
+    const padLength = answerSheet.serialFrom.replace(/\D/g, '').length
+
+    // Create a set of discarded serial numbers for quick lookup
+    const discardedSet = new Set(
+      (answerSheet.discardedSerials || []).map(d => parseInt(d.serial.replace(/\D/g, '')))
+    )
+
+    // Helper function to format serial number
+    const formatSerial = (num) => prefix + num.toString().padStart(padLength, '0')
+
+    // Helper function to get next available serial (skipping discarded)
+    const getNextAvailable = (start) => {
+      let current = start
+      while (discardedSet.has(current) && current <= toNum) {
+        current++
+      }
+      return current <= toNum ? current : null
+    }
+
+    let currentSerial = getNextAvailable(fromNum)
 
     const allocations = relatedExams.map(exam => {
-      const serialStart = currentSerial
-      const serialEnd = currentSerial + exam.candidateCount - 1
-      currentSerial = serialEnd + 1
+      if (currentSerial === null) {
+        return {
+          ...exam,
+          serialFrom: 'N/A',
+          serialTo: 'N/A',
+          sheetsAllocated: 0,
+          insufficientSheets: true
+        }
+      }
 
-      // Format serials with same format as original (preserve prefix)
-      const prefix = answerSheet.serialFrom.replace(/\d+$/, '')
+      const serialStart = currentSerial
+      let sheetsAssigned = 0
+      let serialEnd = currentSerial
+
+      // Assign serials one by one, skipping discarded ones
+      while (sheetsAssigned < exam.candidateCount && currentSerial !== null && currentSerial <= toNum) {
+        if (!discardedSet.has(currentSerial)) {
+          serialEnd = currentSerial
+          sheetsAssigned++
+        }
+        currentSerial++
+        // Skip to next available
+        while (discardedSet.has(currentSerial) && currentSerial <= toNum) {
+          currentSerial++
+        }
+      }
+
+      if (currentSerial > toNum) {
+        currentSerial = null
+      }
 
       return {
         ...exam,
-        serialFrom: prefix + serialStart.toString().padStart(answerSheet.serialFrom.replace(/\D/g, '').length, '0'),
-        serialTo: prefix + serialEnd.toString().padStart(answerSheet.serialTo.replace(/\D/g, '').length, '0'),
-        sheetsAllocated: exam.candidateCount
+        serialFrom: formatSerial(serialStart),
+        serialTo: formatSerial(serialEnd),
+        sheetsAllocated: sheetsAssigned,
+        insufficientSheets: sheetsAssigned < exam.candidateCount
       }
     })
+
+    const totalAllocated = allocations.reduce((sum, alloc) => sum + alloc.sheetsAllocated, 0)
+    const discardedCount = (answerSheet.discardedSerials || []).length
+    const usableTotal = answerSheet.total - discardedCount
 
     res.status(200).json({
       success: true,
@@ -852,9 +921,12 @@ exports.getSerialAllocation = async (req, res) => {
         serialFrom: answerSheet.serialFrom,
         serialTo: answerSheet.serialTo,
         total: answerSheet.total,
+        discardedCount,
+        discardedSerials: answerSheet.discardedSerials || [],
+        usableTotal,
         allocations,
-        totalAllocated: allocations.reduce((sum, alloc) => sum + alloc.sheetsAllocated, 0),
-        remaining: answerSheet.total - allocations.reduce((sum, alloc) => sum + alloc.sheetsAllocated, 0)
+        totalAllocated,
+        remaining: usableTotal - totalAllocated
       }
     })
   } catch (error) {
@@ -862,6 +934,147 @@ exports.getSerialAllocation = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to calculate serial allocation'
+    })
+  }
+}
+
+/**
+ * @desc    Add discarded serial number(s)
+ * @route   POST /api/answersheets/:id/discarded
+ * @access  Private
+ */
+exports.addDiscardedSerials = async (req, res) => {
+  try {
+    const answerSheet = await AnswerSheet.findById(req.params.id)
+
+    if (!answerSheet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Answer sheet not found'
+      })
+    }
+
+    const { serials, fromSerial, toSerial, reason } = req.body
+
+    // Handle range input
+    if (fromSerial && toSerial) {
+      const added = await answerSheet.addDiscardedRange(fromSerial, toSerial, reason || 'Damaged/Misprinted')
+      return res.status(200).json({
+        success: true,
+        message: `Added ${added.length} discarded serial(s)`,
+        data: {
+          added,
+          discardedSerials: answerSheet.discardedSerials,
+          discardedCount: answerSheet.discardedSerials.length
+        }
+      })
+    }
+
+    // Handle single or array of serials
+    const serialList = Array.isArray(serials) ? serials : [serials]
+    const added = []
+    const errors = []
+
+    for (const serial of serialList) {
+      try {
+        await answerSheet.addDiscardedSerial(serial, reason || 'Damaged/Misprinted')
+        added.push(serial)
+      } catch (err) {
+        errors.push({ serial, error: err.message })
+      }
+    }
+
+    // Reload to get updated data
+    await answerSheet.save()
+
+    res.status(200).json({
+      success: true,
+      message: `Added ${added.length} discarded serial(s)`,
+      data: {
+        added,
+        errors: errors.length > 0 ? errors : undefined,
+        discardedSerials: answerSheet.discardedSerials,
+        discardedCount: answerSheet.discardedSerials.length
+      }
+    })
+  } catch (error) {
+    console.error('Error adding discarded serials:', error)
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to add discarded serials'
+    })
+  }
+}
+
+/**
+ * @desc    Remove discarded serial number
+ * @route   DELETE /api/answersheets/:id/discarded/:serial
+ * @access  Private
+ */
+exports.removeDiscardedSerial = async (req, res) => {
+  try {
+    const answerSheet = await AnswerSheet.findById(req.params.id)
+
+    if (!answerSheet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Answer sheet not found'
+      })
+    }
+
+    const { serial } = req.params
+
+    await answerSheet.removeDiscardedSerial(serial)
+
+    res.status(200).json({
+      success: true,
+      message: `Removed serial ${serial} from discarded list`,
+      data: {
+        discardedSerials: answerSheet.discardedSerials,
+        discardedCount: answerSheet.discardedSerials.length
+      }
+    })
+  } catch (error) {
+    console.error('Error removing discarded serial:', error)
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to remove discarded serial'
+    })
+  }
+}
+
+/**
+ * @desc    Get discarded serials for an answer sheet
+ * @route   GET /api/answersheets/:id/discarded
+ * @access  Private
+ */
+exports.getDiscardedSerials = async (req, res) => {
+  try {
+    const answerSheet = await AnswerSheet.findById(req.params.id)
+
+    if (!answerSheet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Answer sheet not found'
+      })
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        discardedSerials: answerSheet.discardedSerials || [],
+        discardedCount: (answerSheet.discardedSerials || []).length,
+        serialRange: {
+          from: answerSheet.serialFrom,
+          to: answerSheet.serialTo
+        }
+      }
+    })
+  } catch (error) {
+    console.error('Error getting discarded serials:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get discarded serials'
     })
   }
 }

@@ -12,6 +12,8 @@ const RoomAllocation: React.FC = () => {
     floor: ''
   })
   const [isAddingNew, setIsAddingNew] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     fetchRooms()
@@ -60,17 +62,54 @@ const RoomAllocation: React.FC = () => {
     }
   }
 
-  const handleDeleteRoom = async (id: string) => {
-    if (confirm('Are you sure you want to delete this room?')) {
-      try {
-        await seatingPlanService.deleteRoom(id)
-        await fetchRooms()
-      } catch (error) {
-        console.error('Failed to delete room:', error)
-        alert('Failed to delete room')
-      }
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const selectAllOnPage = () => {
+    const ids = rooms.map((r) => r._id)
+    const allSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id))
+    if (allSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        ids.forEach((id) => next.delete(id))
+        return next
+      })
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        ids.forEach((id) => next.add(id))
+        return next
+      })
     }
   }
+
+  const clearSelection = () => setSelectedIds(new Set())
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Delete ${selectedIds.size} selected room(s)? This cannot be undone.`)) return
+    setIsDeleting(true)
+    const ids = Array.from(selectedIds)
+    try {
+      await Promise.all(ids.map((id) => seatingPlanService.deleteRoom(id)))
+      clearSelection()
+      await fetchRooms()
+    } catch (error) {
+      console.error('Failed to delete rooms:', error)
+      alert('Failed to delete some rooms')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const allOnPageSelected = rooms.length > 0 && rooms.every((r) => selectedIds.has(r._id))
+  const someOnPageSelected = rooms.some((r) => selectedIds.has(r._id))
 
   const handleCancelEdit = () => {
     setEditingId(null)
@@ -96,6 +135,15 @@ const RoomAllocation: React.FC = () => {
             Examination Rooms
           </h3>
           <div className="flex space-x-3">
+            {selectedIds.size > 0 && (
+              <button
+                onClick={handleDeleteSelected}
+                disabled={isDeleting}
+                className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-700 shadow-sm text-sm font-medium rounded-lg text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50"
+              >
+                Delete {selectedIds.size} selected
+              </button>
+            )}
             <button className="btn btn-secondary">
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -119,6 +167,20 @@ const RoomAllocation: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-12">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allOnPageSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected
+                      }}
+                      onChange={selectAllOnPage}
+                      className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+                      aria-label="Select all on page"
+                    />
+                  </label>
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Sr No
                 </th>
@@ -140,6 +202,7 @@ const RoomAllocation: React.FC = () => {
               {/* Add New Room Row */}
               {isAddingNew && (
                 <tr className="bg-blue-50 dark:bg-blue-900/20">
+                  <td className="px-4 py-4 w-12" />
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     -
                   </td>
@@ -197,6 +260,17 @@ const RoomAllocation: React.FC = () => {
 
                 return (
                   <tr key={room._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-4 py-4 w-12">
+                      <label className="flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(room._id)}
+                          onChange={() => toggleSelection(room._id)}
+                          className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+                          aria-label={`Select room ${room.roomNo}`}
+                        />
+                      </label>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {index + 1}
                     </td>
@@ -257,20 +331,12 @@ const RoomAllocation: React.FC = () => {
                           </button>
                         </>
                       ) : (
-                        <>
-                          <button
-                            onClick={() => handleEditRoom(room)}
-                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRoom(room._id)}
-                            className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                          >
-                            Delete
-                          </button>
-                        </>
+                        <button
+                          onClick={() => handleEditRoom(room)}
+                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          Edit
+                        </button>
                       )}
                     </td>
                   </tr>
@@ -280,7 +346,7 @@ const RoomAllocation: React.FC = () => {
               {/* Empty State */}
               {rooms.length === 0 && !isAddingNew && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>

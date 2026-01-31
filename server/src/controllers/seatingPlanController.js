@@ -65,6 +65,15 @@ exports.deleteRoom = async (req, res) => {
   }
 };
 
+// Helper function to send PDF buffer properly
+const sendPDFResponse = (res, pdfBuffer, filename) => {
+  const buffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+  res.setHeader('Content-Length', buffer.length);
+  res.end(buffer);
+};
+
 // Generate Main Gate PDF
 exports.generateMainGate = async (req, res) => {
   try {
@@ -74,9 +83,7 @@ exports.generateMainGate = async (req, res) => {
     const templateData = seatingPlanBuilder.buildMainGateData(seatingData);
     const pdfBuffer = await pdfGenerator.generateMainGate(templateData);
     
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=main-gate.pdf');
-    res.send(pdfBuffer);
+    sendPDFResponse(res, pdfBuffer, 'main-gate.pdf');
   } catch (error) {
     console.error('Generate Main Gate PDF Error:', error);
     res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
@@ -92,9 +99,7 @@ exports.generateRoomFolderSlip = async (req, res) => {
     const templateData = seatingPlanBuilder.buildRoomFolderSlipData(seatingData);
     const pdfBuffer = await pdfGenerator.generateRoomFolderSlip(templateData);
     
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=room-folder-slip.pdf');
-    res.send(pdfBuffer);
+    sendPDFResponse(res, pdfBuffer, 'room-folder-slip.pdf');
   } catch (error) {
     console.error('Generate Room Folder Slip PDF Error:', error);
     res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
@@ -110,9 +115,7 @@ exports.generateRoomDoorSlip = async (req, res) => {
     const templateData = seatingPlanBuilder.buildRoomDoorSlipData(seatingData);
     const pdfBuffer = await pdfGenerator.generateRoomDoorSlip(templateData);
     
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=room-door-slip.pdf');
-    res.send(pdfBuffer);
+    sendPDFResponse(res, pdfBuffer, 'room-door-slip.pdf');
   } catch (error) {
     console.error('Generate Room Door Slip PDF Error:', error);
     res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
@@ -128,9 +131,7 @@ exports.generateCBSECopy = async (req, res) => {
     const templateData = seatingPlanBuilder.buildCBSECopyData(seatingData);
     const pdfBuffer = await pdfGenerator.generateCBSECopy(templateData);
     
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename=cbse-copy.pdf');
-    res.send(pdfBuffer);
+    sendPDFResponse(res, pdfBuffer, 'cbse-copy.pdf');
   } catch (error) {
     console.error('Generate CBSE Copy PDF Error:', error);
     res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
