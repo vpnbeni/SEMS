@@ -10,19 +10,22 @@ exports.linkCandidateSubjects = asyncHandler(async (req, res) => {
   try {
     console.log('🔗 Starting to link candidate subjects...')
     
-    // Get all candidates
-    const candidates = await Candidate.find({ isActive: true })
+    // Get all candidates (Candidate model uses status, not isActive)
+    const candidates = await Candidate.find({ status: 'active' })
     console.log(`📊 Found ${candidates.length} active candidates`)
     
     // Get all subjects for reference
     const subjects = await Subject.find({ isActive: true })
     console.log(`📚 Found ${subjects.length} active subjects`)
     
-    // Create a map of subject code + class -> subject document
+    // Create a map of subject code + class -> subject document (Subject.code is uppercase in DB)
     const subjectMap = new Map()
     subjects.forEach(subject => {
-      const key = `${subject.code}-${subject.class}`
-      subjectMap.set(key, subject)
+      const code = (subject.code || '').toString().trim().toUpperCase()
+      if (code && subject.class) {
+        const key = `${code}-${subject.class}`
+        subjectMap.set(key, subject)
+      }
     })
     
     let candidatesUpdated = 0
@@ -31,39 +34,56 @@ exports.linkCandidateSubjects = asyncHandler(async (req, res) => {
     const updateResults = []
     
     for (const candidate of candidates) {
-      // Check if already has subjects linked
-      if (candidate.subjects && candidate.subjects.length > 0) {
-        candidatesAlreadyLinked++
-        continue
-      }
-      
-      // Try to link from subjectCodes
+      // Always re-resolve from subjectCodes to current Subject IDs. This fixes the case where
+      // subjects were deleted and re-created (new IDs): candidates still had old IDs in
+      // candidate.subjects, so we overwrite with IDs from the current Subject collection.
       if (candidate.subjectCodes && candidate.subjectCodes.length > 0) {
         const linkedSubjects = []
+        const linkedIds = new Set()
         const notFoundCodes = []
-        
+        const candidateClass = (candidate.class || '').toString().trim() || null
+
         for (const subjectCode of candidate.subjectCodes) {
-          const key = `${subjectCode.code}-${candidate.class}`
-          const subject = subjectMap.get(key)
-          
-          if (subject) {
+          const raw = typeof subjectCode === 'string'
+            ? subjectCode.trim()
+            : (subjectCode && subjectCode.code && subjectCode.code.toString().trim())
+          const code = raw ? raw.toUpperCase() : ''
+          if (!code) continue
+
+          const classesToTry = candidateClass ? [candidateClass] : ['10th', '12th']
+          let subject = null
+          for (const cls of classesToTry) {
+            const key = `${code}-${cls}`
+            subject = subjectMap.get(key)
+            if (subject) break
+          }
+
+          if (subject && !linkedIds.has(subject._id.toString())) {
             linkedSubjects.push(subject._id)
-          } else {
-            notFoundCodes.push(subjectCode.code)
+            linkedIds.add(subject._id.toString())
+          } else if (!subject) {
+            notFoundCodes.push(code)
           }
         }
         
         if (linkedSubjects.length > 0) {
-          candidate.subjects = linkedSubjects
-          await candidate.save()
-          candidatesUpdated++
-          
-          updateResults.push({
-            rollNumber: candidate.rollNumber,
-            name: candidate.name,
-            linkedCount: linkedSubjects.length,
-            notFound: notFoundCodes
-          })
+          const currentIds = (candidate.subjects || []).map((id) => id.toString()).sort()
+          const newIds = linkedSubjects.map((id) => id.toString()).sort()
+          const same = currentIds.length === newIds.length && currentIds.every((id, i) => id === newIds[i])
+
+          if (same) {
+            candidatesAlreadyLinked++
+          } else {
+            candidate.subjects = linkedSubjects
+            await candidate.save()
+            candidatesUpdated++
+            updateResults.push({
+              rollNumber: candidate.rollNumber,
+              name: candidate.name,
+              linkedCount: linkedSubjects.length,
+              notFound: notFoundCodes
+            })
+          }
         } else {
           candidatesWithIssues++
         }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Pencil } from 'lucide-react'
 import SubjectsImportModal from '../components/subjects/ImportModal'
 import { Tabs } from '../components/common/Tabs'
@@ -31,8 +31,11 @@ const PAGE_SIZE_OPTIONS = [
   { value: 100, label: '100' },
 ]
 
+const SEARCH_DEBOUNCE_MS = 300
+
 const Subjects: React.FC = () => {
-  const [searchTerm, setSearchTerm] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null)
@@ -46,15 +49,26 @@ const Subjects: React.FC = () => {
   const [classFilter, setClassFilter] = useState<SubjectTabId>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
+  // Debounce search: update API param after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm((prev) => {
+        if (prev !== searchInput) setPage(1)
+        return searchInput
+      })
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [searchInput])
+
   const queryParams = useMemo(
     () => ({
       page,
       limit: pageSize,
-      ...(searchTerm && { search: searchTerm }),
+      ...(debouncedSearchTerm && { search: debouncedSearchTerm }),
       ...(classFilter !== 'all' && { class: classFilter }),
       ...(sortField && sortOrder && { sortField, sortOrder }),
     }),
-    [page, pageSize, searchTerm, classFilter, sortField, sortOrder]
+    [page, pageSize, debouncedSearchTerm, classFilter, sortField, sortOrder]
   )
 
   const { data, isLoading: loading, refetch } = useSubjectList(queryParams)
@@ -89,8 +103,7 @@ const Subjects: React.FC = () => {
   }
 
   const handleSearchChange = (value: string) => {
-    setSearchTerm(value)
-    setPage(1)
+    setSearchInput(value)
   }
 
   const handleTabChange = (id: SubjectTabId) => {
@@ -293,7 +306,7 @@ const Subjects: React.FC = () => {
           <input
             type="text"
             placeholder="Search subjects..."
-            value={searchTerm}
+            value={searchInput}
             onChange={(e) => handleSearchChange(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           />
@@ -447,7 +460,7 @@ const Subjects: React.FC = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                       </svg>
                       <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                        {searchTerm ? 'No subjects match your search.' : 'No subjects found. Add your first subject to get started.'}
+                        {debouncedSearchTerm ? 'No subjects match your search.' : 'No subjects found. Add your first subject to get started.'}
                       </p>
                       <button onClick={handleAddClick} className="mt-4 btn btn-primary">
                         Add Subject

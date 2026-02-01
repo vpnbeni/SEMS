@@ -14,9 +14,12 @@ import {
 
 const LIMIT = 50
 
+const CANDIDATES_WITHOUT_SUBJECTS_ACCORDION_THRESHOLD = 5
+
 const Candidates: React.FC = () => {
   const navigate = useNavigate()
   const [showImportModal, setShowImportModal] = useState(false)
+  const [withoutSubjectsAccordionOpen, setWithoutSubjectsAccordionOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [filters, setFilters] = useState({
     search: '',
@@ -179,34 +182,77 @@ const Candidates: React.FC = () => {
                   <strong>{candidatesWithoutSubjects.length}</strong> candidate{candidatesWithoutSubjects.length !== 1 ? 's' : ''} {candidatesWithoutSubjects.length !== 1 ? 'have' : 'has'} no subjects assigned. 
                   This may affect datesheet accuracy.
                 </p>
-                <div className="mt-2 space-y-1">
-                  {candidatesWithoutSubjects.map((c, index) => (
-                    <div key={c.rollNumber} className="flex items-center justify-between">
-                      <span>
-                        {index + 1}. {c.rollNumber} - {c.name}
-                      </span>
-                      <button
-                        onClick={() => handlePageChange(c.page)}
-                        className="ml-4 text-xs px-2 py-1 bg-yellow-200 dark:bg-yellow-700 rounded hover:bg-yellow-300 dark:hover:bg-yellow-600"
+
+                {candidatesWithoutSubjects.length > CANDIDATES_WITHOUT_SUBJECTS_ACCORDION_THRESHOLD ? (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setWithoutSubjectsAccordionOpen((prev) => !prev)}
+                      className="flex items-center gap-2 w-full text-left px-3 py-2 rounded-md bg-yellow-100/80 dark:bg-yellow-800/40 hover:bg-yellow-200/80 dark:hover:bg-yellow-700/40 transition-colors"
+                    >
+                      <svg
+                        className={`h-4 w-4 text-yellow-600 dark:text-yellow-400 transition-transform ${withoutSubjectsAccordionOpen ? 'rotate-90' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        Go to Page {c.page}
-                      </button>
-                    </div>
-                  ))}
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                      <span>
+                        {withoutSubjectsAccordionOpen
+                          ? 'Hide list'
+                          : `Show list of ${candidatesWithoutSubjects.length} candidates`}
+                      </span>
+                    </button>
+                    {withoutSubjectsAccordionOpen && (
+                      <div className="mt-2 space-y-1 max-h-64 overflow-y-auto pr-2">
+                        {candidatesWithoutSubjects.map((c, index) => (
+                          <div key={c.rollNumber} className="flex items-center justify-between">
+                            <span>
+                              {index + 1}. {c.rollNumber} - {c.name}
+                            </span>
+                            <button
+                              onClick={() => handlePageChange(c.page)}
+                              className="ml-4 text-xs px-2 py-1 bg-yellow-200 dark:bg-yellow-700 rounded hover:bg-yellow-300 dark:hover:bg-yellow-600"
+                            >
+                              Go to Page {c.page}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mt-2 space-y-1">
+                    {candidatesWithoutSubjects.map((c, index) => (
+                      <div key={c.rollNumber} className="flex items-center justify-between">
+                        <span>
+                          {index + 1}. {c.rollNumber} - {c.name}
+                        </span>
+                        <button
+                          onClick={() => handlePageChange(c.page)}
+                          className="ml-4 text-xs px-2 py-1 bg-yellow-200 dark:bg-yellow-700 rounded hover:bg-yellow-300 dark:hover:bg-yellow-600"
+                        >
+                          Go to Page {c.page}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-3">
+                  <a
+                    href="/relink-candidate-subjects.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-yellow-800 bg-yellow-100 hover:bg-yellow-200 dark:bg-yellow-800 dark:text-yellow-100 dark:hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                  >
+                    Re-link Subjects
+                    <svg className="ml-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
                 </div>
-              </div>
-              <div className="mt-3">
-                <a
-                  href="/relink-candidate-subjects.html"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-yellow-800 bg-yellow-100 hover:bg-yellow-200 dark:bg-yellow-800 dark:text-yellow-100 dark:hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
-                >
-                  Re-link Subjects
-                  <svg className="ml-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                </a>
               </div>
             </div>
           </div>
