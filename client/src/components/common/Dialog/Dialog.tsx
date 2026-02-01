@@ -15,20 +15,20 @@ const Dialog = ({
   // Core
   isOpen,
   onClose,
-  
+
   // Content
   title,
   description,
   children,
   icon,
-  
+
   // Style
   variant = 'default',
   size = 'md',
   position = 'center',
   animation = 'scale',
   rounded = 'rounded',
-  
+
   // Behavior
   closeOnBackdrop = true,
   closeOnEscape = true,
@@ -36,7 +36,7 @@ const Dialog = ({
   closeButtonPosition = 'inside',
   preventBodyScroll = true,
   portal = true,
-  
+
   // Advanced
   draggable = false,
   maxHeight,
@@ -44,17 +44,17 @@ const Dialog = ({
   onBeforeClose,
   initialFocus,
   stackOrder,
-  
+
   // Backdrop
   backdropBlur = 'sm',
   backdropOpacity,
-  
+
   // Footer Actions
   actions,
-  
+
   // Loading
   loading = false,
-  
+
   // Custom styling
   className = '',
   contentClassName = '',
@@ -62,7 +62,7 @@ const Dialog = ({
   bodyClassName = '',
   footerClassName = '',
   overlayClassName = '',
-  
+
   // IDs
   id: customId
 }: DialogProps) => {
@@ -73,11 +73,11 @@ const Dialog = ({
   const contentId = `${dialogId}-content`
 
   // Hooks
-  const { handleClose, isClosing } = useAsyncClose(onClose, onBeforeClose)
+  const { handleClose, isClosing: _isClosing } = useAsyncClose(onClose, onBeforeClose)
   const dialogRef = useFocusTrap({ isOpen, onClose: handleClose, closeOnEscape, initialFocus })
   const { zIndex, isTopmost } = useDialogStack(isOpen, handleClose, closeOnEscape, dialogId)
   const { position: dragPosition, isDragging, handleMouseDown } = useDraggable(draggable, isOpen)
-  
+
   useBodyScrollLock(isOpen && preventBodyScroll)
 
   // Context value for compound components
@@ -138,8 +138,8 @@ const Dialog = ({
 
   // Check if children contains compound components
   const hasCompoundComponents = React.Children.toArray(children).some(
-    child => React.isValidElement(child) && 
-    (child.type === DialogHeader || child.type === DialogBody || child.type === DialogFooter)
+    child => React.isValidElement(child) &&
+      (child.type === DialogHeader || child.type === DialogBody || child.type === DialogFooter)
   )
 
   // Render action buttons
@@ -154,16 +154,15 @@ const Dialog = ({
             type="button"
             onClick={action.onClick}
             disabled={action.disabled || action.loading}
-            className={`btn ${
-              action.variant === 'primary' ? 'btn-primary' :
-              action.variant === 'secondary' ? 'btn-secondary' :
-              action.variant === 'success' ? 'btn-success' :
-              action.variant === 'warning' ? 'btn-warning' :
-              action.variant === 'error' ? 'btn-error' :
-              action.variant === 'outline' ? 'btn-outline' :
-              action.variant === 'ghost' ? 'btn-ghost' :
-              'btn-primary'
-            }`}
+            className={`btn ${action.variant === 'primary' ? 'btn-primary' :
+                action.variant === 'secondary' ? 'btn-secondary' :
+                  action.variant === 'success' ? 'btn-success' :
+                    action.variant === 'warning' ? 'btn-warning' :
+                      action.variant === 'error' ? 'btn-error' :
+                        action.variant === 'outline' ? 'btn-outline' :
+                          action.variant === 'ghost' ? 'btn-ghost' :
+                            'btn-primary'
+              }`}
           >
             {action.loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             {action.icon && !action.loading && <span className="mr-2">{action.icon}</span>}
@@ -200,7 +199,7 @@ const Dialog = ({
       aria-describedby={description ? descriptionId : undefined}
       onClick={(e) => e.stopPropagation()}
     >
-      <div 
+      <div
         className={`
           card shadow-hard overflow-hidden
           ${roundedClasses[rounded]}
@@ -246,8 +245,8 @@ const Dialog = ({
             // Render with default structure
             <>
               {(title || icon) && (
-                <DialogHeader 
-                  icon={icon} 
+                <DialogHeader
+                  icon={icon}
                   showClose={showCloseButton && closeButtonPosition === 'inside'}
                   className={headerClassName}
                   variant={variant}
@@ -296,7 +295,7 @@ const Dialog = ({
           animate="visible"
           exit="exit"
           className={`fixed inset-0 flex ${positionClasses[position]} p-0 ${overlayClassName}`}
-          style={{ 
+          style={{
             zIndex,
             backgroundColor: `rgba(0, 0, 0, ${getBackdropOpacity(backdropOpacity)})`
           }}
@@ -304,11 +303,11 @@ const Dialog = ({
           aria-hidden={!isTopmost}
         >
           {/* Backdrop with blur */}
-          <div 
+          <div
             className={`absolute inset-0 ${getBackdropBlurClass(backdropBlur)}`}
             aria-hidden="true"
           />
-          
+
           {/* Dialog content */}
           <DialogProvider value={contextValue}>
             {dialogContent}
