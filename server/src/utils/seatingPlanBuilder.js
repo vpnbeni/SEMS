@@ -7,13 +7,27 @@ class SeatingPlanBuilder {
     this.schoolName = 'INTERNATIONAL BHARTI SCHOOL, ROHTAK';
     this.schoolAddress = 'Gohana Road, Rohtak';
     this.centreNo = '827403';
+    // Caches for optimization (cleared per buildSeatingData call)
+    this._candidatesCache = new Map();
+    this._normalizedDateCache = new Map();
+  }
+
+  /**
+   * Clear caches - should be called at the start of each buildSeatingData call
+   */
+  _clearCaches() {
+    this._candidatesCache.clear();
+    this._normalizedDateCache.clear();
   }
 
   async buildSeatingData(entryId) {
     try {
+      // Clear caches at the start of each buildSeatingData call
+      this._clearCaches();
+
       const Form66 = require('../models/Form66');
       const AnswerSheet = require('../models/AnswerSheet');
-      
+
       // Get CBSE datesheet and find the specific entry
       const cbseDatesheet = await CBSEDatesheet.getActive();
       if (!cbseDatesheet) {
@@ -28,41 +42,41 @@ class SeatingPlanBuilder {
 
       // Get all rooms
       const rooms = await Room.find({ isActive: true }).sort({ roomNo: 1 });
-      
+
       // Get candidates for this exam
       const candidates = await this.getCandidatesForExam(entry);
-      
+
       // Fetch answer sheet allocations for this exam
       const answerSheetAllocations = await this.getAnswerSheetAllocations(entry, cbseDatesheet);
-      
+
       // Filter entries to only those that have candidates at this centre
       // This ensures rotation is calculated based on actual exams being conducted
       const entriesWithCandidates = await this.filterEntriesWithCandidates(cbseDatesheet.entries);
-      
+
       console.log(`\n=== SEATING PLAN BUILD ===`);
       console.log(`Total datesheet entries: ${cbseDatesheet.entries.length}`);
       console.log(`Entries with candidates at this centre: ${entriesWithCandidates.length}`);
-      
+
       // Calculate room allocation with class-based rotation
       const { startRoomIndex, startSeatOffset } = await this.calculateStartingPositionClassBased(
-        entry, 
+        entry,
         entriesWithCandidates, // Use filtered entries instead of all entries
         null, // scheduleMap no longer used
         rooms,
         candidates.length
       );
-      
+
       console.log(`Exam ${entry.subject.code} (${entry.subject.class}): Starting from Room ${rooms[startRoomIndex]?.roomNo || 'N/A'}, Seat offset: ${startSeatOffset}`);
 
       // Build room allocations with the calculated starting position
       const roomAllocations = this.allocateCandidatesToRoomsWithOffset(
-        candidates, 
-        rooms, 
-        startRoomIndex, 
+        candidates,
+        rooms,
+        startRoomIndex,
         startSeatOffset,
         answerSheetAllocations
       );
-      
+
       return {
         datesheet: {
           _id: entry._id,
@@ -86,18 +100,16 @@ class SeatingPlanBuilder {
   /**
    * Filter datesheet entries to only include those that have candidates at this centre
    * This ensures room rotation is calculated based on actual exams being conducted
+   * Optimized to fetch candidates in parallel using Promise.all
    */
   async filterEntriesWithCandidates(allEntries) {
-    const entriesWithCandidates = [];
-    
-    for (const entry of allEntries) {
-      const candidates = await this.getCandidatesForExam(entry);
-      if (candidates.length > 0) {
-        entriesWithCandidates.push(entry);
-      }
-    }
-    
-    return entriesWithCandidates;
+    // Fetch all candidates in parallel for better performance
+    const candidateResults = await Promise.all(
+      allEntries.map(entry => this.getCandidatesForExam(entry))
+    );
+
+    // Filter entries that have candidates
+    return allEntries.filter((_, index) => candidateResults[index].length > 0);
   }
 
   /**
@@ -108,11 +120,11 @@ class SeatingPlanBuilder {
     try {
       const AnswerSheet = require('../models/AnswerSheet');
       const Candidate = require('../models/Candidate');
-      
+
       // Normalize class for querying
       const normalizedClass = entry.subject.class.includes('th') ? entry.subject.class : `${entry.subject.class}th`;
       const classNumber = normalizedClass.replace(/th$/i, '');
-      
+
       // Determine expected answer sheet type from entry
       let expectedAnswerSheetType = null;
       if (entry.answerSheet === '32_pages') {
@@ -185,7 +197,7 @@ class SeatingPlanBuilder {
 
       // For each answer sheet, calculate allocation for this specific exam
       const allocations = [];
-      
+
       for (const answerSheet of answerSheets) {
         if (!answerSheet.serialFrom || !answerSheet.serialTo) {
           continue;
@@ -287,8 +299,16 @@ class SeatingPlanBuilder {
   }
 
   async getCandidatesForExam(entry) {
+    // Create cache key from entry's unique identifiers
+    const cacheKey = `${entry._id.toString()}`;
+
+    // Return cached result if available
+    if (this._candidatesCache.has(cacheKey)) {
+      return this._candidatesCache.get(cacheKey);
+    }
+
     const Form66 = require('../models/Form66');
-    
+
     // Get Form 66 records for this exam date and subject
     const form66Records = await Form66.find({
       examDate: entry.examDate,
@@ -300,37 +320,52 @@ class SeatingPlanBuilder {
 
     // If Form 66 records exist, use them (priority)
     if (form66Records.length > 0) {
+      this._candidatesCache.set(cacheKey, form66Records);
       return form66Records;
     }
 
     // Fall back to Candidate model
     console.log('No Form 66 records found, falling back to Candidate model');
-    
+
     const classValue = entry.subject.class;
     const normalizedClass = classValue && classValue.endsWith('th') ? classValue : `${classValue}th`;
-    
+
     let candidates = await Candidate.find({
       class: normalizedClass,
       'subjectCodes.code': entry.subject.code,
       status: 'active'
     }).sort({ rollNumber: 1 });
-    
+
     // Map rollNumber to rollNo for consistency
     candidates = candidates.map(c => ({
       ...c.toObject(),
       rollNo: c.rollNumber
     }));
-    
+
     console.log(`Found ${candidates.length} candidates from Candidate model`);
+
+    // Cache the result before returning
+    this._candidatesCache.set(cacheKey, candidates);
     return candidates;
   }
 
   /**
    * Normalize date to YYYY-MM-DD string for consistent comparison
+   * Memoized to avoid repeated date parsing for the same input
    */
   normalizeDate(date) {
+    // Create a string key for caching
+    const dateKey = String(date);
+
+    if (this._normalizedDateCache.has(dateKey)) {
+      return this._normalizedDateCache.get(dateKey);
+    }
+
     const d = new Date(date);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const normalized = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    this._normalizedDateCache.set(dateKey, normalized);
+    return normalized;
   }
 
   /**
@@ -341,21 +376,21 @@ class SeatingPlanBuilder {
   async getClassBasedDayRotation(currentEntry, allEntries, totalRooms) {
     const currentClass = currentEntry.subject.class;
     const currentDateNorm = this.normalizeDate(currentEntry.examDate);
-    
+
     // Filter entries for the same class
     const classEntries = allEntries.filter(e => e.subject.class === currentClass);
-    
+
     // Get unique dates for this class, sorted chronologically
     const uniqueClassDates = [...new Set(
       classEntries.map(e => this.normalizeDate(e.examDate))
     )].sort();
-    
+
     // Find the day index for current date within this class
     const dayIndex = uniqueClassDates.indexOf(currentDateNorm);
-    
+
     // Room rotation offset (wraps around)
     const rotationOffset = dayIndex >= 0 ? dayIndex % totalRooms : 0;
-    
+
     console.log(`\n=== CLASS-BASED ROTATION DEBUG ===`);
     console.log(`Current exam: ${currentEntry.subject.code} - ${currentEntry.subject.name}`);
     console.log(`Current class: ${currentClass}`);
@@ -366,7 +401,7 @@ class SeatingPlanBuilder {
     console.log(`Room rotation offset: ${rotationOffset}`);
     console.log(`Total rooms: ${totalRooms}`);
     console.log(`=================================\n`);
-    
+
     return rotationOffset;
   }
 
@@ -386,10 +421,10 @@ class SeatingPlanBuilder {
     const totalRooms = rooms.length;
     const currentClass = currentEntry.subject.class;
     const currentDateNorm = this.normalizeDate(currentEntry.examDate);
-    
+
     // Get class-based room rotation offset (used for first exam of the day)
     const dayRotationOffset = await this.getClassBasedDayRotation(currentEntry, allEntries, totalRooms);
-    
+
     // Find ALL exams on the same day (regardless of class) for continuous room allocation
     const allSameDayExams = allEntries.filter(e => {
       const entryDateNorm = this.normalizeDate(e.examDate);
@@ -409,7 +444,7 @@ class SeatingPlanBuilder {
     });
 
     // Find position of current exam among ALL exams today
-    const currentExamIndex = allSameDayExams.findIndex(e => 
+    const currentExamIndex = allSameDayExams.findIndex(e =>
       e._id.toString() === currentEntry._id.toString()
     );
 
@@ -427,16 +462,19 @@ class SeatingPlanBuilder {
     const firstExamOfDay = allSameDayExams[0];
     const firstExamClass = firstExamOfDay.subject.class;
     const baseRotationOffset = await this.getClassBasedDayRotation(firstExamOfDay, allEntries, totalRooms);
-    
+
     console.log(`Base rotation offset from first exam (${firstExamClass}): ${baseRotationOffset}`);
 
-    let totalPreviousCandidates = 0;
-    for (let i = 0; i < currentExamIndex; i++) {
-      const prevExam = allSameDayExams[i];
-      const prevCandidates = await this.getCandidatesForExam(prevExam);
-      totalPreviousCandidates += prevCandidates.length;
-      console.log(`  Previous exam ${prevExam.subject.code} (${prevExam.subject.class}): ${prevCandidates.length} candidates`);
-    }
+    // Fetch candidates for all previous exams in parallel (caching ensures no duplicate DB calls)
+    const previousExams = allSameDayExams.slice(0, currentExamIndex);
+    const prevCandidateCounts = await Promise.all(
+      previousExams.map(async exam => {
+        const candidates = await this.getCandidatesForExam(exam);
+        console.log(`  Previous exam ${exam.subject.code} (${exam.subject.class}): ${candidates.length} candidates`);
+        return candidates.length;
+      })
+    );
+    const totalPreviousCandidates = prevCandidateCounts.reduce((sum, count) => sum + count, 0);
 
     console.log(`Total candidates from previous exams today: ${totalPreviousCandidates}`);
 
@@ -454,19 +492,19 @@ class SeatingPlanBuilder {
     // Decision: Can ALL current exam candidates fit in remaining seats of the last room?
     if (seatsUsedInLastRoom > 0 && currentCandidateCount <= remainingSeatsInLastRoom) {
       console.log(`Continuing in Room ${rooms[lastUsedRoomIndex]?.roomNo} with seat offset ${seatsUsedInLastRoom}`);
-      return { 
-        startRoomIndex: lastUsedRoomIndex, 
-        startSeatOffset: seatsUsedInLastRoom 
+      return {
+        startRoomIndex: lastUsedRoomIndex,
+        startSeatOffset: seatsUsedInLastRoom
       };
     } else {
       // Start from the next room
-      const nextRoomIndex = seatsUsedInLastRoom > 0 
-        ? (lastUsedRoomIndex + 1) % totalRooms 
+      const nextRoomIndex = seatsUsedInLastRoom > 0
+        ? (lastUsedRoomIndex + 1) % totalRooms
         : lastUsedRoomIndex;
       console.log(`Starting fresh from Room ${rooms[nextRoomIndex]?.roomNo} (cannot fit ${currentCandidateCount} in remaining ${remainingSeatsInLastRoom} seats)`);
-      return { 
-        startRoomIndex: nextRoomIndex, 
-        startSeatOffset: 0 
+      return {
+        startRoomIndex: nextRoomIndex,
+        startSeatOffset: 0
       };
     }
   }
@@ -505,7 +543,7 @@ class SeatingPlanBuilder {
 
       // Build rows with offset consideration and answer sheet allocations
       const rows = this.buildRowsWithOffset(roomCandidates, seatOffset, candidateIndex, answerSheetAllocations);
-      
+
       allocations.push({
         roomNo: room.roomNo,
         roomName: room.roomName || '',
@@ -528,15 +566,15 @@ class SeatingPlanBuilder {
     // But the candidates are placed starting from the offset position
     const rows = [];
     const totalSeats = 24;
-    
+
     // Create a full seat array with empty slots
     const seats = new Array(totalSeats).fill(null);
-    
+
     // Place candidates starting from the offset
     for (let i = 0; i < candidates.length; i++) {
       seats[seatOffset + i] = candidates[i];
     }
-    
+
     // Build rows from the seats array
     for (let i = 0; i < 8; i++) {
       const row = {
@@ -556,7 +594,7 @@ class SeatingPlanBuilder {
 
       // Column 1 (seats 0-7)
       const seat1 = seats[i];
-      const seat1GlobalIndex = i >= seatOffset && i < seatOffset + candidates.length 
+      const seat1GlobalIndex = i >= seatOffset && i < seatOffset + candidates.length
         ? globalCandidateStartIndex + (i - seatOffset)
         : -1;
       if (seat1) {
@@ -568,7 +606,7 @@ class SeatingPlanBuilder {
 
       // Column 2 (seats 8-15)
       const seat2 = seats[i + 8];
-      const seat2GlobalIndex = (i + 8) >= seatOffset && (i + 8) < seatOffset + candidates.length 
+      const seat2GlobalIndex = (i + 8) >= seatOffset && (i + 8) < seatOffset + candidates.length
         ? globalCandidateStartIndex + ((i + 8) - seatOffset)
         : -1;
       if (seat2) {
@@ -580,7 +618,7 @@ class SeatingPlanBuilder {
 
       // Column 3 (seats 16-23)
       const seat3 = seats[i + 16];
-      const seat3GlobalIndex = (i + 16) >= seatOffset && (i + 16) < seatOffset + candidates.length 
+      const seat3GlobalIndex = (i + 16) >= seatOffset && (i + 16) < seatOffset + candidates.length
         ? globalCandidateStartIndex + ((i + 16) - seatOffset)
         : -1;
       if (seat3) {
@@ -612,7 +650,7 @@ class SeatingPlanBuilder {
       if (roomCandidates.length === 0) break;
 
       const rows = this.buildRows(roomCandidates, candidateIndex, answerSheetAllocations);
-      
+
       allocations.push({
         roomNo: room.roomNo,
         roomName: room.roomName || '',
@@ -631,7 +669,7 @@ class SeatingPlanBuilder {
   buildRows(candidates, globalCandidateStartIndex = 0, answerSheetAllocations = null) {
     const rows = [];
     const candidatesPerRow = 3;
-    
+
     for (let i = 0; i < 8; i++) {
       const row = {
         col1: '',
@@ -696,23 +734,23 @@ class SeatingPlanBuilder {
     // Find the appropriate answer sheet allocation for this candidate
     // Candidates are allocated sequentially across all answer sheet types
     let cumulativeCandidates = 0;
-    
+
     for (const allocation of answerSheetAllocations) {
       const allocationEnd = cumulativeCandidates + allocation.sheetsAllocated;
-      
+
       if (globalIndex < allocationEnd) {
         // This candidate falls within this allocation
         const positionInAllocation = globalIndex - cumulativeCandidates;
         const serialNumber = allocation.startNum + positionInAllocation;
-        
+
         // Format the serial number with prefix and padding
         const formattedSerial = allocation.prefix + serialNumber.toString().padStart(allocation.padLength, '0');
         return formattedSerial;
       }
-      
+
       cumulativeCandidates = allocationEnd;
     }
-    
+
     // If we get here, the candidate is beyond allocated sheets
     console.warn(`No sheet allocation found for candidate at index ${globalIndex}`);
     return '';
@@ -723,13 +761,13 @@ class SeatingPlanBuilder {
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
-    
+
     if (includeDay) {
       const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
       const dayName = days[d.getDay()];
       return `${day}.${month}.${year} (${dayName})`;
     }
-    
+
     return `${day}.${month}.${year}`;
   }
 
@@ -764,7 +802,7 @@ class SeatingPlanBuilder {
 
   buildMainGateData(seatingData) {
     const { datesheet, rooms } = seatingData;
-    
+
     return {
       schoolName: this.schoolName,
       centreNo: this.centreNo,
@@ -883,7 +921,7 @@ class SeatingPlanBuilder {
     const { datesheet, rooms } = seatingData;
     const examName = this.getExamName(datesheet.class);
     const examYear = this.getExamYear(datesheet.date);
-    
+
     return {
       rooms: rooms.map((room, index) => ({
         schoolName: this.schoolName,

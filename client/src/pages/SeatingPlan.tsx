@@ -21,10 +21,10 @@ const SeatingPlan: React.FC = () => {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
-    return date.toLocaleDateString('en-IN', { 
-      day: '2-digit', 
-      month: 'short', 
-      year: 'numeric' 
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
     })
   }
 
@@ -38,9 +38,9 @@ const SeatingPlan: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <button
           onClick={() => setActiveTab('mainGate')}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${
-            activeTab === 'mainGate' ? 'ring-2 ring-blue-500' : 'hover:shadow-lg'
-          }`}
+          disabled={pdfMutation.isPending && activeTab !== 'mainGate'}
+          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${activeTab === 'mainGate' ? 'ring-2 ring-blue-500' : 'hover:shadow-lg'
+            } ${pdfMutation.isPending && activeTab !== 'mainGate' ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
@@ -57,9 +57,9 @@ const SeatingPlan: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('roomFolderSlip')}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${
-            activeTab === 'roomFolderSlip' ? 'ring-2 ring-green-500' : 'hover:shadow-lg'
-          }`}
+          disabled={pdfMutation.isPending && activeTab !== 'roomFolderSlip'}
+          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${activeTab === 'roomFolderSlip' ? 'ring-2 ring-green-500' : 'hover:shadow-lg'
+            } ${pdfMutation.isPending && activeTab !== 'roomFolderSlip' ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <div className="flex items-center">
             <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
@@ -76,9 +76,9 @@ const SeatingPlan: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('roomDoorSlip')}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${
-            activeTab === 'roomDoorSlip' ? 'ring-2 ring-yellow-500' : 'hover:shadow-lg'
-          }`}
+          disabled={pdfMutation.isPending && activeTab !== 'roomDoorSlip'}
+          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${activeTab === 'roomDoorSlip' ? 'ring-2 ring-yellow-500' : 'hover:shadow-lg'
+            } ${pdfMutation.isPending && activeTab !== 'roomDoorSlip' ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <div className="flex items-center">
             <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
@@ -95,9 +95,9 @@ const SeatingPlan: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('cbseCopy')}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${
-            activeTab === 'cbseCopy' ? 'ring-2 ring-purple-500' : 'hover:shadow-lg'
-          }`}
+          disabled={pdfMutation.isPending && activeTab !== 'cbseCopy'}
+          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${activeTab === 'cbseCopy' ? 'ring-2 ring-purple-500' : 'hover:shadow-lg'
+            } ${pdfMutation.isPending && activeTab !== 'cbseCopy' ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <div className="flex items-center">
             <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
@@ -120,7 +120,7 @@ const SeatingPlan: React.FC = () => {
             Examination Schedule
           </h3>
         </div>
-        
+
         <div className="overflow-x-auto">
           {loading ? (
             <div className="flex justify-center items-center py-12">
@@ -175,15 +175,14 @@ const SeatingPlan: React.FC = () => {
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {datesheetEntries.map((entry, index) => (
-                  <tr 
-                    key={entry._id} 
-                    className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                      entry.class === '10' 
-                        ? 'bg-green-50 dark:bg-green-900/20' 
-                        : entry.class === '12' 
-                        ? 'bg-purple-50 dark:bg-purple-900/20' 
+                  <tr
+                    key={entry._id}
+                    className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${entry.class === '10'
+                      ? 'bg-green-50 dark:bg-green-900/20'
+                      : entry.class === '12'
+                        ? 'bg-purple-50 dark:bg-purple-900/20'
                         : ''
-                    }`}
+                      }`}
                   >
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {index + 1}
@@ -201,13 +200,12 @@ const SeatingPlan: React.FC = () => {
                       {entry.subjectName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        entry.class === '10' 
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' 
-                          : entry.class === '12' 
-                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' 
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${entry.class === '10'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                        : entry.class === '12'
+                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                      }`}>
+                        }`}>
                         Class {entry.class}
                       </span>
                     </td>
@@ -221,8 +219,8 @@ const SeatingPlan: React.FC = () => {
                       <div className="flex space-x-2">
                         <button
                           onClick={() => handleDownloadPDF(entry._id, activeTab)}
-                          disabled={downloadingId === entry._id}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50"
+                          disabled={pdfMutation.isPending}
+                          className={`text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 ${pdfMutation.isPending && downloadingId !== entry._id ? 'cursor-not-allowed' : ''}`}
                           title={`Download ${activeTab === 'mainGate' ? 'Main Gate' : activeTab === 'roomFolderSlip' ? 'Room Folder Slip' : activeTab === 'roomDoorSlip' ? 'Room Door Slip' : 'CBSE Copy'}`}
                         >
                           {downloadingId === entry._id ? (
@@ -256,7 +254,7 @@ const SeatingPlan: React.FC = () => {
             {activeTab === 'cbseCopy' && 'CBSE Copy Format'}
           </h3>
         </div>
-        
+
         <div className="p-6">
           {activeTab === 'mainGate' && (
             <div className="space-y-4">
@@ -265,7 +263,7 @@ const SeatingPlan: React.FC = () => {
                   This format is designed for display at the main gate and notice boards. All rooms are shown on a single document for easy reference.
                 </p>
               </div>
-              
+
               {/* Main Gate Preview */}
               <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 max-w-4xl mx-auto">
                 {/* Header */}
@@ -274,7 +272,7 @@ const SeatingPlan: React.FC = () => {
                   <p className="text-sm text-gray-700 dark:text-gray-300">Seating Plan CBSE Board Exam</p>
                   <p className="text-sm text-gray-700 dark:text-gray-300">Centre No: 827403</p>
                 </div>
-                
+
                 {/* Exam Details */}
                 <div className="flex justify-between mb-4 text-sm font-bold text-gray-900 dark:text-white">
                   <div>
@@ -286,7 +284,7 @@ const SeatingPlan: React.FC = () => {
                     <p>Code: 184</p>
                   </div>
                 </div>
-                
+
                 {/* Room Table 1 */}
                 <table className="w-full border-collapse mb-5">
                   <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
@@ -311,7 +309,7 @@ const SeatingPlan: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
-                
+
                 {/* Room Table 2 */}
                 <table className="w-full border-collapse mb-5">
                   <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
@@ -336,7 +334,7 @@ const SeatingPlan: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
-                
+
                 {/* Room Table 3 */}
                 <table className="w-full border-collapse mb-5">
                   <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
@@ -361,11 +359,11 @@ const SeatingPlan: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
-                
+
                 {/* Footer */}
                 <p className="text-right font-bold text-gray-900 dark:text-white">CENTRE SUPERINTENDENT</p>
               </div>
-              
+
               <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
                 Click the download button next to any exam to generate the Main Gate PDF with actual candidate data.
               </p>
@@ -405,27 +403,27 @@ const SeatingPlan: React.FC = () => {
                   This format is designed for submission to CBSE. Each room generates one page with 24 candidates (8 rows x 3 columns).
                 </p>
               </div>
-              
+
               {/* CBSE Copy Preview */}
               <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 max-w-4xl mx-auto">
                 {/* Header */}
                 <h2 className="text-xl font-bold text-center mb-4 text-gray-900 dark:text-white">SEATING PLAN</h2>
-                
+
                 {/* Info Table */}
                 <table className="w-full border-collapse mb-4">
                   <tbody>
                     <tr>
                       <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold w-32 text-gray-900 dark:text-white">Name Of Centre</td>
                       <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
-                        International Bharti School<br/>Gohana Road, Rohtak
+                        International Bharti School<br />Gohana Road, Rohtak
                       </td>
                       <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center w-24 text-gray-900 dark:text-white">Centre No</td>
                       <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold w-28 text-gray-900 dark:text-white">827403</td>
                     </tr>
                     <tr>
-                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Name Of<br/>Examination</td>
+                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Name Of<br />Examination</td>
                       <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
-                        Sr. Secondary School Certificate Examination<br/>2026
+                        Sr. Secondary School Certificate Examination<br />2026
                       </td>
                       <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Subject</td>
                       <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-sm text-gray-900 dark:text-white">ENGLISH (LANG. & LIT.)</td>
@@ -438,7 +436,7 @@ const SeatingPlan: React.FC = () => {
                     </tr>
                   </tbody>
                 </table>
-                
+
                 {/* Seating Table */}
                 <table className="w-full border-collapse mb-4">
                   <thead>
@@ -469,7 +467,7 @@ const SeatingPlan: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
-                
+
                 {/* Footer Section */}
                 <div className="flex justify-between mb-6 text-sm">
                   <div className="w-1/2">
@@ -484,10 +482,10 @@ const SeatingPlan: React.FC = () => {
                     <p className="text-gray-700 dark:text-gray-300 mt-1"><span className="font-bold text-gray-900 dark:text-white">Absent:</span> ________</p>
                   </div>
                 </div>
-                
+
                 <p className="text-right font-bold text-gray-900 dark:text-white">Signature of Centre Superintendent</p>
               </div>
-              
+
               <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
                 Click the download button next to any exam to generate the CBSE Copy PDF with actual candidate data.
               </p>
