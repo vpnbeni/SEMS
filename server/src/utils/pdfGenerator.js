@@ -18,10 +18,18 @@ class PDFGenerator {
       const template = handlebars.compile(templateContent);
       const html = template(data);
       
-      // Launch browser
+      // Launch browser (extra args help on Linux/EB where Chromium has fewer resources)
       const browser = await puppeteer.launch({
         headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote',
+          '--disable-software-rasterizer'
+        ]
       });
       
       const page = await browser.newPage();

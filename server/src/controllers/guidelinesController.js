@@ -380,6 +380,8 @@ exports.getGuidelinesFile = async (req, res) => {
 exports.checkGuidelines = async (req, res) => {
   try {
     const resource = await cloudinary.api.resource(GUIDELINES_PUBLIC_ID, { resource_type: 'raw' }).catch((err) => {
+      // Debug: log Cloudinary response on EB to see why exists:false (remove after fixing)
+      console.log('[guidelines/check] Cloudinary api.resource error:', err?.error?.http_code, err?.error?.message || err.message);
       if (err.error?.http_code === 404) return null;
       throw err;
     });
