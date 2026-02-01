@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { HashRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { getCurrentUser, selectIsAuthenticated, selectAuthLoading } from './redux/slices/authSlice'
 import authService from './services/authService'
@@ -104,12 +104,12 @@ function App() {
                 <div className="text-center">
                   <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">404</h1>
                   <p className="text-gray-600 dark:text-gray-400 mb-8">Page not found</p>
-                  <a
-                    href="/dashboard"
+                  <Link
+                    to="/dashboard"
                     className="btn btn-primary"
                   >
                     Go to Dashboard
-                  </a>
+                  </Link>
                 </div>
               </div>
             }
