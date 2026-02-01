@@ -2,5 +2,11 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://sems-server-prod.eba-g2mahaxm.ap-south-1.elasticbeanstalk.com/api/:path*"
+    }
+  ]
 }
