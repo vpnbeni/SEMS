@@ -12,6 +12,7 @@ class SeatingPlanBuilder {
   async buildSeatingData(entryId) {
     try {
       const Form66 = require('../models/Form66');
+      const AnswerSheet = require('../models/AnswerSheet');
       
       // Get CBSE datesheet and find the specific entry
       const cbseDatesheet = await CBSEDatesheet.getActive();
@@ -30,6 +31,9 @@ class SeatingPlanBuilder {
       
       // Get candidates for this exam
       const candidates = await this.getCandidatesForExam(entry);
+      
+      // Fetch answer sheet allocations for this exam
+      const answerSheetAllocations = await this.getAnswerSheetAllocations(entry, cbseDatesheet);
       
       // Filter entries to only those that have candidates at this centre
       // This ensures rotation is calculated based on actual exams being conducted
@@ -55,7 +59,8 @@ class SeatingPlanBuilder {
         candidates, 
         rooms, 
         startRoomIndex, 
-        startSeatOffset
+        startSeatOffset,
+        answerSheetAllocations
       );
       
       return {
@@ -69,7 +74,8 @@ class SeatingPlanBuilder {
           timeSlot: entry.timeSlot
         },
         rooms: roomAllocations,
-        totalCandidates: candidates.length
+        totalCandidates: candidates.length,
+        answerSheetAllocations
       };
     } catch (error) {
       console.error('Seating Plan Builder Error:', error);
@@ -92,6 +98,192 @@ class SeatingPlanBuilder {
     }
     
     return entriesWithCandidates;
+  }
+
+  /**
+   * Get answer sheet allocations for a specific exam
+   * Fetches all answer sheets for the exam's class and determines serial number allocation
+   */
+  async getAnswerSheetAllocations(entry, cbseDatesheet) {
+    try {
+      const AnswerSheet = require('../models/AnswerSheet');
+      const Candidate = require('../models/Candidate');
+      
+      // Normalize class for querying
+      const normalizedClass = entry.subject.class.includes('th') ? entry.subject.class : `${entry.subject.class}th`;
+      const classNumber = normalizedClass.replace(/th$/i, '');
+      
+      // Determine expected answer sheet type from entry
+      let expectedAnswerSheetType = null;
+      if (entry.answerSheet === '32_pages') {
+        expectedAnswerSheetType = 'Main';
+      } else if (entry.answerSheet === '20_pages') {
+        expectedAnswerSheetType = 'Main';
+      } else if (entry.answerSheet === '40_graph') {
+        expectedAnswerSheetType = 'Graph';
+      } else if (entry.answerSheet === 'drawing_sheets') {
+        expectedAnswerSheetType = 'Drawing Sheets';
+      }
+
+      if (!expectedAnswerSheetType) {
+        console.log(`No answer sheet allocation found for ${entry.subject.code}`);
+        return null;
+      }
+
+      // Find matching answer sheets
+      const answerSheets = await AnswerSheet.find({
+        answerSheetType: expectedAnswerSheetType,
+        class: classNumber,
+        isActive: true
+      }).sort({ sortOrder: 1 });
+
+      if (answerSheets.length === 0) {
+        console.log(`No answer sheets found for type ${expectedAnswerSheetType}, class ${classNumber}`);
+        return null;
+      }
+
+      // Get all candidates to calculate frequencies
+      const candidates = await Candidate.find({ isActive: true })
+        .populate('subjects', 'code name class')
+        .lean();
+
+      // Calculate candidate count per subject
+      const subjectFrequency = new Map();
+      candidates.forEach(candidate => {
+        if (candidate.subjects && candidate.subjects.length > 0) {
+          candidate.subjects.forEach(subject => {
+            if (subject && subject.code && subject.class) {
+              const key = `${subject.code}-${subject.class}`;
+              const count = subjectFrequency.get(key) || 0;
+              subjectFrequency.set(key, count + 1);
+            }
+          });
+        }
+      });
+
+      // Find related exams that use the same answer sheet type
+      const relatedExams = cbseDatesheet.entries
+        .filter(e => {
+          if (e.subject.class !== normalizedClass) return false;
+          if (e.answerSheet !== entry.answerSheet) return false;
+          return true;
+        })
+        .map(e => {
+          const key = `${e.subject.code}-${e.subject.class}`;
+          const normalizedKey = `${e.subject.code}-${e.subject.class.replace(/th$/i, '')}`;
+          const candidateCount = subjectFrequency.get(key) || subjectFrequency.get(normalizedKey) || 0;
+          return {
+            _id: e._id,
+            examDate: e.examDate,
+            subjectCode: e.subject.code,
+            subjectName: e.subject.name,
+            candidateCount
+          };
+        })
+        .filter(e => e.candidateCount > 0)
+        .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
+
+      // For each answer sheet, calculate allocation for this specific exam
+      const allocations = [];
+      
+      for (const answerSheet of answerSheets) {
+        if (!answerSheet.serialFrom || !answerSheet.serialTo) {
+          continue;
+        }
+
+        const fromNum = parseInt(answerSheet.serialFrom.replace(/\D/g, ''));
+        const toNum = parseInt(answerSheet.serialTo.replace(/\D/g, ''));
+        const prefix = answerSheet.serialFrom.replace(/\d+$/, '');
+        const padLength = answerSheet.serialFrom.replace(/\D/g, '').length;
+
+        // Create set of discarded serials
+        const discardedSet = new Set(
+          (answerSheet.discardedSerials || []).map(d => parseInt(d.serial.replace(/\D/g, '')))
+        );
+
+        // Helper to format serial
+        const formatSerial = (num) => prefix + num.toString().padStart(padLength, '0');
+
+        // Helper to get next available serial (skipping discarded)
+        const getNextAvailable = (start) => {
+          let current = start;
+          while (discardedSet.has(current) && current <= toNum) {
+            current++;
+          }
+          return current <= toNum ? current : null;
+        };
+
+        let currentSerial = getNextAvailable(fromNum);
+
+        // Allocate serials to each exam
+        for (const exam of relatedExams) {
+          if (exam._id.toString() === entry._id.toString()) {
+            // This is our target exam
+            if (currentSerial === null) {
+              console.log(`Insufficient sheets for ${entry.subject.code}`);
+              break;
+            }
+
+            const serialStart = currentSerial;
+            let sheetsAssigned = 0;
+            let serialEnd = currentSerial;
+
+            // Assign serials one by one, skipping discarded ones
+            while (sheetsAssigned < exam.candidateCount && currentSerial !== null && currentSerial <= toNum) {
+              if (!discardedSet.has(currentSerial)) {
+                serialEnd = currentSerial;
+                sheetsAssigned++;
+              }
+              currentSerial++;
+              while (discardedSet.has(currentSerial) && currentSerial <= toNum) {
+                currentSerial++;
+              }
+            }
+
+            if (currentSerial > toNum) {
+              currentSerial = null;
+            }
+
+            allocations.push({
+              answerSheetType: answerSheet.answerSheetType,
+              pages: answerSheet.pages,
+              colour: answerSheet.colour,
+              serialFrom: formatSerial(serialStart),
+              serialTo: formatSerial(serialEnd),
+              prefix,
+              padLength,
+              startNum: serialStart,
+              endNum: serialEnd,
+              sheetsAllocated: sheetsAssigned,
+              totalCandidates: exam.candidateCount
+            });
+
+            break; // Found allocation for this exam
+          } else {
+            // Skip past this exam's allocation
+            let sheetsAssigned = 0;
+            while (sheetsAssigned < exam.candidateCount && currentSerial !== null && currentSerial <= toNum) {
+              if (!discardedSet.has(currentSerial)) {
+                sheetsAssigned++;
+              }
+              currentSerial++;
+              while (discardedSet.has(currentSerial) && currentSerial <= toNum) {
+                currentSerial++;
+              }
+            }
+            if (currentSerial > toNum) {
+              currentSerial = null;
+            }
+          }
+        }
+      }
+
+      console.log(`Found ${allocations.length} answer sheet allocation(s) for ${entry.subject.code}`);
+      return allocations.length > 0 ? allocations : null;
+    } catch (error) {
+      console.error('Error fetching answer sheet allocations:', error);
+      return null;
+    }
   }
 
   async getCandidatesForExam(entry) {
@@ -279,7 +471,7 @@ class SeatingPlanBuilder {
     }
   }
 
-  allocateCandidatesToRoomsWithOffset(candidates, rooms, startRoomIndex, startSeatOffset) {
+  allocateCandidatesToRoomsWithOffset(candidates, rooms, startRoomIndex, startSeatOffset, answerSheetAllocations = null) {
     const allocations = [];
     const candidatesPerRoom = 24;
     const totalRooms = rooms.length;
@@ -311,8 +503,8 @@ class SeatingPlanBuilder {
 
       if (roomCandidates.length === 0) break;
 
-      // Build rows with offset consideration
-      const rows = this.buildRowsWithOffset(roomCandidates, seatOffset);
+      // Build rows with offset consideration and answer sheet allocations
+      const rows = this.buildRowsWithOffset(roomCandidates, seatOffset, candidateIndex, answerSheetAllocations);
       
       allocations.push({
         roomNo: room.roomNo,
@@ -331,7 +523,7 @@ class SeatingPlanBuilder {
     return allocations;
   }
 
-  buildRowsWithOffset(candidates, seatOffset = 0) {
+  buildRowsWithOffset(candidates, seatOffset = 0, globalCandidateStartIndex = 0, answerSheetAllocations = null) {
     // For CBSE Copy format, we still show 8 rows x 3 columns
     // But the candidates are placed starting from the offset position
     const rows = [];
@@ -348,9 +540,9 @@ class SeatingPlanBuilder {
     // Build rows from the seats array
     for (let i = 0; i < 8; i++) {
       const row = {
-        col1: '',
-        col2: '',
-        col3: '',
+        col1: '\u00a0',
+        col2: '\u00a0',
+        col3: '\u00a0',
         row1RollNo: '',
         row2RollNo: '',
         row3RollNo: '',
@@ -364,29 +556,38 @@ class SeatingPlanBuilder {
 
       // Column 1 (seats 0-7)
       const seat1 = seats[i];
+      const seat1GlobalIndex = i >= seatOffset && i < seatOffset + candidates.length 
+        ? globalCandidateStartIndex + (i - seatOffset)
+        : -1;
       if (seat1) {
         row.col1 = seat1.rollNo;
         row.row1RollNo = seat1.rollNo;
         row.row1QpCode = this.getQPCode(seat1);
-        row.row1SheetNo = this.getSheetNo(seat1, i);
+        row.row1SheetNo = this.getSheetNo(seat1, seat1GlobalIndex, answerSheetAllocations);
       }
 
       // Column 2 (seats 8-15)
       const seat2 = seats[i + 8];
+      const seat2GlobalIndex = (i + 8) >= seatOffset && (i + 8) < seatOffset + candidates.length 
+        ? globalCandidateStartIndex + ((i + 8) - seatOffset)
+        : -1;
       if (seat2) {
         row.col2 = seat2.rollNo;
         row.row2RollNo = seat2.rollNo;
         row.row2QpCode = this.getQPCode(seat2);
-        row.row2SheetNo = this.getSheetNo(seat2, i + 8);
+        row.row2SheetNo = this.getSheetNo(seat2, seat2GlobalIndex, answerSheetAllocations);
       }
 
       // Column 3 (seats 16-23)
       const seat3 = seats[i + 16];
+      const seat3GlobalIndex = (i + 16) >= seatOffset && (i + 16) < seatOffset + candidates.length 
+        ? globalCandidateStartIndex + ((i + 16) - seatOffset)
+        : -1;
       if (seat3) {
         row.col3 = seat3.rollNo;
         row.row3RollNo = seat3.rollNo;
         row.row3QpCode = this.getQPCode(seat3);
-        row.row3SheetNo = this.getSheetNo(seat3, i + 16);
+        row.row3SheetNo = this.getSheetNo(seat3, seat3GlobalIndex, answerSheetAllocations);
       }
 
       rows.push(row);
@@ -395,7 +596,7 @@ class SeatingPlanBuilder {
     return rows;
   }
 
-  allocateCandidatesToRooms(candidates, rooms) {
+  allocateCandidatesToRooms(candidates, rooms, answerSheetAllocations = null) {
     const allocations = [];
     const candidatesPerRoom = 24;
     let candidateIndex = 0;
@@ -410,7 +611,7 @@ class SeatingPlanBuilder {
 
       if (roomCandidates.length === 0) break;
 
-      const rows = this.buildRows(roomCandidates);
+      const rows = this.buildRows(roomCandidates, candidateIndex, answerSheetAllocations);
       
       allocations.push({
         roomNo: room.roomNo,
@@ -427,7 +628,7 @@ class SeatingPlanBuilder {
     return allocations;
   }
 
-  buildRows(candidates) {
+  buildRows(candidates, globalCandidateStartIndex = 0, answerSheetAllocations = null) {
     const rows = [];
     const candidatesPerRow = 3;
     
@@ -453,7 +654,7 @@ class SeatingPlanBuilder {
         row.col1 = candidates[idx1].rollNo;
         row.row1RollNo = candidates[idx1].rollNo;
         row.row1QpCode = this.getQPCode(candidates[idx1]);
-        row.row1SheetNo = this.getSheetNo(candidates[idx1], idx1);
+        row.row1SheetNo = this.getSheetNo(candidates[idx1], globalCandidateStartIndex + idx1, answerSheetAllocations);
       }
 
       // Column 2
@@ -462,7 +663,7 @@ class SeatingPlanBuilder {
         row.col2 = candidates[idx2].rollNo;
         row.row2RollNo = candidates[idx2].rollNo;
         row.row2QpCode = this.getQPCode(candidates[idx2]);
-        row.row2SheetNo = this.getSheetNo(candidates[idx2], idx2);
+        row.row2SheetNo = this.getSheetNo(candidates[idx2], globalCandidateStartIndex + idx2, answerSheetAllocations);
       }
 
       // Column 3
@@ -471,7 +672,7 @@ class SeatingPlanBuilder {
         row.col3 = candidates[idx3].rollNo;
         row.row3RollNo = candidates[idx3].rollNo;
         row.row3QpCode = this.getQPCode(candidates[idx3]);
-        row.row3SheetNo = this.getSheetNo(candidates[idx3], idx3);
+        row.row3SheetNo = this.getSheetNo(candidates[idx3], globalCandidateStartIndex + idx3, answerSheetAllocations);
       }
 
       rows.push(row);
@@ -486,10 +687,35 @@ class SeatingPlanBuilder {
     return qpCodes[Math.floor(Math.random() * qpCodes.length)];
   }
 
-  getSheetNo(candidate, index) {
-    // Generate sheet number based on some logic
-    const baseSheetNo = 626100;
-    return (baseSheetNo + index + 1).toString();
+  getSheetNo(candidate, globalIndex, answerSheetAllocations = null) {
+    // If no allocations or invalid index, return empty
+    if (!answerSheetAllocations || globalIndex < 0) {
+      return '';
+    }
+
+    // Find the appropriate answer sheet allocation for this candidate
+    // Candidates are allocated sequentially across all answer sheet types
+    let cumulativeCandidates = 0;
+    
+    for (const allocation of answerSheetAllocations) {
+      const allocationEnd = cumulativeCandidates + allocation.sheetsAllocated;
+      
+      if (globalIndex < allocationEnd) {
+        // This candidate falls within this allocation
+        const positionInAllocation = globalIndex - cumulativeCandidates;
+        const serialNumber = allocation.startNum + positionInAllocation;
+        
+        // Format the serial number with prefix and padding
+        const formattedSerial = allocation.prefix + serialNumber.toString().padStart(allocation.padLength, '0');
+        return formattedSerial;
+      }
+      
+      cumulativeCandidates = allocationEnd;
+    }
+    
+    // If we get here, the candidate is beyond allocated sheets
+    console.warn(`No sheet allocation found for candidate at index ${globalIndex}`);
+    return '';
   }
 
   formatDate(date, includeDay = true) {
@@ -522,6 +748,20 @@ class SeatingPlanBuilder {
     return d.getFullYear().toString();
   }
 
+  /**
+   * Convert class number to Roman numeral format
+   * 10 -> X, 12 -> XII
+   */
+  getClassRoman(classValue) {
+    const normalizedClass = String(classValue).replace(/th$/i, '');
+    if (normalizedClass === '10') {
+      return 'X';
+    } else if (normalizedClass === '12') {
+      return 'XII';
+    }
+    return classValue;
+  }
+
   buildMainGateData(seatingData) {
     const { datesheet, rooms } = seatingData;
     
@@ -530,7 +770,7 @@ class SeatingPlanBuilder {
       centreNo: this.centreNo,
       examDate: this.formatDate(datesheet.date, true),
       subjectName: datesheet.subjectName,
-      className: datesheet.class,
+      className: this.getClassRoman(datesheet.class),
       subjectCode: datesheet.subjectCode,
       rooms: rooms.map(room => ({
         roomNo: room.roomNo,
@@ -606,7 +846,7 @@ class SeatingPlanBuilder {
           schoolName: this.schoolName,
           schoolAddress: this.schoolAddress,
           centreNo: this.centreNo,
-          className: datesheet.class,
+          className: this.getClassRoman(datesheet.class),
           examName: examName,
           examYear: examYear,
           subjectCode: datesheet.subjectCode,
@@ -623,7 +863,7 @@ class SeatingPlanBuilder {
           schoolName: this.schoolName,
           schoolAddress: this.schoolAddress,
           centreNo: this.centreNo,
-          className: datesheet.class,
+          className: this.getClassRoman(datesheet.class),
           examName: examName,
           examYear: examYear,
           subjectCode: datesheet.subjectCode,

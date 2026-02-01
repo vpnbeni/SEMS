@@ -260,14 +260,115 @@ const SeatingPlan: React.FC = () => {
         <div className="p-6">
           {activeTab === 'mainGate' && (
             <div className="space-y-4">
-              <p className="text-secondary-600 dark:text-secondary-400">
-                Main Gate seating plan content will be displayed here.
-              </p>
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
                 <p className="text-sm text-blue-800 dark:text-blue-200">
-                  This format is designed for display at the main gate and notice boards of the examination center.
+                  This format is designed for display at the main gate and notice boards. All rooms are shown on a single document for easy reference.
                 </p>
               </div>
+              
+              {/* Main Gate Preview */}
+              <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 max-w-4xl mx-auto">
+                {/* Header */}
+                <div className="text-center mb-4">
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">INTERNATIONAL BHARTI SCHOOL, ROHTAK</h2>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">Seating Plan CBSE Board Exam</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">Centre No: 827403</p>
+                </div>
+                
+                {/* Exam Details */}
+                <div className="flex justify-between mb-4 text-sm font-bold text-gray-900 dark:text-white">
+                  <div>
+                    <p>Date: 15.02.2026 (Saturday)</p>
+                    <p>Subject: English (Lang. & Lit.)</p>
+                  </div>
+                  <div className="text-right">
+                    <p>Class: X</p>
+                    <p>Code: 184</p>
+                  </div>
+                </div>
+                
+                {/* Room Table 1 */}
+                <table className="w-full border-collapse mb-5">
+                  <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
+                    Room No. 01 - X Rose (First Floor)
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white w-20 text-sm">Row</th>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 1</th>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 2</th>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 3</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...Array(8)].map((_, i) => (
+                      <tr key={i}>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm">Roll No</td>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248737 + i}</td>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248745 + i}</td>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248753 + i}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {/* Room Table 2 */}
+                <table className="w-full border-collapse mb-5">
+                  <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
+                    Room No. 02 - X Tulip (First Floor)
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white w-20 text-sm">Row</th>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 1</th>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 2</th>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 3</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...Array(8)].map((_, i) => (
+                      <tr key={i}>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm">Roll No</td>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248761 + i}</td>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248769 + i}</td>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248777 + i}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {/* Room Table 3 */}
+                <table className="w-full border-collapse mb-5">
+                  <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
+                    Room No. 03 - X Lotus (First Floor)
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white w-20 text-sm">Row</th>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 1</th>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 2</th>
+                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 3</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...Array(8)].map((_, i) => (
+                      <tr key={i}>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm">Roll No</td>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248785 + i}</td>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248793 + i}</td>
+                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248801 + i}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                
+                {/* Footer */}
+                <p className="text-right font-bold text-gray-900 dark:text-white">CENTRE SUPERINTENDENT</p>
+              </div>
+              
+              <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
+                Click the download button next to any exam to generate the Main Gate PDF with actual candidate data.
+              </p>
             </div>
           )}
 

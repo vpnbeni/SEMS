@@ -12,7 +12,9 @@ const connectDB = async () => {
 
     const conn = await mongoose.connect(mongoUri, {
       // Remove deprecated options as they are now defaults in Mongoose 6+
-      dbName
+      dbName,
+      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     });
 
     console.log(`MongoDB Connected: ${conn.connection.host}`.cyan.underline.bold);

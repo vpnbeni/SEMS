@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,120 +8,129 @@
     <style>
         @page {
             size: A4;
-            margin: 15mm;
+            margin: 8mm 12mm;
         }
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: Arial, sans-serif;
-            font-size: 11pt;
+            font-size: 10pt;
             line-height: 1.3;
         }
-        
+
         .header {
             text-align: center;
-            margin-bottom: 15px;
+            margin-bottom: 8px;
         }
-        
+
         .header h1 {
-            font-size: 16pt;
+            font-size: 14pt;
             font-weight: bold;
             margin-bottom: 3px;
         }
-        
+
         .header h2 {
-            font-size: 13pt;
+            font-size: 10pt;
             font-weight: normal;
-            margin-bottom: 2px;
+            margin-bottom: 1px;
         }
-        
+
         .header h3 {
-            font-size: 12pt;
+            font-size: 9pt;
             font-weight: normal;
         }
-        
+
         .exam-details {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 15px;
-            font-size: 11pt;
+            margin-bottom: 8px;
+            font-size: 9pt;
             font-weight: bold;
         }
-        
+
         .exam-details .left,
         .exam-details .right {
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 1px;
         }
-        
+
         .room-table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
             page-break-inside: avoid;
+            border: 1px solid #000;
+            table-layout: fixed;
         }
-        
+
         .room-table caption {
-            font-size: 12pt;
+            font-size: 9pt;
             font-weight: bold;
             text-align: center;
-            padding: 8px;
-            border: 2px solid #000;
+            padding: 4px 6px;
+            border: 1px solid #000;
             border-bottom: none;
             background-color: #fff;
         }
-        
+
         .room-table th,
         .room-table td {
             border: 1px solid #000;
-            padding: 6px 8px;
+            padding: 5px 8px;
             text-align: center;
+            min-height: 22px;
+            height: 22px;
         }
-        
+
         .room-table th {
             background-color: #fff;
             font-weight: bold;
-            font-size: 11pt;
+            font-size: 9pt;
         }
-        
+
         .room-table td {
-            font-size: 10pt;
+            font-size: 9pt;
+            font-weight: 500;
         }
-        
-        .room-table td:first-child {
-            font-weight: bold;
-            width: 80px;
-        }
-        
+
+        .room-table td:first-child,
+.room-table th:first-child {
+    font-weight: bold;
+    width: 60px;
+}
+
         .room-table td.roll-number {
             font-family: 'Courier New', monospace;
+            font-weight: 600;
+            letter-spacing: 0.5px;
         }
-        
+
         .footer {
             text-align: right;
-            margin-top: 30px;
-            font-size: 12pt;
+            margin-top: 10px;
+            font-size: 10pt;
             font-weight: bold;
         }
-        
+
         .page-break {
             page-break-after: always;
         }
-    </style>
+</style>
 </head>
+
 <body>
     <div class="header">
         <h1>{{schoolName}}</h1>
         <h2>Seating Plan CBSE Board Exam</h2>
         <h3>Centre No: {{centreNo}}</h3>
     </div>
-    
+
     <div class="exam-details">
         <div class="left">
             <div>Date: {{examDate}}</div>
@@ -131,7 +141,7 @@
             <div>Code: {{subjectCode}}</div>
         </div>
     </div>
-    
+
     {{#rooms}}
     <table class="room-table">
         <caption>Room No. {{roomNo}} - {{roomName}} ({{floor}})</caption>
@@ -155,9 +165,10 @@
         </tbody>
     </table>
     {{/rooms}}
-    
+
     <div class="footer">
         CENTRE SUPERINTENDENT
     </div>
 </body>
+
 </html>

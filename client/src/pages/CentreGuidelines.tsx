@@ -63,6 +63,7 @@ const CentreGuidelines: React.FC = () => {
   const [expandedChapter, setExpandedChapter] = useState<string | null>(null)
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
   const [pdfViewerLoading, setPdfViewerLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const pdfBlobUrlRef = useRef<string | null>(null)
   const previousUploadedPdfRef = useRef<string | null>(null)
 
@@ -134,11 +135,16 @@ const CentreGuidelines: React.FC = () => {
         const data = await response.json()
         if (data.exists && data.path) {
           setUploadedPdf(data.path)
-          loadGuidelinesData()
+          await loadGuidelinesData()
+        } else {
+          setLoading(false)
         }
+      } else {
+        setLoading(false)
       }
     } catch {
       // PDF doesn't exist yet or API error
+      setLoading(false)
     }
   }
 
@@ -156,6 +162,8 @@ const CentreGuidelines: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading guidelines data:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -213,7 +221,8 @@ const CentreGuidelines: React.FC = () => {
         setShowUploadModal(false)
         setSelectedFile(null)
         alert('Guidelines uploaded successfully!')
-        loadGuidelinesData()
+        setLoading(true)
+        await loadGuidelinesData()
       } else {
         alert('Failed to upload guidelines')
       }
@@ -255,9 +264,9 @@ const CentreGuidelines: React.FC = () => {
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
-        {uploadedPdf && guidelinesData && (
+        {uploadedPdf && (
           <>
-            {/* Stats cards at top */}
+            {/* Stats cards at top - show immediately */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
                 <div className="flex items-center">
@@ -267,9 +276,15 @@ const CentreGuidelines: React.FC = () => {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {guidelinesData.metadata.pages}
-                    </p>
+                    {loading || !guidelinesData ? (
+                      <div className="animate-pulse">
+                        <div className="h-8 w-12 bg-gray-200 dark:bg-gray-700 rounded mb-1"></div>
+                      </div>
+                    ) : (
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {guidelinesData.metadata.pages}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500 dark:text-gray-400">Total Pages</p>
                   </div>
                 </div>
@@ -283,9 +298,15 @@ const CentreGuidelines: React.FC = () => {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {guidelinesData.structure.chapters.length}
-                    </p>
+                    {loading || !guidelinesData ? (
+                      <div className="animate-pulse">
+                        <div className="h-8 w-12 bg-gray-200 dark:bg-gray-700 rounded mb-1"></div>
+                      </div>
+                    ) : (
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {guidelinesData.structure.chapters.length}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500 dark:text-gray-400">Chapters</p>
                   </div>
                 </div>
@@ -299,9 +320,15 @@ const CentreGuidelines: React.FC = () => {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {guidelinesData.structure.appendices.length}
-                    </p>
+                    {loading || !guidelinesData ? (
+                      <div className="animate-pulse">
+                        <div className="h-8 w-12 bg-gray-200 dark:bg-gray-700 rounded mb-1"></div>
+                      </div>
+                    ) : (
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {guidelinesData.structure.appendices.length}
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500 dark:text-gray-400">Appendices</p>
                   </div>
                 </div>
@@ -315,9 +342,15 @@ const CentreGuidelines: React.FC = () => {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {guidelinesData.structure.guidelines.length}+
-                    </p>
+                    {loading || !guidelinesData ? (
+                      <div className="animate-pulse">
+                        <div className="h-8 w-12 bg-gray-200 dark:bg-gray-700 rounded mb-1"></div>
+                      </div>
+                    ) : (
+                      <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                        {guidelinesData.structure.guidelines.length}+
+                      </p>
+                    )}
                     <p className="text-sm text-gray-500 dark:text-gray-400">Guidelines</p>
                   </div>
                 </div>
@@ -327,40 +360,48 @@ const CentreGuidelines: React.FC = () => {
             {/* Navigation Tabs - same style as Date Sheets (pill, ribbon) */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 py-3 bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
-                <Tabs<'viewer' | 'chapters' | 'appendices' | 'search'>
-                  tabs={[
-                    {
-                      id: 'chapters',
-                      label: 'Chapters',
-                      badge: String(guidelinesData.structure.chapters.length),
-                      color: 'blue'
-                    },
-                    {
-                      id: 'appendices',
-                      label: 'Appendices',
-                      badge: String(guidelinesData.structure.appendices.length),
-                      color: 'emerald'
-                    },
-                    {
-                      id: 'viewer',
-                      label: 'PDF Viewer',
-                      color: 'indigo'
-                    },
-                    ...(searchResults.length > 0
-                      ? [{
-                          id: 'search' as const,
-                          label: 'Search Results',
-                          badge: String(searchResults.length),
-                          color: 'purple' as const
-                        }]
-                      : [])
-                  ] as TabConfig<'viewer' | 'chapters' | 'appendices' | 'search'>[]}
-                  activeTab={activeTab}
-                  onChange={(tabId) => setActiveTab(tabId)}
-                  variant="pill"
-                  size="sm"
-                  ariaLabel="Centre guidelines sections"
-                />
+                {guidelinesData ? (
+                  <Tabs<'viewer' | 'chapters' | 'appendices' | 'search'>
+                    tabs={[
+                      {
+                        id: 'chapters',
+                        label: 'Chapters',
+                        badge: String(guidelinesData.structure.chapters.length),
+                        color: 'blue'
+                      },
+                      {
+                        id: 'appendices',
+                        label: 'Appendices',
+                        badge: String(guidelinesData.structure.appendices.length),
+                        color: 'emerald'
+                      },
+                      {
+                        id: 'viewer',
+                        label: 'PDF Viewer',
+                        color: 'indigo'
+                      },
+                      ...(searchResults.length > 0
+                        ? [{
+                            id: 'search' as const,
+                            label: 'Search Results',
+                            badge: String(searchResults.length),
+                            color: 'purple' as const
+                          }]
+                        : [])
+                    ] as TabConfig<'viewer' | 'chapters' | 'appendices' | 'search'>[]}
+                    activeTab={activeTab}
+                    onChange={(tabId) => setActiveTab(tabId)}
+                    variant="pill"
+                    size="sm"
+                    ariaLabel="Centre guidelines sections"
+                  />
+                ) : (
+                  <div className="animate-pulse flex gap-2">
+                    <div className="h-9 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+                    <div className="h-9 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+                    <div className="h-9 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+                  </div>
+                )}
                 <div className="flex gap-3 shrink-0 items-center">
                   <div className="flex gap-2">
                     <input
@@ -404,8 +445,21 @@ const CentreGuidelines: React.FC = () => {
 
               {/* Tab Content */}
               <div className="p-6">
+                {/* Loading state */}
+                {loading && (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-center">
+                      <svg className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <p className="text-gray-600 dark:text-gray-400">Loading guidelines data...</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* PDF Viewer Tab */}
-                {activeTab === 'viewer' && (
+                {!loading && activeTab === 'viewer' && (
                   <div>
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -451,7 +505,7 @@ const CentreGuidelines: React.FC = () => {
                 )}
 
                 {/* Chapters Tab */}
-                {activeTab === 'chapters' && (
+                {!loading && activeTab === 'chapters' && guidelinesData && (
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                       Chapters Index
@@ -600,7 +654,7 @@ const CentreGuidelines: React.FC = () => {
                 )}
 
                 {/* Appendices Tab */}
-                {activeTab === 'appendices' && (
+                {!loading && activeTab === 'appendices' && guidelinesData && (
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                       Appendices Index
@@ -749,7 +803,7 @@ const CentreGuidelines: React.FC = () => {
                 )}
 
                 {/* Search Results Tab */}
-                {activeTab === 'search' && (
+                {!loading && activeTab === 'search' && (
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                       Search Results for "{searchQuery}"
@@ -778,7 +832,7 @@ const CentreGuidelines: React.FC = () => {
           </>
         )}
 
-        {!uploadedPdf && (
+        {!uploadedPdf && !loading && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
             <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -795,6 +849,16 @@ const CentreGuidelines: React.FC = () => {
             >
               Upload Guidelines PDF
             </button>
+          </div>
+        )}
+
+        {!uploadedPdf && loading && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
+            <svg className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <p className="text-gray-600 dark:text-gray-400">Checking for existing guidelines...</p>
           </div>
         )}
       </div>
