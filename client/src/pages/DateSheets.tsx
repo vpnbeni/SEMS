@@ -341,6 +341,15 @@ const DateSheets: React.FC = () => {
     return `${duration} ${duration === 1 ? 'Hour' : 'Hours'}`
   }
 
+  // Helper function to format time from 24-hour to 12-hour format
+  const formatTimeTo12Hour = (time: string) => {
+    if (!time) return ''
+    const [hours, minutes] = time.split(':').map(Number)
+    const period = hours >= 12 ? 'PM' : 'AM'
+    const hours12 = hours % 12 || 12
+    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`
+  }
+
   // Helper function to calculate end time based on start time and duration
   const calculateTimeRange = (timeSlot: any, duration: number) => {
     // If timeSlot is a string, return as is
@@ -351,18 +360,19 @@ const DateSheets: React.FC = () => {
     // If timeSlot is an object with start and end, calculate end time based on duration
     if (timeSlot && typeof timeSlot === 'object' && timeSlot.start) {
       const startTime = timeSlot.start
-      
+
       // Parse start time (format: HH:MM)
       const [hours, minutes] = startTime.split(':').map(Number)
-      
+
       // Calculate end time by adding duration hours
       const endHours = hours + duration
       const endMinutes = minutes
-      
+
       // Format end time
       const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`
-      
-      return `${startTime} - ${endTime}`
+
+      // Return formatted times in 12-hour format
+      return `${formatTimeTo12Hour(startTime)} - ${formatTimeTo12Hour(endTime)}`
     }
 
     return null
@@ -824,10 +834,10 @@ const DateSheets: React.FC = () => {
                         onClick={() => typeof p === 'number' && handlePageChange(p)}
                         disabled={p === '...'}
                         className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium focus:z-20 transition-colors ${p === pagination.page
-                            ? 'z-10 bg-blue-600 border-blue-600 text-white'
-                            : p === '...'
-                              ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-default'
-                              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                          ? 'z-10 bg-blue-600 border-blue-600 text-white'
+                          : p === '...'
+                            ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 cursor-default'
+                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
                           }`}
                       >
                         {p}

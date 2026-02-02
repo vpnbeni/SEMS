@@ -16,7 +16,8 @@ const Sidebar: React.FC = () => {
     candidates: 507,
     subjects: 264,
     answerSheets: 7,
-    datesheetDays: 0
+    datesheetDays: 0,
+    rooms: 0
   })
 
   useEffect(() => {
@@ -61,7 +62,8 @@ const Sidebar: React.FC = () => {
         fetch('/api/teachers?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
         fetch('/api/candidates?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
         fetch('/api/subjects/stats', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
-        fetch('/api/datesheets/centre-datesheet?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json())
+        fetch('/api/datesheets/centre-datesheet?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
+        fetch('/api/seatingplan/rooms', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json())
       ])
 
       console.log('API Results:', results) // Debug log
@@ -71,13 +73,14 @@ const Sidebar: React.FC = () => {
         candidates: results[1].status === 'fulfilled' ? (results[1].value.total || results[1].value.meta?.totalCount || 0) : 0,
         subjects: results[2].status === 'fulfilled' ? (results[2].value.data?.total || 0) : 0,
         answerSheets: 7,
-        datesheetDays: results[3].status === 'fulfilled' ? (results[3].value.stats?.uniqueDates || 0) : 0
+        datesheetDays: results[3].status === 'fulfilled' ? (results[3].value.stats?.uniqueDates || 0) : 0,
+        rooms: results[4].status === 'fulfilled' ? (Array.isArray(results[4].value) ? results[4].value.length : 0) : 0
       }
 
       console.log('Calculated counts:', newCounts) // Debug log
 
       // Only update if we got valid counts, otherwise keep existing/default values
-      if (newCounts.examFunctionaries > 0 || newCounts.candidates > 0 || newCounts.subjects > 0 || newCounts.datesheetDays > 0) {
+      if (newCounts.examFunctionaries > 0 || newCounts.candidates > 0 || newCounts.subjects > 0 || newCounts.datesheetDays > 0 || newCounts.rooms > 0) {
         setCounts(newCounts)
 
         // Cache the counts
@@ -181,7 +184,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
         </svg>
       ),
-      badge: null,
+      badge: counts.rooms > 0 ? counts.rooms.toString() : null,
     },
     {
       name: 'Answer Sheets',
@@ -252,8 +255,8 @@ const Sidebar: React.FC = () => {
                 key={item.name}
                 to={item.href}
                 className={`group relative flex items-center text-sm font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
-                    ? 'justify-center w-12 h-12 p-0'
-                    : 'px-3.5 py-3'
+                  ? 'justify-center w-12 h-12 p-0'
+                  : 'px-3.5 py-3'
                   } ${isActive
                     ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
                     : 'text-secondary-600 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-900 dark:hover:text-secondary-200'
@@ -266,8 +269,8 @@ const Sidebar: React.FC = () => {
                 )}
 
                 <span className={`flex-shrink-0 transition-colors duration-200 ${isActive
-                    ? 'text-primary-600 dark:text-primary-400'
-                    : 'text-secondary-400 group-hover:text-secondary-600 dark:text-secondary-500 dark:group-hover:text-secondary-300'
+                  ? 'text-primary-600 dark:text-primary-400'
+                  : 'text-secondary-400 group-hover:text-secondary-600 dark:text-secondary-500 dark:group-hover:text-secondary-300'
                   }`}>
                   {item.icon}
                 </span>
@@ -279,8 +282,8 @@ const Sidebar: React.FC = () => {
                     </span>
                     {item.badge && (
                       <span className={`ml-auto inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm ${isActive
-                          ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300'
-                          : 'bg-secondary-100 text-secondary-600 dark:bg-secondary-800 dark:text-secondary-400 group-hover:bg-white group-hover:shadow-sm dark:group-hover:bg-secondary-700'
+                        ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300'
+                        : 'bg-secondary-100 text-secondary-600 dark:bg-secondary-800 dark:text-secondary-400 group-hover:bg-white group-hover:shadow-sm dark:group-hover:bg-secondary-700'
                         }`}>
                         {item.badge}
                       </span>

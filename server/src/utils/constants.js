@@ -76,7 +76,7 @@ const PAGINATION = {
 
 // Time slots for examinations
 const TIME_SLOTS = [
-  { start: '09:00', end: '12:00', label: 'Morning (9:00 AM - 12:00 PM)' },
+  { start: '10:30', end: '13:30', label: 'Morning (10:30 AM - 1:30 PM)' },
   { start: '14:00', end: '17:00', label: 'Afternoon (2:00 PM - 5:00 PM)' }
 ];
 

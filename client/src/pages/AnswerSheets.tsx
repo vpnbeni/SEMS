@@ -67,6 +67,15 @@ const AnswerSheets: React.FC = () => {
     { value: '12', label: '12th' }
   ]
 
+  // Format time from 24-hour (HH:MM) to 12-hour format with AM/PM
+  const formatTime = (time: string) => {
+    if (!time) return ''
+    const [hours, minutes] = time.split(':').map(Number)
+    const period = hours >= 12 ? 'PM' : 'AM'
+    const hours12 = hours % 12 || 12
+    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`
+  }
+
   // Download Excel template (commented out - not currently used in UI)
   // const downloadTemplate = async () => {
   //   try {
@@ -584,147 +593,148 @@ const AnswerSheets: React.FC = () => {
                     )
                   }
                   return receivedEntries.length > 0 ? (
-                  receivedEntries.map((entry, index) => {
-                    const entryKey = `${entry.sortOrder}`
-                    const isEditing = editingEntry === entryKey
+                    receivedEntries.map((entry, index) => {
+                      const entryKey = `${entry.sortOrder}`
+                      const isEditing = editingEntry === entryKey
 
-                    return (
-                      <tr
-                        key={entry._id || index}
-                        onClick={() => {
-                          if (!isEditing && entry._id && !entry.isTemplate) {
-                            navigate(`/answersheets/${entry._id}`)
-                          }
-                        }}
-                        className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'} ${!isEditing && entry._id && !entry.isTemplate ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors' : ''}`}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {entry.sortOrder || index + 1}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {entry.answerSheetType}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {entry.pages} Pages
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${entry.colour.toLowerCase() === 'blue' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                            entry.colour.toLowerCase() === 'red' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                              entry.colour.toLowerCase() === 'yellow' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                                entry.colour.toLowerCase() === 'pink' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' :
-                                  entry.colour.toLowerCase() === 'white' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' :
-                                    'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                            }`}>
-                            {entry.colour}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                          {entry.class}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editValues.serialFrom}
-                              onChange={(e) => setEditValues({ ...editValues, serialFrom: e.target.value })}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                              placeholder="e.g., 1001"
-                            />
-                          ) : (
-                            <span className={entry.serialFrom ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}>
-                              {entry.serialFrom || '-'}
+                      return (
+                        <tr
+                          key={entry._id || index}
+                          onClick={() => {
+                            if (!isEditing && entry._id && !entry.isTemplate) {
+                              navigate(`/answersheets/${entry._id}`)
+                            }
+                          }}
+                          className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'} ${!isEditing && entry._id && !entry.isTemplate ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors' : ''}`}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {entry.sortOrder || index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {entry.answerSheetType}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {entry.pages} Pages
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${entry.colour.toLowerCase() === 'blue' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                              entry.colour.toLowerCase() === 'red' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                entry.colour.toLowerCase() === 'yellow' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                                  entry.colour.toLowerCase() === 'pink' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200' :
+                                    entry.colour.toLowerCase() === 'white' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' :
+                                      'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                              }`}>
+                              {entry.colour}
                             </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editValues.serialTo}
-                              onChange={(e) => setEditValues({ ...editValues, serialTo: e.target.value })}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                              placeholder="e.g., 2000"
-                            />
-                          ) : (
-                            <span className={entry.serialTo ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}>
-                              {entry.serialTo || '-'}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
-                          {entry.total || 0}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                          {isEditing ? (
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {entry.class}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editValues.serialFrom}
+                                onChange={(e) => setEditValues({ ...editValues, serialFrom: e.target.value })}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                placeholder="e.g., 1001"
+                              />
+                            ) : (
+                              <span className={entry.serialFrom ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}>
+                                {entry.serialFrom || '-'}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editValues.serialTo}
+                                onChange={(e) => setEditValues({ ...editValues, serialTo: e.target.value })}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                placeholder="e.g., 2000"
+                              />
+                            ) : (
+                              <span className={entry.serialTo ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}>
+                                {entry.serialTo || '-'}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
+                            {entry.total || 0}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                            {isEditing ? (
+                              <>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleSaveEdit(entry)
+                                  }}
+                                  className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                                  disabled={loading}
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleCancelEdit()
+                                  }}
+                                  className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
+                                  disabled={loading}
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEditClick(entry)
+                                }}
+                                className="inline-flex items-center justify-center p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-colors duration-150"
+                                disabled={loading}
+                                title="Edit"
+                                aria-label="Edit"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={9} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center">
+                          {error ? (
                             <>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleSaveEdit(entry)
-                                }}
-                                className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                                disabled={loading}
-                              >
-                                Save
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleCancelEdit()
-                                }}
-                                className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                                disabled={loading}
-                              >
-                                Cancel
-                              </button>
+                              <svg className="mx-auto h-12 w-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <p className="mt-2 text-sm text-red-500 dark:text-red-400">{error}</p>
                             </>
                           ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleEditClick(entry)
-                              }}
-                              className="inline-flex items-center justify-center p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-colors duration-150"
-                              disabled={loading}
-                              title="Edit"
-                              aria-label="Edit"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            <>
+                              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                               </svg>
-                            </button>
+                              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                No answer sheets received yet. Click "Add Received Quantity" to start.
+                              </p>
+                            </>
                           )}
-                        </td>
-                      </tr>
-                    )
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center">
-                      <div className="flex flex-col items-center">
-                        {error ? (
-                          <>
-                            <svg className="mx-auto h-12 w-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <p className="mt-2 text-sm text-red-500 dark:text-red-400">{error}</p>
-                          </>
-                        ) : (
-                          <>
-                            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                              No answer sheets received yet. Click "Add Received Quantity" to start.
-                            </p>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ); })()}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })()}
               </tbody>
             </table>
           ) : (
@@ -1331,7 +1341,7 @@ const AnswerSheets: React.FC = () => {
                             <li><strong>Date:</strong> {new Date(entry.examDate).toLocaleDateString('en-IN')} ({entry.dayName})</li>
                             <li><strong>Class:</strong> {entry.class}</li>
                             <li><strong>Subject:</strong> {entry.subjectCode} - {entry.subjectName}</li>
-                            <li><strong>Time:</strong> {entry.timeSlot.start} - {entry.timeSlot.end}</li>
+                            <li><strong>Time:</strong> {formatTime(entry.timeSlot.start)} - {formatTime(entry.timeSlot.end)}</li>
                             <li><strong>Candidates:</strong> {entry.candidateCount}</li>
                             <li><strong>Rooms Needed:</strong> {entry.roomsNeeded}</li>
                           </ul>

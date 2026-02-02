@@ -66,11 +66,11 @@ const cbseDatesheetSchema = new mongoose.Schema({
     timeSlot: {
       start: {
         type: String,
-        default: '09:00'
+        default: '10:30'
       },
       end: {
         type: String,
-        default: '12:00'
+        default: '13:30'
       }
     },
     answerSheet: {
@@ -96,7 +96,7 @@ const cbseDatesheetSchema = new mongoose.Schema({
 })
 
 // Pre-save middleware to automatically add day names
-cbseDatesheetSchema.pre('save', function(next) {
+cbseDatesheetSchema.pre('save', function (next) {
   // Ensure all entries have dayName calculated from examDate
   if (this.entries && this.entries.length > 0) {
     this.entries.forEach(entry => {
@@ -116,12 +116,12 @@ cbseDatesheetSchema.index({ 'entries.examDate': 1 })
 cbseDatesheetSchema.index({ 'entries.subject.class': 1 })
 
 // Method to get entries by class
-cbseDatesheetSchema.methods.getEntriesByClass = function(classLevel) {
+cbseDatesheetSchema.methods.getEntriesByClass = function (classLevel) {
   return this.entries.filter(entry => entry.subject.class === classLevel)
 }
 
 // Method to get entries by date range
-cbseDatesheetSchema.methods.getEntriesByDateRange = function(startDate, endDate) {
+cbseDatesheetSchema.methods.getEntriesByDateRange = function (startDate, endDate) {
   return this.entries.filter(entry => {
     const examDate = new Date(entry.examDate)
     return examDate >= new Date(startDate) && examDate <= new Date(endDate)
@@ -129,7 +129,7 @@ cbseDatesheetSchema.methods.getEntriesByDateRange = function(startDate, endDate)
 }
 
 // Static method to get active datesheet
-cbseDatesheetSchema.statics.getActive = function() {
+cbseDatesheetSchema.statics.getActive = function () {
   return this.findOne({ isActive: true }).sort({ createdAt: -1 })
 }
 

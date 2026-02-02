@@ -433,8 +433,8 @@ class SeatingPlanBuilder {
 
     // Sort by time slot (start time), then by class (10th before 12th), then by subject code
     allSameDayExams.sort((a, b) => {
-      const timeA = a.timeSlot?.start || '09:00';
-      const timeB = b.timeSlot?.start || '09:00';
+      const timeA = a.timeSlot?.start || '10:30';
+      const timeB = b.timeSlot?.start || '10:30';
       if (timeA !== timeB) return timeA.localeCompare(timeB);
       // If same time slot, sort by class (10th before 12th for consistency)
       const classA = String(a.subject.class).replace(/th$/i, '');

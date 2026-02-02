@@ -45,7 +45,7 @@ const Form66: React.FC = () => {
       const response = await fetch('http://localhost:5000/api/form66/records')
       const data = await response.json()
       setRecords(data)
-      
+
       // Group records by date
       const grouped = groupRecordsByDate(data)
       setDateGroups(grouped)
@@ -62,52 +62,52 @@ const Form66: React.FC = () => {
     }
 
     const dateMap = new Map<string, Map<string, Form66Record[]>>()
-    
+
     records.forEach(record => {
       // Skip records without examDate
       if (!record.examDate) return
-      
+
       if (!dateMap.has(record.examDate)) {
         dateMap.set(record.examDate, new Map())
       }
-      
+
       const subjectMap = dateMap.get(record.examDate)!
       const subjectKey = `${record.subjectCode || 'Unknown'}-${record.subject || 'Unknown'}`
-      
+
       if (!subjectMap.has(subjectKey)) {
         subjectMap.set(subjectKey, [])
       }
-      
+
       subjectMap.get(subjectKey)!.push(record)
     })
-    
+
     const groups: DateGroup[] = []
-    
+
     dateMap.forEach((subjectMap, date) => {
       const subjects: SubjectGroup[] = []
       let totalRecords = 0
-      
+
       subjectMap.forEach((records, subjectKey) => {
         const [code, ...nameParts] = subjectKey.split('-')
         const name = nameParts.join('-')
-        
+
         subjects.push({
           code,
           name,
           records: records.sort((a, b) => a.rollNo.localeCompare(b.rollNo)),
           count: records.length
         })
-        
+
         totalRecords += records.length
       })
-      
+
       groups.push({
         date,
         subjects: subjects.sort((a, b) => a.code.localeCompare(b.code)),
         totalRecords
       })
     })
-    
+
     // Sort by date
     return groups.sort((a, b) => {
       if (!a.date || !b.date) return 0
@@ -168,11 +168,13 @@ const Form66: React.FC = () => {
     if (!file) return
 
     // Validate file type - check both extension and MIME type
-    const isPdfFile = file.name.toLowerCase().endsWith('.pdf') || 
-                      file.type === 'application/pdf'
-    
-    if (!isPdfFile) {
-      setUploadStatus({ type: 'error', message: `Please select a .pdf file. Selected: ${file.name}` })
+    const isPdfFile = file.name.toLowerCase().endsWith('.pdf') ||
+      file.type === 'application/pdf'
+    const isTxtFile = file.name.toLowerCase().endsWith('.txt') ||
+      file.type === 'text/plain'
+
+    if (!isPdfFile && !isTxtFile) {
+      setUploadStatus({ type: 'error', message: `Please select a .txt or .pdf file. Selected: ${file.name}` })
       return
     }
 
@@ -191,22 +193,22 @@ const Form66: React.FC = () => {
       const data = await response.json()
 
       if (response.ok) {
-        setUploadStatus({ 
-          type: 'success', 
-          message: `Successfully uploaded! Processed ${data.count || 0} records.` 
+        setUploadStatus({
+          type: 'success',
+          message: `Successfully uploaded! Processed ${data.count || 0} records.`
         })
         fetchRecords() // Refresh the records table
       } else {
-        setUploadStatus({ 
-          type: 'error', 
-          message: data.message || 'Upload failed' 
+        setUploadStatus({
+          type: 'error',
+          message: data.message || 'Upload failed'
         })
       }
     } catch (error) {
       console.error('Upload error:', error)
-      setUploadStatus({ 
-        type: 'error', 
-        message: 'Failed to upload file. Please try again.' 
+      setUploadStatus({
+        type: 'error',
+        message: 'Failed to upload file. Please try again.'
       })
     } finally {
       setUploading(false)
@@ -246,14 +248,14 @@ const Form66: React.FC = () => {
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
-              Upload Form 66 (.pdf)
+              Upload Form 66 (.txt)
             </>
           )}
         </button>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,application/pdf"
+          accept=".txt,.pdf,text/plain,application/pdf"
           onChange={handleFileChange}
           className="hidden"
         />
@@ -261,11 +263,10 @@ const Form66: React.FC = () => {
 
       {/* Upload Status */}
       {uploadStatus && (
-        <div className={`rounded-lg p-4 ${
-          uploadStatus.type === 'success' 
-            ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
-            : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
-        }`}>
+        <div className={`rounded-lg p-4 ${uploadStatus.type === 'success'
+          ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
+          : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+          }`}>
           <div className="flex">
             <div className="flex-shrink-0">
               {uploadStatus.type === 'success' ? (
@@ -279,11 +280,10 @@ const Form66: React.FC = () => {
               )}
             </div>
             <div className="ml-3">
-              <p className={`text-sm font-medium ${
-                uploadStatus.type === 'success' 
-                  ? 'text-green-800 dark:text-green-200' 
-                  : 'text-red-800 dark:text-red-200'
-              }`}>
+              <p className={`text-sm font-medium ${uploadStatus.type === 'success'
+                ? 'text-green-800 dark:text-green-200'
+                : 'text-red-800 dark:text-red-200'
+                }`}>
                 {uploadStatus.message}
               </p>
             </div>
@@ -320,9 +320,9 @@ const Form66: React.FC = () => {
           Instructions
         </h3>
         <div className="space-y-3 text-sm text-secondary-600 dark:text-secondary-400">
-          <p><strong>Upload PDF File</strong></p>
-          <p>1. Click the "Upload Form 66 (.pdf)" button above</p>
-          <p>2. Select your Form 66 PDF file from your computer</p>
+          <p><strong>Upload TXT or PDF File</strong></p>
+          <p>1. Click the "Upload Form 66 (.txt)" button above</p>
+          <p>2. Select your Form 66 TXT or PDF file from your computer</p>
           <p>3. The system will automatically extract and parse the data</p>
         </div>
 
@@ -373,7 +373,7 @@ const Form66: React.FC = () => {
           <div className="space-y-4">
             {dateGroups.map((dateGroup, dateIndex) => {
               const isDateExpanded = expandedDate === dateGroup.date
-              
+
               return (
                 <div
                   key={dateIndex}
@@ -416,11 +416,23 @@ const Form66: React.FC = () => {
                               </span>
                             </div>
                           </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              window.open(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/form66/dates/${dateGroup.date}/pdf`, '_blank')
+                            }}
+                            className="ml-2 flex-shrink-0 p-2 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors"
+                            title="Download PDF"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </button>
                           <button className="ml-2 flex-shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors">
-                            <svg 
-                              className={`w-5 h-5 text-gray-400 transition-transform ${isDateExpanded ? 'rotate-90' : ''}`} 
-                              fill="none" 
-                              stroke="currentColor" 
+                            <svg
+                              className={`w-5 h-5 text-gray-400 transition-transform ${isDateExpanded ? 'rotate-90' : ''}`}
+                              fill="none"
+                              stroke="currentColor"
                               viewBox="0 0 24 24"
                             >
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -430,7 +442,7 @@ const Form66: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   {/* Expanded Subjects */}
                   {isDateExpanded && (
                     <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-5">
@@ -438,7 +450,7 @@ const Form66: React.FC = () => {
                         {dateGroup.subjects.map((subject, subjectIndex) => {
                           const subjectKey = `${dateGroup.date}-${subject.code}`
                           const isSubjectExpanded = expandedSubject === subjectKey
-                          
+
                           return (
                             <div
                               key={subjectIndex}
@@ -466,10 +478,10 @@ const Form66: React.FC = () => {
                                     </div>
                                   </div>
                                   <button className="ml-2 flex-shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors">
-                                    <svg 
-                                      className={`w-4 h-4 text-gray-400 transition-transform ${isSubjectExpanded ? 'rotate-90' : ''}`} 
-                                      fill="none" 
-                                      stroke="currentColor" 
+                                    <svg
+                                      className={`w-4 h-4 text-gray-400 transition-transform ${isSubjectExpanded ? 'rotate-90' : ''}`}
+                                      fill="none"
+                                      stroke="currentColor"
                                       viewBox="0 0 24 24"
                                     >
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -477,7 +489,7 @@ const Form66: React.FC = () => {
                                   </button>
                                 </div>
                               </div>
-                              
+
                               {/* Expanded Roll Numbers */}
                               {isSubjectExpanded && (
                                 <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800">
@@ -496,11 +508,10 @@ const Form66: React.FC = () => {
                                             <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">{recordIndex + 1}</td>
                                             <td className="px-3 py-2 text-sm font-mono text-gray-900 dark:text-white">{record.rollNo}</td>
                                             <td className="px-3 py-2 text-sm">
-                                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                                record.class === 'X' 
-                                                  ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                                  : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                                              }`}>
+                                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${record.class === 'X'
+                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                                : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                                }`}>
                                                 Class {record.class}
                                               </span>
                                             </td>
