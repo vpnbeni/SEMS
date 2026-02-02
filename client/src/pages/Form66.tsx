@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { ChevronRight, ChevronDown, Download, Upload, RefreshCw, FileText, Calendar, Users, BookOpen } from 'lucide-react'
 
 interface Form66Record {
   _id: string
@@ -51,11 +52,23 @@ const Form66: React.FC = () => {
   const [records, setRecords] = useState<Form66Record[]>([])
   const [dateGroups, setDateGroups] = useState<DateGroup[]>([])
   const [loadingRecords, setLoadingRecords] = useState(false)
-  const [expandedDate, setExpandedDate] = useState<string | null>(null)
-  const [expandedSubject, setExpandedSubject] = useState<string | null>(null)
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
+  const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set())
   const [originalFileUrl, setOriginalFileUrl] = useState<string | null>(null)
   const [processedPdfUrl, setProcessedPdfUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Compute stats
+  const stats = useMemo(() => {
+    const class10Records = records.filter(r => r.class === 'X' || r.class === '10th')
+    const class12Records = records.filter(r => r.class === 'XII' || r.class === '12th')
+    return {
+      totalRecords: records.length,
+      totalDates: dateGroups.length,
+      class10th: class10Records.length,
+      class12th: class12Records.length,
+    }
+  }, [records, dateGroups])
 
   useEffect(() => {
     fetchRecords()
@@ -249,81 +262,108 @@ const Form66: React.FC = () => {
     return processingSteps.findIndex(s => s.step === processingStep)
   }
 
+  const toggleDateExpansion = (date: string) => {
+    setExpandedDates(prev => {
+      const next = new Set(prev)
+      if (next.has(date)) {
+        next.delete(date)
+        // Also collapse all subjects under this date
+        setExpandedSubjects(prevSubjects => {
+          const nextSubjects = new Set(prevSubjects)
+          dateGroups.find(d => d.date === date)?.subjects.forEach(s => {
+            nextSubjects.delete(`${date}-${s.code}`)
+          })
+          return nextSubjects
+        })
+      } else {
+        next.add(date)
+      }
+      return next
+    })
+  }
+
+  const toggleSubjectExpansion = (subjectKey: string) => {
+    setExpandedSubjects(prev => {
+      const next = new Set(prev)
+      if (next.has(subjectKey)) {
+        next.delete(subjectKey)
+      } else {
+        next.add(subjectKey)
+      }
+      return next
+    })
+  }
+
+  const expandAllDates = () => {
+    setExpandedDates(new Set(dateGroups.map(d => d.date)))
+  }
+
+  const collapseAllDates = () => {
+    setExpandedDates(new Set())
+    setExpandedSubjects(new Set())
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-secondary-900 dark:text-white">
-            Form 66
-          </h1>
-          <p className="mt-1 text-sm text-secondary-500 dark:text-secondary-400">
-            Upload and manage Form 66 records (Cloud-based)
-          </p>
+    <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-gray-50/50 dark:bg-gray-900">
+      {/* Stats cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400">
+              <Users className="w-6 h-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Candidates</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.totalRecords}</p>
+            </div>
+          </div>
         </div>
-        <div className="flex gap-3">
-          {/* Download Buttons */}
-          {processedPdfUrl && (
-            <a
-              href={processedPdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-secondary flex items-center"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Download PDF
-            </a>
-          )}
-          {originalFileUrl && (
-            <a
-              href={originalFileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-secondary flex items-center"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Original TXT
-            </a>
-          )}
-          <button
-            onClick={handleFileSelect}
-            disabled={uploading}
-            className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {uploading ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Processing...
-              </>
-            ) : (
-              <>
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                Upload Form 66 (.txt)
-              </>
-            )}
-          </button>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400">
+              <Calendar className="w-6 h-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Exam Dates</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.totalDates}</p>
+            </div>
+          </div>
         </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".txt,text/plain"
-          onChange={handleFileChange}
-          className="hidden"
-        />
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-green-50 text-green-500 dark:bg-green-900/20 dark:text-green-400">
+              <BookOpen className="w-6 h-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Class X</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.class10th}</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-purple-50 text-purple-500 dark:bg-purple-900/20 dark:text-purple-400">
+              <BookOpen className="w-6 h-6" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Class XII</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.class12th}</p>
+            </div>
+          </div>
+        </div>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,text/plain"
+        onChange={handleFileChange}
+        className="hidden"
+      />
 
       {/* Processing Steps */}
       {processingStep !== 'idle' && processingStep !== 'error' && (
-        <div className="glass rounded-xl p-6 border border-secondary-200 dark:border-secondary-700">
+        <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
             Processing Status
           </h3>
@@ -371,7 +411,7 @@ const Form66: React.FC = () => {
 
       {/* Upload Status */}
       {uploadStatus && (
-        <div className={`rounded-lg p-4 ${uploadStatus.type === 'success'
+        <div className={`mb-6 rounded-lg p-4 ${uploadStatus.type === 'success'
           ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800'
           : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
           }`}>
@@ -399,229 +439,369 @@ const Form66: React.FC = () => {
         </div>
       )}
 
-      {/* Instructions */}
-      <div className="glass rounded-xl p-6 border border-secondary-200 dark:border-secondary-700">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Instructions
-        </h3>
-        <div className="space-y-3 text-sm text-secondary-600 dark:text-secondary-400">
-          <p><strong>Upload Form 66 TXT File</strong></p>
-          <p>1. Click the "Upload Form 66 (.txt)" button above</p>
-          <p>2. Select your Form 66 TXT file from your computer</p>
-          <p>3. The system will:</p>
-          <ul className="list-disc list-inside ml-4 space-y-1">
-            <li>Upload to secure cloud storage</li>
-            <li>Convert to PDF format</li>
-            <li>Rearrange pages by exam date (matching datesheet)</li>
-          </ul>
-          <p>4. View and download the rearranged Form 66</p>
-        </div>
+      {/* Instructions - only when no data */}
+      {!loadingRecords && records.length === 0 && (
+        <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Instructions
+          </h3>
+          <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+            <p><strong>Upload Form 66 TXT File</strong></p>
+            <p>1. Click the "Upload Form 66" button above</p>
+            <p>2. Select your Form 66 TXT file from your computer</p>
+            <p>3. The system will:</p>
+            <ul className="list-disc list-inside ml-4 space-y-1">
+              <li>Upload to secure cloud storage</li>
+              <li>Convert to PDF format</li>
+              <li>Rearrange pages by exam date (matching datesheet)</li>
+            </ul>
+            <p>4. View and download the rearranged Form 66</p>
+          </div>
 
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
-            What is Form 66?
-          </h4>
-          <p className="text-sm text-blue-800 dark:text-blue-300">
-            Form 66 contains the official list of roll numbers for each exam. This data is used to generate accurate seating plans. The system automatically rearranges Form 66 pages in chronological order by exam date.
-          </p>
-        </div>
-      </div>
-
-      {/* Form 66 Records - Date-wise View */}
-      <div className="glass rounded-xl p-6 border border-secondary-200 dark:border-secondary-700">
-        <div className="flex justify-between items-center mb-4">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Form 66 Records - Date-wise View
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {records.length} total records across {dateGroups.length} exam dates
+          <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-200 mb-2">
+              What is Form 66?
+            </h4>
+            <p className="text-sm text-blue-800 dark:text-blue-300">
+              Form 66 contains the official list of roll numbers for each exam. This data is used to generate accurate seating plans. The system automatically rearranges Form 66 pages in chronological order by exam date.
             </p>
           </div>
-          <button
-            onClick={fetchRecords}
-            className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400"
-          >
-            <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Refresh
-          </button>
+        </div>
+      )}
+
+      {/* Main Table Card */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        {/* Ribbon: Title + action buttons */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 py-3 bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-4">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+              Form 66 Records
+            </h3>
+            {dateGroups.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={expandAllDates}
+                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                >
+                  Expand All
+                </button>
+                <span className="text-gray-300 dark:text-gray-600">|</span>
+                <button
+                  onClick={collapseAllDates}
+                  className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                >
+                  Collapse All
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="flex gap-3 shrink-0">
+            <button
+              onClick={fetchRecords}
+              className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            >
+              <RefreshCw className="w-4 h-4 mr-1.5" />
+              Refresh
+            </button>
+            {processedPdfUrl && (
+              <a
+                href={processedPdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-3 py-1.5 border border-green-600 shadow-sm text-sm font-medium rounded-lg text-green-600 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+              >
+                <Download className="w-4 h-4 mr-1.5" />
+                Download PDF
+              </a>
+            )}
+            {originalFileUrl && (
+              <a
+                href={originalFileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                <FileText className="w-4 h-4 mr-1.5" />
+                Original TXT
+              </a>
+            )}
+            <button
+              onClick={handleFileSelect}
+              disabled={uploading}
+              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {uploading ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 mr-1.5" />
+                  Upload Form 66
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
+        {/* Table Content */}
         {loadingRecords ? (
-          <div className="text-center py-8 text-gray-500">Loading records...</div>
-        ) : dateGroups.length === 0 ? (
-          <div className="text-center py-8">
-            <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          <div className="p-12 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400">
+            <svg className="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p className="text-gray-500 dark:text-gray-400">
+            <span className="text-sm font-medium">Loading records...</span>
+          </div>
+        ) : dateGroups.length === 0 ? (
+          <div className="p-16 text-center">
+            <div className="mx-auto h-24 w-24 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
+              <FileText className="h-12 w-12 text-gray-400" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Form 66 Records</h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-8 leading-relaxed">
               No Form 66 records found. Import data using the upload button above.
             </p>
+            <button
+              onClick={handleFileSelect}
+              disabled={uploading}
+              className="inline-flex items-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+            >
+              <Upload className="w-5 h-5 mr-2 -ml-1" />
+              Upload Form 66
+            </button>
           </div>
         ) : (
-          <div className="space-y-4">
-            {dateGroups.map((dateGroup, dateIndex) => {
-              const isDateExpanded = expandedDate === dateGroup.date
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50/50 dark:bg-gray-900/50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12">
+                    {/* Expand icon column */}
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-16">
+                    Sr No
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Exam Date
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Subjects
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Candidates
+                  </th>
+                  <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-24">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {dateGroups.map((dateGroup, dateIndex) => {
+                  const isDateExpanded = expandedDates.has(dateGroup.date)
 
-              return (
-                <div
-                  key={dateIndex}
-                  className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:shadow-md transition-all"
-                >
-                  {/* Date Header */}
-                  <div
-                    onClick={() => setExpandedDate(isDateExpanded ? null : dateGroup.date)}
-                    className="p-5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0 w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center mr-4 shadow-sm">
-                        <div className="text-center">
-                          <div className="text-white font-bold text-xl">
-                            {dateGroup.date?.split('.')[0] || ''}
-                          </div>
-                          <div className="text-white text-xs opacity-90">
-                            {dateGroup.date?.split('.')[1] || ''}.{dateGroup.date?.split('.')[2] || ''}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-semibold text-gray-900 dark:text-white text-lg mb-1">
-                              Exam Date: {dateGroup.date}
-                            </h4>
-                            <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                              <span className="flex items-center">
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                </svg>
-                                {dateGroup.subjects.length} Subject{dateGroup.subjects.length !== 1 ? 's' : ''}
-                              </span>
-                              <span className="flex items-center">
-                                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                </svg>
-                                {dateGroup.totalRecords} Candidate{dateGroup.totalRecords !== 1 ? 's' : ''}
-                              </span>
+                  return (
+                    <React.Fragment key={dateGroup.date}>
+                      {/* Date Row */}
+                      <tr
+                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                        onClick={() => toggleDateExpansion(dateGroup.date)}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors">
+                            {isDateExpanded ? (
+                              <ChevronDown className="w-4 h-4 text-gray-500" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-gray-500" />
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-mono">
+                          {String(dateIndex + 1).padStart(2, '0')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+                              <div className="text-center">
+                                <div className="text-white font-bold text-sm leading-none">
+                                  {dateGroup.date?.split('.')[0] || ''}
+                                </div>
+                                <div className="text-white text-[10px] opacity-90 leading-none mt-0.5">
+                                  {dateGroup.date?.split('.')[1] || ''}
+                                </div>
+                              </div>
                             </div>
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              {dateGroup.date}
+                            </span>
                           </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
+                            {dateGroup.subjects.length} subject{dateGroup.subjects.length !== 1 ? 's' : ''}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                            {dateGroup.totalRecords}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
                               window.open(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/form66/dates/${dateGroup.date}/pdf`, '_blank')
                             }}
-                            className="ml-2 flex-shrink-0 p-2 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors"
+                            className="inline-flex items-center justify-center p-1.5 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors"
                             title="Download PDF"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
+                            <Download className="w-4 h-4" />
                           </button>
-                          <button className="ml-2 flex-shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors">
-                            <svg
-                              className={`w-5 h-5 text-gray-400 transition-transform ${isDateExpanded ? 'rotate-90' : ''}`}
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                        </td>
+                      </tr>
 
-                  {/* Expanded Subjects */}
-                  {isDateExpanded && (
-                    <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-5">
-                      <div className="space-y-3">
-                        {dateGroup.subjects.map((subject, subjectIndex) => {
-                          const subjectKey = `${dateGroup.date}-${subject.code}`
-                          const isSubjectExpanded = expandedSubject === subjectKey
+                      {/* Expanded Subjects Table */}
+                      {isDateExpanded && (
+                        <tr>
+                          <td colSpan={6} className="p-0">
+                            <div className="bg-gray-50 dark:bg-gray-900/50 border-y border-gray-100 dark:border-gray-700">
+                              <table className="min-w-full">
+                                <thead className="bg-gray-100/50 dark:bg-gray-800/50">
+                                  <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-12 pl-16">
+                                      {/* Expand icon */}
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                      Subject Code
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                      Subject Name
+                                    </th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                      Candidates
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                  {dateGroup.subjects.map((subject) => {
+                                    const subjectKey = `${dateGroup.date}-${subject.code}`
+                                    const isSubjectExpanded = expandedSubjects.has(subjectKey)
+                                    const subjectClass = subject.records[0]?.class
+                                    const isClass10 = subjectClass === 'X' || subjectClass === '10th'
 
-                          return (
-                            <div
-                              key={subjectIndex}
-                              className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
-                            >
-                              {/* Subject Header */}
-                              <div
-                                onClick={() => setExpandedSubject(isSubjectExpanded ? null : subjectKey)}
-                                className="p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center flex-1">
-                                    <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-green-400 to-green-600 rounded-lg flex items-center justify-center mr-3">
-                                      <span className="text-white font-bold text-sm">
-                                        {subject.code}
-                                      </span>
-                                    </div>
-                                    <div className="flex-1">
-                                      <h5 className="font-semibold text-gray-900 dark:text-white text-sm">
-                                        {subject.name}
-                                      </h5>
-                                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        {subject.count} candidate{subject.count !== 1 ? 's' : ''} - Subject Code: {subject.code}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  <button className="ml-2 flex-shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors">
-                                    <svg
-                                      className={`w-4 h-4 text-gray-400 transition-transform ${isSubjectExpanded ? 'rotate-90' : ''}`}
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Expanded Roll Numbers */}
-                              {isSubjectExpanded && (
-                                <div className="border-t border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-800">
-                                  <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                      <thead className="bg-gray-100 dark:bg-gray-700">
-                                        <tr>
-                                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Sr No</th>
-                                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Roll No</th>
-                                          <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Class</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                                        {subject.records.map((record, recordIndex) => (
-                                          <tr key={record._id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                                            <td className="px-3 py-2 text-sm text-gray-900 dark:text-white">{recordIndex + 1}</td>
-                                            <td className="px-3 py-2 text-sm font-mono text-gray-900 dark:text-white">{record.rollNo}</td>
-                                            <td className="px-3 py-2 text-sm">
-                                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${record.class === 'X'
-                                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                                : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                                                }`}>
-                                                Class {record.class}
+                                    return (
+                                      <React.Fragment key={subjectKey}>
+                                        {/* Subject Row */}
+                                        <tr
+                                          className={`cursor-pointer transition-colors ${
+                                            isClass10
+                                              ? 'bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                                              : 'bg-violet-50/50 dark:bg-violet-900/10 hover:bg-violet-50 dark:hover:bg-violet-900/20'
+                                          }`}
+                                          onClick={() => toggleSubjectExpansion(subjectKey)}
+                                        >
+                                          <td className="px-6 py-3 whitespace-nowrap pl-16">
+                                            <button className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors">
+                                              {isSubjectExpanded ? (
+                                                <ChevronDown className="w-4 h-4 text-gray-500" />
+                                              ) : (
+                                                <ChevronRight className="w-4 h-4 text-gray-500" />
+                                              )}
+                                            </button>
+                                          </td>
+                                          <td className="px-6 py-3 whitespace-nowrap">
+                                            <span className={`inline-flex items-center justify-center w-12 h-8 rounded-md text-xs font-bold ${
+                                              isClass10
+                                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                                : 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300'
+                                            }`}>
+                                              {subject.code}
+                                            </span>
+                                          </td>
+                                          <td className="px-6 py-3 whitespace-nowrap">
+                                            <div className="flex items-center gap-2">
+                                              <span className={`text-sm font-medium ${
+                                                isClass10
+                                                  ? 'text-emerald-800 dark:text-emerald-300'
+                                                  : 'text-violet-800 dark:text-violet-300'
+                                              }`}>
+                                                {subject.name}
                                               </span>
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                                isClass10
+                                                  ? 'bg-emerald-200 text-emerald-800 dark:bg-emerald-800/50 dark:text-emerald-300'
+                                                  : 'bg-violet-200 text-violet-800 dark:bg-violet-800/50 dark:text-violet-300'
+                                              }`}>
+                                                {subjectClass}
+                                              </span>
+                                            </div>
+                                          </td>
+                                          <td className="px-6 py-3 whitespace-nowrap text-right">
+                                            <span className={`text-sm font-medium ${
+                                              isClass10
+                                                ? 'text-emerald-700 dark:text-emerald-400'
+                                                : 'text-violet-700 dark:text-violet-400'
+                                            }`}>
+                                              {subject.count}
+                                            </span>
+                                          </td>
+                                        </tr>
+
+                                        {/* Expanded Roll Numbers */}
+                                        {isSubjectExpanded && (
+                                          <tr>
+                                            <td colSpan={4} className="p-0">
+                                              <div className="bg-white dark:bg-gray-800 border-y border-gray-100 dark:border-gray-700 pl-24 pr-6 py-3">
+                                                <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                                                  <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                                    <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0">
+                                                      <tr>
+                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-16">Sr</th>
+                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Roll No</th>
+                                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase w-24">Class</th>
+                                                      </tr>
+                                                    </thead>
+                                                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
+                                                      {subject.records.map((record, recordIndex) => (
+                                                        <tr key={record._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                                          <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{recordIndex + 1}</td>
+                                                          <td className="px-4 py-2 text-sm font-mono text-gray-900 dark:text-white">{record.rollNo}</td>
+                                                          <td className="px-4 py-2">
+                                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                                              record.class === 'X' || record.class === '10th'
+                                                                ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                                                                : 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300'
+                                                            }`}>
+                                                              {record.class}
+                                                            </span>
+                                                          </td>
+                                                        </tr>
+                                                      ))}
+                                                    </tbody>
+                                                  </table>
+                                                </div>
+                                              </div>
                                             </td>
                                           </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </div>
-                              )}
+                                        )}
+                                      </React.Fragment>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
                             </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )
-            })}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

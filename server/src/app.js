@@ -31,6 +31,7 @@ const answerSheetRoutes = require('./routes/answerSheets');
 const centreDatesheetRoutes = require('./routes/centreDatesheet');
 const seatingPlanRoutes = require('./routes/seatingPlan');
 const form66Routes = require('./routes/form66');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -136,6 +137,7 @@ app.use('/api/answersheets', answerSheetRoutes);
 app.use('/api/centre-datesheet', centreDatesheetRoutes);
 app.use('/api/seating-plan', seatingPlanRoutes);
 app.use('/api/form66', form66Routes);
+app.use('/api/dashboard', dashboardRoutes);
 // app.use('/api/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 // API documentation endpoint

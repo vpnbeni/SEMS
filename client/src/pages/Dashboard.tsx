@@ -1,7 +1,17 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import dashboardService from '@/services/dashboardService'
+import TodaysExams from '@/components/dashboard/TodaysExams'
 
 const Dashboard: React.FC = () => {
+  const { data: todaysExamsData, isLoading: isLoadingExams, isError: isExamsError } = useQuery({
+    queryKey: ['todaysExams'],
+    queryFn: dashboardService.getTodaysExams,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
+  })
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
 
@@ -18,7 +28,7 @@ const Dashboard: React.FC = () => {
               <div className="ml-4 flex-1">
                 <p className="text-sm font-medium text-secondary-600 dark:text-secondary-400">Total Students</p>
                 <p className="text-3xl font-bold text-secondary-900 dark:text-white">1,250</p>
-                <p className="text-xs text-success-600 dark:text-success-400 mt-1">↗ +12% from last month</p>
+                <p className="text-xs text-success-600 dark:text-success-400 mt-1">+12% from last month</p>
               </div>
             </div>
           </div>
@@ -35,7 +45,7 @@ const Dashboard: React.FC = () => {
               <div className="ml-4 flex-1">
                 <p className="text-sm font-medium text-secondary-600 dark:text-secondary-400">Total Teachers</p>
                 <p className="text-3xl font-bold text-secondary-900 dark:text-white">85</p>
-                <p className="text-xs text-success-600 dark:text-success-400 mt-1">↗ +3 new this month</p>
+                <p className="text-xs text-success-600 dark:text-success-400 mt-1">+3 new this month</p>
               </div>
             </div>
           </div>
@@ -76,6 +86,13 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Today's Exams Overview */}
+      <TodaysExams
+        data={todaysExamsData}
+        isLoading={isLoadingExams}
+        isError={isExamsError}
+      />
+
       {/* Recent Activity and Quick Actions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Activity Card */}
@@ -97,11 +114,11 @@ const Dashboard: React.FC = () => {
                     New teacher registration
                   </p>
                   <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                    John Smith joined Mathematics Department • 2 hours ago
+                    John Smith joined Mathematics Department - 2 hours ago
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex items-start space-x-3 p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50 border-l-4 border-success-500">
                 <div className="flex-shrink-0 w-2 h-2 bg-success-500 rounded-full mt-2"></div>
                 <div className="flex-1 min-w-0">
@@ -109,7 +126,7 @@ const Dashboard: React.FC = () => {
                     Date sheet published
                   </p>
                   <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                    Final exam schedule for Grade 12 • 4 hours ago
+                    Final exam schedule for Grade 12 - 4 hours ago
                   </p>
                 </div>
               </div>
@@ -121,12 +138,12 @@ const Dashboard: React.FC = () => {
                     Room allocation updated
                   </p>
                   <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                    Physics exam moved to Hall A • 6 hours ago
+                    Physics exam moved to Hall A - 6 hours ago
                   </p>
                 </div>
               </div>
             </div>
-            
+
             <div className="mt-6">
               <button className="btn btn-outline w-full" onClick={() => console.log('View All Activities - Feature coming soon')}>
                 View All Activities
