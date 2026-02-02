@@ -70,4 +70,51 @@ const form66Schema = new mongoose.Schema({
 form66Schema.index({ examDate: 1, subjectCode: 1 });
 form66Schema.index({ rollNo: 1 });
 
-module.exports = mongoose.model('Form66', form66Schema);
+// Schema for tracking uploaded Form 66 files
+const form66UploadSchema = new mongoose.Schema({
+  originalFileName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  originalFileUrl: {
+    type: String,
+    trim: true
+  },
+  originalFilePublicId: {
+    type: String,
+    trim: true
+  },
+  processedPdfUrl: {
+    type: String,
+    trim: true
+  },
+  processedPdfPublicId: {
+    type: String,
+    trim: true
+  },
+  recordCount: {
+    type: Number,
+    default: 0
+  },
+  dateCount: {
+    type: Number,
+    default: 0
+  },
+  status: {
+    type: String,
+    enum: ['processing', 'completed', 'failed'],
+    default: 'processing'
+  },
+  errorMessage: {
+    type: String,
+    trim: true
+  }
+}, {
+  timestamps: true
+});
+
+const Form66 = mongoose.model('Form66', form66Schema);
+const Form66Upload = mongoose.model('Form66Upload', form66UploadSchema);
+
+module.exports = { Form66, Form66Upload };

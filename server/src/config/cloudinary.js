@@ -111,6 +111,43 @@ const deleteRawFromCloudinary = async (publicId) => {
 };
 
 /**
+ * Upload Form 66 file (TXT or PDF) to Cloudinary
+ * @param {Buffer} buffer - File buffer
+ * @param {string} filename - Original filename
+ * @param {string} type - 'original' for TXT or 'processed' for PDF
+ * @returns {Promise<Object>} - { url, publicId }
+ */
+const uploadForm66ToCloudinary = async (buffer, filename, type = 'original') => {
+  try {
+    const folder = 'sems/form66';
+    const timestamp = Date.now();
+    const baseName = filename.replace(/\.[^/.]+$/, ''); // Remove extension
+    const publicId = `${baseName}_${type}_${timestamp}`;
+
+    const options = {
+      folder,
+      resource_type: 'raw',
+      public_id: publicId,
+    };
+
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload_stream(options, (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }).end(buffer);
+    });
+
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+    };
+  } catch (error) {
+    console.error('Cloudinary Form 66 upload error:', error);
+    throw new Error('Failed to upload Form 66 file to Cloudinary');
+  }
+};
+
+/**
  * Extract public ID from Cloudinary URL
  * @param {string} url - Cloudinary URL
  * @returns {string|null} - Public ID or null
@@ -148,4 +185,5 @@ module.exports = {
   extractPublicId,
   uploadDocumentToCloudinary,
   deleteRawFromCloudinary,
+  uploadForm66ToCloudinary,
 };

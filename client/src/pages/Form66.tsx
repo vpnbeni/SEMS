@@ -24,25 +24,48 @@ interface SubjectGroup {
   count: number
 }
 
+interface UploadResponse {
+  message: string
+  count: number
+  dateCount?: number
+  dates?: string[]
+  originalFileUrl?: string
+  processedPdfUrl?: string
+  uploadId?: string
+}
+
+type ProcessingStep = 'idle' | 'uploading' | 'converting' | 'analyzing' | 'saving' | 'complete' | 'error'
+
+const processingSteps: { step: ProcessingStep; label: string }[] = [
+  { step: 'uploading', label: 'Uploading file to cloud...' },
+  { step: 'converting', label: 'Converting to PDF...' },
+  { step: 'analyzing', label: 'Analyzing and rearranging by date...' },
+  { step: 'saving', label: 'Saving records to database...' },
+  { step: 'complete', label: 'Processing complete!' }
+]
+
 const Form66: React.FC = () => {
   const [uploading, setUploading] = useState(false)
+  const [processingStep, setProcessingStep] = useState<ProcessingStep>('idle')
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null)
-  const [_pastedText, _setPastedText] = useState('')
   const [records, setRecords] = useState<Form66Record[]>([])
   const [dateGroups, setDateGroups] = useState<DateGroup[]>([])
   const [loadingRecords, setLoadingRecords] = useState(false)
   const [expandedDate, setExpandedDate] = useState<string | null>(null)
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null)
+  const [originalFileUrl, setOriginalFileUrl] = useState<string | null>(null)
+  const [processedPdfUrl, setProcessedPdfUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetchRecords()
+    fetchFileUrls()
   }, [])
 
   const fetchRecords = async () => {
     try {
       setLoadingRecords(true)
-      const response = await fetch('http://localhost:5000/api/form66/records')
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/form66/records`)
       const data = await response.json()
       setRecords(data)
 
@@ -53,6 +76,28 @@ const Form66: React.FC = () => {
       console.error('Failed to fetch records:', error)
     } finally {
       setLoadingRecords(false)
+    }
+  }
+
+  const fetchFileUrls = async () => {
+    try {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+
+      // Fetch processed PDF URL
+      const pdfResponse = await fetch(`${baseUrl}/form66/processed-pdf`)
+      if (pdfResponse.ok) {
+        const pdfData = await pdfResponse.json()
+        setProcessedPdfUrl(pdfData.url)
+      }
+
+      // Fetch original file URL
+      const originalResponse = await fetch(`${baseUrl}/form66/original-file`)
+      if (originalResponse.ok) {
+        const originalData = await originalResponse.json()
+        setOriginalFileUrl(originalData.url)
+      }
+    } catch (error) {
+      console.error('Failed to fetch file URLs:', error)
     }
   }
 
@@ -121,84 +166,63 @@ const Form66: React.FC = () => {
     fileInputRef.current?.click()
   }
 
-  // Paste submit handler (commented out - paste feature currently disabled)
-  // const handlePasteSubmit = async () => {
-  //   if (!pastedText.trim()) return
-
-  //   try {
-  //     setUploading(true)
-  //     setUploadStatus(null)
-
-  //     const response = await fetch('http://localhost:5000/api/form66/paste', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json'
-  //       },
-  //       body: JSON.stringify({ content: pastedText })
-  //     })
-
-  //     const data = await response.json()
-
-  //     if (response.ok) {
-  //       setUploadStatus({ 
-  //         type: 'success', 
-  //         message: `Successfully imported! Processed ${data.count || 0} records.` 
-  //       })
-  //       setPastedText('')
-  //       fetchRecords() // Refresh the records table
-  //     } else {
-  //       setUploadStatus({ 
-  //         type: 'error', 
-  //         message: data.message || 'Import failed' 
-  //       })
-  //     }
-  //   } catch (error) {
-  //     console.error('Paste import error:', error)
-  //     setUploadStatus({ 
-  //       type: 'error', 
-  //       message: 'Failed to import data. Please try again.' 
-  //     })
-  //   } finally {
-  //     setUploading(false)
-  //   }
-  // }
+  const simulateProcessingSteps = async () => {
+    // Simulate step progression for better UX
+    const steps: ProcessingStep[] = ['uploading', 'converting', 'analyzing', 'saving']
+    for (const step of steps) {
+      setProcessingStep(step)
+      await new Promise(resolve => setTimeout(resolve, 800))
+    }
+  }
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    // Validate file type - check both extension and MIME type
-    const isPdfFile = file.name.toLowerCase().endsWith('.pdf') ||
-      file.type === 'application/pdf'
+    // Validate file type - only TXT files now
     const isTxtFile = file.name.toLowerCase().endsWith('.txt') ||
       file.type === 'text/plain'
 
-    if (!isPdfFile && !isTxtFile) {
-      setUploadStatus({ type: 'error', message: `Please select a .txt or .pdf file. Selected: ${file.name}` })
+    if (!isTxtFile) {
+      setUploadStatus({ type: 'error', message: `Please select a .txt file. Selected: ${file.name}` })
       return
     }
 
     try {
       setUploading(true)
       setUploadStatus(null)
+      setProcessingStep('uploading')
 
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('http://localhost:5000/api/form66/upload', {
+      // Start simulating steps in parallel with actual upload
+      const stepPromise = simulateProcessingSteps()
+
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/form66/upload`, {
         method: 'POST',
         body: formData
       })
 
-      const data = await response.json()
+      // Wait for step simulation to finish
+      await stepPromise
+
+      const data: UploadResponse = await response.json()
 
       if (response.ok) {
+        setProcessingStep('complete')
         setUploadStatus({
           type: 'success',
-          message: `Successfully uploaded! Processed ${data.count || 0} records.`
+          message: `Successfully uploaded! Processed ${data.count || 0} records across ${data.dateCount || 0} exam dates.`
         })
+
+        // Update file URLs
+        if (data.originalFileUrl) setOriginalFileUrl(data.originalFileUrl)
+        if (data.processedPdfUrl) setProcessedPdfUrl(data.processedPdfUrl)
+
         fetchRecords() // Refresh the records table
       } else {
+        setProcessingStep('error')
         setUploadStatus({
           type: 'error',
           message: data.message || 'Upload failed'
@@ -206,6 +230,7 @@ const Form66: React.FC = () => {
       }
     } catch (error) {
       console.error('Upload error:', error)
+      setProcessingStep('error')
       setUploadStatus({
         type: 'error',
         message: 'Failed to upload file. Please try again.'
@@ -215,7 +240,13 @@ const Form66: React.FC = () => {
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
+      // Reset processing step after a delay
+      setTimeout(() => setProcessingStep('idle'), 3000)
     }
+  }
+
+  const getCurrentStepIndex = () => {
+    return processingSteps.findIndex(s => s.step === processingStep)
   }
 
   return (
@@ -227,39 +258,116 @@ const Form66: React.FC = () => {
             Form 66
           </h1>
           <p className="mt-1 text-sm text-secondary-500 dark:text-secondary-400">
-            Upload and manage Form 66 records
+            Upload and manage Form 66 records (Cloud-based)
           </p>
         </div>
-        <button
-          onClick={handleFileSelect}
-          disabled={uploading}
-          className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {uploading ? (
-            <>
-              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Uploading...
-            </>
-          ) : (
-            <>
+        <div className="flex gap-3">
+          {/* Download Buttons */}
+          {processedPdfUrl && (
+            <a
+              href={processedPdfUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary flex items-center"
+            >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              Upload Form 66 (.txt)
-            </>
+              Download PDF
+            </a>
           )}
-        </button>
+          {originalFileUrl && (
+            <a
+              href={originalFileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-secondary flex items-center"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Original TXT
+            </a>
+          )}
+          <button
+            onClick={handleFileSelect}
+            disabled={uploading}
+            className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {uploading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Processing...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                Upload Form 66 (.txt)
+              </>
+            )}
+          </button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".txt,.pdf,text/plain,application/pdf"
+          accept=".txt,text/plain"
           onChange={handleFileChange}
           className="hidden"
         />
       </div>
+
+      {/* Processing Steps */}
+      {processingStep !== 'idle' && processingStep !== 'error' && (
+        <div className="glass rounded-xl p-6 border border-secondary-200 dark:border-secondary-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+            Processing Status
+          </h3>
+          <div className="space-y-3">
+            {processingSteps.map((step, index) => {
+              const currentIndex = getCurrentStepIndex()
+              const isComplete = index < currentIndex || processingStep === 'complete'
+              const isCurrent = index === currentIndex && processingStep !== 'complete'
+
+              return (
+                <div key={step.step} className="flex items-center gap-3">
+                  <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${isComplete
+                    ? 'bg-green-500'
+                    : isCurrent
+                      ? 'bg-blue-500'
+                      : 'bg-gray-300 dark:bg-gray-600'
+                    }`}>
+                    {isComplete ? (
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : isCurrent ? (
+                      <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    ) : (
+                      <span className="text-white text-xs">{index + 1}</span>
+                    )}
+                  </div>
+                  <span className={`text-sm ${isComplete
+                    ? 'text-green-600 dark:text-green-400'
+                    : isCurrent
+                      ? 'text-blue-600 dark:text-blue-400 font-medium'
+                      : 'text-gray-400 dark:text-gray-500'
+                    }`}>
+                    {step.label}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Upload Status */}
       {uploadStatus && (
@@ -291,39 +399,22 @@ const Form66: React.FC = () => {
         </div>
       )}
 
-      {/* Paste Text Area - Hidden for PDF workflow */}
-      {/* <div className="glass rounded-xl p-6 border border-secondary-200 dark:border-secondary-700">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Or Paste Form 66 Text
-        </h3>
-        <p className="text-sm text-secondary-600 dark:text-secondary-400 mb-4">
-          Open your Form 66 .txt file, copy all the text, and paste it below:
-        </p>
-        <textarea
-          value={pastedText}
-          onChange={(e) => setPastedText(e.target.value)}
-          placeholder="Paste Form 66 text content here..."
-          className="w-full h-64 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono text-sm"
-        />
-        <button
-          onClick={handlePasteSubmit}
-          disabled={uploading || !pastedText.trim()}
-          className="mt-4 btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {uploading ? 'Processing...' : 'Import Form 66 Data'}
-        </button>
-      </div> */}
-
       {/* Instructions */}
       <div className="glass rounded-xl p-6 border border-secondary-200 dark:border-secondary-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
           Instructions
         </h3>
         <div className="space-y-3 text-sm text-secondary-600 dark:text-secondary-400">
-          <p><strong>Upload TXT or PDF File</strong></p>
+          <p><strong>Upload Form 66 TXT File</strong></p>
           <p>1. Click the "Upload Form 66 (.txt)" button above</p>
-          <p>2. Select your Form 66 TXT or PDF file from your computer</p>
-          <p>3. The system will automatically extract and parse the data</p>
+          <p>2. Select your Form 66 TXT file from your computer</p>
+          <p>3. The system will:</p>
+          <ul className="list-disc list-inside ml-4 space-y-1">
+            <li>Upload to secure cloud storage</li>
+            <li>Convert to PDF format</li>
+            <li>Rearrange pages by exam date (matching datesheet)</li>
+          </ul>
+          <p>4. View and download the rearranged Form 66</p>
         </div>
 
         <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -331,7 +422,7 @@ const Form66: React.FC = () => {
             What is Form 66?
           </h4>
           <p className="text-sm text-blue-800 dark:text-blue-300">
-            Form 66 contains the official list of roll numbers for each exam. This data is used to generate accurate seating plans.
+            Form 66 contains the official list of roll numbers for each exam. This data is used to generate accurate seating plans. The system automatically rearranges Form 66 pages in chronological order by exam date.
           </p>
         </div>
       </div>
@@ -473,7 +564,7 @@ const Form66: React.FC = () => {
                                         {subject.name}
                                       </h5>
                                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        {subject.count} candidate{subject.count !== 1 ? 's' : ''} • Subject Code: {subject.code}
+                                        {subject.count} candidate{subject.count !== 1 ? 's' : ''} - Subject Code: {subject.code}
                                       </p>
                                     </div>
                                   </div>

@@ -14,6 +14,15 @@ router.get('/records', form66Controller.getForm66Records);
 // Get unique exam dates
 router.get('/dates', form66Controller.getForm66Dates);
 
+// Get the latest processed PDF URL
+router.get('/processed-pdf', form66Controller.getProcessedPdf);
+
+// Get the latest original TXT file URL
+router.get('/original-file', form66Controller.getOriginalFile);
+
+// Get upload history
+router.get('/upload-history', form66Controller.getUploadHistory);
+
 // Get subjects for a specific date
 router.get('/dates/:date/subjects', form66Controller.getForm66SubjectsByDate);
 

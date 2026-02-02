@@ -1,16 +1,21 @@
-const Form66 = require('../models/Form66');
+const { Form66, Form66Upload } = require('../models/Form66');
 const form66Parser = require('../utils/form66Parser');
 const { generateForm66HTML, recordsToRollRanges } = require('../utils/form66PDFTemplate');
+const { convertTxtToPdf, splitIntoPages } = require('../utils/form66TxtToPdf');
+const { processAndReorderContent } = require('../utils/form66PdfReorderer');
+const { uploadForm66ToCloudinary } = require('../config/cloudinary');
 const fs = require('fs').promises;
-const pdf = require('pdf-parse');
 const puppeteer = require('puppeteer');
+const https = require('https');
+const http = require('http');
 
-// Upload Form 66 text file
+// Upload Form 66 text file (Cloud-based workflow)
 exports.uploadForm66 = async (req, res) => {
   let tempFilePath = null;
+  let uploadRecord = null;
 
   try {
-    console.log('📄 Form 66 upload request received');
+    console.log('📄 Form 66 upload request received (Cloud-based workflow)');
 
     if (!req.files || !req.files.file) {
       console.log('❌ No file in request');
@@ -22,49 +27,76 @@ exports.uploadForm66 = async (req, res) => {
 
     console.log(`📁 File received: ${file.name} (${file.mimetype})`);
 
-    // Check file type - accept both PDF and TXT files
-    const isPdfFile = file.name.toLowerCase().endsWith('.pdf') ||
-      file.mimetype === 'application/pdf';
+    // Only accept TXT files
     const isTxtFile = file.name.toLowerCase().endsWith('.txt') ||
       file.mimetype === 'text/plain';
 
-    if (!isPdfFile && !isTxtFile) {
+    if (!isTxtFile) {
       console.log(`❌ Invalid file type: ${file.name} (${file.mimetype})`);
       return res.status(400).json({
-        message: `Only .pdf or .txt files are allowed. Received: ${file.name} (${file.mimetype})`
+        message: `Only .txt files are allowed. Received: ${file.name} (${file.mimetype})`
       });
     }
 
-    let content;
+    // Create upload record to track progress
+    uploadRecord = await Form66Upload.create({
+      originalFileName: file.name,
+      status: 'processing'
+    });
 
-    if (isPdfFile) {
-      // Read and parse PDF file
-      console.log('📖 Reading PDF file...');
-      const dataBuffer = await fs.readFile(tempFilePath);
-      const pdfData = await pdf(dataBuffer);
-      content = pdfData.text;
-      console.log(`📄 Extracted text from PDF: ${content.length} characters`);
-    } else {
-      // Read TXT file directly
-      console.log('📖 Reading TXT file...');
-      content = await fs.readFile(tempFilePath, 'utf-8');
-      console.log(`📄 Read TXT file: ${content.length} characters`);
-    }
+    // Step 1: Read TXT file
+    console.log('📖 Step 1: Reading TXT file...');
+    const content = await fs.readFile(tempFilePath, 'utf-8');
+    console.log(`📄 Read TXT file: ${content.length} characters`);
 
-    // Parse the content
-    console.log('🔍 Parsing Form 66 content...');
+    // Step 2: Upload original TXT to Cloudinary
+    console.log('☁️  Step 2: Uploading original TXT to Cloudinary...');
+    const txtBuffer = Buffer.from(content, 'utf-8');
+    const originalUpload = await uploadForm66ToCloudinary(txtBuffer, file.name, 'original');
+    uploadRecord.originalFileUrl = originalUpload.url;
+    uploadRecord.originalFilePublicId = originalUpload.publicId;
+    console.log(`✅ Original TXT uploaded: ${originalUpload.url}`);
+
+    // Step 3: Reorder pages by date
+    console.log('🔄 Step 3: Analyzing and reordering pages by date...');
+    const { reorderedContent, summary } = processAndReorderContent(content);
+    console.log(`📊 Analysis: ${summary.uniqueDates} dates, ${summary.uniqueSubjects} subjects`);
+
+    // Step 4: Convert reordered TXT to PDF
+    console.log('📄 Step 4: Converting to PDF...');
+    const pdfBuffer = await convertTxtToPdf(reorderedContent);
+    console.log(`✅ PDF generated: ${pdfBuffer.length} bytes`);
+
+    // Step 5: Upload reordered PDF to Cloudinary
+    console.log('☁️  Step 5: Uploading reordered PDF to Cloudinary...');
+    const pdfUpload = await uploadForm66ToCloudinary(pdfBuffer, file.name.replace('.txt', '.pdf'), 'processed');
+    uploadRecord.processedPdfUrl = pdfUpload.url;
+    uploadRecord.processedPdfPublicId = pdfUpload.publicId;
+    console.log(`✅ Processed PDF uploaded: ${pdfUpload.url}`);
+
+    // Step 6: Parse content and save to database
+    console.log('🔍 Step 6: Parsing Form 66 content...');
     const records = form66Parser.parseTextFile(content);
     console.log(`✅ Parsed ${records.length} records`);
 
     if (records.length === 0) {
+      uploadRecord.status = 'failed';
+      uploadRecord.errorMessage = 'No valid records found in file';
+      await uploadRecord.save();
       console.log('❌ No valid records found');
       return res.status(400).json({ message: 'No valid records found in file' });
     }
 
-    // Save records to database
-    console.log('💾 Saving records to database...');
+    // Step 7: Save records to database
+    console.log('💾 Step 7: Saving records to database...');
     const savedRecords = await Form66.insertMany(records);
     console.log(`✅ Saved ${savedRecords.length} records`);
+
+    // Update upload record
+    uploadRecord.recordCount = savedRecords.length;
+    uploadRecord.dateCount = summary.uniqueDates;
+    uploadRecord.status = 'completed';
+    await uploadRecord.save();
 
     // Clean up temp file
     if (tempFilePath) {
@@ -72,12 +104,24 @@ exports.uploadForm66 = async (req, res) => {
     }
 
     res.status(200).json({
-      message: 'Form 66 uploaded successfully',
+      message: 'Form 66 uploaded and processed successfully',
       count: savedRecords.length,
+      dateCount: summary.uniqueDates,
+      dates: summary.dates,
+      originalFileUrl: uploadRecord.originalFileUrl,
+      processedPdfUrl: uploadRecord.processedPdfUrl,
+      uploadId: uploadRecord._id,
       records: savedRecords.slice(0, 10) // Only return first 10 for preview
     });
   } catch (error) {
     console.error('❌ Upload Form 66 Error:', error);
+
+    // Update upload record on error
+    if (uploadRecord) {
+      uploadRecord.status = 'failed';
+      uploadRecord.errorMessage = error.message;
+      await uploadRecord.save().catch(() => { });
+    }
 
     // Clean up temp file on error
     if (tempFilePath) {
@@ -200,96 +244,91 @@ exports.getForm66SubjectsByDate = async (req, res) => {
   }
 };
 
-// Generate PDF for a specific date
-exports.generateForm66PDF = async (req, res) => {
-  let browser = null;
+/**
+ * Fetch content from a URL (http or https)
+ * @param {string} url - The URL to fetch
+ * @returns {Promise<string>} - The content as a string
+ */
+function fetchFromUrl(url) {
+  return new Promise((resolve, reject) => {
+    const client = url.startsWith('https') ? https : http;
 
+    client.get(url, (response) => {
+      // Handle redirects
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        return fetchFromUrl(response.headers.location).then(resolve).catch(reject);
+      }
+
+      if (response.statusCode !== 200) {
+        return reject(new Error(`Failed to fetch: ${response.statusCode}`));
+      }
+
+      let data = '';
+      response.on('data', chunk => { data += chunk; });
+      response.on('end', () => resolve(data));
+      response.on('error', reject);
+    }).on('error', reject);
+  });
+}
+
+// Generate PDF for a specific date - preserves original formatting from TXT file
+exports.generateForm66PDF = async (req, res) => {
   try {
     const { date } = req.params;
-    console.log(`📄 Generating Form 66 PDF for date: ${date}`);
+    console.log(`📄 Generating Form 66 PDF for date: ${date} (preserving original format)`);
 
-    // Fetch all records for this date
-    const records = await Form66.find({ examDate: date, isActive: true });
-
-    if (records.length === 0) {
+    // First, check if we have records for this date
+    const recordCount = await Form66.countDocuments({ examDate: date, isActive: true });
+    if (recordCount === 0) {
       return res.status(404).json({ message: 'No records found for this date' });
     }
 
-    // Get centre info from first record
-    const centreNo = records[0].centreNo;
-    const centreName = records[0].centreName;
+    // Fetch the latest completed upload to get the original TXT content
+    const latestUpload = await Form66Upload.findOne({ status: 'completed' })
+      .sort({ createdAt: -1 });
 
-    // Detect exam type from first record class
-    const examType = records[0].class === 'X' ? 'SECONDARY' : 'SR SECONDARY';
-
-    // Group records by subject
-    const subjectMap = new Map();
-
-    for (const record of records) {
-      const key = `${record.subjectCode}-${record.subject}`;
-      if (!subjectMap.has(key)) {
-        subjectMap.set(key, {
-          code: record.subjectCode,
-          name: record.subject,
-          records: []
-        });
-      }
-      subjectMap.get(key).records.push(record);
+    if (!latestUpload || !latestUpload.originalFileUrl) {
+      return res.status(404).json({
+        message: 'Original TXT file not found. Please re-upload the Form 66 file.'
+      });
     }
 
-    // Convert to subjects array with roll ranges
-    const subjects = Array.from(subjectMap.values()).map(subject => ({
-      code: subject.code,
-      name: subject.name,
-      rollRanges: recordsToRollRanges(subject.records),
-      totalCount: subject.records.length
-    }));
+    console.log(`📥 Fetching original TXT from: ${latestUpload.originalFileUrl}`);
 
-    // Sort subjects by code
-    subjects.sort((a, b) => a.code.localeCompare(b.code));
+    // Fetch the original TXT content from Cloudinary
+    const originalContent = await fetchFromUrl(latestUpload.originalFileUrl);
+    console.log(`📄 Fetched ${originalContent.length} characters`);
 
-    // Generate HTML
-    const html = generateForm66HTML({
-      examDate: date,
-      centreNo,
-      centreName,
-      examType,
-      subjects
-    });
+    // Split into pages and extract info
+    const allPages = splitIntoPages(originalContent);
+    console.log(`📄 Total pages in file: ${allPages.length}`);
 
-    // Generate PDF using puppeteer
-    console.log('🖨️ Launching puppeteer...');
-    browser = await puppeteer.launch({
-      headless: 'new',
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+    // Filter pages that match the requested date
+    const filteredPages = allPages.filter(page => page.date === date);
+    console.log(`📄 Pages matching date ${date}: ${filteredPages.length}`);
 
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    if (filteredPages.length === 0) {
+      return res.status(404).json({
+        message: `No pages found for date ${date} in the original file`
+      });
+    }
 
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
-    });
+    // Reconstruct TXT content from filtered pages (preserving original formatting)
+    const filteredContent = filteredPages.map(p => p.content).join('\f');
 
-    await browser.close();
-    browser = null;
-
+    // Convert to PDF using the original content (preserving exact formatting)
+    console.log('📄 Converting filtered pages to PDF...');
+    const pdfBuffer = await convertTxtToPdf(filteredContent);
     console.log(`✅ PDF generated: ${pdfBuffer.length} bytes`);
 
     // Send PDF as response
     res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', pdfBuffer.length);
     res.setHeader('Content-Disposition', `attachment; filename="Form66_${date.replace(/\./g, '-')}.pdf"`);
-    res.send(pdfBuffer);
+    res.end(Buffer.from(pdfBuffer));
 
   } catch (error) {
     console.error('Generate Form 66 PDF Error:', error);
-
-    if (browser) {
-      await browser.close().catch(() => { });
-    }
-
     res.status(500).json({
       message: 'Failed to generate PDF',
       error: error.message
@@ -330,6 +369,9 @@ exports.clearAllForm66Records = async (req, res) => {
 
     const result = await Form66.deleteMany({});
     console.log(`✅ Deleted ${result.deletedCount} records`);
+
+    // Also clear upload records
+    await Form66Upload.deleteMany({});
 
     res.json({
       message: 'All Form 66 records cleared successfully',
@@ -382,6 +424,71 @@ exports.pasteForm66 = async (req, res) => {
     console.error('❌ Paste Form 66 Error:', error);
     res.status(500).json({
       message: 'Failed to import Form 66',
+      error: error.message
+    });
+  }
+};
+
+// Get the latest processed PDF URL
+exports.getProcessedPdf = async (req, res) => {
+  try {
+    const latestUpload = await Form66Upload.findOne({ status: 'completed' })
+      .sort({ createdAt: -1 });
+
+    if (!latestUpload || !latestUpload.processedPdfUrl) {
+      return res.status(404).json({ message: 'No processed PDF found' });
+    }
+
+    res.json({
+      url: latestUpload.processedPdfUrl,
+      fileName: latestUpload.originalFileName.replace('.txt', '.pdf'),
+      uploadedAt: latestUpload.createdAt
+    });
+  } catch (error) {
+    console.error('Get Processed PDF Error:', error);
+    res.status(500).json({
+      message: 'Failed to fetch processed PDF',
+      error: error.message
+    });
+  }
+};
+
+// Get the latest original TXT file URL
+exports.getOriginalFile = async (req, res) => {
+  try {
+    const latestUpload = await Form66Upload.findOne({ status: 'completed' })
+      .sort({ createdAt: -1 });
+
+    if (!latestUpload || !latestUpload.originalFileUrl) {
+      return res.status(404).json({ message: 'No original file found' });
+    }
+
+    res.json({
+      url: latestUpload.originalFileUrl,
+      fileName: latestUpload.originalFileName,
+      uploadedAt: latestUpload.createdAt
+    });
+  } catch (error) {
+    console.error('Get Original File Error:', error);
+    res.status(500).json({
+      message: 'Failed to fetch original file',
+      error: error.message
+    });
+  }
+};
+
+// Get upload history
+exports.getUploadHistory = async (req, res) => {
+  try {
+    const uploads = await Form66Upload.find()
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    res.json(uploads);
+  } catch (error) {
+    console.error('Get Upload History Error:', error);
+    res.status(500).json({
+      message: 'Failed to fetch upload history',
       error: error.message
     });
   }
