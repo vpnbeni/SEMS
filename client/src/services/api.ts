@@ -7,6 +7,9 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 // Store reference for Redux dispatch
 let storeDispatch: any = null
 
+// Flag to show session-expired toast only once when multiple requests fail with 401
+let sessionExpiredToastShown = false
+
 // Export function to set store dispatch
 export const setStoreDispatch = (dispatch: any) => {
   storeDispatch = dispatch
@@ -28,6 +31,7 @@ api.interceptors.request.use(
     const token = localStorage.getItem('token')
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
+      sessionExpiredToastShown = false // reset so next session expiry can show one toast
     }
 
     // Add timestamp to prevent caching
@@ -51,7 +55,7 @@ api.interceptors.response.use(
       // Show success toast for certain operations
       const method = response.config.method?.toUpperCase()
       const isModifyingOperation = ['POST', 'PUT', 'DELETE'].includes(method || '')
-      
+
       if (isModifyingOperation && response.data.message) {
         toast.success(response.data.message)
       }
@@ -61,7 +65,7 @@ api.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config
-    
+
     // Handle network errors
     if (!error.response) {
       toast.error('Network error. Please check your connection.')
@@ -87,20 +91,20 @@ api.interceptors.response.use(
         // Unauthorized - try to refresh token or handle auth failure
         if (!originalRequest._retry) {
           originalRequest._retry = true
-          
+
           const refreshToken = localStorage.getItem('refreshToken')
           if (refreshToken) {
             try {
               const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
                 refreshToken,
               })
-              
+
               if (response.data.success) {
                 const newToken = response.data.data.accessToken
                 localStorage.setItem('token', newToken)
                 api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
                 originalRequest.headers.Authorization = `Bearer ${newToken}`
-                
+
                 return api(originalRequest)
               }
             } catch (refreshError) {
@@ -109,17 +113,18 @@ api.interceptors.response.use(
               localStorage.removeItem('refreshToken')
               localStorage.removeItem('user')
               delete api.defaults.headers.common['Authorization']
-              
+
               // Dispatch logout action to Redux store
               if (storeDispatch) {
                 storeDispatch({ type: 'auth/clearCredentials' })
               }
-              
-              // Only show error if not already on login page
-              if (!window.location.pathname.includes('/login')) {
+
+              // Show session-expired toast only once (multiple requests can 401 together)
+              if (!window.location.pathname.includes('/login') && !sessionExpiredToastShown) {
+                sessionExpiredToastShown = true
                 toast.error('Session expired. Please login again.')
               }
-              
+
               return Promise.reject(refreshError)
             }
           } else {
@@ -128,13 +133,14 @@ api.interceptors.response.use(
             localStorage.removeItem('refreshToken')
             localStorage.removeItem('user')
             delete api.defaults.headers.common['Authorization']
-            
+
             // Dispatch logout action to Redux store
             if (storeDispatch) {
               storeDispatch({ type: 'auth/clearCredentials' })
             }
-            
-            if (!window.location.pathname.includes('/login')) {
+
+            if (!window.location.pathname.includes('/login') && !sessionExpiredToastShown) {
+              sessionExpiredToastShown = true
               toast.error('Please login to continue')
             }
           }
@@ -195,7 +201,7 @@ export const uploadFile = async (
 ): Promise<AxiosResponse> => {
   const formData = new FormData()
   formData.append('file', file)
-  
+
   if (additionalData) {
     Object.entries(additionalData).forEach(([key, value]) => {
       formData.append(key, value)
