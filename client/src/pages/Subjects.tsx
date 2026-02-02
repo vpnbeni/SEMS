@@ -8,7 +8,6 @@ import {
   useSubjectStats,
   useCreateSubjectMutation,
   useUpdateSubjectMutation,
-  useDeleteSubjectMutation,
   useImportSubjectsMutation,
 } from '../hooks/useSubjects'
 
@@ -47,7 +46,6 @@ const Subjects: React.FC = () => {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [classFilter, setClassFilter] = useState<SubjectTabId>('all')
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   // Debounce search: update API param after user stops typing
   useEffect(() => {
@@ -76,7 +74,6 @@ const Subjects: React.FC = () => {
 
   const createMutation = useCreateSubjectMutation()
   const updateMutation = useUpdateSubjectMutation()
-  const deleteMutation = useDeleteSubjectMutation()
   const importMutation = useImportSubjectsMutation()
 
   const subjects = data?.data ?? []
@@ -185,52 +182,6 @@ const Subjects: React.FC = () => {
     })
   }
 
-  const toggleSelection = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const selectAllOnPage = () => {
-    const ids = sortedSubjects.map((s) => s._id)
-    const allSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id))
-    if (allSelected) {
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        ids.forEach((id) => next.delete(id))
-        return next
-      })
-    } else {
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        ids.forEach((id) => next.add(id))
-        return next
-      })
-    }
-  }
-
-  const clearSelection = () => setSelectedIds(new Set())
-
-  const handleDeleteSelected = async () => {
-    if (selectedIds.size === 0) return
-    if (!window.confirm(`Delete ${selectedIds.size} selected subject(s)? This cannot be undone.`)) return
-    setError(null)
-    const ids = Array.from(selectedIds)
-    try {
-      await Promise.all(ids.map((id) => deleteMutation.mutateAsync(id)))
-      clearSelection()
-      showSuccess(`${ids.length} subject(s) deleted successfully!`)
-    } catch (err: any) {
-      setError(err?.response?.data?.message ?? err?.message ?? 'Failed to delete some subjects')
-    }
-  }
-
-  const allOnPageSelected = sortedSubjects.length > 0 && sortedSubjects.every((s) => selectedIds.has(s._id))
-  const someOnPageSelected = sortedSubjects.some((s) => selectedIds.has(s._id))
-
   const handleImportSubjects = async (file: File) => {
     setError(null)
     importMutation.mutate(file, {
@@ -335,15 +286,6 @@ const Subjects: React.FC = () => {
             ariaLabel="Subject views"
           />
           <div className="flex gap-3 shrink-0">
-            {selectedIds.size > 0 && (
-              <button
-                onClick={handleDeleteSelected}
-                disabled={deleteMutation.isPending}
-                className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-700 shadow-sm text-sm font-medium rounded-lg text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50"
-              >
-                Delete {selectedIds.size} selected
-              </button>
-            )}
             <button
               onClick={() => setShowImportModal(true)}
               className="inline-flex items-center px-4 py-2 border border-blue-600 shadow-sm text-sm font-medium rounded-lg text-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
@@ -369,20 +311,6 @@ const Subjects: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-12">
-                  <label className="flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={allOnPageSelected}
-                      ref={(el) => {
-                        if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected
-                      }}
-                      onChange={selectAllOnPage}
-                      className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
-                      aria-label="Select all on page"
-                    />
-                  </label>
-                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   <button onClick={() => handleSort('code')} className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none">
                     <span>Sub Code</span>
@@ -428,7 +356,7 @@ const Subjects: React.FC = () => {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex justify-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
@@ -437,13 +365,13 @@ const Subjects: React.FC = () => {
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
                       <svg className="mx-auto h-12 w-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       <p className="mt-2 text-sm text-red-500">{error}</p>
-                      <button 
+                      <button
                         onClick={() => refetch()}
                         className="mt-4 btn btn-primary"
                       >
@@ -454,7 +382,7 @@ const Subjects: React.FC = () => {
                 </tr>
               ) : sortedSubjects.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center">
                       <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -470,81 +398,64 @@ const Subjects: React.FC = () => {
                 </tr>
               ) : (
                 sortedSubjects.map((subject) => (
-                  <tr key={subject._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                    subject.class === '10th' 
-                      ? 'bg-green-50 dark:bg-green-900/20' 
-                      : subject.class === '12th' 
-                      ? 'bg-purple-50 dark:bg-purple-900/20' 
-                      : ''
-                  }`}>
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <label className="flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedIds.has(subject._id)}
-                          onChange={() => toggleSelection(subject._id)}
-                          className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
-                          aria-label={`Select ${subject.name}`}
-                        />
-                      </label>
-                    </td>
+                  <tr key={subject._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${subject.class === '10th'
+                      ? 'bg-green-50 dark:bg-green-900/20'
+                      : subject.class === '12th'
+                        ? 'bg-purple-50 dark:bg-purple-900/20'
+                        : ''
+                    }`}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-medium ${
-                        subject.class === '10th'
+                      <div className={`text-sm font-medium ${subject.class === '10th'
                           ? 'text-green-800 dark:text-green-300'
                           : subject.class === '12th'
-                          ? 'text-purple-800 dark:text-purple-300'
-                          : 'text-gray-900 dark:text-white'
-                      }`}>
+                            ? 'text-purple-800 dark:text-purple-300'
+                            : 'text-gray-900 dark:text-white'
+                        }`}>
                         {subject.code}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-medium ${
-                        subject.class === '10th'
+                      <div className={`text-sm font-medium ${subject.class === '10th'
                           ? 'text-green-800 dark:text-green-300'
                           : subject.class === '12th'
-                          ? 'text-purple-800 dark:text-purple-300'
-                          : 'text-gray-900 dark:text-white'
-                      }`}>
+                            ? 'text-purple-800 dark:text-purple-300'
+                            : 'text-gray-900 dark:text-white'
+                        }`}>
                         {subject.name}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-semibold ${
-                        subject.class === '10th'
+                      <div className={`text-sm font-semibold ${subject.class === '10th'
                           ? 'text-green-700 dark:text-green-400'
                           : subject.class === '12th'
-                          ? 'text-purple-700 dark:text-purple-400'
-                          : 'text-gray-900 dark:text-white'
-                      }`}>
+                            ? 'text-purple-700 dark:text-purple-400'
+                            : 'text-gray-900 dark:text-white'
+                        }`}>
                         {subject.class}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm ${
-                        subject.class === '10th'
+                      <div className={`text-sm ${subject.class === '10th'
                           ? 'text-green-700 dark:text-green-400'
                           : subject.class === '12th'
-                          ? 'text-purple-700 dark:text-purple-400'
-                          : 'text-gray-900 dark:text-white'
-                      }`}>
+                            ? 'text-purple-700 dark:text-purple-400'
+                            : 'text-gray-900 dark:text-white'
+                        }`}>
                         {subject.duration ? `${subject.duration} ${subject.duration === 1 ? 'Hour' : 'Hours'}` : 'N/A'}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm ${
-                        subject.class === '10th'
+                      <div className={`text-sm ${subject.class === '10th'
                           ? 'text-green-700 dark:text-green-400'
                           : subject.class === '12th'
-                          ? 'text-purple-700 dark:text-purple-400'
-                          : 'text-gray-900 dark:text-white'
-                      }`}>{
-                        subject.answerSheet === '32_pages' ? '32 Pages' :
-                        subject.answerSheet === '20_pages' ? '20 Pages' :
-                        subject.answerSheet === '40_graph' ? '40 Graph' :
-                        subject.answerSheet === 'none' ? 'None' : '—'
-                      }</div>
+                            ? 'text-purple-700 dark:text-purple-400'
+                            : 'text-gray-900 dark:text-white'
+                        }`}>{
+                          subject.answerSheet === '32_pages' ? '32 Pages' :
+                            subject.answerSheet === '20_pages' ? '20 Pages' :
+                              subject.answerSheet === '40_graph' ? '40 Graph' :
+                                subject.answerSheet === 'none' ? 'None' : '—'
+                        }</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium align-middle">
                       <button
@@ -557,8 +468,8 @@ const Subjects: React.FC = () => {
                           ${subject.class === '10th'
                             ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200/70 dark:hover:bg-emerald-800/40 hover:text-emerald-800 dark:hover:text-emerald-300'
                             : subject.class === '12th'
-                            ? 'text-violet-600 dark:text-violet-400 hover:bg-violet-200/70 dark:hover:bg-violet-800/40 hover:text-violet-800 dark:hover:text-violet-300'
-                            : 'text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-blue-800 dark:hover:text-blue-300'
+                              ? 'text-violet-600 dark:text-violet-400 hover:bg-violet-200/70 dark:hover:bg-violet-800/40 hover:text-violet-800 dark:hover:text-violet-300'
+                              : 'text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-blue-800 dark:hover:text-blue-300'
                           }
                         `}
                       >
@@ -632,21 +543,20 @@ const Subjects: React.FC = () => {
                         <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                     </button>
-                    
+
                     {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
                       <button
                         key={page}
                         onClick={() => handlePageChange(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                          page === pagination.page
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${page === pagination.page
                             ? 'z-10 bg-blue-50 dark:bg-blue-900 border-blue-500 text-blue-600 dark:text-blue-400'
                             : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}
+                          }`}
                       >
                         {page}
                       </button>
                     ))}
-                    
+
                     <button
                       onClick={() => handlePageChange(pagination.page + 1)}
                       disabled={pagination.page === pagination.pages}

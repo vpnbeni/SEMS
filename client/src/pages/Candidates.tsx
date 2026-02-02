@@ -1,7 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import Loader from '../components/common/Loader'
 import CandidateTable from '../components/candidates/CandidateTable'
 import ImportModal from '../components/candidates/ImportModal'
 import { Tabs } from '../components/common/Tabs'
@@ -130,31 +129,16 @@ const Candidates: React.FC = () => {
     })
   }
 
-  if (loading && candidates.length === 0) {
-    return (
-      <div className="flex items-center justify-center min-h-96">
-        <Loader size="lg" />
-      </div>
-    )
-  }
-
   return (
     <div className="p-6 space-y-6">
-      {/* Stats at top (separate from tabs) */}
+      {/* Stats at top (display only – use tabs below for filtering) */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <button
-            onClick={() => handleClassTabChange('all')}
-            className={`glass p-6 rounded-xl border-2 transition-all text-left ${classTabId === 'all'
-                ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                : 'border-secondary-200 dark:border-secondary-700 hover:border-secondary-300 dark:hover:border-secondary-600'
-              }`}
-          >
+          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 shadow-sm">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${classTabId === 'all' ? 'bg-blue-500' : 'bg-blue-100 dark:bg-blue-900'
-                  }`}>
-                  <svg className={`w-4 h-4 ${classTabId === 'all' ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-100 dark:bg-blue-900">
+                  <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
@@ -168,20 +152,13 @@ const Candidates: React.FC = () => {
                 </p>
               </div>
             </div>
-          </button>
+          </div>
 
-          <button
-            onClick={() => handleClassTabChange('10th')}
-            className={`glass p-6 rounded-xl border-2 transition-all text-left ${classTabId === '10th'
-                ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                : 'border-secondary-200 dark:border-secondary-700 hover:border-secondary-300 dark:hover:border-secondary-600'
-              }`}
-          >
+          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 shadow-sm">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${classTabId === '10th' ? 'bg-green-500' : 'bg-green-100 dark:bg-green-900'
-                  }`}>
-                  <svg className={`w-4 h-4 ${classTabId === '10th' ? 'text-white' : 'text-green-600 dark:text-green-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-green-100 dark:bg-green-900">
+                  <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                 </div>
@@ -195,20 +172,13 @@ const Candidates: React.FC = () => {
                 </p>
               </div>
             </div>
-          </button>
+          </div>
 
-          <button
-            onClick={() => handleClassTabChange('12th')}
-            className={`glass p-6 rounded-xl border-2 transition-all text-left ${classTabId === '12th'
-                ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20'
-                : 'border-secondary-200 dark:border-secondary-700 hover:border-secondary-300 dark:hover:border-secondary-600'
-              }`}
-          >
+          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 shadow-sm">
             <div className="flex items-center">
               <div className="flex-shrink-0">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${classTabId === '12th' ? 'bg-purple-500' : 'bg-purple-100 dark:bg-purple-900'
-                  }`}>
-                  <svg className={`w-4 h-4 ${classTabId === '12th' ? 'text-white' : 'text-purple-600 dark:text-purple-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-purple-100 dark:bg-purple-900">
+                  <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
                   </svg>
@@ -223,7 +193,7 @@ const Candidates: React.FC = () => {
                 </p>
               </div>
             </div>
-          </button>
+          </div>
         </div>
       )}
 
@@ -350,7 +320,7 @@ const Candidates: React.FC = () => {
                 placeholder="Search candidates..."
                 value={filters.search}
                 onChange={(e) => handleFilterChange({ ...filters, search: e.target.value })}
-                className="block w-full pl-10 pr-3 py-2 border border-secondary-300 dark:border-secondary-600 rounded-lg bg-white dark:bg-secondary-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-0 focus:border-2 focus:border-primary-500 dark:focus:border-primary-400 text-sm"
+                className="block w-full pl-10 pr-3 py-2 border-2 border-secondary-300 dark:border-secondary-600 rounded-lg bg-white dark:bg-secondary-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-0 focus:border-primary-500 dark:focus:border-primary-400 text-sm"
               />
             </div>
             <div className="w-36">
