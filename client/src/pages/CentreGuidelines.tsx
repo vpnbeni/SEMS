@@ -155,7 +155,7 @@ const CentreGuidelines: React.FC = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       })
-      
+
       if (response.ok) {
         const data = await response.json()
         setGuidelinesData(data.data)
@@ -264,9 +264,9 @@ const CentreGuidelines: React.FC = () => {
   return (
     <div className="p-6">
       <div className="max-w-7xl mx-auto">
-        {uploadedPdf && (
+        {(uploadedPdf || loading) && (
           <>
-            {/* Stats cards at top - show immediately */}
+            {/* Stats cards at top - show immediately (skeleton when loading) */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
                 <div className="flex items-center">
@@ -382,11 +382,11 @@ const CentreGuidelines: React.FC = () => {
                       },
                       ...(searchResults.length > 0
                         ? [{
-                            id: 'search' as const,
-                            label: 'Search Results',
-                            badge: String(searchResults.length),
-                            color: 'purple' as const
-                          }]
+                          id: 'search' as const,
+                          label: 'Search Results',
+                          badge: String(searchResults.length),
+                          color: 'purple' as const
+                        }]
                         : [])
                     ] as TabConfig<'viewer' | 'chapters' | 'appendices' | 'search'>[]}
                     activeTab={activeTab}
@@ -445,7 +445,7 @@ const CentreGuidelines: React.FC = () => {
 
               {/* Tab Content */}
               <div className="p-6">
-                {/* Loading state */}
+                {/* Loading state - spinner inside content area (no standalone loader) */}
                 {loading && (
                   <div className="flex items-center justify-center py-12">
                     <div className="text-center">
@@ -453,7 +453,9 @@ const CentreGuidelines: React.FC = () => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      <p className="text-gray-600 dark:text-gray-400">Loading guidelines data...</p>
+                      <p className="text-gray-600 dark:text-gray-400">
+                        {!uploadedPdf ? 'Checking for existing guidelines...' : 'Loading guidelines data...'}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -465,9 +467,9 @@ const CentreGuidelines: React.FC = () => {
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                         Centre Guidelines Document
                       </h3>
-                      <a 
-                        href={uploadedPdf} 
-                        download 
+                      <a
+                        href={uploadedPdf}
+                        download
                         className="btn btn-secondary text-sm"
                       >
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -513,7 +515,7 @@ const CentreGuidelines: React.FC = () => {
                     <div className="space-y-4">
                       {guidelinesData.structure.chapters.map((chapter, index) => {
                         const isExpanded = expandedChapter === chapter.number
-                        
+
                         return (
                           <div
                             key={index}
@@ -545,10 +547,10 @@ const CentreGuidelines: React.FC = () => {
                                       )}
                                     </div>
                                     <button className="ml-2 flex-shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors">
-                                      <svg 
-                                        className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} 
-                                        fill="none" 
-                                        stroke="currentColor" 
+                                      <svg
+                                        className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                        fill="none"
+                                        stroke="currentColor"
                                         viewBox="0 0 24 24"
                                       >
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -558,7 +560,7 @@ const CentreGuidelines: React.FC = () => {
                                 </div>
                               </div>
                             </div>
-                            
+
                             {/* Expanded Content */}
                             {isExpanded && (
                               <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-5">
@@ -580,7 +582,7 @@ const CentreGuidelines: React.FC = () => {
                                       Collapse
                                     </button>
                                   </div>
-                                  
+
                                   <div className="max-h-[600px] overflow-y-auto space-y-4">
                                     {chapter.formattedContent && chapter.formattedContent.length > 0 ? (
                                       chapter.formattedContent.map((block, blockIndex) => {
@@ -615,8 +617,8 @@ const CentreGuidelines: React.FC = () => {
                                                     {block.rows?.map((row, rowIndex) => (
                                                       <tr key={rowIndex} className={rowIndex === 0 ? 'bg-gray-50 dark:bg-gray-700' : ''}>
                                                         {row.map((cell, cellIndex) => (
-                                                          <td 
-                                                            key={cellIndex} 
+                                                          <td
+                                                            key={cellIndex}
                                                             className={`px-4 py-2 text-xs ${rowIndex === 0 ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'} border-r border-gray-200 dark:border-gray-700 last:border-r-0`}
                                                           >
                                                             {cell}
@@ -662,7 +664,7 @@ const CentreGuidelines: React.FC = () => {
                     <div className="space-y-4">
                       {guidelinesData.structure.appendices.map((appendix, index) => {
                         const isExpanded = expandedAppendix === appendix.letter
-                        
+
                         return (
                           <div
                             key={index}
@@ -694,10 +696,10 @@ const CentreGuidelines: React.FC = () => {
                                       )}
                                     </div>
                                     <button className="ml-2 flex-shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors">
-                                      <svg 
-                                        className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} 
-                                        fill="none" 
-                                        stroke="currentColor" 
+                                      <svg
+                                        className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                        fill="none"
+                                        stroke="currentColor"
                                         viewBox="0 0 24 24"
                                       >
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -707,7 +709,7 @@ const CentreGuidelines: React.FC = () => {
                                 </div>
                               </div>
                             </div>
-                            
+
                             {/* Expanded Content */}
                             {isExpanded && (
                               <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 p-5">
@@ -729,7 +731,7 @@ const CentreGuidelines: React.FC = () => {
                                       Collapse
                                     </button>
                                   </div>
-                                  
+
                                   <div className="max-h-[600px] overflow-y-auto space-y-4">
                                     {appendix.formattedContent && appendix.formattedContent.length > 0 ? (
                                       appendix.formattedContent.map((block, blockIndex) => {
@@ -764,8 +766,8 @@ const CentreGuidelines: React.FC = () => {
                                                     {block.rows?.map((row, rowIndex) => (
                                                       <tr key={rowIndex} className={rowIndex === 0 ? 'bg-gray-50 dark:bg-gray-700' : ''}>
                                                         {row.map((cell, cellIndex) => (
-                                                          <td 
-                                                            key={cellIndex} 
+                                                          <td
+                                                            key={cellIndex}
                                                             className={`px-4 py-2 text-xs ${rowIndex === 0 ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'} border-r border-gray-200 dark:border-gray-700 last:border-r-0`}
                                                           >
                                                             {cell}
@@ -843,7 +845,7 @@ const CentreGuidelines: React.FC = () => {
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               Upload a PDF document to view centre guidelines with searchable chapters and appendices
             </p>
-            <button 
+            <button
               onClick={() => setShowUploadModal(true)}
               className="btn btn-primary"
             >
@@ -852,15 +854,6 @@ const CentreGuidelines: React.FC = () => {
           </div>
         )}
 
-        {!uploadedPdf && loading && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center">
-            <svg className="w-12 h-12 animate-spin mx-auto mb-4 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
-            <p className="text-gray-600 dark:text-gray-400">Checking for existing guidelines...</p>
-          </div>
-        )}
       </div>
 
       {/* Upload Modal */}
@@ -893,11 +886,10 @@ const CentreGuidelines: React.FC = () => {
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-                    isDragging
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${isDragging
                       ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-400'
                       : 'border-gray-300 dark:border-gray-600'
-                  }`}
+                    }`}
                 >
                   <input
                     type="file"
