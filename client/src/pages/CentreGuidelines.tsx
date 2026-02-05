@@ -468,7 +468,7 @@ const CentreGuidelines: React.FC = () => {
                         Centre Guidelines Document
                       </h3>
                       <a
-                        href={uploadedPdf}
+                        href={uploadedPdf ?? undefined}
                         download
                         className="btn btn-secondary text-sm"
                       >
