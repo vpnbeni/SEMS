@@ -1,5 +1,12 @@
 const mongoose = require('mongoose');
+const dns = require('dns');
 const colors = require('colors');
+
+// Configure DNS resolver to handle slow DNS responses on Windows
+dns.setDefaultResultOrder('ipv4first');
+dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']); // Use Google and Cloudflare DNS
+// If connection still fails with querySrv ECONNREFUSED, use the standard (non-SRV) URI in .env:
+// mongodb://USER:PASS@cluster0.agz3j.mongodb.net:27017/examination_management_system?ssl=true&authSource=admin
 
 const connectDB = async () => {
   try {
@@ -13,12 +20,12 @@ const connectDB = async () => {
     const conn = await mongoose.connect(mongoUri, {
       // Remove deprecated options as they are now defaults in Mongoose 6+
       dbName,
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
+      serverSelectionTimeoutMS: 30000, // Timeout after 30s to handle slow DNS/network
       socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
     });
 
     console.log(`MongoDB Connected: ${conn.connection.host}`.cyan.underline.bold);
-    
+
     // Log database name
     console.log(`Database: ${conn.connection.name}`.magenta.bold);
 
@@ -44,7 +51,7 @@ const connectDB = async () => {
 
   } catch (error) {
     console.error(`Database connection failed: ${error.message}`.red.bold);
-    
+
     // Exit process with failure
     process.exit(1);
   }
