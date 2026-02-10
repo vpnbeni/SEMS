@@ -1,4 +1,4 @@
-const xlsx = require('xlsx')
+const ExcelJS = require('exceljs')
 
 /**
  * Parse Answer Sheets Excel file
@@ -16,22 +16,20 @@ class AnswerSheetsExcelParser {
       console.log('📊 Parsing Answer Sheets Excel file...')
       console.log('  Buffer size:', fileBuffer.length, 'bytes')
       
-      // Read the workbook
-      const workbook = xlsx.read(fileBuffer, { type: 'buffer' })
-      
-      // Get the first sheet (Received Sheets)
-      const sheetName = workbook.SheetNames[0]
-      const worksheet = workbook.Sheets[sheetName]
-      
+      const workbook = new ExcelJS.Workbook()
+      await workbook.xlsx.load(fileBuffer)
+      const worksheet = workbook.worksheets[0]
+      if (!worksheet) {
+        throw new Error('Workbook has no worksheets')
+      }
+      const sheetName = worksheet.name
       console.log(`📄 Reading sheet: ${sheetName}`)
-      console.log(`  Range: ${worksheet['!ref']}`)
       
-      // Convert to JSON
-      const data = xlsx.utils.sheet_to_json(worksheet, { 
-        header: 1,
-        defval: '',
-        blankrows: false,
-        raw: false  // Get formatted values
+      const data = []
+      worksheet.eachRow({ includeEmpty: true }, (row, rowNumber) => {
+        const values = row.values || []
+        const rowData = values.slice(1).map((v) => (v === undefined || v === null ? '' : v))
+        data.push(rowData)
       })
       
       console.log(`📋 Found ${data.length} rows`)

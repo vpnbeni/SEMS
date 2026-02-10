@@ -1,9 +1,8 @@
-const fs = require('fs')
+const ExcelJS = require('exceljs')
 const path = require('path')
-const xlsx = require('xlsx')
-const AnswerSheetsExcelParser = require('./src/utils/answerSheetsExcelParser')
 
-// Create a test Excel file with filled data
+const AnswerSheetsExcelParser = require('../../src/utils/answerSheetsExcelParser')
+
 const testData = [
   ['Sr No', 'Type', 'Pages', 'Class', 'Colour', 'Suffix', 'From', 'To', 'Exam', 'Subject'],
   [1, 'Main', 32, 10, 'Red', 'O', '1001', '1500', 'Term 1', 'All Subjects'],
@@ -11,19 +10,16 @@ const testData = [
   [3, 'Main', 20, 10, 'Red', 'A', '3001', '3300', 'Term 1', 'All Subjects']
 ]
 
-const ws = xlsx.utils.aoa_to_sheet(testData)
-const wb = xlsx.utils.book_new()
-xlsx.utils.book_append_sheet(wb, ws, 'Sheet1')
-
-const buffer = xlsx.write(wb, { type: 'buffer', bookType: 'xlsx' })
-
-console.log('📊 Testing Excel Parser with filled data...\n')
-
-const parser = new AnswerSheetsExcelParser()
-parser.parseExcel(buffer).then(result => {
+async function main() {
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Sheet1')
+  worksheet.addRows(testData)
+  const buffer = await workbook.xlsx.writeBuffer()
+  console.log('📊 Testing Excel Parser with filled data...\n')
+  const parser = new AnswerSheetsExcelParser()
+  const result = await parser.parseExcel(buffer)
   console.log('Parse Result:')
   console.log(JSON.stringify(result, null, 2))
-  
   if (result.success && result.data.entries.length > 0) {
     console.log('\n✅ Successfully parsed entries!')
     console.log('\nFirst entry:')
@@ -31,4 +27,5 @@ parser.parseExcel(buffer).then(result => {
   } else {
     console.log('\n❌ No entries parsed')
   }
-})
+}
+main().catch((err) => { console.error(err); process.exit(1) })

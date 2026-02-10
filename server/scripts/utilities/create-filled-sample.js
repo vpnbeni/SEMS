@@ -1,12 +1,8 @@
-const xlsx = require('xlsx')
-const fs = require('fs')
+const ExcelJS = require('exceljs')
 const path = require('path')
 
-// Create a filled sample for testing
 function createFilledSample() {
   console.log('📝 Creating Filled Sample...\n')
-  
-  // Define the answer sheet types with sample serial numbers
   const answerSheetTypes = [
     { srNo: 1, type: 'Main', pages: 32, class: '10', colour: 'Red', suffix: '', from: '1001', to: '1500' },
     { srNo: 2, type: 'Main', pages: 32, class: '12', colour: 'Blue', suffix: '', from: '2001', to: '2500' },
@@ -20,56 +16,23 @@ function createFilledSample() {
     { srNo: 10, type: 'For Blind', pages: 32, class: '12', colour: 'Blue', suffix: '', from: '10001', to: '10050' },
     { srNo: 11, type: 'Drawing Sheets', pages: 21, class: '12', colour: 'White', suffix: '', from: '11001', to: '11200' }
   ]
-  
-  // Create worksheet data
-  const data = [
-    // Header row
-    ['Sr No', 'Type', 'Pages', 'Class', 'Colour', 'Suffix', 'From ', 'To']
-  ]
-  
-  // Add data rows with filled serial numbers
-  answerSheetTypes.forEach(sheet => {
-    data.push([
-      sheet.srNo,
-      sheet.type,
-      sheet.pages,
-      sheet.class,
-      sheet.colour,
-      sheet.suffix,
-      sheet.from,
-      sheet.to
-    ])
+  const data = [['Sr No', 'Type', 'Pages', 'Class', 'Colour', 'Suffix', 'From ', 'To']]
+  answerSheetTypes.forEach((sheet) => {
+    data.push([sheet.srNo, sheet.type, sheet.pages, sheet.class, sheet.colour, sheet.suffix, sheet.from, sheet.to])
   })
-  
-  // Create workbook
-  const wb = xlsx.utils.book_new()
-  const ws = xlsx.utils.aoa_to_sheet(data)
-  
-  // Set column widths
-  ws['!cols'] = [
-    { wch: 8 },  // Sr No
-    { wch: 18 }, // Type
-    { wch: 8 },  // Pages
-    { wch: 8 },  // Class
-    { wch: 12 }, // Colour
-    { wch: 10 }, // Suffix
-    { wch: 12 }, // From
-    { wch: 12 }  // To
-  ]
-  
-  // Add worksheet to workbook
-  xlsx.utils.book_append_sheet(wb, ws, 'Sheet1')
-  
-  // Save to file
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Sheet1')
+  const colWidths = [8, 18, 8, 8, 12, 10, 12, 12]
+  colWidths.forEach((w, i) => { worksheet.getColumn(i + 1).width = w })
+  worksheet.addRows(data)
   const outputPath = path.join(__dirname, 'Answer_Sheets_Filled_Sample.xlsx')
-  xlsx.writeFile(wb, outputPath)
-  
-  console.log('✅ Filled sample created successfully!')
-  console.log('📂 Location:', outputPath)
-  console.log('\n📋 Sample contains:')
-  console.log('  - 11 answer sheet types')
-  console.log('  - Filled "From" and "To" columns with sample data')
-  console.log('\n💡 Use this file to test the upload functionality')
+  return workbook.xlsx.writeFile(outputPath).then(() => {
+    console.log('✅ Filled sample created successfully!')
+    console.log('📂 Location:', outputPath)
+    console.log('\n📋 Sample contains:')
+    console.log('  - 11 answer sheet types')
+    console.log('  - Filled "From" and "To" columns with sample data')
+    console.log('\n💡 Use this file to test the upload functionality')
+  })
 }
-
-createFilledSample()
+createFilledSample().catch((err) => { console.error(err); process.exit(1) })

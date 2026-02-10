@@ -1,5 +1,4 @@
-const xlsx = require('xlsx')
-const fs = require('fs')
+const ExcelJS = require('exceljs')
 const path = require('path')
 
 // Create a filled template for testing
@@ -18,13 +17,13 @@ const data = [
   [11, 'Drawing Sheets', 21, 12, 'White', 'D', '11001', '11200', 'Annual Examination 2025', 'Drawing, Engineering Graphics']
 ]
 
-const ws = xlsx.utils.aoa_to_sheet(data)
-const wb = xlsx.utils.book_new()
-xlsx.utils.book_append_sheet(wb, ws, 'Received Sheets')
-
-// Save to client/public
-const outputPath = path.join(__dirname, '../client/public/Answer_Sheets_Filled_Sample.xlsx')
-xlsx.writeFile(wb, outputPath)
-
-console.log('✅ Created filled sample template at:', outputPath)
-console.log('📊 Contains 11 answer sheet types with sample data')
+async function main() {
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Received Sheets')
+  worksheet.addRows(data)
+  const outputPath = path.join(__dirname, '../../../client/public/Answer_Sheets_Filled_Sample.xlsx')
+  await workbook.xlsx.writeFile(outputPath)
+  console.log('✅ Created filled sample template at:', outputPath)
+  console.log('📊 Contains 11 answer sheet types with sample data')
+}
+main().catch((err) => { console.error(err); process.exit(1) })
