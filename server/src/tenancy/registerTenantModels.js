@@ -11,6 +11,7 @@ const FolderMapping = require('../models/FolderMapping');
 const CBSEDatesheet = require('../models/CBSEDatesheet');
 const Calendar = require('../models/Calendar');
 const { Form66, Form66Upload } = require('../models/Form66');
+const Guideline = require('../models/Guideline');
 
 const tenantModelExports = {
   User,
@@ -26,7 +27,8 @@ const tenantModelExports = {
   CBSEDatesheet,
   Calendar,
   Form66,
-  Form66Upload
+  Form66Upload,
+  Guideline,
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

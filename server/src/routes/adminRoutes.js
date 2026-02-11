@@ -32,6 +32,10 @@ const {
   tenantQuerySchema,
   tenantIdParamSchema,
 } = require('../validations/adminValidation');
+const masterSubjectsController = require('../controllers/admin/masterSubjectsController');
+const masterDatesheetController = require('../controllers/admin/masterDatesheetController');
+const masterGuidelinesController = require('../controllers/admin/masterGuidelinesController');
+const rolloutController = require('../controllers/admin/rolloutController');
 
 const router = express.Router();
 
@@ -141,5 +145,31 @@ router.delete(
   validateJoi(deleteTenantSchema),
   deleteTenant
 );
+
+// Master Subjects routes
+router.post('/master-subjects/upload', masterSubjectsController.uploadSubjects);
+router.get('/master-subjects', masterSubjectsController.listSubjects);
+router.get('/master-subjects/stats', masterSubjectsController.getSubjectStats);
+router.patch('/master-subjects/:id', masterSubjectsController.updateSubject);
+router.delete('/master-subjects/:id', masterSubjectsController.deleteSubject);
+
+// Master Datesheet routes
+router.post('/master-datesheet/upload', masterDatesheetController.uploadDatesheet);
+router.get('/master-datesheet', masterDatesheetController.listDatesheets);
+router.get('/master-datesheet/:id', masterDatesheetController.getDatesheet);
+router.delete('/master-datesheet/:id', masterDatesheetController.deleteDatesheet);
+
+// Master Guidelines routes
+router.post('/master-guidelines/upload', masterGuidelinesController.uploadGuidelines);
+router.get('/master-guidelines', masterGuidelinesController.listGuidelines);
+router.get('/master-guidelines/current', masterGuidelinesController.getCurrentGuideline);
+router.get('/master-guidelines/:id', masterGuidelinesController.getGuideline);
+router.delete('/master-guidelines/:id', masterGuidelinesController.deleteGuideline);
+
+// Rollout routes
+router.post('/rollouts/initiate', rolloutController.initiateRollout);
+router.get('/rollouts', rolloutController.listRollouts);
+router.get('/rollouts/:id', rolloutController.getRollout);
+router.post('/rollouts/:id/retry', rolloutController.retryRollout);
 
 module.exports = router;

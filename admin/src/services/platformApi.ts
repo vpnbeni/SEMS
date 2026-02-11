@@ -1,7 +1,26 @@
 import axios from 'axios'
-import type { PlatformAdmin, Tenant, TenantListResponse } from '../types/platform'
+import type {
+  DataRollout,
+  MasterCBSEDatesheet,
+  MasterGuideline,
+  MasterSubject,
+  MasterSubjectListResult,
+  PlatformAdmin,
+  RolloutModule,
+  RolloutStatus,
+  SubjectStats,
+  Tenant,
+  TenantListResponse,
+  UploadResult,
+} from '../types/platform'
 
 const API_BASE_URL = import.meta.env.VITE_PLATFORM_API_URL || 'http://localhost:5000/api/admin'
+
+interface ApiResponse<T> {
+  success: boolean
+  message?: string
+  data: T
+}
 
 const platformApi = axios.create({
   baseURL: API_BASE_URL,
@@ -31,11 +50,22 @@ export interface TenantUpdatePayload {
   adminEmail?: string
 }
 
+export interface RolloutInitiatePayload {
+  module: RolloutModule
+  masterDataId: string
+  versionLabel: string
+}
+
 export const platformAuthApi = {
   async login(email: string, password: string): Promise<{ token: string; admin: PlatformAdmin }> {
-    const response = await platformApi.post('/auth/login', { email, password })
+    const response = await platformApi.post<ApiResponse<{ token: string; admin: PlatformAdmin }>>('/auth/login', {
+      email,
+      password,
+    })
+
     const { token, admin } = response.data.data
     localStorage.setItem('platformToken', token)
+
     return { token, admin }
   },
 
@@ -48,14 +78,14 @@ export const platformAuthApi = {
   },
 
   async me(): Promise<PlatformAdmin> {
-    const response = await platformApi.get('/auth/me')
+    const response = await platformApi.get<ApiResponse<PlatformAdmin>>('/auth/me')
     return response.data.data
   },
 }
 
 export const tenantAdminApi = {
   async list(search = ''): Promise<TenantListResponse> {
-    const response = await platformApi.get('/tenants', {
+    const response = await platformApi.get<ApiResponse<TenantListResponse>>('/tenants', {
       params: {
         limit: 100,
         search: search || undefined,
@@ -65,34 +95,154 @@ export const tenantAdminApi = {
   },
 
   async create(payload: TenantCreatePayload): Promise<{ tenant: Tenant; generatedPassword?: string | null }> {
-    const response = await platformApi.post('/tenants', payload)
+    const response = await platformApi.post<ApiResponse<{ tenant: Tenant; generatedPassword?: string | null }>>(
+      '/tenants',
+      payload,
+    )
     return response.data.data
   },
 
   async getById(id: string): Promise<Tenant> {
-    const response = await platformApi.get(`/tenants/${id}`)
+    const response = await platformApi.get<ApiResponse<Tenant>>(`/tenants/${id}`)
     return response.data.data
   },
 
   async update(id: string, payload: TenantUpdatePayload): Promise<Tenant> {
-    const response = await platformApi.patch(`/tenants/${id}`, payload)
+    const response = await platformApi.patch<ApiResponse<Tenant>>(`/tenants/${id}`, payload)
     return response.data.data
   },
 
   async activate(id: string): Promise<Tenant> {
-    const response = await platformApi.post(`/tenants/${id}/activate`)
+    const response = await platformApi.post<ApiResponse<Tenant>>(`/tenants/${id}/activate`)
     return response.data.data
   },
 
   async suspend(id: string): Promise<Tenant> {
-    const response = await platformApi.post(`/tenants/${id}/suspend`)
+    const response = await platformApi.post<ApiResponse<Tenant>>(`/tenants/${id}/suspend`)
     return response.data.data
   },
 
   async delete(id: string, confirmSlug: string): Promise<{ _id: string; slug: string; dbName: string }> {
-    const response = await platformApi.delete(`/tenants/${id}`, {
-      data: { confirmSlug },
-    })
+    const response = await platformApi.delete<ApiResponse<{ _id: string; slug: string; dbName: string }>>(
+      `/tenants/${id}`,
+      {
+        data: { confirmSlug },
+      },
+    )
     return response.data.data
   },
 }
+
+export const masterSubjectsApi = {
+  async upload(formData: FormData): Promise<UploadResult<{ total: number; inserted: number; updated: number; skipped: number; errors?: Array<{ row: number; message: string }> }>> {
+    const response = await platformApi.post<UploadResult<{ total: number; inserted: number; updated: number; skipped: number; errors?: Array<{ row: number; message: string }> }>>(
+      '/master-subjects/upload',
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      },
+    )
+    return response.data
+  },
+
+  async list(classFilter?: string): Promise<MasterSubjectListResult> {
+    const params = classFilter ? { class: classFilter } : {}
+    const response = await platformApi.get<ApiResponse<MasterSubjectListResult>>('/master-subjects', { params })
+    return response.data.data
+  },
+
+  async stats(): Promise<SubjectStats> {
+    const response = await platformApi.get<ApiResponse<SubjectStats>>('/master-subjects/stats')
+    return response.data.data
+  },
+
+  async update(id: string, data: Partial<MasterSubject>): Promise<MasterSubject> {
+    const response = await platformApi.patch<ApiResponse<MasterSubject>>(`/master-subjects/${id}`, data)
+    return response.data.data
+  },
+
+  async delete(id: string): Promise<void> {
+    await platformApi.delete(`/master-subjects/${id}`)
+  },
+}
+
+export const masterDatesheetApi = {
+  async upload(formData: FormData): Promise<UploadResult<{ datesheet: Partial<MasterCBSEDatesheet> }>> {
+    const response = await platformApi.post<UploadResult<{ datesheet: Partial<MasterCBSEDatesheet> }>>(
+      '/master-datesheet/upload',
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      },
+    )
+    return response.data
+  },
+
+  async list(): Promise<MasterCBSEDatesheet[]> {
+    const response = await platformApi.get<ApiResponse<MasterCBSEDatesheet[]>>('/master-datesheet')
+    return response.data.data
+  },
+
+  async getById(id: string): Promise<MasterCBSEDatesheet> {
+    const response = await platformApi.get<ApiResponse<MasterCBSEDatesheet>>(`/master-datesheet/${id}`)
+    return response.data.data
+  },
+
+  async delete(id: string): Promise<void> {
+    await platformApi.delete(`/master-datesheet/${id}`)
+  },
+}
+
+export const masterGuidelinesApi = {
+  async upload(formData: FormData): Promise<UploadResult<MasterGuideline>> {
+    const response = await platformApi.post<UploadResult<MasterGuideline>>('/master-guidelines/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  },
+
+  async list(): Promise<MasterGuideline[]> {
+    const response = await platformApi.get<ApiResponse<MasterGuideline[]>>('/master-guidelines')
+    return response.data.data
+  },
+
+  async getById(id: string): Promise<MasterGuideline> {
+    const response = await platformApi.get<ApiResponse<MasterGuideline>>(`/master-guidelines/${id}`)
+    return response.data.data
+  },
+
+  async current(): Promise<MasterGuideline | null> {
+    const response = await platformApi.get<ApiResponse<MasterGuideline | null>>('/master-guidelines/current')
+    return response.data.data
+  },
+
+  async delete(id: string, removeFromCloudinary = false): Promise<void> {
+    await platformApi.delete(`/master-guidelines/${id}`, {
+      params: { removeFromCloudinary },
+    })
+  },
+}
+
+export const rolloutApi = {
+  async initiate(payload: RolloutInitiatePayload): Promise<DataRollout> {
+    const response = await platformApi.post<ApiResponse<DataRollout>>('/rollouts/initiate', payload)
+    return response.data.data
+  },
+
+  async list(filters?: { module?: RolloutModule; status?: RolloutStatus }): Promise<DataRollout[]> {
+    const response = await platformApi.get<ApiResponse<DataRollout[]>>('/rollouts', { params: filters })
+    return response.data.data
+  },
+
+  async getById(id: string): Promise<DataRollout> {
+    const response = await platformApi.get<ApiResponse<DataRollout>>(`/rollouts/${id}`)
+    return response.data.data
+  },
+
+  async retry(id: string): Promise<DataRollout> {
+    const response = await platformApi.post<ApiResponse<DataRollout>>(`/rollouts/${id}/retry`)
+    return response.data.data
+  },
+}
+
+export { platformApi }

@@ -111,7 +111,32 @@ input {
   font-family: inherit;
 }
 
+select {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: inherit;
+}
+
 input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+input[type='checkbox'] {
+  width: auto;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
@@ -321,6 +346,189 @@ button:disabled {
   margin-bottom: 16px;
 }
 
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: top;
+  font-size: 0.875rem;
+}
+
+.data-table th {
+  color: var(--text-secondary);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.clickable-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.upload-area-wrapper {
+  display: grid;
+  gap: 12px;
+}
+
+.upload-area {
+  border: 1px dashed rgba(59, 130, 246, 0.35);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  background: rgba(59, 130, 246, 0.04);
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.upload-area.drag-over {
+  border-color: rgba(59, 130, 246, 0.75);
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.upload-label {
+  display: inline-block;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.upload-hint {
+  margin: 0 0 10px;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.upload-file-name {
+  margin: 10px 0 0;
+  font-size: 0.875rem;
+}
+
+.stat-card {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rollout-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.rollout-badge.sm {
+  font-size: 0.6875rem;
+  padding: 3px 8px;
+}
+
+.rollout-badge.in_progress,
+.rollout-badge.pending {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.12);
+}
+
+.rollout-badge.completed,
+.rollout-badge.success,
+.rollout-badge.active {
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.rollout-badge.partial_failure,
+.rollout-badge.suspended {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+}
+
+.rollout-badge.failed {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.filter-tabs {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.filter-tab {
+  border: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+}
+
+.filter-tab.active {
+  background: rgba(59, 130, 246, 0.2);
+  color: #bfdbfe;
+}
+
+.empty-state {
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+}
+
+.table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.rollout-detail {
+  padding: 8px 0;
+}
+
+.simple-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 /* Dialog Styles */
 .dialog-overlay {
   position: fixed;
@@ -413,6 +621,7 @@ button:disabled {
 
   .main-content {
     margin-left: 60px;
+    padding: 20px;
   }
 
   .nav-text,
@@ -429,5 +638,15 @@ button:disabled {
 
   .tenant-meta-grid {
     grid-template-columns: 1fr;
+  }
+
+  .grid-3,
+  .grid-5 {
+    grid-template-columns: 1fr;
+  }
+
+  .data-table th,
+  .data-table td {
+    white-space: nowrap;
   }
 }
