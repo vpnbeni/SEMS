@@ -1,4 +1,6 @@
 import api from './api'
+import axios from 'axios'
+import { resolvePlatformAdminApiBaseUrl } from '../utils/tenantRuntime'
 import type { 
   LoginCredentials, 
   RegisterData, 
@@ -9,7 +11,25 @@ import type {
   ApiResponse 
 } from '../types/auth'
 
+interface TenantResolutionResponse {
+  slug: string
+  name: string
+}
+
+const platformPublicAuthApi = axios.create({
+  baseURL: resolvePlatformAdminApiBaseUrl(),
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
 class AuthService {
+  async resolveTenantByEmail(email: string): Promise<TenantResolutionResponse> {
+    const response = await platformPublicAuthApi.post('/public/auth/resolve-tenant', { email })
+    return response.data.data
+  }
+
   // Login user
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     const response = await api.post('/auth/login', credentials)

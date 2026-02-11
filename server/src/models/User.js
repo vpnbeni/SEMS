@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const { USER_ROLES } = require('../utils/constants');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const {
+  syncTenantUserDirectoryFromUser,
+  removeTenantUserDirectoryFromUser
+} = require('../tenancy/tenantUserDirectoryService');
 
 const userSchema = new mongoose.Schema({
   email: {
@@ -57,18 +62,18 @@ userSchema.index({ isActive: 1 });
 userSchema.index({ createdAt: -1 });
 
 // Virtual for user display name
-userSchema.virtual('displayName').get(function() {
+userSchema.virtual('displayName').get(function () {
   return this.email.split('@')[0];
 });
 
 // Pre-save middleware to hash password
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function (next) {
   // Only hash the password if it has been modified (or is new)
   if (!this.isModified('password')) return next();
 
   try {
     // Hash the password with cost of 12
-    const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_ROUNDS) || 12);
+    const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_ROUNDS, 10) || 12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {
@@ -77,20 +82,20 @@ userSchema.pre('save', async function(next) {
 });
 
 // Pre-save middleware to set passwordChangedAt
-userSchema.pre('save', function(next) {
+userSchema.pre('save', function (next) {
   if (!this.isModified('password') || this.isNew) return next();
-  
+
   this.passwordChangedAt = Date.now() - 1000;
   next();
 });
 
 // Instance method to check password
-userSchema.methods.matchPassword = async function(enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+userSchema.methods.matchPassword = async function (enteredPassword) {
+  return bcrypt.compare(enteredPassword, this.password);
 };
 
 // Instance method to check if password changed after JWT was issued
-userSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
+userSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
   if (this.passwordChangedAt) {
     const changedTimestamp = parseInt(
       this.passwordChangedAt.getTime() / 1000,
@@ -102,41 +107,41 @@ userSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
 };
 
 // Instance method to add refresh token
-userSchema.methods.addRefreshToken = function(token) {
+userSchema.methods.addRefreshToken = function (token) {
   this.refreshTokens.push({ token });
-  
+
   // Keep only last 5 refresh tokens
   if (this.refreshTokens.length > 5) {
     this.refreshTokens = this.refreshTokens.slice(-5);
   }
-  
+
   return this.save();
 };
 
 // Instance method to remove refresh token
-userSchema.methods.removeRefreshToken = function(token) {
-  this.refreshTokens = this.refreshTokens.filter(rt => rt.token !== token);
+userSchema.methods.removeRefreshToken = function (token) {
+  this.refreshTokens = this.refreshTokens.filter((rt) => rt.token !== token);
   return this.save();
 };
 
 // Instance method to remove all refresh tokens
-userSchema.methods.removeAllRefreshTokens = function() {
+userSchema.methods.removeAllRefreshTokens = function () {
   this.refreshTokens = [];
   return this.save();
 };
 
 // Static method to find active users
-userSchema.statics.findActive = function() {
+userSchema.statics.findActive = function () {
   return this.find({ isActive: true });
 };
 
 // Static method to find by role
-userSchema.statics.findByRole = function(role) {
+userSchema.statics.findByRole = function (role) {
   return this.find({ role, isActive: true });
 };
 
 // Static method to get user stats
-userSchema.statics.getStats = async function() {
+userSchema.statics.getStats = async function () {
   const stats = await this.aggregate([
     {
       $group: {
@@ -162,15 +167,74 @@ userSchema.statics.getStats = async function() {
   };
 };
 
+const syncDirectoryBestEffort = async (userDoc, tenantDbName) => {
+  if (!userDoc?._id) {
+    return;
+  }
+
+  try {
+    await syncTenantUserDirectoryFromUser({
+      user: userDoc,
+      tenantDbName
+    });
+  } catch (error) {
+    console.error(
+      `[tenant-user-directory] sync_failed userId=${userDoc._id.toString()} message=${error.message}`
+    );
+  }
+};
+
+const removeFromDirectoryBestEffort = async (userDoc, tenantDbName) => {
+  if (!userDoc?._id) {
+    return;
+  }
+
+  try {
+    await removeTenantUserDirectoryFromUser({
+      user: userDoc,
+      tenantDbName
+    });
+  } catch (error) {
+    console.error(
+      `[tenant-user-directory] remove_failed userId=${userDoc._id.toString()} message=${error.message}`
+    );
+  }
+};
+
+// Keep central directory in sync for fast tenant-by-email resolution.
+userSchema.post('save', async function () {
+  await syncDirectoryBestEffort(this, this.constructor?.db?.name || null);
+});
+
+userSchema.post('findOneAndUpdate', async function (doc) {
+  if (!doc) {
+    return;
+  }
+
+  await syncDirectoryBestEffort(doc, this.model?.db?.name || null);
+});
+
+userSchema.post('deleteOne', { document: true, query: false }, async function () {
+  await removeFromDirectoryBestEffort(this, this.constructor?.db?.name || null);
+});
+
+userSchema.post('findOneAndDelete', async function (doc) {
+  if (!doc) {
+    return;
+  }
+
+  await removeFromDirectoryBestEffort(doc, this.model?.db?.name || null);
+});
+
 // Transform output to remove sensitive data
-userSchema.methods.toJSON = function() {
+userSchema.methods.toJSON = function () {
   const userObject = this.toObject();
-  
+
   delete userObject.password;
   delete userObject.refreshTokens;
   delete userObject.__v;
-  
+
   return userObject;
 };
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = createContextModelProxy('User', userSchema);

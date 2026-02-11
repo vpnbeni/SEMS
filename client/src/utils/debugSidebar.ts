@@ -31,11 +31,35 @@ export const debugSidebarCounts = async () => {
     const subjectsData = await subjectsResponse.json()
     console.log('Subjects API:', subjectsData)
 
+    console.log('📡 Testing /api/answersheets/stats/summary...')
+    const answerSheetsResponse = await fetch('/api/answersheets/stats/summary', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    const answerSheetsData = await answerSheetsResponse.json()
+    console.log('Answer Sheets Stats API:', answerSheetsData)
+
+    const parseCount = (value: unknown): number | null => {
+      if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value
+      if (typeof value === 'string' && value.trim() !== '') {
+        const parsed = Number(value)
+        if (Number.isFinite(parsed) && parsed >= 0) return parsed
+      }
+      return null
+    }
+
+    const answerSheetRecordCount = Array.isArray(answerSheetsData?.data?.byType)
+      ? answerSheetsData.data.byType.reduce((sum: number, entry: { count?: unknown }) => {
+          const count = parseCount(entry?.count)
+          return sum + (count ?? 0)
+        }, 0)
+      : null
+
     // Extract counts
     const counts = {
-      examFunctionaries: teachersData.data?.pagination?.totalCount || teachersData.meta?.totalCount || 0,
-      candidates: candidatesData.total || candidatesData.meta?.totalCount || 0,
-      subjects: subjectsData.data?.total || 0
+      examFunctionaries: parseCount(teachersData?.data?.pagination?.totalCount),
+      candidates: parseCount(candidatesData?.total),
+      subjects: parseCount(subjectsData?.data?.total),
+      answerSheets: answerSheetRecordCount
     }
 
     console.log('📊 Extracted counts:', counts)

@@ -4,13 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SEMS (School/Examination Management System) is a full-stack MERN application for managing CBSE examination processes. It handles importing CBSE datesheets, candidate management, seating plan generation, answer sheet tracking, and Form 66 attendance.
+BECMS (Bharat Examination Core Management System) is a multi-tenant, full-stack MERN application for managing CBSE examination processes. It handles importing CBSE datesheets, candidate management, seating plan generation, answer sheet tracking, Form 66 attendance, and tenant onboarding. The system uses a central platform database alongside per-tenant databases for data isolation.
 
 ## Development Commands
 
 ```bash
-# Start both frontend and backend concurrently
+# Start frontend + backend
 npm run dev
+
+# Start all three apps (server + client + admin)
+npm run dev:all
 
 # Start only backend (port 5000)
 npm run server
@@ -18,14 +21,30 @@ npm run server
 # Start only frontend (port 5173)
 npm run client
 
-# Install all dependencies (root, server, client)
+# Start only admin portal (port 5174)
+npm run admin
+
+# Install all dependencies (root, server, client, admin)
 npm run install-all
 
 # Build for production
-npm run build
+npm run build            # Client
+npm run build:admin      # Admin portal
+
+# Start production server
+npm start
 
 # Seed database
 npm run seed
+
+# Run tests (server + client)
+npm test
+
+# Lint (server + client)
+npm run lint
+
+# Clean all node_modules and dist
+npm run clean
 ```
 
 ### Client-specific (from /client)
@@ -36,64 +55,117 @@ npm run lint          # ESLint
 
 ### Server-specific (from /server)
 ```bash
-npm run test          # Jest tests with watch mode
-npm run lint:fix      # ESLint with auto-fix
-npm run seed:subjects # Seed subjects only
+npm run test                          # Jest tests with watch mode
+npm run lint:fix                      # ESLint with auto-fix
+npm run seed:subjects                 # Seed subjects only
+npm run bootstrap:platform            # Bootstrap platform admin + central DB
+npm run backfill:tenant-user-directory # Backfill tenant user directory
 ```
 
 ## Architecture
 
 ### Monorepo Structure
-- `/client` - React 18 + TypeScript + Vite frontend
-- `/server` - Node.js + Express backend with MongoDB
+- `/client` - React 18 + TypeScript + Vite frontend (port 5173)
+- `/server` - Node.js + Express backend with MongoDB (port 5000)
+- `/admin` - React 18 + TypeScript + Vite admin portal (port 5174)
+
+### Multi-Tenancy
+
+The system uses a **database-per-tenant** isolation strategy:
+
+- **Central platform database** (`CENTRAL_DB_NAME`) — stores platform admins, tenant records, onboarding tickets, user directory
+- **Tenant databases** (`TENANT_DB_PREFIX` + slug) — each tenant gets an isolated database with its own models
+- **Tenant resolution** — tenants are resolved from the `x-tenant-slug` header or subdomain via `resolveTenantFromRequest.js`
+- **Middleware chain**: `requestContextMiddleware` → `tenantContextMiddleware` (for tenant routes) or `platformContextMiddleware` (for admin routes)
+- **Key files** in `/server/src/tenancy/`:
+  - `tenantContextMiddleware.js` — resolves tenant and attaches scoped DB connection
+  - `tenantConnectionManager.js` — manages MongoDB connections per tenant
+  - `registerTenantModels.js` — registers Mongoose models on tenant connections
+  - `provisionTenant.js` — creates new tenant databases and seeds initial data
+  - `onboardingTicketService.js` — ticket-based self-service tenant signup with OTP
+  - `requestContext.js` — AsyncLocalStorage-based request context
 
 ### Client Architecture
 - **State**: Redux Toolkit with slices in `/client/src/redux/slices/` (auth, teacher, student, subject, datesheet, room, dispatch)
 - **Data Fetching**: TanStack React Query (v5) for server state
 - **Routing**: React Router v6 with HashRouter, protected routes in `/client/src/routes/`
 - **API Layer**: Axios services in `/client/src/services/`
-- **UI**: Tailwind CSS with dark mode (class-based), Headless UI components
+- **UI**: Tailwind CSS 3 with dark mode (class-based), Headless UI, Heroicons, Lucide React, Framer Motion, Recharts, react-hot-toast
 
 ### Server Architecture
 - **Entry**: `server.js` (startup) → `app.js` (Express config)
-- **Models**: 13 Mongoose schemas in `/server/src/models/` (User, Teacher, Student, Candidate, Subject, DateSheet, CBSEDatesheet, Room, AnswerSheet, AnswerSheetDispatch, Form66, Calendar, FolderMapping)
-- **Routes**: 15 route files mounted at `/api/*`
+- **Models**: 13 tenant-scoped Mongoose schemas in `/server/src/models/` (User, Teacher, Student, Candidate, Subject, DateSheet, CBSEDatesheet, Room, AnswerSheet, AnswerSheetDispatch, Form66, Calendar, FolderMapping) + 4 platform models in `/server/src/models/platform/` (PlatformAdmin, Tenant, TenantOnboardingTicket, TenantUserDirectory)
+- **Routes**: 17 route files — 1 platform route (`adminRoutes`) + 16 tenant-scoped routes mounted via `tenantScopedRouter`
 - **Validation**: Joi schemas in `/server/src/validations/`
 - **File Processing**: Parsers in `/server/src/utils/` for CBSE PDFs, Form66, Excel files
 - **PDF Generation**: Puppeteer (v24)
+- **Email**: Nodemailer (`/server/src/utils/mailer.js`) for OTP and notifications
 
 ### API Endpoints
-All routes prefixed with `/api`:
-- `/auth` - JWT authentication with refresh tokens
-- `/teachers` - Exam functionaries
-- `/candidates` - Candidate import (PDF/Excel) and management
-- `/subjects` - Subject master data
-- `/datesheets` - CBSE datesheet import
-- `/centre-datesheet` - Centre-specific datesheet generation
-- `/seating-plan` - Seating arrangement with PDF export
-- `/rooms` - Room/hall management
-- `/form66` - Form 66 attendance import
-- `/answersheets` - Answer sheet inventory
-- `/dispatch` - Answer sheet dispatch
-- `/export` - PDF/Excel exports
-- `/guidelines` - Centre examination guidelines
+
+**Platform routes** (central control plane):
+- `/api/admin` - Platform admin auth, tenant CRUD, onboarding ticket management
+
+**Tenant-scoped routes** (all pass through `tenantContextMiddleware`):
+- `/api/auth` - JWT authentication with refresh tokens
+- `/api/teachers` - Exam functionaries
+- `/api/students` - Student management
+- `/api/candidates` - Candidate import (PDF/Excel) and management
+- `/api/subjects` - Subject master data
+- `/api/datesheets` - CBSE datesheet import
+- `/api/centre-datesheet` - Centre-specific datesheet generation
+- `/api/seating-plan` - Seating arrangement with PDF export
+- `/api/rooms` - Room/hall management
+- `/api/form66` - Form 66 attendance import
+- `/api/answersheets` - Answer sheet inventory
+- `/api/dispatch` - Answer sheet dispatch
+- `/api/export` - PDF/Excel exports
+- `/api/guidelines` - Centre examination guidelines
+- `/api/dashboard` - Dashboard analytics
 
 ## Key Patterns
 
-- Frontend uses path aliases: `@/components`, `@/pages`, `@/services`, etc. (configured in tsconfig and vite.config)
+- Frontend uses path aliases: `@/components`, `@/pages`, `@/services`, `@/hooks`, `@/redux`, `@/utils`, `@/types`, `@/styles` (configured in tsconfig and vite.config)
 - API calls proxy from Vite dev server (5173) to backend (5000)
-- Authentication: JWT with role-based access (Admin, Data Entry Operator)
-- File uploads: Multer with 10MB limit, Cloudinary for storage
-- Security middleware: Helmet, rate limiting, mongo-sanitize, xss-clean
+- Authentication: JWT with role-based access (Admin, Data Entry Operator) for tenants; separate platform JWT for platform admins
+- File uploads: Multer/express-fileupload with 10MB limit, Cloudinary for storage
+- Security middleware: Helmet, rate limiting, mongo-sanitize, xss-clean, hpp
+- CORS: Dynamic origin validation — allows `ROOT_APP_DOMAIN` subdomains + explicit `CLIENT_URL`/`CLIENT_URLS`
+- Tenant header: Requests include `x-tenant-slug` to identify the target tenant
 
 ## Environment Variables
 
-See `.env.example` for required variables:
-- `MONGODB_URI` - MongoDB connection string
-- `JWT_SECRET`, `JWT_REFRESH_SECRET` - Auth tokens
-- `CLOUDINARY_*` - Cloud storage credentials
-- `SMTP_*` - Email configuration
+See `.env.example` (root and `/server`) for required variables:
+
+**Database:**
+- `MONGODB_URI` - MongoDB connection string (single cluster)
+- `CENTRAL_DB_NAME` - Central platform database name
+- `TENANT_DB_PREFIX` - Prefix for tenant databases
+
+**Server:**
+- `NODE_ENV`, `PORT`, `API_URL`
+- `ROOT_APP_DOMAIN` - Root domain for subdomain-based tenant resolution
+- `ROOT_API_DOMAIN` - Root API domain
+
+**JWT (tenant):**
+- `JWT_SECRET`, `JWT_EXPIRE`, `JWT_REFRESH_SECRET`, `JWT_REFRESH_EXPIRE`
+
+**JWT (platform):**
+- `PLATFORM_JWT_SECRET`, `PLATFORM_JWT_EXPIRE`
+- `PLATFORM_ADMIN_EMAIL`, `PLATFORM_ADMIN_PASSWORD`
+
+**Public Signup:**
+- `PUBLIC_SIGNUP_TICKET_TTL_MINUTES`, `PUBLIC_SIGNUP_EMAIL_OTP_TTL_MINUTES`, `PUBLIC_SIGNUP_EMAIL_OTP_MAX_ATTEMPTS`
+- Rate limit settings for signup start, exchange, and OTP resend
+
+**Email:** `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`
+
+**Cloudinary:** `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
+
+**Client** (`/client/.env.example`):
+- `VITE_ROOT_APP_DOMAIN`, `VITE_ROOT_API_DOMAIN`, `VITE_LOCAL_API_URL`, `VITE_API_URL`
 
 ## Default Dev Credentials
 - Admin: admin@sems.com / admin123
 - Operator: operator@sems.com / operator123
+- Operator2: operator2@sems.com / operator123

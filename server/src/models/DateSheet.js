@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { STUDENT_CLASSES, DATESHEET_STATUS, TIME_SLOTS } = require('../utils/constants');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const dateSheetSchema = new mongoose.Schema({
   title: {
@@ -393,4 +394,4 @@ dateSheetSchema.methods.getSubjectsByDate = function(date) {
   });
 };
 
-module.exports = mongoose.model('DateSheet', dateSheetSchema);
+module.exports = createContextModelProxy('DateSheet', dateSheetSchema);

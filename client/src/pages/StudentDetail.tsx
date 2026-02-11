@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "../redux/store";
 import { fetchStudents, Student } from "../redux/slices/studentSlice";
+import { resolveApiBaseUrl } from "../utils/tenantRuntime";
 
 const StudentDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -10,7 +11,7 @@ const StudentDetail: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { students, loading } = useSelector((state: RootState) => state.students);
   
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const API_BASE_URL = resolveApiBaseUrl();
   const SERVER_URL = API_BASE_URL.replace('/api', '');
   
   const getProfileImageUrl = (profileImage?: string) => {

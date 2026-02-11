@@ -17,6 +17,7 @@ import ExportModal, { ExportFilters } from "../components/common/ExportModal";
 import { Dropdown } from "../components/common/Dropdown";
 import { useTeachers, teacherKeys } from "../hooks/useTeachers";
 import axios from "axios";
+import { getTenantHeader, resolveApiBaseUrl } from "../utils/tenantRuntime";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -58,6 +59,7 @@ const Teachers: React.FC = () => {
   const [debouncedJoiningDateFrom, setDebouncedJoiningDateFrom] = useState("");
   const [debouncedJoiningDateTo, setDebouncedJoiningDateTo] = useState("");
   const [debouncedYearsOfExperience, setDebouncedYearsOfExperience] = useState("");
+  const API_BASE_URL = resolveApiBaseUrl();
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -177,6 +179,7 @@ const Teachers: React.FC = () => {
   const handleFetchPreview = async (filters: ExportFilters) => {
     try {
       const token = localStorage.getItem("token");
+      const tenantHeader = getTenantHeader();
 
       // Build query params
       const params = new URLSearchParams();
@@ -191,10 +194,11 @@ const Teachers: React.FC = () => {
       if (filters.minExperience) params.append("minExperience", filters.minExperience);
 
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/export/teachers/preview?${params.toString()}`,
+        `${API_BASE_URL}/export/teachers/preview?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            ...(tenantHeader ? { "x-tenant-slug": tenantHeader } : {}),
           },
         }
       );
@@ -209,6 +213,7 @@ const Teachers: React.FC = () => {
   const handleExportData = async (filters: ExportFilters, exportAll: boolean) => {
     try {
       const token = localStorage.getItem("token");
+      const tenantHeader = getTenantHeader();
 
       // Build query params
       const params = new URLSearchParams();
@@ -225,10 +230,11 @@ const Teachers: React.FC = () => {
       }
 
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL || "http://localhost:5000/api"}/export/teachers?${params.toString()}`,
+        `${API_BASE_URL}/export/teachers?${params.toString()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            ...(tenantHeader ? { "x-tenant-slug": tenantHeader } : {}),
           },
           responseType: "blob",
         }

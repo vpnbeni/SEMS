@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const cbseDatesheetSchema = new mongoose.Schema({
   title: {
@@ -133,4 +134,4 @@ cbseDatesheetSchema.statics.getActive = function () {
   return this.findOne({ isActive: true }).sort({ createdAt: -1 })
 }
 
-module.exports = mongoose.model('CBSEDatesheet', cbseDatesheetSchema)
+module.exports = createContextModelProxy('CBSEDatesheet', cbseDatesheetSchema)

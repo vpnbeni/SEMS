@@ -619,4 +619,4 @@ To add new features:
 
 ## License
 
-Part of the SEMS project.
+Part of the BECMS project.

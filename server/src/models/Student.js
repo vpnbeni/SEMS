@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { STUDENT_CLASSES, STUDENT_SECTIONS, REGEX_PATTERNS } = require('../utils/constants');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const studentSchema = new mongoose.Schema({
   rollNumber: {
@@ -367,4 +368,4 @@ studentSchema.methods.removeDocument = function(docId) {
   return this.save();
 };
 
-module.exports = mongoose.model('Student', studentSchema);
+module.exports = createContextModelProxy('Student', studentSchema);

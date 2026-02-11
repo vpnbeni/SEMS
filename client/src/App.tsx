@@ -8,6 +8,8 @@ import type { AppDispatch } from './redux/store'
 // Pages
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
+import TenantSignupChat from './pages/TenantSignupChat'
+import TenantSignupComplete from './pages/TenantSignupComplete'
 import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
 // Students feature removed
@@ -65,6 +67,18 @@ function App() {
             path="/login"
             element={
               isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
+            }
+          />
+          <Route
+            path="/signup"
+            element={
+              isAuthenticated ? <Navigate to="/dashboard" replace /> : <TenantSignupChat />
+            }
+          />
+          <Route
+            path="/signup/complete"
+            element={
+              isAuthenticated ? <Navigate to="/dashboard" replace /> : <TenantSignupComplete />
             }
           />
 

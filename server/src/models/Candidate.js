@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const candidateSchema = new mongoose.Schema({
   name: {
@@ -144,4 +145,4 @@ candidateSchema.statics.getActiveCount = function() {
   return this.countDocuments({ status: 'active' });
 };
 
-module.exports = mongoose.model('Candidate', candidateSchema);
+module.exports = createContextModelProxy('Candidate', candidateSchema);

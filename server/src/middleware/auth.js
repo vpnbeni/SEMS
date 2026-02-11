@@ -1,114 +1,183 @@
-const jwt = require('jsonwebtoken');
 const asyncHandler = require('./asyncHandler');
-const User = require('../models/User');
+const {
+  getTokenFromRequest,
+  verifyTenantToken,
+  verifyPlatformToken,
+} = require('../utils/jwt');
+const { getRequestContext } = require('../tenancy/requestContext');
+const { getPlatformModels } = require('../tenancy/platformModels');
 
-// Protect routes
-exports.protect = asyncHandler(async (req, res, next) => {
-  let token;
+const unauthorized = (res, message = 'Not authorized to access this route') => {
+  return res.status(401).json({
+    success: false,
+    error: message,
+  });
+};
 
-  // Check for token in headers
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    // Extract token from header
-    token = req.headers.authorization.split(' ')[1];
+const getTenantUserModel = (req) => {
+  if (req.models?.User) {
+    return req.models.User;
   }
-  // Check for token in cookies
-  else if (req.cookies.token) {
-    token = req.cookies.token;
+
+  const context = getRequestContext();
+  return context?.models?.User || null;
+};
+
+const getPlatformAdminModel = (req) => {
+  if (req.platformModels?.PlatformAdmin) {
+    return req.platformModels.PlatformAdmin;
   }
 
-  // Make sure token exists
+  const context = getRequestContext();
+  if (context?.platformModels?.PlatformAdmin) {
+    return context.platformModels.PlatformAdmin;
+  }
+
+  return getPlatformModels().PlatformAdmin;
+};
+
+const protectTenant = asyncHandler(async (req, res, next) => {
+  const token = getTokenFromRequest(req);
+
   if (!token) {
-    return res.status(401).json({
+    return unauthorized(res);
+  }
+
+  let decoded;
+  try {
+    decoded = verifyTenantToken(token);
+  } catch (error) {
+    return unauthorized(res);
+  }
+
+  if (req.tenant && decoded.tenantSlug !== req.tenant.slug) {
+    return unauthorized(res, 'Token tenant does not match request tenant');
+  }
+
+  const User = getTenantUserModel(req);
+  if (!User) {
+    return res.status(500).json({
       success: false,
-      error: 'Not authorized to access this route'
+      error: 'Tenant context is missing for authenticated route',
     });
+  }
+
+  req.user = await User.findById(decoded.id).select('-password');
+
+  if (!req.user) {
+    return unauthorized(res, 'No user found with this token');
+  }
+
+  if (!req.user.isActive) {
+    return unauthorized(res, 'User account is deactivated');
+  }
+
+  return next();
+});
+
+const optionalAuth = asyncHandler(async (req, res, next) => {
+  const token = getTokenFromRequest(req);
+
+  if (!token) {
+    req.user = null;
+    return next();
   }
 
   try {
-    // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = verifyTenantToken(token);
 
-    // Get user from database
-    req.user = await User.findById(decoded.id).select('-password');
-
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        error: 'No user found with this token'
-      });
-    }
-
-    // Check if user is active
-    if (!req.user.isActive) {
-      return res.status(401).json({
-        success: false,
-        error: 'User account is deactivated'
-      });
-    }
-
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      error: 'Not authorized to access this route'
-    });
-  }
-});
-
-// Grant access to specific roles
-exports.authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        error: `User role ${req.user.role} is not authorized to access this route`
-      });
-    }
-    next();
-  };
-};
-
-// Optional authentication - doesn't fail if no token
-exports.optionalAuth = asyncHandler(async (req, res, next) => {
-  let token;
-
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-    token = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies.token) {
-    token = req.cookies.token;
-  }
-
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = await User.findById(decoded.id).select('-password');
-    } catch (error) {
-      // Token is invalid, but we don't fail the request
+    if (req.tenant && decoded.tenantSlug !== req.tenant.slug) {
       req.user = null;
-    }
-  }
-
-  next();
-});
-
-// Check if user owns resource or is admin
-exports.ownershipOrAdmin = (resourceUserField = 'user') => {
-  return (req, res, next) => {
-    // Admin can access everything
-    if (req.user.role === 'admin') {
       return next();
     }
 
-    // Check if user owns the resource
+    const User = getTenantUserModel(req);
+    if (!User) {
+      req.user = null;
+      return next();
+    }
+
+    req.user = await User.findById(decoded.id).select('-password');
+  } catch (error) {
+    req.user = null;
+  }
+
+  return next();
+});
+
+const protectPlatform = asyncHandler(async (req, res, next) => {
+  let token = null;
+
+  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    token = req.headers.authorization.split(' ')[1];
+  } else if (req.cookies.platformToken) {
+    token = req.cookies.platformToken;
+  }
+
+  if (!token) {
+    return unauthorized(res);
+  }
+
+  let decoded;
+  try {
+    decoded = verifyPlatformToken(token);
+  } catch (error) {
+    return unauthorized(res);
+  }
+
+  const PlatformAdmin = getPlatformAdminModel(req);
+  req.platformUser = await PlatformAdmin.findById(decoded.id).select('-password');
+
+  if (!req.platformUser) {
+    return unauthorized(res, 'Platform admin not found');
+  }
+
+  if (!req.platformUser.isActive) {
+    return unauthorized(res, 'Platform admin is deactivated');
+  }
+
+  return next();
+});
+
+const authorize = (...roles) => {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        error: `User role ${req.user?.role || 'unknown'} is not authorized to access this route`,
+      });
+    }
+
+    return next();
+  };
+};
+
+const ownershipOrAdmin = (resourceUserField = 'user') => {
+  return (req, res, next) => {
+    if (req.user?.role === 'admin') {
+      return next();
+    }
+
     if (req.resource && req.resource[resourceUserField]) {
-      if (req.resource[resourceUserField].toString() !== req.user._id.toString()) {
+      if (req.resource[resourceUserField].toString() !== req.user?._id?.toString()) {
         return res.status(403).json({
           success: false,
-          error: 'Not authorized to access this resource'
+          error: 'Not authorized to access this resource',
         });
       }
     }
 
-    next();
+    return next();
   };
 };
+
+// Backward-compatible default export for routes that import auth middleware as a function.
+const auth = protectTenant;
+auth.protect = protectTenant;
+auth.protectTenant = protectTenant;
+auth.protectPlatform = protectPlatform;
+auth.optionalAuth = optionalAuth;
+auth.authorize = authorize;
+auth.ownershipOrAdmin = ownershipOrAdmin;
+
+module.exports = auth;

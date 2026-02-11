@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const form66Schema = new mongoose.Schema({
   rollNo: {
@@ -114,7 +115,7 @@ const form66UploadSchema = new mongoose.Schema({
   timestamps: true
 });
 
-const Form66 = mongoose.model('Form66', form66Schema);
-const Form66Upload = mongoose.model('Form66Upload', form66UploadSchema);
+const Form66 = createContextModelProxy('Form66', form66Schema);
+const Form66Upload = createContextModelProxy('Form66Upload', form66UploadSchema);
 
 module.exports = { Form66, Form66Upload };

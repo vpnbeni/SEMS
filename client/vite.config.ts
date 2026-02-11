@@ -2,6 +2,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const devProxyTarget = process.env.VITE_DEV_PROXY_TARGET || 'http://localhost:5000'
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
@@ -22,9 +24,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://api.vpnbeni.com',
+        target: devProxyTarget,
         changeOrigin: true,
-        secure: true
+        secure: devProxyTarget.startsWith('https://')
       }
     }
   },

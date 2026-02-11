@@ -529,4 +529,4 @@ See these files for real-world usage:
 
 ## License
 
-Part of the SEMS (School Examination Management System) project.
+Part of the BECMS (Bharat Examination Core Management System) project.

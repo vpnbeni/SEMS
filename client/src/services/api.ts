@@ -1,14 +1,50 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import toast from 'react-hot-toast'
+import { getTenantHeader, resolveApiBaseUrl } from '@/utils/tenantRuntime'
 
 // API configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+const API_BASE_URL = resolveApiBaseUrl()
 
 // Store reference for Redux dispatch
 let storeDispatch: any = null
 
 // Flag to show session-expired toast only once when multiple requests fail with 401
 let sessionExpiredToastShown = false
+const API_ERROR_TOAST_ID = 'api-error'
+const API_ERROR_DEDUP_WINDOW_MS = 2000
+let lastApiErrorToast = {
+  message: '',
+  shownAt: 0,
+}
+
+const showApiErrorToast = (message: string) => {
+  const normalizedMessage = message?.trim()
+  if (!normalizedMessage) return
+
+  const now = Date.now()
+  const isDuplicateWithinWindow =
+    lastApiErrorToast.message === normalizedMessage &&
+    now - lastApiErrorToast.shownAt < API_ERROR_DEDUP_WINDOW_MS
+
+  if (isDuplicateWithinWindow) return
+
+  lastApiErrorToast = { message: normalizedMessage, shownAt: now }
+  toast.error(normalizedMessage, { id: API_ERROR_TOAST_ID })
+}
+
+const getValidationErrorMessage = (details: any[] | undefined, fallback: string) => {
+  if (!details || !Array.isArray(details) || details.length === 0) {
+    return fallback
+  }
+
+  const firstError = details[0]
+  const firstMessage = firstError?.field
+    ? `${firstError.field}: ${firstError.message}`
+    : firstError?.message || fallback
+
+  const remainingCount = details.length - 1
+  return remainingCount > 0 ? `${firstMessage} (+${remainingCount} more error(s))` : firstMessage
+}
 
 // Export function to set store dispatch
 export const setStoreDispatch = (dispatch: any) => {
@@ -27,6 +63,13 @@ const api: AxiosInstance = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    if (config.headers) {
+      const tenantHeader = getTenantHeader()
+      if (tenantHeader) {
+        config.headers['x-tenant-slug'] = tenantHeader
+      }
+    }
+
     // Add auth token to requests
     const token = localStorage.getItem('token')
     if (token && config.headers) {
@@ -68,7 +111,7 @@ api.interceptors.response.use(
 
     // Handle network errors
     if (!error.response) {
-      toast.error('Network error. Please check your connection.')
+      showApiErrorToast('Network error. Please check your connection.')
       return Promise.reject(error)
     }
 
@@ -78,13 +121,7 @@ api.interceptors.response.use(
     switch (status) {
       case 400:
         // Bad Request - show validation errors
-        if (data?.details && Array.isArray(data.details)) {
-          data.details.forEach((detail: any) => {
-            toast.error(`${detail.field}: ${detail.message}`)
-          })
-        } else {
-          toast.error(data?.error || 'Bad request')
-        }
+        showApiErrorToast(getValidationErrorMessage(data?.details, data?.error || 'Bad request'))
         break
 
       case 401:
@@ -95,9 +132,18 @@ api.interceptors.response.use(
           const refreshToken = localStorage.getItem('refreshToken')
           if (refreshToken) {
             try {
-              const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-                refreshToken,
-              })
+              const tenantHeader = getTenantHeader()
+              const response = await axios.post(
+                `${API_BASE_URL}/auth/refresh`,
+                { refreshToken },
+                tenantHeader
+                  ? {
+                      headers: {
+                        'x-tenant-slug': tenantHeader,
+                      },
+                    }
+                  : undefined
+              )
 
               if (response.data.success) {
                 const newToken = response.data.data.accessToken
@@ -122,7 +168,7 @@ api.interceptors.response.use(
               // Show session-expired toast only once (multiple requests can 401 together)
               if (!window.location.pathname.includes('/login') && !sessionExpiredToastShown) {
                 sessionExpiredToastShown = true
-                toast.error('Session expired. Please login again.')
+                showApiErrorToast('Session expired. Please login again.')
               }
 
               return Promise.reject(refreshError)
@@ -141,7 +187,7 @@ api.interceptors.response.use(
 
             if (!window.location.pathname.includes('/login') && !sessionExpiredToastShown) {
               sessionExpiredToastShown = true
-              toast.error('Please login to continue')
+              showApiErrorToast('Please login to continue')
             }
           }
         }
@@ -149,43 +195,37 @@ api.interceptors.response.use(
 
       case 403:
         // Forbidden
-        toast.error('You do not have permission to perform this action')
+        showApiErrorToast('You do not have permission to perform this action')
         break
 
       case 404:
         // Not Found
-        toast.error(data?.error || 'Resource not found')
+        showApiErrorToast(data?.error || 'Resource not found')
         break
 
       case 409:
         // Conflict
-        toast.error(data?.error || 'Resource already exists')
+        showApiErrorToast(data?.error || 'Resource already exists')
         break
 
       case 422:
         // Unprocessable Entity - validation errors
-        if (data?.details && Array.isArray(data.details)) {
-          data.details.forEach((detail: any) => {
-            toast.error(`${detail.field}: ${detail.message}`)
-          })
-        } else {
-          toast.error(data?.error || 'Validation failed')
-        }
+        showApiErrorToast(getValidationErrorMessage(data?.details, data?.error || 'Validation failed'))
         break
 
       case 429:
         // Too Many Requests
-        toast.error('Too many requests. Please try again later.')
+        showApiErrorToast('Too many requests. Please try again later.')
         break
 
       case 500:
         // Internal Server Error
-        toast.error('Server error. Please try again later.')
+        showApiErrorToast('Server error. Please try again later.')
         break
 
       default:
         // Other errors
-        toast.error(data?.error || 'An unexpected error occurred')
+        showApiErrorToast(data?.error || 'An unexpected error occurred')
     }
 
     return Promise.reject(error)

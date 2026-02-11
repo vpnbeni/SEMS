@@ -10,6 +10,7 @@ import {
 } from "../../redux/slices/studentSlice";
 import Modal from "../common/Modal";
 import api from "../../services/api";
+import { resolveApiBaseUrl } from "../../utils/tenantRuntime";
 
 interface StudentModalProps {
   mode: "add" | "edit";
@@ -45,7 +46,7 @@ const StudentModal: React.FC<StudentModalProps> = ({ mode }) => {
   const [profileImagePreview, setProfileImagePreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const API_BASE_URL = resolveApiBaseUrl();
   const SERVER_URL = API_BASE_URL.replace('/api', '');
 
   const getProfileImageUrl = (profileImage?: string) => {

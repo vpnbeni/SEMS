@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const folderMappingSchema = new mongoose.Schema({
   dateSheet: {
@@ -243,8 +244,10 @@ folderMappingSchema.pre('save', async function(next) {
   if (!this.folderNumber) {
     // Generate folder number: YYYYMMDD-SUBJECT-ROOM-001
     const date = this.examDate.toISOString().slice(0, 10).replace(/-/g, '');
-    const subjectCode = await mongoose.model('Subject').findById(this.subject).select('code');
-    const roomNumber = await mongoose.model('Room').findById(this.room).select('roomNumber');
+    const SubjectModel = this.model('Subject');
+    const RoomModel = this.model('Room');
+    const subjectCode = await SubjectModel.findById(this.subject).select('code');
+    const roomNumber = await RoomModel.findById(this.room).select('roomNumber');
     
     const existingCount = await this.constructor.countDocuments({
       examDate: this.examDate,
@@ -401,4 +404,4 @@ folderMappingSchema.methods.generateBarcode = function() {
   return this.save();
 };
 
-module.exports = mongoose.model('FolderMapping', folderMappingSchema);
+module.exports = createContextModelProxy('FolderMapping', folderMappingSchema);

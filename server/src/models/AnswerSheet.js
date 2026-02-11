@@ -1,4 +1,5 @@
 const mongoose = require('mongoose')
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 /**
  * Answer Sheet Model
@@ -357,4 +358,4 @@ answerSheetSchema.methods.addDiscardedRange = function(fromSerial, toSerial, rea
   return this.save().then(() => added)
 }
 
-module.exports = mongoose.model('AnswerSheet', answerSheetSchema)
+module.exports = createContextModelProxy('AnswerSheet', answerSheetSchema)

@@ -4,6 +4,82 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { logout, selectUser } from '../../redux/slices/authSlice'
 import type { AppDispatch } from '../../redux/store'
+import api from '../../services/api'
+
+type SidebarCount = number | null
+
+interface SidebarCounts {
+  examFunctionaries: SidebarCount
+  candidates: SidebarCount
+  subjects: SidebarCount
+  answerSheets: SidebarCount
+  datesheetDays: SidebarCount
+  rooms: SidebarCount
+}
+
+const SIDEBAR_COUNTS_STORAGE_KEY = 'sidebarCounts'
+const SIDEBAR_COUNTS_TIME_KEY = 'sidebarCountsTime'
+const SIDEBAR_COUNTS_CACHE_TTL_MS = 5 * 60 * 1000
+
+const EMPTY_COUNTS: SidebarCounts = {
+  examFunctionaries: null,
+  candidates: null,
+  subjects: null,
+  answerSheets: null,
+  datesheetDays: null,
+  rooms: null
+}
+
+const parseCount = (value: unknown): SidebarCount => {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return value
+  }
+
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
+const toBadgeValue = (value: SidebarCount): string | null => {
+  if (value === null || value <= 0) {
+    return null
+  }
+  return value.toString()
+}
+
+const normalizeCounts = (value: unknown): SidebarCounts => {
+  const raw = (typeof value === 'object' && value !== null
+    ? value
+    : {}) as Partial<Record<keyof SidebarCounts, unknown>>
+
+  return {
+    examFunctionaries: parseCount(raw.examFunctionaries),
+    candidates: parseCount(raw.candidates),
+    subjects: parseCount(raw.subjects),
+    answerSheets: parseCount(raw.answerSheets),
+    datesheetDays: parseCount(raw.datesheetDays),
+    rooms: parseCount(raw.rooms)
+  }
+}
+
+const getAnswerSheetRecordCount = (answerStatsPayload: unknown): SidebarCount => {
+  const byType = (answerStatsPayload as { data?: { byType?: unknown } } | null)?.data?.byType
+  if (!Array.isArray(byType)) {
+    return null
+  }
+
+  const total = byType.reduce((sum: number, entry: unknown) => {
+    const count = parseCount((entry as { count?: unknown } | null)?.count)
+    return sum + (count ?? 0)
+  }, 0)
+
+  return total
+}
 
 const Sidebar: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -11,26 +87,19 @@ const Sidebar: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
   const location = useLocation()
-  const [counts, setCounts] = useState({
-    examFunctionaries: 50, // Default fallback values
-    candidates: 507,
-    subjects: 264,
-    answerSheets: 7,
-    datesheetDays: 0,
-    rooms: 0
-  })
+  const [counts, setCounts] = useState<SidebarCounts>(EMPTY_COUNTS)
 
   useEffect(() => {
-    fetchCounts()
+    fetchCounts(true)
   }, [])
 
   // Refresh counts when location changes (user navigates)
   useEffect(() => {
     // Refresh counts after a delay when navigating to relevant pages
-    const relevantPaths = ['/candidates', '/subjects', '/exam-functionaries']
+    const relevantPaths = ['/candidates', '/subjects', '/exam-functionaries', '/answersheets', '/datesheets', '/examrooms']
     if (relevantPaths.some(path => location.pathname.includes(path))) {
       const timer = setTimeout(() => {
-        fetchCounts()
+        fetchCounts(false)
       }, 1000)
       return () => clearTimeout(timer)
     }
@@ -40,17 +109,20 @@ const Sidebar: React.FC = () => {
     dispatch(logout())
   }
 
-  const fetchCounts = async () => {
+  const fetchCounts = async (useCache = true) => {
     try {
       // Check if we have cached counts (valid for 5 minutes)
-      const cachedCounts = localStorage.getItem('sidebarCounts')
-      const cacheTime = localStorage.getItem('sidebarCountsTime')
+      const cachedCounts = localStorage.getItem(SIDEBAR_COUNTS_STORAGE_KEY)
+      const cacheTime = localStorage.getItem(SIDEBAR_COUNTS_TIME_KEY)
 
-      if (cachedCounts && cacheTime) {
-        const age = Date.now() - parseInt(cacheTime)
-        if (age < 5 * 60 * 1000) { // 5 minutes
-          setCounts(JSON.parse(cachedCounts))
-          return
+      if (useCache && cachedCounts && cacheTime) {
+        const age = Date.now() - parseInt(cacheTime, 10)
+        if (age < SIDEBAR_COUNTS_CACHE_TTL_MS) { // 5 minutes
+          try {
+            setCounts(normalizeCounts(JSON.parse(cachedCounts)))
+          } catch (error) {
+            console.warn('Invalid sidebar count cache, ignoring it:', error)
+          }
         }
       }
 
@@ -59,39 +131,37 @@ const Sidebar: React.FC = () => {
 
       // Fetch all counts in parallel with error handling
       const results = await Promise.allSettled([
-        fetch('/api/teachers?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
-        fetch('/api/candidates?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
-        fetch('/api/subjects/stats', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
-        fetch('/api/datesheets/centre-datesheet?limit=1', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json()),
-        fetch('/api/seatingplan/rooms', { headers: { 'Authorization': `Bearer ${token}` } }).then(r => r.json())
+        api.get('/teachers', { params: { limit: 1 } }),
+        api.get('/candidates', { params: { limit: 1 } }),
+        api.get('/subjects/stats'),
+        api.get('/datesheets/stats'),
+        api.get('/seating-plan/rooms'),
+        api.get('/answersheets/stats/summary')
       ])
 
-      console.log('API Results:', results) // Debug log
+      const teachers = results[0].status === 'fulfilled' ? results[0].value.data : null
+      const candidates = results[1].status === 'fulfilled' ? results[1].value.data : null
+      const subjects = results[2].status === 'fulfilled' ? results[2].value.data : null
+      const datesheets = results[3].status === 'fulfilled' ? results[3].value.data : null
+      const rooms = results[4].status === 'fulfilled' ? results[4].value.data : null
+      const answerStats = results[5].status === 'fulfilled' ? results[5].value.data : null
 
-      const newCounts = {
-        examFunctionaries: results[0].status === 'fulfilled' ? (results[0].value.data?.pagination?.totalCount || results[0].value.meta?.totalCount || 0) : 0,
-        candidates: results[1].status === 'fulfilled' ? (results[1].value.total || results[1].value.meta?.totalCount || 0) : 0,
-        subjects: results[2].status === 'fulfilled' ? (results[2].value.data?.total || 0) : 0,
-        answerSheets: 7,
-        datesheetDays: results[3].status === 'fulfilled' ? (results[3].value.stats?.uniqueDates || 0) : 0,
-        rooms: results[4].status === 'fulfilled' ? (Array.isArray(results[4].value) ? results[4].value.length : 0) : 0
+      const newCounts: SidebarCounts = {
+        examFunctionaries: parseCount(teachers?.data?.pagination?.totalCount),
+        candidates: parseCount(candidates?.total),
+        subjects: parseCount(subjects?.data?.total),
+        answerSheets: getAnswerSheetRecordCount(answerStats),
+        datesheetDays: parseCount(datesheets?.data?.centreDays ?? datesheets?.data?.fullDatesheetDays),
+        rooms: parseCount(Array.isArray(rooms) ? rooms.length : null)
       }
 
-      console.log('Calculated counts:', newCounts) // Debug log
+      setCounts(newCounts)
 
-      // Only update if we got valid counts, otherwise keep existing/default values
-      if (newCounts.examFunctionaries > 0 || newCounts.candidates > 0 || newCounts.subjects > 0 || newCounts.datesheetDays > 0 || newCounts.rooms > 0) {
-        setCounts(newCounts)
-
-        // Cache the counts
-        localStorage.setItem('sidebarCounts', JSON.stringify(newCounts))
-        localStorage.setItem('sidebarCountsTime', Date.now().toString())
-      } else {
-        console.warn('API returned zero counts, keeping existing values')
-      }
+      // Cache latest dynamic values (including zero/null)
+      localStorage.setItem(SIDEBAR_COUNTS_STORAGE_KEY, JSON.stringify(newCounts))
+      localStorage.setItem(SIDEBAR_COUNTS_TIME_KEY, Date.now().toString())
     } catch (error) {
       console.error('Failed to fetch counts:', error)
-      // Keep the default/existing counts on error
     }
   }
 
@@ -124,7 +194,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
-      badge: counts.datesheetDays > 0 ? counts.datesheetDays.toString() : null,
+      badge: toBadgeValue(counts.datesheetDays),
     },
     {
       name: 'Exam Functionaries',
@@ -134,7 +204,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
         </svg>
       ),
-      badge: counts.examFunctionaries.toString(),
+      badge: toBadgeValue(counts.examFunctionaries),
     },
     {
       name: 'Candidates',
@@ -144,7 +214,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
         </svg>
       ),
-      badge: counts.candidates.toString(),
+      badge: toBadgeValue(counts.candidates),
     },
     {
       name: 'Form 66',
@@ -174,7 +244,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
         </svg>
       ),
-      badge: counts.subjects.toString(),
+      badge: toBadgeValue(counts.subjects),
     },
     {
       name: 'Exam Room/Hall',
@@ -184,7 +254,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
         </svg>
       ),
-      badge: counts.rooms > 0 ? counts.rooms.toString() : null,
+      badge: toBadgeValue(counts.rooms),
     },
     {
       name: 'Answer Sheets',
@@ -194,7 +264,7 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
       ),
-      badge: counts.answerSheets.toString(),
+      badge: toBadgeValue(counts.answerSheets),
     },
   ]
 
@@ -318,7 +388,7 @@ const Sidebar: React.FC = () => {
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left ml-3">
                 <p className="text-sm font-semibold text-secondary-900 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                  {currentUser?.email || 'admin@sems.edu'}
+                  {currentUser?.email || 'admin@becms.edu'}
                 </p>
                 <p className="text-xs text-secondary-500 dark:text-secondary-400 truncate">
                   {currentUser?.role || 'Administrator'}
@@ -350,7 +420,7 @@ const Sidebar: React.FC = () => {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-secondary-900 dark:text-white truncate">
-                        {currentUser?.email || 'admin@sems.edu'}
+                        {currentUser?.email || 'admin@becms.edu'}
                       </p>
                       <p className="text-xs text-secondary-500 dark:text-secondary-400 truncate">
                         {currentUser?.role || 'Administrator'}

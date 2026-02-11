@@ -14,9 +14,11 @@ const os = require('os');
 
 // Import custom middleware
 const errorHandler = require('./middleware/errorHandler');
-const asyncHandler = require('./middleware/asyncHandler');
+const { requestContextMiddleware } = require('./tenancy/requestContext');
+const { platformContextMiddleware, tenantContextMiddleware } = require('./tenancy/tenantContextMiddleware');
 
 // Import routes
+const adminRoutes = require('./routes/adminRoutes');
 const authRoutes = require('./routes/authRoutes');
 const teacherRoutes = require('./routes/teacherRoutes');
 const studentRoutes = require('./routes/studentRoutes');
@@ -55,31 +57,100 @@ app.use(helmet({
 }));
 
 // CORS configuration
+const getAllowedOrigins = () => {
+  const explicitOrigins = (process.env.CLIENT_URLS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  if (process.env.CLIENT_URL) {
+    explicitOrigins.push(process.env.CLIENT_URL);
+  }
+
+  return new Set(explicitOrigins);
+};
+
+const allowedOrigins = getAllowedOrigins();
+const rootAppDomain = (process.env.ROOT_APP_DOMAIN || 'sems.vpnbeni.com').toLowerCase();
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) {
+    return true;
+  }
+
+  if (allowedOrigins.has(origin)) {
+    return true;
+  }
+
+  try {
+    const url = new URL(origin);
+    const hostname = url.hostname.toLowerCase();
+
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return true;
+    }
+
+    if (hostname === rootAppDomain || hostname.endsWith(`.${rootAppDomain}`)) {
+      return true;
+    }
+  } catch (error) {
+    return false;
+  }
+
+  return false;
+};
+
 const corsOptions = {
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (isAllowedOrigin(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error('Not allowed by CORS'));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'x-tenant-slug'],
   credentials: true,
   optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
 
 // Rate limiting
-const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW) || 15 * 60 * 1000, // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100, // limit each IP to 100 requests per windowMs
-  message: {
-    error: 'Too many requests from this IP, please try again later.'
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-});
-app.use(limiter);
+const parseBooleanEnv = (value, fallback = false) => {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+};
+
+const isDevelopment = process.env.NODE_ENV === 'development';
+const rateLimitEnabled = parseBooleanEnv(process.env.RATE_LIMIT_ENABLED, !isDevelopment);
+const configuredRateLimitWindow = Number.parseInt(process.env.RATE_LIMIT_WINDOW || '', 10);
+const configuredRateLimitMax = Number.parseInt(process.env.RATE_LIMIT_MAX || '', 10);
+
+if (rateLimitEnabled) {
+  const limiter = rateLimit({
+    windowMs: Number.isFinite(configuredRateLimitWindow) && configuredRateLimitWindow > 0
+      ? configuredRateLimitWindow
+      : 15 * 60 * 1000,
+    max: Number.isFinite(configuredRateLimitMax) && configuredRateLimitMax > 0
+      ? configuredRateLimitMax
+      : 100,
+    message: {
+      error: 'Too many requests from this IP, please try again later.'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use(limiter);
+}
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
+app.use(requestContextMiddleware);
 
 // File upload middleware
 app.use(fileUpload({
@@ -122,24 +193,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/teachers', teacherRoutes);
-app.use('/api/students', studentRoutes);
-app.use('/api/subjects', subjectRoutes);
-app.use('/api/candidates', candidateRoutes);
-app.use('/api/datesheets', datesheetRoutes);
-app.use('/api/rooms', roomRoutes);
-app.use('/api/dispatch', dispatchRoutes);
-app.use('/api/export', exportRoutes);
-app.use('/api/guidelines', guidelinesRoutes);
-app.use('/api/answersheets', answerSheetRoutes);
-app.use('/api/centre-datesheet', centreDatesheetRoutes);
-app.use('/api/seating-plan', seatingPlanRoutes);
-app.use('/api/form66', form66Routes);
-app.use('/api/dashboard', dashboardRoutes);
-// app.use('/api/calendar', calendarRoutes); // Temporarily disabled for debugging
-
 // API documentation endpoint
 app.get('/api', (req, res) => {
   res.status(200).json({
@@ -157,11 +210,37 @@ app.get('/api', (req, res) => {
       dispatch: '/api/dispatch',
       export: '/api/export',
       answersheets: '/api/answersheets',
+      admin: '/api/admin',
       // calendar: '/api/calendar' // Temporarily disabled for debugging
     },
     documentation: 'See README.md for detailed API documentation'
   });
 });
+
+// Platform admin routes (central control plane)
+app.use('/api/admin', platformContextMiddleware, adminRoutes);
+
+// Tenant-scoped routes
+const tenantScopedRouter = express.Router();
+tenantScopedRouter.use(tenantContextMiddleware);
+tenantScopedRouter.use('/auth', authRoutes);
+tenantScopedRouter.use('/teachers', teacherRoutes);
+tenantScopedRouter.use('/students', studentRoutes);
+tenantScopedRouter.use('/subjects', subjectRoutes);
+tenantScopedRouter.use('/candidates', candidateRoutes);
+tenantScopedRouter.use('/datesheets', datesheetRoutes);
+tenantScopedRouter.use('/rooms', roomRoutes);
+tenantScopedRouter.use('/dispatch', dispatchRoutes);
+tenantScopedRouter.use('/export', exportRoutes);
+tenantScopedRouter.use('/guidelines', guidelinesRoutes);
+tenantScopedRouter.use('/answersheets', answerSheetRoutes);
+tenantScopedRouter.use('/centre-datesheet', centreDatesheetRoutes);
+tenantScopedRouter.use('/seating-plan', seatingPlanRoutes);
+tenantScopedRouter.use('/form66', form66Routes);
+tenantScopedRouter.use('/dashboard', dashboardRoutes);
+// tenantScopedRouter.use('/calendar', calendarRoutes); // Temporarily disabled for debugging
+
+app.use('/api', tenantScopedRouter);
 
 // Handle 404 routes
 app.all('*', (req, res) => {

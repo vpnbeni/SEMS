@@ -311,6 +311,34 @@ sudo certbot --nginx -d your-domain.com
 
 Set these environment variables in your deployment platform:
 
+### Multi-tenant required variables
+
+```bash
+MONGODB_URI=...
+CENTRAL_DB_NAME=sems_central
+TENANT_DB_PREFIX=sems_tenant_
+ROOT_APP_DOMAIN=sems.vpnbeni.com
+ROOT_API_DOMAIN=api.vpnbeni.com
+
+PLATFORM_JWT_SECRET=...
+PLATFORM_JWT_EXPIRE=1d
+PLATFORM_ADMIN_EMAIL=admin@platform.com
+PLATFORM_ADMIN_PASSWORD=change_me
+```
+
+Run the bootstrap once after deploy:
+
+```bash
+cd server
+npm run bootstrap:platform
+```
+
+DNS/TLS must cover wildcard tenant hosts:
+- `api.vpnbeni.com`
+- `*.api.vpnbeni.com`
+- `sems.vpnbeni.com`
+- `*.sems.vpnbeni.com`
+
 ### Required Variables
 
 ```bash
@@ -347,6 +375,7 @@ EMAIL_USER=your_email@gmail.com
 EMAIL_PASS=your_app_password
 
 # Rate Limiting
+RATE_LIMIT_ENABLED=true
 RATE_LIMIT_MAX=100
 RATE_LIMIT_WINDOW=900000
 

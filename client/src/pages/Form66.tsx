@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { ChevronRight, ChevronDown, Download, Upload, RefreshCw, FileText, Calendar, Users, BookOpen } from 'lucide-react'
+import { getTenantHeader, isLocalRuntime, resolveApiBaseUrl, resolveTenantSlug } from '../utils/tenantRuntime'
 
 interface Form66Record {
   _id: string
@@ -57,6 +58,25 @@ const Form66: React.FC = () => {
   const [originalFileUrl, setOriginalFileUrl] = useState<string | null>(null)
   const [processedPdfUrl, setProcessedPdfUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const API_BASE_URL = resolveApiBaseUrl()
+  const tenantHeader = getTenantHeader()
+  const tenantSlug = resolveTenantSlug()
+
+  const withTenantHeader = (options: RequestInit = {}): RequestInit => ({
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      ...(tenantHeader ? { 'x-tenant-slug': tenantHeader } : {}),
+    },
+  })
+
+  const buildLocalTenantQuery = () => {
+    if (!isLocalRuntime() || !tenantSlug) {
+      return ''
+    }
+
+    return `?tenant=${encodeURIComponent(tenantSlug)}`
+  }
 
   // Compute stats
   const stats = useMemo(() => {
@@ -78,7 +98,7 @@ const Form66: React.FC = () => {
   const fetchRecords = async () => {
     try {
       setLoadingRecords(true)
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/form66/records`)
+      const response = await fetch(`${API_BASE_URL}/form66/records`, withTenantHeader())
       const data = await response.json()
       setRecords(data)
 
@@ -94,17 +114,15 @@ const Form66: React.FC = () => {
 
   const fetchFileUrls = async () => {
     try {
-      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
-
       // Fetch processed PDF URL
-      const pdfResponse = await fetch(`${baseUrl}/form66/processed-pdf`)
+      const pdfResponse = await fetch(`${API_BASE_URL}/form66/processed-pdf`, withTenantHeader())
       if (pdfResponse.ok) {
         const pdfData = await pdfResponse.json()
         setProcessedPdfUrl(pdfData.url)
       }
 
       // Fetch original file URL
-      const originalResponse = await fetch(`${baseUrl}/form66/original-file`)
+      const originalResponse = await fetch(`${API_BASE_URL}/form66/original-file`, withTenantHeader())
       if (originalResponse.ok) {
         const originalData = await originalResponse.json()
         setOriginalFileUrl(originalData.url)
@@ -212,10 +230,10 @@ const Form66: React.FC = () => {
       // Start simulating steps in parallel with actual upload
       const stepPromise = simulateProcessingSteps()
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/form66/upload`, {
+      const response = await fetch(`${API_BASE_URL}/form66/upload`, withTenantHeader({
         method: 'POST',
         body: formData
-      })
+      }))
 
       // Wait for step simulation to finish
       await stepPromise
@@ -654,7 +672,7 @@ const Form66: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              window.open(`${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/form66/dates/${dateGroup.date}/pdf`, '_blank')
+                              window.open(`${API_BASE_URL}/form66/dates/${dateGroup.date}/pdf${buildLocalTenantQuery()}`, '_blank')
                             }}
                             className="inline-flex items-center justify-center p-1.5 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors"
                             title="Download PDF"

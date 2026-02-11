@@ -1,14 +1,40 @@
 import React, { useState, useEffect } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { login, clearError } from '../redux/slices/authSlice'
 import { selectAuth } from '../redux/slices/authSlice'
+import authService from '../services/authService'
 import type { AppDispatch } from '../redux/store'
 import type { LoginCredentials } from '../types/auth'
 import Loader from '../components/common/Loader'
+import { Lock, Mail, Eye, EyeOff, BookOpen, ChevronRight, Activity, Globe, Shield } from 'lucide-react'
+
+type LoginStep = 'email' | 'password'
+
+interface ResolvedTenant {
+  slug: string
+  name: string
+}
+
+const syncTenantInUrl = (tenantSlug: string | null) => {
+  const url = new URL(window.location.href)
+
+  if (tenantSlug) {
+    url.searchParams.set('tenant', tenantSlug)
+  } else {
+    url.searchParams.delete('tenant')
+  }
+
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+}
 
 const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
+  const [step, setStep] = useState<LoginStep>('email')
+  const [resolvingTenant, setResolvingTenant] = useState(false)
+  const [tenantLookupError, setTenantLookupError] = useState<string | null>(null)
+  const [resolvedTenant, setResolvedTenant] = useState<ResolvedTenant | null>(null)
   const [formData, setFormData] = useState<LoginCredentials>({
     email: '',
     password: ''
@@ -34,16 +60,49 @@ const Login: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
+    setTenantLookupError(null)
+    dispatch(clearError())
     setFormData(prev => ({
       ...prev,
       [name]: value
     }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleTenantResolution = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!formData.email || !formData.password) {
+
+    if (!formData.email || resolvingTenant) {
+      return
+    }
+
+    try {
+      setResolvingTenant(true)
+      setTenantLookupError(null)
+      dispatch(clearError())
+
+      const tenant = await authService.resolveTenantByEmail(formData.email)
+      localStorage.setItem('tenantSlug', tenant.slug)
+      syncTenantInUrl(tenant.slug)
+      setResolvedTenant(tenant)
+      setFormData(prev => ({ ...prev, password: '' }))
+      setShowPassword(false)
+      setStep('password')
+    } catch (error) {
+      const message = (error as any)?.response?.data?.message || 'Unable to find tenant for this email'
+      localStorage.removeItem('tenantSlug')
+      syncTenantInUrl(null)
+      setResolvedTenant(null)
+      setStep('email')
+      setTenantLookupError(message)
+    } finally {
+      setResolvingTenant(false)
+    }
+  }
+
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!formData.email || !formData.password || !resolvedTenant) {
       return
     }
 
@@ -51,183 +110,277 @@ const Login: React.FC = () => {
       await dispatch(login(formData)).unwrap()
       navigate('/dashboard')
     } catch (error) {
-      // Error is handled by Redux slice
       console.error('Login failed:', error)
     }
   }
 
-  const fillDemoCredentials = () => {
-    setFormData({
-      email: 'admin@sems.com',
-      password: 'admin123'
-    })
+  const handleUseAnotherEmail = () => {
+    setStep('email')
+    setResolvedTenant(null)
+    setShowPassword(false)
+    setTenantLookupError(null)
+    setFormData(prev => ({ ...prev, password: '' }))
+    localStorage.removeItem('tenantSlug')
+    syncTenantInUrl(null)
+    dispatch(clearError())
   }
+
+  const isPasswordStep = step === 'password'
+  const activeError = tenantLookupError || error
+
+  const galleryImages = [
+    {
+      url: '/assets/images/login/hero1.png',
+      title: 'Bharat Edutech',
+      desc: 'Smart examination core for Indian institutions.'
+    },
+    {
+      url: '/assets/images/login/hero2.png',
+      title: 'Board Excellence',
+      desc: 'Digitizing the future of academic evaluation.'
+    }
+  ]
 
   if (loading) {
     return <Loader />
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-secondary-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Logo and Header */}
-        <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center shadow-elegant mb-6">
-            <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-          </div>
-          <h2 className="text-4xl font-bold gradient-text mb-2">
-            Welcome to SEMS
-          </h2>
-          <p className="text-secondary-600 dark:text-secondary-400 text-lg">
-            School Examination Management System
-          </p>
-          <p className="text-secondary-500 dark:text-secondary-500 text-sm mt-1">
-            Sign in to access your dashboard
-          </p>
+    <div className="min-h-screen w-full flex bg-[#050505] text-white selection:bg-primary-500/30">
+      {/* Left Side: Interactive Gallery */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-gray-900 to-black border-r border-white/5">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-600/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary-600/10 rounded-full blur-[120px]" />
         </div>
 
-        {/* Login Form */}
-        <div className="card shadow-elegant">
-          <div className="card-content space-y-6">
-            {/* Error Display */}
-            {error && (
-              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-4">
-                <div className="flex">
-                  <svg className="h-5 w-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-                </div>
-              </div>
-            )}
+        <div className="relative z-10 w-full flex flex-col justify-between p-12">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3"
+          >
+            <div className="p-2 bg-primary-500 rounded-xl shadow-lg shadow-primary-500/20">
+              <BookOpen className="w-6 h-6 text-white" />
+            </div>
+            <span className="text-xl font-bold tracking-tight">BECMS</span>
+          </motion.div>
 
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                  Email address
-                </label>
-                <div className="relative transition-all duration-200 focus-within:scale-[1.02]">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
-                    <svg className="h-5 w-5 text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                    </svg>
+          <div className="space-y-12">
+            <motion.div
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <h1 className="text-5xl font-bold leading-tight mb-4">
+                The Future of <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-secondary-400">
+                  Board & Corporate Exams
+                </span>
+              </h1>
+              <p className="text-gray-400 text-lg max-w-md">
+                Experience BECMS — a minimalistic, powerful, and secure platform designed for Bharat's modern educational ecosystem.
+              </p>
+            </motion.div>
+
+            <div className="grid grid-cols-2 gap-4">
+              {galleryImages.map((img, idx) => (
+                <motion.div
+                  key={idx}
+                  whileHover={{ scale: 1.05, y: -5 }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4 + idx * 0.1 }}
+                  className="group relative h-64 rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
+                >
+                  <img
+                    src={img.url}
+                    alt={img.title}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-4">
+                    <h3 className="font-semibold text-white">{img.title}</h3>
+                    <p className="text-xs text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      {img.desc}
+                    </p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="flex items-center gap-6 text-sm text-gray-500"
+          >
+            <div className="flex items-center gap-2"><Shield className="w-4 h-4" /> Secure</div>
+            <div className="flex items-center gap-2"><Activity className="w-4 h-4" /> Indian Market Optimized</div>
+            <div className="flex items-center gap-2"><Globe className="w-4 h-4" /> Localized</div>
+          </motion.div>
+        </div>
+      </div>
+
+      {/* Right Side: Login Form */}
+      <div className="flex-1 flex flex-col items-center justify-center p-8 relative overflow-hidden">
+        {/* Background micro-interactions */}
+        <div className="lg:hidden absolute top-0 left-0 w-full h-full -z-10">
+          <div className="absolute top-0 left-1/4 w-64 h-64 bg-primary-500/10 rounded-full blur-[80px]" />
+          <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-secondary-500/10 rounded-full blur-[80px]" />
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md"
+        >
+          <div className="text-center mb-10">
+            <div className="lg:hidden flex justify-center mb-6">
+              <div className="p-3 bg-primary-500 rounded-2xl">
+                <BookOpen className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <h2 className="text-3xl font-bold mb-2">Welcome to BECMS</h2>
+            <p className="text-gray-400">
+              {isPasswordStep
+                ? 'Tenant identified. Enter your password to continue.'
+                : 'Enter your email to locate your tenant account.'}
+            </p>
+          </div>
+
+          <div className="glass-morphism rounded-3xl p-8 border border-white/10 shadow-2xl relative">
+            <div className="absolute -top-12 -right-12 w-24 h-24 bg-primary-500/20 rounded-full blur-3xl" />
+
+            <AnimatePresence mode="wait">
+              {activeError && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-6 overflow-hidden"
+                >
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex gap-3 text-red-400 text-sm">
+                    <Activity className="w-5 h-5 flex-shrink-0" />
+                    <p>{activeError}</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <form onSubmit={isPasswordStep ? handlePasswordLogin : handleTenantResolution} className="space-y-6">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300 ml-1">Email / Username</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 transition-colors group-focus-within:text-primary-400">
+                    <Mail className="w-5 h-5" />
                   </div>
                   <input
-                    id="email"
                     name="email"
                     type="email"
-                    autoComplete="email"
                     required
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="input pl-10"
-                    placeholder="Enter your email"
+                    disabled={isPasswordStep}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                    placeholder="name@institution.com"
                   />
                 </div>
               </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                  Password
-                </label>
-                <div className="relative transition-all duration-200 focus-within:scale-[1.02]">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none z-10">
-                    <svg className="h-5 w-5 text-secondary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                    </svg>
+              {isPasswordStep && resolvedTenant && (
+                <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                  Tenant: <span className="font-semibold">{resolvedTenant.name}</span> ({resolvedTenant.slug})
+                </div>
+              )}
+
+              {isPasswordStep && (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center ml-1">
+                    <label className="text-sm font-medium text-gray-300">Password</label>
+                    <a href="#" className="text-xs text-primary-400 hover:text-primary-300 transition-colors">Forgot Password?</a>
                   </div>
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    required
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="input pl-10 pr-10"
-                    placeholder="Enter your password"
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center z-10"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <svg className="h-5 w-5 text-secondary-400 hover:text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                      </svg>
-                    ) : (
-                      <svg className="h-5 w-5 text-secondary-400 hover:text-secondary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
-                  </button>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 transition-colors group-focus-within:text-primary-400">
+                      <Lock className="w-5 h-5" />
+                    </div>
+                    <input
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      required={isPasswordStep}
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-12 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-500 hover:text-white transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
                 </div>
+              )}
+
+              <div className="flex items-center ml-1">
+                <input
+                  id="remember"
+                  type="checkbox"
+                  className="w-4 h-4 rounded border-white/10 bg-white/5 text-primary-500 focus:ring-primary-500/50 transition-all"
+                />
+                <label htmlFor="remember" className="ml-2 text-sm text-gray-400 cursor-pointer">Stay signed in</label>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <input
-                    id="remember-me"
-                    name="remember-me"
-                    type="checkbox"
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-secondary-300 rounded"
-                  />
-                  <label htmlFor="remember-me" className="ml-2 block text-sm text-secondary-700 dark:text-secondary-300">
-                    Remember me
-                  </label>
-                </div>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={resolvingTenant || loading}
+                className="w-full bg-primary-600 hover:bg-primary-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-primary-500/25 transition-all flex items-center justify-center gap-2 group"
+              >
+                {isPasswordStep
+                  ? (loading ? 'Signing In...' : 'Sign In to Portal')
+                  : (resolvingTenant ? 'Finding Tenant...' : 'Continue')}
+                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </motion.button>
 
-                <div className="text-sm">
-                  <a href="#" className="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
-                    Forgot your password?
-                  </a>
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="submit"
-                  className="btn btn-primary w-full text-lg py-3 transform transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] shadow-medium hover:shadow-hard"
-                >
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                  </svg>
-                  Sign in to Dashboard
-                </button>
-              </div>
-            </form>
-
-            {/* Demo Credentials */}
-            <div className="mt-6 p-4 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-200 dark:border-primary-700">
-              <div className="flex justify-between items-start mb-2">
-                <h3 className="text-sm font-medium text-primary-800 dark:text-primary-200">Demo Credentials</h3>
+              {isPasswordStep && (
                 <button
                   type="button"
-                  onClick={fillDemoCredentials}
-                  className="text-xs text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 underline"
+                  onClick={handleUseAnotherEmail}
+                  className="w-full rounded-xl border border-white/15 bg-white/5 py-3 text-sm font-medium text-gray-200 transition-colors hover:bg-white/10"
                 >
-                  Auto-fill
+                  Use another email
                 </button>
-              </div>
-              <div className="text-xs text-primary-700 dark:text-primary-300 space-y-1">
-                <div><strong>Email:</strong> admin@sems.com</div>
-                <div><strong>Password:</strong> admin123</div>
-              </div>
+              )}
+            </form>
+
+            <div className="mt-6 rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-4">
+              <p className="text-sm text-cyan-100">
+                New tenant?{' '}
+                <Link to="/signup" className="font-semibold text-cyan-300 hover:text-cyan-200 underline underline-offset-2">
+                  Create your tenant with AI signup
+                </Link>
+              </p>
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="text-center">
-          <p className="text-sm text-secondary-500 dark:text-secondary-400">
-            © 2024 School Examination Management System. All rights reserved.
+          <p className="text-center mt-10 text-sm text-gray-500">
+            © 2024 Bharat Examination Core Management System
           </p>
-        </div>
+        </motion.div>
       </div>
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        .glass-morphism {
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+        }
+      `}} />
     </div>
   )
 }

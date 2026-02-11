@@ -9,6 +9,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: RATE_LIMIT_ENABLED
+        value: "false"
       - key: CLIENT_URL
         # Replace YOUR_CLIENT_URL with your actual Render client URL
         # Example: https://sems-client.onrender.com
@@ -37,3 +39,13 @@ services:
       # - key: VITE_APP_VERSION
       #   value: 1.0.0
 
+  # Platform Admin Static Site
+  - type: web
+    name: sems-admin
+    env: static
+    rootDir: admin
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_PLATFORM_API_URL
+        value: https://api.vpnbeni.com/api/admin

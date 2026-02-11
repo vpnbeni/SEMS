@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { DISPATCH_STATUS } = require('../utils/constants');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const answerSheetDispatchSchema = new mongoose.Schema({
   dateSheet: {
@@ -417,7 +418,8 @@ answerSheetDispatchSchema.virtual('fullDestinationAddress').get(function() {
 answerSheetDispatchSchema.pre('save', async function(next) {
   if (!this.dispatchNumber) {
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const subject = await mongoose.model('Subject').findById(this.subject).select('code');
+    const SubjectModel = this.model('Subject');
+    const subject = await SubjectModel.findById(this.subject).select('code');
     const existingCount = await this.constructor.countDocuments({
       examDate: this.examDate,
       subject: this.subject
@@ -581,4 +583,4 @@ answerSheetDispatchSchema.methods.updateInsurance = function(insuranceData) {
   return this.save();
 };
 
-module.exports = mongoose.model('AnswerSheetDispatch', answerSheetDispatchSchema);
+module.exports = createContextModelProxy('AnswerSheetDispatch', answerSheetDispatchSchema);

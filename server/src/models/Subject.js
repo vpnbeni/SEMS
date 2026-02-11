@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { STUDENT_CLASSES, REGEX_PATTERNS } = require('../utils/constants');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const subjectSchema = new mongoose.Schema({
   name: {
@@ -248,7 +249,7 @@ subjectSchema.post('save', async function(doc) {
   try {
     // Only update if name, code, or duration was modified
     if (this.isModified('name') || this.isModified('code') || this.isModified('duration')) {
-      const CBSEDatesheet = mongoose.model('CBSEDatesheet');
+      const CBSEDatesheet = this.model('CBSEDatesheet');
       
       // Update all datesheet entries that match this subject code and class
       await CBSEDatesheet.updateMany(
@@ -286,7 +287,7 @@ subjectSchema.post('findOneAndUpdate', async function(doc) {
   if (!doc) return;
   
   try {
-    const CBSEDatesheet = mongoose.model('CBSEDatesheet');
+    const CBSEDatesheet = doc.constructor.db.model('CBSEDatesheet');
     
     // Update all datesheet entries that match this subject code and class
     await CBSEDatesheet.updateMany(
@@ -317,4 +318,4 @@ subjectSchema.post('findOneAndUpdate', async function(doc) {
   }
 });
 
-module.exports = mongoose.model('Subject', subjectSchema);
+module.exports = createContextModelProxy('Subject', subjectSchema);

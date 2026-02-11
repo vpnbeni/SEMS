@@ -1,6 +1,6 @@
-# SEMS - School Examination Management System
+# BECMS - Bharat Examination Core Management System
 
-A comprehensive full-stack MERN application designed for managing CBSE examination processes at examination centers. SEMS handles the complete examination lifecycle from importing CBSE datesheets to managing answer sheet dispatch.
+A comprehensive full-stack MERN application designed for managing CBSE examination processes at examination centers. BECMS handles the complete examination lifecycle from importing CBSE datesheets to managing answer sheet dispatch.
 
 ## Quick Start
 
@@ -13,8 +13,8 @@ A comprehensive full-stack MERN application designed for managing CBSE examinati
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/SEMS.git
-   cd SEMS
+   git clone https://github.com/your-username/BECMS.git
+   cd BECMS
    ```
 
 2. **Install dependencies**
@@ -46,8 +46,64 @@ The application will be available at:
 ### Default Login Credentials
 
 After seeding:
-- **Admin**: admin@sems.com / admin123
-- **Data Entry Operator**: operator@sems.com / operator123
+- **Admin**: admin@becms.com / admin123
+- **Data Entry Operator**: operator@becms.com / operator123
+
+## Multi-Tenant Setup (Greenfield)
+
+BECMS now supports subdomain-based multi-tenancy with:
+- One **central platform database** for tenant metadata and platform admins.
+- One **isolated database per tenant** for all school/exam data.
+
+### Domain model
+- Tenant app: `https://<tenant>.becms.vpnbeni.com`
+- Tenant API: `https://<tenant>.api.vpnbeni.com`
+- Platform admin app: `https://becms.vpnbeni.com`
+- Platform API: `https://api.vpnbeni.com/api/admin/*`
+
+### Required environment variables (server)
+
+Add these in `server/.env`:
+
+```env
+MONGODB_URI=...
+CENTRAL_DB_NAME=becms_central
+TENANT_DB_PREFIX=becms_tenant_
+ROOT_APP_DOMAIN=becms.vpnbeni.com
+ROOT_API_DOMAIN=api.vpnbeni.com
+
+JWT_SECRET=...
+JWT_EXPIRE=7d
+JWT_REFRESH_SECRET=...
+JWT_REFRESH_EXPIRE=30d
+
+PLATFORM_JWT_SECRET=...
+PLATFORM_JWT_EXPIRE=1d
+PLATFORM_ADMIN_EMAIL=admin@platform.com
+PLATFORM_ADMIN_PASSWORD=change_me
+```
+
+### Bootstrap flow
+
+1. Start server dependencies and set env values.
+2. Create platform admin:
+   ```bash
+   cd server
+   npm run bootstrap:platform
+   ```
+3. Start apps:
+   ```bash
+   npm run dev:all
+   ```
+4. Open admin frontend (`/admin` app) and create the first tenant from UI.
+
+### Local development tenant fallback
+
+For localhost, tenant resolution supports:
+- Header: `x-tenant-slug`
+- Query param: `?tenant=<slug>`
+
+The frontend automatically attaches `x-tenant-slug` in local mode.
 
 ## Architecture
 
@@ -86,7 +142,7 @@ After seeding:
 
 ### Project Structure
 ```
-SEMS/
+BECMS/
 ├── client/                 # React frontend application
 │   ├── src/
 │   │   ├── pages/          # 17 route pages
@@ -392,6 +448,7 @@ See `.env.example` for all required variables:
 | SMTP_PORT | Email SMTP port |
 | SMTP_USER | Email username |
 | SMTP_PASS | Email password |
+| RATE_LIMIT_ENABLED | Enable/disable API rate limiting (`true`/`false`) |
 | RATE_LIMIT_WINDOW | Rate limit window (ms) |
 | RATE_LIMIT_MAX | Max requests per window |
 | MAX_FILE_SIZE | Max upload size (bytes) |

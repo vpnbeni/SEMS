@@ -1,0 +1,72 @@
+import axios from 'axios'
+import { resolvePlatformAdminApiBaseUrl } from '@/utils/tenantRuntime'
+import type { User } from '@/types/auth'
+
+const tenantSignupApi = axios.create({
+  baseURL: resolvePlatformAdminApiBaseUrl(),
+  timeout: 30000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
+
+export interface TenantSignupStartPayload {
+  name: string
+  slug: string
+  adminEmail: string
+  adminPassword: string
+  confirmPassword: string
+}
+
+export interface TenantSignupStartResponse {
+  ticket: string
+  tenantSlug: string
+  expiresAt: string
+  otpExpiresAt: string
+  otpDeliveryStatus: 'sent' | 'failed'
+}
+
+export interface TenantSignupExchangePayload {
+  ticket: string
+  tenantSlug: string
+  otp: string
+}
+
+export interface TenantSignupResendOtpPayload {
+  ticket: string
+  tenantSlug: string
+}
+
+export interface TenantSignupResendOtpResponse {
+  otpExpiresAt: string
+}
+
+export interface TenantSignupExchangeResponse {
+  token: string
+  refreshToken: string
+  user: User
+  tenant: {
+    slug: string
+    name: string
+    status: 'active' | 'suspended'
+  }
+}
+
+const tenantSignupService = {
+  async startSignup(payload: TenantSignupStartPayload): Promise<TenantSignupStartResponse> {
+    const response = await tenantSignupApi.post('/public/tenant-signup/start', payload)
+    return response.data.data
+  },
+
+  async exchangeTicket(payload: TenantSignupExchangePayload): Promise<TenantSignupExchangeResponse> {
+    const response = await tenantSignupApi.post('/public/tenant-signup/exchange', payload)
+    return response.data.data
+  },
+
+  async resendOtp(payload: TenantSignupResendOtpPayload): Promise<TenantSignupResendOtpResponse> {
+    const response = await tenantSignupApi.post('/public/tenant-signup/resend-otp', payload)
+    return response.data.data
+  },
+}
+
+export default tenantSignupService

@@ -5,7 +5,7 @@ const colors = require('colors');
 dotenv.config();
 
 // Import database connection
-const connectDB = require('./config/database');
+const { connectPlatformDB, getCentralDbName } = require('./config/platformDatabase');
 
 // Import app
 const app = require('./app');
@@ -20,12 +20,11 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
-// Connect to database (calendar initialization temporarily disabled)
+// Connect to platform database (tenant databases are initialized per request)
 const initializeServer = async () => {
   try {
-    // Connect to database first
-    await connectDB();
-    console.log('✅ Database connected successfully'.green.bold);
+    await connectPlatformDB();
+    console.log(`✅ Platform database '${getCentralDbName()}' connected successfully`.green.bold);
     
     // TODO: Re-enable calendar initialization after debugging
     // setTimeout(async () => {
@@ -40,10 +39,7 @@ const initializeServer = async () => {
     console.log('✅ Server initialization completed successfully'.green.bold);
   } catch (error) {
     console.error('❌ Server initialization failed:'.red.bold, error.message);
-    // For database connection errors, we should exit
-    if (error.message.includes('Database connection failed')) {
-      process.exit(1);
-    }
+    process.exit(1);
   }
 };
 

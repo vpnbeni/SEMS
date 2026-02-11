@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const roomSchema = new mongoose.Schema({
   roomNo: {
@@ -27,4 +28,4 @@ const roomSchema = new mongoose.Schema({
   timestamps: true
 });
 
-module.exports = mongoose.model('Room', roomSchema);
+module.exports = createContextModelProxy('Room', roomSchema);

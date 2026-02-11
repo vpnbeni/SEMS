@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { REGEX_PATTERNS } = require('../utils/constants');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const teacherSchema = new mongoose.Schema({
   name: {
@@ -247,4 +248,4 @@ teacherSchema.methods.teachesSubject = function(subjectId) {
   return this.subjects.some(subject => subject.toString() === subjectId.toString());
 };
 
-module.exports = mongoose.model('Teacher', teacherSchema);
+module.exports = createContextModelProxy('Teacher', teacherSchema);

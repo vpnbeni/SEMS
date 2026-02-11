@@ -26,7 +26,7 @@ const register = asyncHandler(async (req, res) => {
   });
 
   // Generate token and send response
-  createTokenResponse(user, HTTP_STATUS.CREATED, res);
+  createTokenResponse(user, HTTP_STATUS.CREATED, res, req.tenant?.slug);
 });
 
 // @desc    Login user
@@ -63,7 +63,7 @@ const login = asyncHandler(async (req, res) => {
   await user.save({ validateBeforeSave: false });
 
   // Generate token and send response
-  createTokenResponse(user, HTTP_STATUS.OK, res);
+  createTokenResponse(user, HTTP_STATUS.OK, res, req.tenant?.slug);
 });
 
 // @desc    Logout user
@@ -101,6 +101,12 @@ const refreshToken = asyncHandler(async (req, res) => {
     // Verify refresh token
     const decoded = verifyRefreshToken(token);
 
+    if (!req.tenant?.slug || decoded.tenantSlug !== req.tenant.slug) {
+      return res.status(HTTP_STATUS.UNAUTHORIZED).json(
+        generateResponse(false, ERROR_MESSAGES.INVALID_TOKEN)
+      );
+    }
+
     // Get user
     const user = await User.findById(decoded.id);
     if (!user) {
@@ -125,7 +131,7 @@ const refreshToken = asyncHandler(async (req, res) => {
     }
 
     // Generate new access token
-    const accessToken = generateToken({ id: user._id });
+    const accessToken = generateToken({ id: user._id, tenantSlug: req.tenant.slug });
 
     res.status(HTTP_STATUS.OK).json(
       generateResponse(true, 'Token refreshed successfully', {

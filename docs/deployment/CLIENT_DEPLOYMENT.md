@@ -69,6 +69,28 @@ If you prefer using the `render.yaml` file:
 
 ## Important Notes
 
+### Multi-tenant frontend deployment
+
+For tenant app (`client`) use wildcard app domain:
+- `*.sems.vpnbeni.com` (tenant client)
+
+For platform admin app (`admin`) use:
+- `sems.vpnbeni.com`
+
+Tenant frontend runtime now resolves API host from subdomain, so set:
+
+```bash
+VITE_ROOT_APP_DOMAIN=sems.vpnbeni.com
+VITE_ROOT_API_DOMAIN=api.vpnbeni.com
+VITE_LOCAL_API_URL=http://localhost:5000/api
+```
+
+Admin frontend (`/admin`) should point to platform admin API:
+
+```bash
+VITE_PLATFORM_API_URL=https://api.vpnbeni.com/api/admin
+```
+
 ### Environment Variables
 
 Your client uses these environment variables (defined in `client/src/vite-env.d.ts`):
@@ -152,4 +174,3 @@ You can add a custom domain:
 **Need Help?**
 - Render Docs: https://render.com/docs
 - Render Support: support@render.com
-

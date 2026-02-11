@@ -1,0 +1,81 @@
+const Joi = require('joi');
+
+const tenantSlugRegex = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+const platformLoginSchema = Joi.object({
+  email: Joi.string().email().required(),
+  password: Joi.string().min(8).required(),
+});
+
+const createTenantSchema = Joi.object({
+  slug: Joi.string().pattern(tenantSlugRegex).required(),
+  name: Joi.string().min(2).max(120).required(),
+  adminEmail: Joi.string().email().required(),
+  adminPassword: Joi.string().min(8).optional(),
+  dbName: Joi.string().min(3).max(120).optional(),
+});
+
+const publicTenantSignupStartSchema = Joi.object({
+  slug: Joi.string().pattern(tenantSlugRegex).required(),
+  name: Joi.string().min(2).max(120).required(),
+  adminEmail: Joi.string().email().required(),
+  adminPassword: Joi.string()
+    .min(8)
+    .max(128)
+    .pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#\\$%\\^&\\*])'))
+    .required(),
+  confirmPassword: Joi.string()
+    .valid(Joi.ref('adminPassword'))
+    .required()
+    .messages({
+      'any.only': 'Confirm password must match password',
+    }),
+});
+
+const publicTenantSignupExchangeSchema = Joi.object({
+  ticket: Joi.string().min(20).required(),
+  tenantSlug: Joi.string().pattern(tenantSlugRegex).required(),
+  otp: Joi.string().pattern(/^\d{6}$/).required(),
+});
+
+const publicTenantSignupResendOtpSchema = Joi.object({
+  ticket: Joi.string().min(20).required(),
+  tenantSlug: Joi.string().pattern(tenantSlugRegex).required(),
+});
+
+const publicTenantResolveByEmailSchema = Joi.object({
+  email: Joi.string().email().required(),
+});
+
+const updateTenantSchema = Joi.object({
+  name: Joi.string().min(2).max(120).optional(),
+  adminEmail: Joi.string().email().optional(),
+}).min(1);
+
+const deleteTenantSchema = Joi.object({
+  confirmSlug: Joi.string().trim().min(1).required(),
+});
+
+const tenantQuerySchema = Joi.object({
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(100).optional(),
+  search: Joi.string().allow('').optional(),
+  status: Joi.string().valid('active', 'suspended').optional(),
+});
+
+const tenantIdParamSchema = Joi.object({
+  id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
+});
+
+module.exports = {
+  platformLoginSchema,
+  createTenantSchema,
+  publicTenantSignupStartSchema,
+  publicTenantSignupExchangeSchema,
+  publicTenantSignupResendOtpSchema,
+  publicTenantResolveByEmailSchema,
+  updateTenantSchema,
+  deleteTenantSchema,
+  tenantQuerySchema,
+  tenantIdParamSchema,
+};

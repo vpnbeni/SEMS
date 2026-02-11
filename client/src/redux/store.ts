@@ -25,7 +25,7 @@ const rootReducer = combineReducers({
 
 // Persist configuration
 const persistConfig = {
-  key: 'sems-root',
+  key: 'becms-root',
   storage,
   whitelist: ['auth'], // Only persist auth state
   version: 1,

@@ -5,17 +5,21 @@
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "dev:all": "concurrently \"npm run server\" \"npm run client\" \"npm run admin\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev",
+    "admin": "cd admin && npm run dev",
     "install-server": "cd server && npm install",
     "install-client": "cd client && npm install",
-    "install-all": "npm install && npm run install-server && npm run install-client",
+    "install-admin": "cd admin && npm install",
+    "install-all": "npm install && npm run install-server && npm run install-client && npm run install-admin",
     "seed": "cd server && npm run seed",
     "build": "cd client && npm run build",
+    "build:admin": "cd admin && npm run build",
     "start": "cd server && npm start",
     "test": "concurrently \"cd server && npm test\" \"cd client && npm test\"",
     "lint": "concurrently \"cd server && npm run lint\" \"cd client && npm run lint\"",
-    "clean": "rimraf node_modules client/node_modules server/node_modules client/dist server/dist"
+    "clean": "rimraf node_modules client/node_modules server/node_modules admin/node_modules client/dist server/dist admin/dist"
   },
   "keywords": [
     "examination",
@@ -27,7 +31,7 @@
     "mongodb",
     "express"
   ],
-  "author": "SEMS Development Team",
+  "author": "BECMS Development Team",
   "license": "MIT",
   "devDependencies": {
     "concurrently": "^8.2.2",
