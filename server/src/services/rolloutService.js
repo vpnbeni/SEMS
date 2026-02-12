@@ -6,7 +6,7 @@ const { TENANT_STATUS } = require('../models/platform/Tenant');
 /**
  * Initiate a new data rollout to all active tenants
  * @param {Object} params - Rollout parameters
- * @param {string} params.module - Module type (subjects, datesheet, guidelines)
+ * @param {string} params.module - Module type (subjects, datesheet, guidelines, undertaking)
  * @param {string} params.masterDataId - ID of the master data record
  * @param {string} params.versionLabel - Version label for this rollout
  * @param {string} params.adminId - Platform admin ID initiating the rollout
@@ -103,6 +103,9 @@ async function executeRollout(rolloutId) {
     case ROLLOUT_MODULES.GUIDELINES:
       modelKeys = ['Guideline'];
       break;
+    case ROLLOUT_MODULES.UNDERTAKING:
+      modelKeys = ['Undertaking'];
+      break;
     default:
       throw new Error(`Unknown module: ${rollout.module}`);
   }
@@ -136,6 +139,9 @@ async function executeRollout(rolloutId) {
           break;
         case ROLLOUT_MODULES.GUIDELINES:
           result = await rolloutGuidelinesToTenant(models, platformModels, rollout.masterDataId);
+          break;
+        case ROLLOUT_MODULES.UNDERTAKING:
+          result = await rolloutUndertakingToTenant(models, platformModels, rollout.masterDataId);
           break;
       }
 
@@ -302,6 +308,44 @@ async function rolloutGuidelinesToTenant(models, platformModels, masterDataId) {
 }
 
 /**
+ * Rollout undertaking from master data to a tenant database
+ * @param {Object} models - Tenant models
+ * @param {Object} platformModels - Platform models
+ * @param {string} masterDataId - ID of the master undertaking
+ * @returns {Promise<Object>} Rollout result with records affected
+ */
+async function rolloutUndertakingToTenant(models, platformModels, masterDataId) {
+  const { MasterUndertaking } = platformModels;
+  const { Undertaking } = models;
+
+  // Fetch master undertaking
+  const masterUndertaking = await MasterUndertaking.findById(masterDataId);
+  if (!masterUndertaking) {
+    throw new Error(`Master undertaking not found: ${masterDataId}`);
+  }
+
+  // Deactivate existing active undertakings
+  await Undertaking.updateMany(
+    { isActive: true },
+    { $set: { isActive: false } }
+  );
+
+  // Create new undertaking
+  await Undertaking.create({
+    title: masterUndertaking.title,
+    academicYear: masterUndertaking.academicYear,
+    cloudinaryUrl: masterUndertaking.cloudinaryUrl,
+    cloudinaryPublicId: masterUndertaking.cloudinaryPublicId,
+    metadata: masterUndertaking.metadata,
+    rolledOutAt: new Date(),
+    rolledOutFrom: masterDataId,
+    isActive: true
+  });
+
+  return { recordsAffected: 1 };
+}
+
+/**
  * Retry failed rollouts for a specific rollout record
  * @param {string} rolloutId - ID of the rollout record
  * @returns {Promise<Object>} Updated rollout record
@@ -352,5 +396,6 @@ module.exports = {
   rolloutSubjectsToTenant,
   rolloutDatesheetToTenant,
   rolloutGuidelinesToTenant,
+  rolloutUndertakingToTenant,
   retryFailedRollout
 };

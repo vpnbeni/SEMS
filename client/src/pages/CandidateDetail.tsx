@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import candidateService from '../services/candidateService'
@@ -29,7 +29,7 @@ interface Candidate {
   department?: string
   status: 'active' | 'inactive' | 'graduated' | 'suspended'
   admissionDate?: string
-  subjects?: Array<{ _id: string; name: string; code: string; credits: number }>
+  subjects?: Array<{ _id: string; name: string; code: string; class?: string; credits?: number; examDate?: string | null }>
   subjectCodes?: Array<{ code: string; medium?: string }> | string[]
   importedFrom?: {
     fileName: string
@@ -91,6 +91,28 @@ const CandidateDetail: React.FC = () => {
       minute: '2-digit'
     })
   }
+
+  const formatExamDate = (dateString?: string | null) => {
+    if (!dateString) return 'TBD'
+    const date = new Date(dateString)
+    if (Number.isNaN(date.getTime())) return 'TBD'
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    })
+  }
+
+  const sortedSubjects = useMemo(() => {
+    if (!candidate?.subjects || candidate.subjects.length === 0) return []
+
+    return [...candidate.subjects].sort((a, b) => {
+      const aTime = a.examDate ? new Date(a.examDate).getTime() : Number.POSITIVE_INFINITY
+      const bTime = b.examDate ? new Date(b.examDate).getTime() : Number.POSITIVE_INFINITY
+      if (aTime !== bTime) return aTime - bTime
+      return String(a.code || '').localeCompare(String(b.code || ''))
+    })
+  }, [candidate?.subjects])
 
   if (loading) {
     return (
@@ -401,11 +423,11 @@ const CandidateDetail: React.FC = () => {
                 Enrolled Subjects
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {candidate.subjects.map((subject) => (
+                {sortedSubjects.map((subject) => (
                   <div key={subject._id} className="p-4 bg-secondary-50 dark:bg-secondary-800 rounded-lg">
                     <h3 className="font-medium text-gray-900 dark:text-white">{subject.name}</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Code: {subject.code} • Credits: {subject.credits}
+                      Code: {subject.code} • Date: {formatExamDate(subject.examDate)}
                     </p>
                   </div>
                 ))}

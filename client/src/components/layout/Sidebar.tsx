@@ -96,7 +96,7 @@ const Sidebar: React.FC = () => {
   // Refresh counts when location changes (user navigates)
   useEffect(() => {
     // Refresh counts after a delay when navigating to relevant pages
-    const relevantPaths = ['/candidates', '/subjects', '/exam-functionaries', '/answersheets', '/datesheets', '/examrooms']
+    const relevantPaths = ['/candidates', '/subjects', '/exam-functionaries', '/duties', '/answersheets', '/datesheets', '/examrooms']
     if (relevantPaths.some(path => location.pathname.includes(path))) {
       const timer = setTimeout(() => {
         fetchCounts(false)
@@ -205,6 +205,26 @@ const Sidebar: React.FC = () => {
         </svg>
       ),
       badge: toBadgeValue(counts.examFunctionaries),
+    },
+    {
+      name: 'Duties',
+      href: '/duties',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 5a2 2 0 002 2h2a2 2 0 002-2m-6 9l2 2 4-4" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Undertaking Form',
+      href: '/undertaking',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+      badge: null,
     },
     {
       name: 'Candidates',

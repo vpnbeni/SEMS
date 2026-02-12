@@ -3,6 +3,7 @@ import { StatusBadge } from '../components/StatusBadge'
 import {
   masterDatesheetApi,
   masterGuidelinesApi,
+  masterUndertakingsApi,
   masterSubjectsApi,
   rolloutApi,
 } from '../services/platformApi'
@@ -12,6 +13,7 @@ const moduleLabel: Record<RolloutModule, string> = {
   subjects: 'Subjects',
   datesheet: 'Datesheet',
   guidelines: 'Guidelines',
+  undertaking: 'Undertaking',
 }
 
 const formatDateTime = (value?: string) => (value ? new Date(value).toLocaleString() : '-')
@@ -96,16 +98,29 @@ export function RolloutsPage() {
       return active._id
     }
 
-    const currentGuideline = await masterGuidelinesApi.current()
-    if (currentGuideline) {
-      return currentGuideline._id
+    if (module === 'guidelines') {
+      const currentGuideline = await masterGuidelinesApi.current()
+      if (currentGuideline) {
+        return currentGuideline._id
+      }
+
+      const guidelines = await masterGuidelinesApi.list()
+      if (guidelines.length === 0) {
+        throw new Error('No master guideline found. Upload guideline first.')
+      }
+      return guidelines[0]._id
     }
 
-    const guidelines = await masterGuidelinesApi.list()
-    if (guidelines.length === 0) {
-      throw new Error('No master guideline found. Upload guideline first.')
+    const currentUndertaking = await masterUndertakingsApi.current()
+    if (currentUndertaking) {
+      return currentUndertaking._id
     }
-    return guidelines[0]._id
+
+    const undertakings = await masterUndertakingsApi.list()
+    if (undertakings.length === 0) {
+      throw new Error('No master undertaking found. Upload undertaking first.')
+    }
+    return undertakings[0]._id
   }
 
   const initiateQuickRollout = async (module: RolloutModule) => {
@@ -193,6 +208,14 @@ export function RolloutsPage() {
             disabled={rollingOutModule !== null}
           >
             {rollingOutModule === 'guidelines' ? 'Starting...' : 'Rollout Guidelines'}
+          </button>
+          <button
+            type="button"
+            className="primary"
+            onClick={() => initiateQuickRollout('undertaking')}
+            disabled={rollingOutModule !== null}
+          >
+            {rollingOutModule === 'undertaking' ? 'Starting...' : 'Rollout Undertaking'}
           </button>
         </div>
       </section>

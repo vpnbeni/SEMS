@@ -41,6 +41,20 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
+      case 'duties':
+        return {
+          pageTitle: 'Duties',
+          pageSubtitle: 'Assign exam functionaries to rooms for each exam day',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'undertaking':
+        return {
+          pageTitle: 'Undertaking Form',
+          pageSubtitle: 'Download undertaking form rolled out by super admin',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
       case 'candidates':
         return {
           pageTitle: 'Candidates',

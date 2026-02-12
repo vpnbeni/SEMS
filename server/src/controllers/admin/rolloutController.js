@@ -1,4 +1,5 @@
 const { initiateRollout, retryFailedRollout } = require('../../services/rolloutService');
+const { ROLLOUT_MODULES } = require('../../models/platform/DataRollout');
 
 // Initiate a rollout
 exports.initiateRollout = async (req, res) => {
@@ -12,7 +13,7 @@ exports.initiateRollout = async (req, res) => {
       });
     }
 
-    const validModules = ['subjects', 'datesheet', 'guidelines'];
+    const validModules = Object.values(ROLLOUT_MODULES);
     if (!validModules.includes(module)) {
       return res.status(400).json({
         success: false,

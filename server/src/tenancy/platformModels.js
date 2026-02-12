@@ -6,6 +6,7 @@ const { getTenantUserDirectoryModel } = require('../models/platform/TenantUserDi
 const { getMasterSubjectModel } = require('../models/platform/MasterSubject');
 const { getMasterCBSEDatesheetModel } = require('../models/platform/MasterCBSEDatesheet');
 const { getMasterGuidelineModel } = require('../models/platform/MasterGuideline');
+const { getMasterUndertakingModel } = require('../models/platform/MasterUndertaking');
 const { getDataRolloutModel } = require('../models/platform/DataRollout');
 
 const getPlatformModels = () => {
@@ -20,6 +21,7 @@ const getPlatformModels = () => {
     MasterSubject: getMasterSubjectModel(connection),
     MasterCBSEDatesheet: getMasterCBSEDatesheetModel(connection),
     MasterGuideline: getMasterGuidelineModel(connection),
+    MasterUndertaking: getMasterUndertakingModel(connection),
     DataRollout: getDataRolloutModel(connection),
   };
 };

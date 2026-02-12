@@ -35,6 +35,7 @@ const {
 const masterSubjectsController = require('../controllers/admin/masterSubjectsController');
 const masterDatesheetController = require('../controllers/admin/masterDatesheetController');
 const masterGuidelinesController = require('../controllers/admin/masterGuidelinesController');
+const masterUndertakingsController = require('../controllers/admin/masterUndertakingsController');
 const rolloutController = require('../controllers/admin/rolloutController');
 
 const router = express.Router();
@@ -165,6 +166,13 @@ router.get('/master-guidelines', masterGuidelinesController.listGuidelines);
 router.get('/master-guidelines/current', masterGuidelinesController.getCurrentGuideline);
 router.get('/master-guidelines/:id', masterGuidelinesController.getGuideline);
 router.delete('/master-guidelines/:id', masterGuidelinesController.deleteGuideline);
+
+// Master Undertaking routes
+router.post('/master-undertakings/upload', masterUndertakingsController.uploadUndertaking);
+router.get('/master-undertakings', masterUndertakingsController.listUndertakings);
+router.get('/master-undertakings/current', masterUndertakingsController.getCurrentUndertaking);
+router.get('/master-undertakings/:id', masterUndertakingsController.getUndertaking);
+router.delete('/master-undertakings/:id', masterUndertakingsController.deleteUndertaking);
 
 // Rollout routes
 router.post('/rollouts/initiate', rolloutController.initiateRollout);

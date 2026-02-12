@@ -280,15 +280,36 @@ export const downloadFile = async (
     const link = document.createElement('a')
     link.href = url
 
+    const inferExtensionFromContentType = (contentType?: string) => {
+      const normalized = String(contentType || '').toLowerCase()
+      if (normalized.includes('application/pdf')) return '.pdf'
+      if (normalized.includes('text/csv')) return '.csv'
+      if (normalized.includes('application/json')) return '.json'
+      if (normalized.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')) return '.xlsx'
+      if (normalized.includes('application/vnd.ms-excel')) return '.xls'
+      return ''
+    }
+
     // Get filename from response headers or use provided filename
     const contentDisposition = response.headers['content-disposition']
+    const contentType = response.headers['content-type']
     let downloadFilename = filename
 
     if (contentDisposition) {
-      const filenameMatch = contentDisposition.match(/filename="?(.+)"?/)
-      if (filenameMatch) {
-        downloadFilename = filenameMatch[1]
+      const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i)
+      if (utf8Match?.[1]) {
+        downloadFilename = decodeURIComponent(utf8Match[1])
+      } else {
+        const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/i)
+        if (filenameMatch?.[1]) {
+          downloadFilename = filenameMatch[1]
+        }
       }
+    }
+
+    if (!downloadFilename || !/\.[a-z0-9]+$/i.test(downloadFilename)) {
+      const extension = inferExtensionFromContentType(contentType)
+      downloadFilename = `${downloadFilename || 'download'}${extension}`
     }
 
     link.setAttribute('download', downloadFilename || 'download')

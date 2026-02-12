@@ -2,10 +2,35 @@ const pdfGenerator = require('../utils/pdfGenerator');
 const seatingPlanBuilder = require('../utils/seatingPlanBuilder');
 const Room = require('../models/Room');
 
+const parseRoomNoForSort = (roomNo) => {
+  const value = String(roomNo ?? '').trim();
+  if (!value) return Number.POSITIVE_INFINITY;
+
+  const pureNumeric = value.match(/^\d+$/);
+  if (pureNumeric) return parseInt(pureNumeric[0], 10);
+
+  const leadingNumeric = value.match(/^(\d+)/);
+  if (leadingNumeric) return parseInt(leadingNumeric[1], 10);
+
+  return Number.POSITIVE_INFINITY;
+};
+
+const compareRoomNo = (a, b) => {
+  const aNo = parseRoomNoForSort(a?.roomNo);
+  const bNo = parseRoomNoForSort(b?.roomNo);
+
+  if (aNo !== bNo) return aNo - bNo;
+  return String(a?.roomNo ?? '').localeCompare(String(b?.roomNo ?? ''), undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
+};
+
 // Get all rooms
 exports.getRooms = async (req, res) => {
   try {
-    const rooms = await Room.find({ isActive: true }).sort({ roomNo: 1 });
+    const rooms = await Room.find({ isActive: true }).lean();
+    rooms.sort(compareRoomNo);
     res.json(rooms);
   } catch (error) {
     console.error('Get Rooms Error:', error);

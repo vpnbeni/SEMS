@@ -34,6 +34,8 @@ const centreDatesheetRoutes = require('./routes/centreDatesheet');
 const seatingPlanRoutes = require('./routes/seatingPlan');
 const form66Routes = require('./routes/form66');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const dutiesRoutes = require('./routes/dutiesRoutes');
+const undertakingsRoutes = require('./routes/undertakings');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -110,6 +112,7 @@ const corsOptions = {
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'x-tenant-slug'],
+  exposedHeaders: ['Content-Disposition', 'Content-Type'],
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -210,6 +213,8 @@ app.get('/api', (req, res) => {
       dispatch: '/api/dispatch',
       export: '/api/export',
       answersheets: '/api/answersheets',
+      duties: '/api/duties',
+      undertakings: '/api/undertakings',
       admin: '/api/admin',
       // calendar: '/api/calendar' // Temporarily disabled for debugging
     },
@@ -238,6 +243,8 @@ tenantScopedRouter.use('/centre-datesheet', centreDatesheetRoutes);
 tenantScopedRouter.use('/seating-plan', seatingPlanRoutes);
 tenantScopedRouter.use('/form66', form66Routes);
 tenantScopedRouter.use('/dashboard', dashboardRoutes);
+tenantScopedRouter.use('/duties', dutiesRoutes);
+tenantScopedRouter.use('/undertakings', undertakingsRoutes);
 // tenantScopedRouter.use('/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 app.use('/api', tenantScopedRouter);

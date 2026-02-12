@@ -4,6 +4,7 @@ const ROLLOUT_MODULES = {
   SUBJECTS: 'subjects',
   DATESHEET: 'datesheet',
   GUIDELINES: 'guidelines',
+  UNDERTAKING: 'undertaking',
 };
 
 const ROLLOUT_STATUS = {

@@ -3,6 +3,7 @@ import type {
   DataRollout,
   MasterCBSEDatesheet,
   MasterGuideline,
+  MasterUndertaking,
   MasterSubject,
   MasterSubjectListResult,
   PlatformAdmin,
@@ -218,6 +219,36 @@ export const masterGuidelinesApi = {
 
   async delete(id: string, removeFromCloudinary = false): Promise<void> {
     await platformApi.delete(`/master-guidelines/${id}`, {
+      params: { removeFromCloudinary },
+    })
+  },
+}
+
+export const masterUndertakingsApi = {
+  async upload(formData: FormData): Promise<UploadResult<MasterUndertaking>> {
+    const response = await platformApi.post<UploadResult<MasterUndertaking>>('/master-undertakings/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    return response.data
+  },
+
+  async list(): Promise<MasterUndertaking[]> {
+    const response = await platformApi.get<ApiResponse<MasterUndertaking[]>>('/master-undertakings')
+    return response.data.data
+  },
+
+  async getById(id: string): Promise<MasterUndertaking> {
+    const response = await platformApi.get<ApiResponse<MasterUndertaking>>(`/master-undertakings/${id}`)
+    return response.data.data
+  },
+
+  async current(): Promise<MasterUndertaking | null> {
+    const response = await platformApi.get<ApiResponse<MasterUndertaking | null>>('/master-undertakings/current')
+    return response.data.data
+  },
+
+  async delete(id: string, removeFromCloudinary = false): Promise<void> {
+    await platformApi.delete(`/master-undertakings/${id}`, {
       params: { removeFromCloudinary },
     })
   },

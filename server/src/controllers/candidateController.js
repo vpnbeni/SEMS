@@ -23,6 +23,28 @@ const withTimeout = (promise, timeoutMs, message) => {
   ]);
 };
 
+const normalizeSubjectCode = (code) =>
+  String(code || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/\((?:E|H)\)$/i, '');
+
+const normalizeSubjectClass = (classValue) => {
+  const normalized = String(classValue || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
+
+  if (!normalized) return '';
+  if (normalized === '10' || normalized === '10th') return '10th';
+  if (normalized === '12' || normalized === '12th') return '12th';
+  return normalized;
+};
+
+const buildSubjectKey = (code, classValue) =>
+  `${normalizeSubjectCode(code)}-${normalizeSubjectClass(classValue)}`;
+
 // @desc    Get all candidates
 // @route   GET /api/candidates
 // @access  Private
@@ -77,7 +99,7 @@ const getCandidates = asyncHandler(async (req, res) => {
 // @access  Private
 const getCandidate = asyncHandler(async (req, res) => {
   const candidate = await Candidate.findById(req.params.id)
-    .populate('subjects', 'name code credits')
+    .populate('subjects', 'name code class credits')
     .populate('createdBy', 'name email')
     .populate('updatedBy', 'name email');
 
@@ -88,9 +110,52 @@ const getCandidate = asyncHandler(async (req, res) => {
     });
   }
 
+  const candidateData = candidate.toObject();
+
+  try {
+    const CBSEDatesheet = require('../models/CBSEDatesheet');
+    const cbseDatesheet = await CBSEDatesheet.getActive();
+    const examDateBySubjectKey = new Map();
+
+    if (cbseDatesheet?.entries?.length) {
+      cbseDatesheet.entries.forEach((entry) => {
+        const key = buildSubjectKey(entry?.subject?.code, entry?.subject?.class);
+        if (!key || key.endsWith('-')) return;
+
+        const examDate = entry?.examDate ? new Date(entry.examDate) : null;
+        if (!examDate || Number.isNaN(examDate.getTime())) return;
+
+        const existing = examDateBySubjectKey.get(key);
+        if (!existing || examDate < existing) {
+          examDateBySubjectKey.set(key, examDate);
+        }
+      });
+    }
+
+    if (Array.isArray(candidateData.subjects) && candidateData.subjects.length > 0) {
+      candidateData.subjects = candidateData.subjects
+        .map((subject) => {
+          const classValue = subject.class || candidateData.class;
+          const examDate = examDateBySubjectKey.get(buildSubjectKey(subject.code, classValue));
+          return {
+            ...subject,
+            examDate: examDate ? examDate.toISOString() : null,
+          };
+        })
+        .sort((a, b) => {
+          const aTime = a.examDate ? new Date(a.examDate).getTime() : Number.POSITIVE_INFINITY;
+          const bTime = b.examDate ? new Date(b.examDate).getTime() : Number.POSITIVE_INFINITY;
+          if (aTime !== bTime) return aTime - bTime;
+          return String(a.code || '').localeCompare(String(b.code || ''));
+        });
+    }
+  } catch (error) {
+    console.warn('Failed to enrich candidate subjects with exam dates:', error.message);
+  }
+
   res.status(200).json({
     success: true,
-    data: candidate
+    data: candidateData
   });
 });
 

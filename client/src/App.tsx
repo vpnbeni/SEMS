@@ -12,6 +12,8 @@ import TenantSignupChat from './pages/TenantSignupChat'
 import TenantSignupComplete from './pages/TenantSignupComplete'
 import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
+import Duties from './pages/Duties'
+import UndertakingForm from './pages/UndertakingForm'
 // Students feature removed
 import Candidates from './pages/Candidates'
 import CandidateDetail from './pages/CandidateDetail'
@@ -89,6 +91,8 @@ function App() {
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="exam-functionaries" element={<Teachers />} />
               <Route path="exam-functionaries/:id" element={<TeacherDetail />} />
+              <Route path="duties" element={<Duties />} />
+              <Route path="undertaking" element={<UndertakingForm />} />
               {/* Legacy redirects */}
               <Route path="teachers" element={<Navigate to="/exam-functionaries" replace />} />
               <Route path="teachers/:id" element={<Navigate to="/exam-functionaries/:id" replace />} />

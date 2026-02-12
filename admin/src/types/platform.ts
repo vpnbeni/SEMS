@@ -129,7 +129,22 @@ export interface MasterGuideline {
   updatedAt?: string
 }
 
-export type RolloutModule = 'subjects' | 'datesheet' | 'guidelines'
+export interface MasterUndertaking {
+  _id: string
+  title: string
+  academicYear: string
+  cloudinaryUrl: string
+  cloudinaryPublicId: string
+  metadata: {
+    pages?: number
+    fileSize?: number
+  }
+  isActive: boolean
+  createdAt: string
+  updatedAt?: string
+}
+
+export type RolloutModule = 'subjects' | 'datesheet' | 'guidelines' | 'undertaking'
 export type RolloutStatus = 'in_progress' | 'completed' | 'partial_failure'
 
 export interface TenantRolloutStatus {

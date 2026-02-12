@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { MasterDatesheetPage } from './pages/MasterDatesheetPage'
 import { MasterGuidelinesPage } from './pages/MasterGuidelinesPage'
 import { MasterSubjectsPage } from './pages/MasterSubjectsPage'
+import { MasterUndertakingPage } from './pages/MasterUndertakingPage'
 import { RolloutsPage } from './pages/RolloutsPage'
 import { TenantsPage } from './pages/TenantsPage'
 import { platformAuthApi } from './services/platformApi'
@@ -87,11 +88,12 @@ function App() {
 
   const navItems = useMemo(
     () => [
-      { label: 'Tenants', icon: '⊞', path: '/', matcher: (path: string) => path === '/' || path.startsWith('/tenants/') },
-      { label: 'Subjects', icon: '≡', path: '/master-subjects', matcher: (path: string) => path === '/master-subjects' },
-      { label: 'Datesheet', icon: '◫', path: '/master-datesheet', matcher: (path: string) => path === '/master-datesheet' },
-      { label: 'Guidelines', icon: '☰', path: '/master-guidelines', matcher: (path: string) => path === '/master-guidelines' },
-      { label: 'Rollouts', icon: '↻', path: '/rollouts', matcher: (path: string) => path.startsWith('/rollouts') },
+      { label: 'Tenants', icon: '[]', path: '/', matcher: (path: string) => path === '/' || path.startsWith('/tenants/') },
+      { label: 'Subjects', icon: '=', path: '/master-subjects', matcher: (path: string) => path === '/master-subjects' },
+      { label: 'Datesheet', icon: '#', path: '/master-datesheet', matcher: (path: string) => path === '/master-datesheet' },
+      { label: 'Guidelines', icon: '||', path: '/master-guidelines', matcher: (path: string) => path === '/master-guidelines' },
+      { label: 'Undertaking', icon: 'U', path: '/master-undertaking', matcher: (path: string) => path === '/master-undertaking' },
+      { label: 'Rollouts', icon: 'R', path: '/rollouts', matcher: (path: string) => path.startsWith('/rollouts') },
     ],
     [],
   )
@@ -115,6 +117,10 @@ function App() {
       return <MasterGuidelinesPage />
     }
 
+    if (currentPath === '/master-undertaking') {
+      return <MasterUndertakingPage />
+    }
+
     if (currentPath.startsWith('/rollouts')) {
       return <RolloutsPage />
     }
@@ -127,7 +133,7 @@ function App() {
       <main className="auth-page">
         <div className="card" style={{ width: '100%', maxWidth: 400 }}>
           <div className="logo">
-            <span style={{ color: 'var(--accent)' }}>●</span>
+            <span style={{ color: 'var(--accent)' }}>*</span>
             <span className="logo-text">BECMS ADMIN</span>
           </div>
           <h1 className="card-title">Welcome back</h1>
@@ -152,7 +158,7 @@ function App() {
               <label className="input-label">Password</label>
               <input
                 type="password"
-                placeholder="••••••••"
+                placeholder="********"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
@@ -171,7 +177,7 @@ function App() {
     <div className="layout">
       <aside className="sidebar">
         <div className="logo">
-          <span style={{ color: 'var(--accent)' }}>●</span>
+          <span style={{ color: 'var(--accent)' }}>*</span>
           <span className="logo-text">BECMS ADMIN</span>
         </div>
 
@@ -200,7 +206,7 @@ function App() {
             </div>
           </div>
           <button className="ghost" onClick={handleLogout} style={{ width: '100%', justifyContent: 'flex-start' }}>
-            <span style={{ marginRight: 8 }}>⎗</span>
+            <span style={{ marginRight: 8 }}>X</span>
             Logout
           </button>
         </div>
