@@ -1,6 +1,6 @@
 const dotenv = require('dotenv');
 const colors = require('colors');
-
+require("node:dns/promises").setServers(["1.1.1.1", "8.8.8.8"]);
 // Load environment variables
 dotenv.config();
 
