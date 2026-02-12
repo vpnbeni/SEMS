@@ -2,6 +2,10 @@ const Candidate = require('../models/Candidate');
 const Room = require('../models/Room');
 const CBSEDatesheet = require('../models/CBSEDatesheet');
 
+const ACTIVE_CANDIDATE_FILTER = {
+  $or: [{ status: 'active' }, { status: { $exists: false } }],
+};
+
 class SeatingPlanBuilder {
   constructor() {
     this.schoolName = 'INTERNATIONAL BHARTI SCHOOL, ROHTAK';
@@ -155,7 +159,7 @@ class SeatingPlanBuilder {
       }
 
       // Get all candidates to calculate frequencies
-      const candidates = await Candidate.find({ isActive: true })
+      const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
         .populate('subjects', 'code name class')
         .lean();
 

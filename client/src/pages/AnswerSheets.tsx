@@ -16,6 +16,47 @@ import type { DropdownOption } from '../components/common/Dropdown'
 import { Tabs } from '../components/common/Tabs'
 import type { TabConfig } from '../components/common/Tabs'
 
+const DEFAULT_SEQUENCE_ORDER = 999
+
+const ANSWER_SHEET_SEQUENCE: Record<string, number> = {
+  'Main-20-10': 1,
+  'Main-32-10': 2,
+  'Graph-40-10': 3,
+  'Main-20-12': 4,
+  'Main-32-12': 5,
+  'Graph-40-12': 6,
+  'Supplementary-16-10': 7,
+  'Supplementary-16-12': 8,
+  'For Blind-32-10': 9,
+  'For Blind-32-12': 10,
+  'Drawing Sheets-21-12': 11
+}
+
+const normalizeClassLevel = (value?: string) => String(value ?? '').replace(/\D/g, '')
+
+const getAnswerSheetSequenceOrder = (
+  entry: Pick<AnswerSheetEntry, 'answerSheetType' | 'pages' | 'class' | 'sortOrder'>
+) => {
+  const key = `${entry.answerSheetType}-${entry.pages}-${normalizeClassLevel(entry.class)}`
+  return ANSWER_SHEET_SEQUENCE[key] ?? entry.sortOrder ?? DEFAULT_SEQUENCE_ORDER
+}
+
+const sortByAnswerSheetSequence = (a: AnswerSheetEntry, b: AnswerSheetEntry) => {
+  const orderDiff = getAnswerSheetSequenceOrder(a) - getAnswerSheetSequenceOrder(b)
+  if (orderDiff !== 0) return orderDiff
+
+  const receivedDateDiff =
+    new Date(b.receivedDate || 0).getTime() - new Date(a.receivedDate || 0).getTime()
+  if (receivedDateDiff !== 0) return receivedDateDiff
+
+  return (a.sortOrder ?? DEFAULT_SEQUENCE_ORDER) - (b.sortOrder ?? DEFAULT_SEQUENCE_ORDER)
+}
+
+const getEntryEditingKey = (entry: AnswerSheetEntry) => {
+  if (entry._id) return entry._id
+  return `${entry.answerSheetType}-${entry.pages}-${entry.colour}-${entry.class}-${entry.sortOrder ?? 'template'}`
+}
+
 const AnswerSheets: React.FC = () => {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'received' | 'used' | 'balance' | 'discarded'>('received')
@@ -363,7 +404,7 @@ const AnswerSheets: React.FC = () => {
   // }
 
   const handleEditClick = (entry: AnswerSheetEntry) => {
-    const key = `${entry.sortOrder}`
+    const key = getEntryEditingKey(entry)
     setEditingEntry(key)
     setEditValues({
       serialFrom: entry.serialFrom || '',
@@ -402,13 +443,14 @@ const AnswerSheets: React.FC = () => {
           data: { serialFrom: editValues.serialFrom, serialTo: editValues.serialTo }
         })
       } else {
+        const sequenceOrder = getAnswerSheetSequenceOrder(entry)
         await createMutation.mutateAsync({
           answerSheetType: entry.answerSheetType,
           pages: entry.pages,
           colour: entry.colour,
           class: entry.class,
           suffix: entry.suffix,
-          sortOrder: entry.sortOrder,
+          sortOrder: sequenceOrder,
           serialFrom: editValues.serialFrom,
           serialTo: editValues.serialTo,
           used: 0,
@@ -427,8 +469,16 @@ const AnswerSheets: React.FC = () => {
   const classFilter = (e: { class?: string }) =>
     !selectedClass || String(e.class) === String(selectedClass)
 
+  const getDisplaySequenceNo = (entry: AnswerSheetEntry, index: number) => {
+    const sequenceOrder = getAnswerSheetSequenceOrder(entry)
+    if (sequenceOrder !== DEFAULT_SEQUENCE_ORDER) {
+      return sequenceOrder
+    }
+    return entry.sortOrder || index + 1
+  }
+
   const getFilteredEntries = () => {
-    const byClass = entries.filter(classFilter)
+    const byClass = entries.filter(classFilter).sort(sortByAnswerSheetSequence)
     switch (activeTab) {
       case 'received':
         return byClass
@@ -594,7 +644,7 @@ const AnswerSheets: React.FC = () => {
                   }
                   return receivedEntries.length > 0 ? (
                     receivedEntries.map((entry, index) => {
-                      const entryKey = `${entry.sortOrder}`
+                      const entryKey = getEntryEditingKey(entry)
                       const isEditing = editingEntry === entryKey
 
                       return (
@@ -608,7 +658,7 @@ const AnswerSheets: React.FC = () => {
                           className={`${index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'} ${!isEditing && entry._id && !entry.isTemplate ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors' : ''}`}
                         >
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {entry.sortOrder || index + 1}
+                            {getDisplaySequenceNo(entry, index)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {entry.answerSheetType}
@@ -946,7 +996,7 @@ const AnswerSheets: React.FC = () => {
                       return (
                         <tr key={entry._id} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {entry.sortOrder || index + 1}
+                            {getDisplaySequenceNo(entry, index)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {entry.answerSheetType}

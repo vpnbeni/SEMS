@@ -4,6 +4,25 @@ const { cloudinary } = require('../config/cloudinary');
 const pdfParse = require('pdf-parse');
 const fs = require('fs');
 
+const readUploadedFileBuffer = (file) => {
+  if (file?.tempFilePath && fs.existsSync(file.tempFilePath)) {
+    return fs.readFileSync(file.tempFilePath);
+  }
+
+  if (file?.data && Buffer.isBuffer(file.data) && file.data.length > 0) {
+    return file.data;
+  }
+
+  throw new Error('Uploaded file is empty or unavailable');
+};
+
+const withTimeout = (promise, timeoutMs, message) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), timeoutMs)),
+  ]);
+};
+
 // @desc    Get all candidates
 // @route   GET /api/candidates
 // @access  Private
@@ -194,7 +213,7 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
   console.log('PDF file details:', { name: pdfFile.name, size: pdfFile.size, mimetype: pdfFile.mimetype });
 
   // Validate file type
-  if (pdfFile.mimetype !== 'application/pdf') {
+  if (!pdfFile.mimetype || !pdfFile.mimetype.includes('pdf')) {
     console.log('Invalid file type:', pdfFile.mimetype);
     return res.status(400).json({
       success: false,
@@ -203,11 +222,12 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
   }
 
   try {
+    const CandidateModel = req.models?.Candidate || Candidate;
+    const SubjectModel = req.models?.Subject || require('../models/Subject');
     console.log('Starting PDF processing...');
 
-    // Parse PDF content first (faster than Cloudinary upload)
     console.log('Reading PDF file...');
-    const pdfBuffer = fs.readFileSync(pdfFile.tempFilePath);
+    const pdfBuffer = readUploadedFileBuffer(pdfFile);
     console.log('Parsing PDF content...');
     const pdfData = await pdfParse(pdfBuffer);
     const pdfText = pdfData.text;
@@ -218,20 +238,30 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
     const candidates = extractCandidatesFromText(pdfText);
     console.log('Extracted candidates:', candidates.length);
 
-    // Upload PDF to Cloudinary (do this after extraction to save time)
-    console.log('Uploading to Cloudinary...');
-    const cloudinaryResult = await cloudinary.uploader.upload(pdfFile.tempFilePath, {
-      resource_type: 'raw',
-      folder: 'candidates/pdfs',
-      public_id: `candidate_list_${Date.now()}`
-    });
-    console.log('Cloudinary upload complete');
-
     if (candidates.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'No candidate data found in the PDF. Please check the format.'
       });
+    }
+
+    // Optional archival upload. Do not fail import if this fails.
+    let cloudinaryResult = null;
+    try {
+      const uploadInput = pdfFile.tempFilePath || pdfBuffer;
+      console.log('Uploading to Cloudinary (best-effort)...');
+      cloudinaryResult = await withTimeout(
+        cloudinary.uploader.upload(uploadInput, {
+          resource_type: 'raw',
+          folder: 'candidates/pdfs',
+          public_id: `candidate_list_${Date.now()}`
+        }),
+        8000,
+        'Cloudinary upload timed out'
+      );
+      console.log('Cloudinary upload complete');
+    } catch (uploadError) {
+      console.warn('Cloudinary upload skipped:', uploadError.message);
     }
 
     // Process and save candidates
@@ -240,8 +270,8 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
     const errors = [];
 
     // Get all roll numbers to check for duplicates in one query
-    const rollNumbers = candidates.map(c => c.rollNumber);
-    const existingCandidates = await Candidate.find({
+    const rollNumbers = candidates.map(c => c.rollNumber).filter(Boolean);
+    const existingCandidates = await CandidateModel.find({
       rollNumber: { $in: rollNumbers }
     }).select('rollNumber');
     const existingRollNumbers = new Set(existingCandidates.map(c => c.rollNumber));
@@ -264,10 +294,10 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
       candidateData.importedFrom = {
         fileName: pdfFile.name,
         uploadDate: new Date(),
-        cloudinaryUrl: cloudinaryResult.secure_url,
-        cloudinaryPublicId: cloudinaryResult.public_id
+        cloudinaryUrl: cloudinaryResult?.secure_url || null,
+        cloudinaryPublicId: cloudinaryResult?.public_id || null
       };
-      candidateData.createdBy = req.user.id;
+      candidateData.createdBy = req.user?.id || null;
 
       candidatesToInsert.push(candidateData);
     }
@@ -276,7 +306,7 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
     if (candidatesToInsert.length > 0) {
       console.log('Inserting', candidatesToInsert.length, 'candidates...');
       try {
-        const insertedCandidates = await Candidate.insertMany(candidatesToInsert, {
+        const insertedCandidates = await CandidateModel.insertMany(candidatesToInsert, {
           ordered: false // Continue on error
         });
         savedCandidates.push(...insertedCandidates);
@@ -286,8 +316,8 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
         if (error.writeErrors) {
           error.writeErrors.forEach(err => {
             errors.push({
-              rollNumber: err.err.op?.rollNumber || 'Unknown',
-              error: err.err.errmsg || err.err.message
+              rollNumber: err?.err?.op?.rollNumber || err?.op?.rollNumber || 'Unknown',
+              error: err?.err?.errmsg || err?.err?.message || err?.message || 'Bulk insert error'
             });
           });
           // Add successfully inserted documents
@@ -300,49 +330,46 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
       }
     }
 
-    // Automatically link subjects for imported candidates
+        // Automatically link subjects for imported candidates (best-effort)
+    let linkedCount = 0;
     if (savedCandidates.length > 0) {
-      console.log('🔗 Linking subjects for imported candidates...');
-      const Subject = require('../models/Subject');
-      
-      // Get all subjects for reference
-      const subjects = await Subject.find({ isActive: true });
-      const subjectMap = new Map();
-      subjects.forEach(subject => {
-        const key = `${subject.code}-${subject.class}`;
-        subjectMap.set(key, subject);
-      });
-      
-      let linkedCount = 0;
-      
-      // Link subjects for each candidate
-      for (const candidate of savedCandidates) {
-        if (candidate.subjectCodes && candidate.subjectCodes.length > 0) {
-          const linkedSubjects = [];
-          
-          for (const subjectCode of candidate.subjectCodes) {
-            const key = `${subjectCode.code}-${candidate.class}`;
-            const subject = subjectMap.get(key);
+      try {
+        console.log('Linking subjects for imported candidates...');
+        
+        // Get all subjects for reference
+        const subjects = await SubjectModel.find({ isActive: true });
+        const subjectMap = new Map();
+        subjects.forEach(subject => {
+          const key = `${subject.code}-${subject.class}`;
+          subjectMap.set(key, subject);
+        });
+        
+        // Link subjects for each candidate
+        for (const candidate of savedCandidates) {
+          if (candidate.subjectCodes && candidate.subjectCodes.length > 0) {
+            const linkedSubjects = [];
             
-            if (subject) {
-              linkedSubjects.push(subject._id);
+            for (const subjectCode of candidate.subjectCodes) {
+              const key = `${subjectCode.code}-${candidate.class}`;
+              const subject = subjectMap.get(key);
+              
+              if (subject) {
+                linkedSubjects.push(subject._id);
+              }
+            }
+            
+            if (linkedSubjects.length > 0) {
+              candidate.subjects = linkedSubjects;
+              await candidate.save();
+              linkedCount++;
             }
           }
-          
-          if (linkedSubjects.length > 0) {
-            candidate.subjects = linkedSubjects;
-            await candidate.save();
-            linkedCount++;
-          }
         }
+        
+        console.log(`Linked subjects for ${linkedCount}/${savedCandidates.length} candidates`);
+      } catch (linkError) {
+        console.error('Subject linking skipped due to error:', linkError.message);
       }
-      
-      console.log(`✅ Linked subjects for ${linkedCount}/${savedCandidates.length} candidates`);
-    }
-
-    // Clean up temp file
-    if (fs.existsSync(pdfFile.tempFilePath)) {
-      fs.unlinkSync(pdfFile.tempFilePath);
     }
 
     res.status(201).json({
@@ -353,22 +380,22 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
         errors: errors.length,
         candidates: savedCandidates,
         errorDetails: errors,
-        pdfUrl: cloudinaryResult.secure_url
+        linkedSubjects: linkedCount,
+        pdfUrl: cloudinaryResult?.secure_url || null
       }
     });
 
   } catch (error) {
-    // Clean up temp file in case of error
-    if (pdfFile.tempFilePath && fs.existsSync(pdfFile.tempFilePath)) {
-      fs.unlinkSync(pdfFile.tempFilePath);
-    }
-
     console.error('PDF import error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error processing PDF file',
+      message: `Error processing PDF file: ${error.message}`,
       error: error.message
     });
+  } finally {
+    if (pdfFile.tempFilePath && fs.existsSync(pdfFile.tempFilePath)) {
+      fs.unlinkSync(pdfFile.tempFilePath);
+    }
   }
 });
 
@@ -377,8 +404,13 @@ const extractCandidatesFromText = (text) => {
   const candidates = [];
   const lines = text.split('\n').map(line => line.trim());
 
-  // Pattern for roll number (8 digits)
-  const rollNumberPattern = /^(\d{8})(.+)$/;
+  // Roll number patterns:
+  // 1) Alphanumeric with separator (e.g., "CS2021001 John Doe")
+  // 2) Compact numeric CBSE line (e.g., "12345678JOHN DOE")
+  const rollNumberPatternWithSpace = /^([A-Z]{1,5}\d{4,12})\s+(.+)$/i;
+  const rollNumberPatternCompact = /^(\d{8})(.+)$/;
+  const isRollNumberLine = (value) =>
+    rollNumberPatternWithSpace.test(value) || rollNumberPatternCompact.test(value);
 
   // Pattern for date of birth (DD.MM.YYYY)
   const dobPattern = /^(\d{2})\.(\d{2})\.(\d{4})$/;
@@ -421,7 +453,7 @@ const extractCandidatesFromText = (text) => {
     }
 
     // Check if line starts with a roll number
-    const rollMatch = line.match(rollNumberPattern);
+    const rollMatch = line.match(rollNumberPatternCompact) || line.match(rollNumberPatternWithSpace);
     if (rollMatch) {
       const rollNumber = rollMatch[1];
       let candidateName = rollMatch[2].trim();
@@ -455,7 +487,7 @@ const extractCandidatesFromText = (text) => {
       // Line i+1: Mother Name
       if (i + lineOffset < lines.length) {
         const motherName = lines[i + lineOffset].trim();
-        if (motherName && !rollNumberPattern.test(motherName) && motherName.length > 1) {
+        if (motherName && !isRollNumberLine(motherName) && motherName.length > 1) {
           candidate.motherName = motherName;
         }
         lineOffset++;
@@ -464,7 +496,7 @@ const extractCandidatesFromText = (text) => {
       // Line i+2: Father Name
       if (i + lineOffset < lines.length) {
         const fatherName = lines[i + lineOffset].trim();
-        if (fatherName && !rollNumberPattern.test(fatherName) && fatherName.length > 1) {
+        if (fatherName && !isRollNumberLine(fatherName) && fatherName.length > 1) {
           candidate.fatherName = fatherName;
         }
         lineOffset++;
@@ -518,12 +550,47 @@ const extractCandidatesFromText = (text) => {
       // First line after PwD contains first 3 subject codes concatenated (e.g., "184002041")
       // Then alternating: code, medium, code, medium...
       const subjectCodes = [];
+      const addGroupedSubjectCodes = (digits) => {
+        if (!digits || digits.length % 3 !== 0) return;
+        for (let k = 0; k < digits.length; k += 3) {
+          subjectCodes.push({ code: digits.substring(k, k + 3), medium: '' });
+        }
+      };
+      const addDenseSubjectCodes = (digits) => {
+        if (!digits || digits.length < 6) return false;
+        let normalized = digits;
+        const remainder = normalized.length % 3;
+        if (remainder !== 0) {
+          normalized = normalized.substring(0, normalized.length - remainder);
+        }
+        if (normalized.length < 6 || normalized.length % 3 !== 0) return false;
+        addGroupedSubjectCodes(normalized);
+        return true;
+      };
+      const setDobFromString = (value) => {
+        const dobMatch = value.match(dobPattern);
+        if (!dobMatch) return false;
+        const day = dobMatch[1];
+        const month = dobMatch[2];
+        const year = dobMatch[3];
+        candidate.dateOfBirth = new Date(`${year}-${month}-${day}`);
+        return true;
+      };
 
       if (i + lineOffset < lines.length) {
         const firstSubjectLine = lines[i + lineOffset].trim();
+        const combinedCodesAndDob = firstSubjectLine.match(/^(\d{6,24})(\d{2}\.\d{2}\.\d{4})$/);
+
+        // Some rows pack all subject codes and DOB into one line:
+        // e.g., 18400204108608740212.06.2011
+        if (combinedCodesAndDob && combinedCodesAndDob[1].length % 3 === 0) {
+          addGroupedSubjectCodes(combinedCodesAndDob[1]);
+          setDobFromString(combinedCodesAndDob[2]);
+          lineOffset++;
+        }
 
         // Check if this line contains concatenated subject codes (9 digits = 3 codes)
-        if (/^\d{9}$/.test(firstSubjectLine)) {
+        else if (/^\d{9}$/.test(firstSubjectLine)) {
           // Extract first 3 subject codes
           subjectCodes.push({ code: firstSubjectLine.substring(0, 3), medium: '' });
           subjectCodes.push({ code: firstSubjectLine.substring(3, 6), medium: '' });
@@ -539,21 +606,32 @@ const extractCandidatesFromText = (text) => {
             }
           }
         }
+        // Handle generic grouped codes line (e.g., 6, 12, 15, 18 digits)
+        else if (/^\d{6,30}$/.test(firstSubjectLine)) {
+          addDenseSubjectCodes(firstSubjectLine);
+          lineOffset++;
+        }
 
         // Continue extracting remaining subject codes (alternating code, medium)
         for (let j = 0; j < 15 && i + lineOffset + j < lines.length; j++) {
           const currentLine = lines[i + lineOffset + j].trim();
+          const currentCombinedCodesAndDob = currentLine.match(/^(\d{6,24})(\d{2}\.\d{2}\.\d{4})$/);
+
+          if (currentCombinedCodesAndDob && currentCombinedCodesAndDob[1].length % 3 === 0) {
+            addGroupedSubjectCodes(currentCombinedCodesAndDob[1]);
+            setDobFromString(currentCombinedCodesAndDob[2]);
+            break;
+          }
 
           // Check if this is the date of birth line
-          if (dobPattern.test(currentLine)) {
-            const dobMatch = currentLine.match(dobPattern);
-            if (dobMatch) {
-              const day = dobMatch[1];
-              const month = dobMatch[2];
-              const year = dobMatch[3];
-              candidate.dateOfBirth = new Date(`${year}-${month}-${day}`);
-            }
+          if (setDobFromString(currentLine)) {
             break;
+          }
+
+          // Grouped subject codes in a single line
+          if (/^\d{6,30}$/.test(currentLine)) {
+            addDenseSubjectCodes(currentLine);
+            continue;
           }
 
           // Check if this is a 3-digit subject code
@@ -572,7 +650,7 @@ const extractCandidatesFromText = (text) => {
           }
 
           // Stop if we hit another roll number or dash
-          if (rollNumberPattern.test(currentLine) || currentLine === '-') {
+          if (isRollNumberLine(currentLine) || currentLine === '-') {
             break;
           }
         }
@@ -626,3 +704,4 @@ module.exports = {
   importCandidatesFromPDF,
   getCandidateStats
 };
+

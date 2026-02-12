@@ -5,6 +5,32 @@ const asyncHandler = require('../middleware/asyncHandler')
 const CBSEDatesheet = require('../models/CBSEDatesheet')
 const Candidate = require('../models/Candidate')
 
+const ACTIVE_CANDIDATE_FILTER = {
+  $or: [{ status: 'active' }, { status: { $exists: false } }],
+}
+
+const normalizeSubjectCode = (code) =>
+  String(code || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/\((?:E|H)\)$/i, '')
+
+const normalizeSubjectClass = (classValue) => {
+  const normalized = String(classValue || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+
+  if (!normalized) return ''
+  if (normalized === '10' || normalized === '10th') return '10th'
+  if (normalized === '12' || normalized === '12th') return '12th'
+  return normalized
+}
+
+const buildSubjectKey = (code, classValue) =>
+  `${normalizeSubjectCode(code)}-${normalizeSubjectClass(classValue)}`
+
 /**
  * @desc    Get centre datesheet entries for answer sheet linking
  * @route   GET /api/centre-datesheet/entries
@@ -26,7 +52,7 @@ router.get('/entries', protect, asyncHandler(async (req, res) => {
     }
     
     // Get all candidates with their subjects
-    const candidates = await Candidate.find({ isActive: true })
+    const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
       .populate('subjects', 'code name class')
       .lean()
     
@@ -37,7 +63,7 @@ router.get('/entries', protect, asyncHandler(async (req, res) => {
     // Create a map of subject code+class to answer sheet type
     const subjectAnswerSheetMap = new Map()
     subjects.forEach(subject => {
-      const key = `${subject.code}-${subject.class}`
+      const key = buildSubjectKey(subject.code, subject.class)
       subjectAnswerSheetMap.set(key, subject.answerSheet || 'none')
     })
     
@@ -48,7 +74,7 @@ router.get('/entries', protect, asyncHandler(async (req, res) => {
       if (candidate.subjects && candidate.subjects.length > 0) {
         candidate.subjects.forEach(subject => {
           if (subject && subject.code && subject.class) {
-            const key = `${subject.code}-${subject.class}`
+            const key = buildSubjectKey(subject.code, subject.class)
             const count = subjectFrequency.get(key) || 0
             subjectFrequency.set(key, count + 1)
           }
@@ -61,8 +87,8 @@ router.get('/entries', protect, asyncHandler(async (req, res) => {
       .map(entry => {
         // Normalize class format (10th -> 10, 12th -> 12)
         const normalizedClass = entry.subject.class.replace(/th$/i, '')
-        const key = `${entry.subject.code}-${entry.subject.class}`
-        const normalizedKey = `${entry.subject.code}-${normalizedClass}`
+        const key = buildSubjectKey(entry.subject.code, entry.subject.class)
+        const normalizedKey = buildSubjectKey(entry.subject.code, normalizedClass)
         
         // Try both formats for candidate count
         const candidateCount = subjectFrequency.get(key) || subjectFrequency.get(normalizedKey) || 0

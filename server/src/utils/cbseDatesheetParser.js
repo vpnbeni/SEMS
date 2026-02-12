@@ -54,7 +54,7 @@ class CBSEDatesheetParser {
     console.log(`📋 Processing ${lines.length} lines...`)
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim()
+      const line = lines[i].replace(/\s+/g, ' ').trim()
 
       // Skip header lines
       if (this.isHeaderLine(line)) {
@@ -62,7 +62,14 @@ class CBSEDatesheetParser {
       }
 
       // Try to parse as exam entry
-      const entry = this.parseExamEntry(line)
+      let entry = this.parseExamEntry(line)
+      if (!entry && i < lines.length - 1) {
+        const combinedLine = `${line} ${lines[i + 1].replace(/\s+/g, ' ').trim()}`.trim()
+        entry = this.parseExamEntry(combinedLine)
+        if (entry) {
+          i += 1
+        }
+      }
       if (entry) {
         entries.push(entry)
       }
@@ -97,56 +104,38 @@ class CBSEDatesheetParser {
    */
   parseExamEntry(line) {
     try {
-      // CBSE format: DATE + SubCode + SubjectName + Class + Duration + AnswerSheet
-      // Example: 3/2/2026002HINDI COURSE - A10th 332 Pages
+      // CBSE format variations:
+      // 1) 3/2/2026 002 HINDI COURSE - A 10th 3 32 Pages
+      // 2) 3/2/2026002HINDI COURSE - A10th332 Pages
+      const normalizedLine = line.replace(/\s+/g, ' ').trim()
 
-      // Extract date (M/D/YYYY format)
-      const dateMatch = line.match(/^(\d{1,2}\/\d{1,2}\/\d{4})/)
-      if (!dateMatch) {
+      let dateStr, subjectCode, subjectName, classLevel, duration, answerSheetText
+      const unifiedPattern = /^(\d{1,2}\/\d{1,2}\/\d{4})\s*(\d{3})\s*(.+?)\s*(10th|12th)\s*(\d)\s*(.*)$/i
+      const match = normalizedLine.match(unifiedPattern)
+      if (!match) {
+        return null
+      }
+      dateStr = match[1]
+      subjectCode = match[2]
+      subjectName = match[3].trim()
+      classLevel = match[4].toLowerCase()
+      duration = parseInt(match[5], 10) || 3
+      answerSheetText = (match[6] || '').trim()
+
+      if (!subjectName) {
         return null
       }
 
-      const dateStr = dateMatch[1]
-      const remainingText = line.substring(dateMatch[0].length)
-
-      // Extract subject code (3 digits)
-      const codeMatch = remainingText.match(/^(\d{3})/)
-      if (!codeMatch) {
-        return null
-      }
-
-      const subjectCode = codeMatch[1]
-      let afterCode = remainingText.substring(codeMatch[0].length)
-
-      // Extract class (10th or 12th) - look for it at the end part
-      const classMatch = afterCode.match(/(10th|12th)/)
-      if (!classMatch) {
-        return null
-      }
-
-      const classLevel = classMatch[1]
-      const classIndex = afterCode.indexOf(classLevel)
-
-      // Subject name is between code and class
-      const subjectName = afterCode.substring(0, classIndex).trim()
-
-      // Extract duration and answer sheet from after class
-      const afterClass = afterCode.substring(classIndex + classLevel.length).trim()
-
-      // Duration is typically a single digit (2, 3, 4) followed by answer sheet info
-      // The format appears to be: ClassDurationAnswerSheetInfo
-      // e.g., "10th 332 Pages" where 3 is duration and 32 Pages is answer sheet
-      const durationMatch = afterClass.match(/^(\d)/)
-      const duration = durationMatch ? parseInt(durationMatch[1]) : 3 // Default 3 hours
-
-      // Extract answer sheet info - skip the first digit (duration) and get the rest
-      const answerSheetText = afterClass.substring(1) // Skip duration digit
-      const answerSheetMatch = answerSheetText.match(/(\d+)\s*(Pages?|Graph)/)
+      const answerSheetMatch = answerSheetText.match(/(\d+)\s*(Pages?|Graph)/i)
       let answerSheet = '32 Pages' // Default
       if (answerSheetMatch) {
         const pages = answerSheetMatch[1]
         const type = answerSheetMatch[2]
         answerSheet = `${pages} ${type}`
+      } else if (answerSheetText.toLowerCase().includes('graph')) {
+        answerSheet = '40 Graph'
+      } else if (answerSheetText.toLowerCase().includes('20')) {
+        answerSheet = '20 Pages'
       }
 
       // Convert date format from M/D/YYYY to YYYY-MM-DD
@@ -214,13 +203,14 @@ class CBSEDatesheetParser {
    * @returns {string} Standardized answer sheet format
    */
   mapAnswerSheet(answerSheet) {
-    if (answerSheet.includes('32') && answerSheet.includes('Pages')) {
+    const normalized = (answerSheet || '').toLowerCase()
+    if (normalized.includes('32') && normalized.includes('page')) {
       return '32_pages'
-    } else if (answerSheet.includes('20') && answerSheet.includes('Pages')) {
+    } else if (normalized.includes('20') && normalized.includes('page')) {
       return '20_pages'
-    } else if (answerSheet.includes('40') && answerSheet.includes('Graph')) {
+    } else if (normalized.includes('40') && normalized.includes('graph')) {
       return '40_graph'
-    } else if (answerSheet.includes('Graph')) {
+    } else if (normalized.includes('graph')) {
       return '40_graph'
     } else {
       return '32_pages' // Default

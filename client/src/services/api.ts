@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import toast from 'react-hot-toast'
-import { getTenantHeader, resolveApiBaseUrl } from '@/utils/tenantRuntime'
+import { getTenantHeader, isLocalRuntime, resolveApiBaseUrl } from '@/utils/tenantRuntime'
 
 // API configuration
 const API_BASE_URL = resolveApiBaseUrl()
@@ -63,8 +63,9 @@ const api: AxiosInstance = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    const tenantHeader = getTenantHeader()
+
     if (config.headers) {
-      const tenantHeader = getTenantHeader()
       if (tenantHeader) {
         config.headers['x-tenant-slug'] = tenantHeader
       }
@@ -80,6 +81,7 @@ api.interceptors.request.use(
     // Add timestamp to prevent caching
     config.params = {
       ...config.params,
+      ...(isLocalRuntime() && tenantHeader ? { tenant: tenantHeader } : {}),
       _t: Date.now(),
     }
 
@@ -200,7 +202,7 @@ api.interceptors.response.use(
 
       case 404:
         // Not Found
-        showApiErrorToast(data?.error || 'Resource not found')
+        showApiErrorToast(data?.error || data?.message || 'Resource not found')
         break
 
       case 409:
@@ -237,7 +239,8 @@ export const uploadFile = async (
   endpoint: string,
   file: File,
   additionalData?: Record<string, any>,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  timeoutMs = 180000
 ): Promise<AxiosResponse> => {
   const formData = new FormData()
   formData.append('file', file)
@@ -249,6 +252,7 @@ export const uploadFile = async (
   }
 
   return api.post(endpoint, formData, {
+    timeout: timeoutMs,
     headers: {
       'Content-Type': 'multipart/form-data',
     },

@@ -1,4 +1,5 @@
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
+const TENANT_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 const getHostname = () => {
   if (typeof window === 'undefined') {
@@ -14,6 +15,29 @@ const getSearchParams = () => {
   }
 
   return new URLSearchParams(window.location.search);
+};
+
+const sanitizeTenantSlug = (value: string | null | undefined): string | null => {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!normalized) return null;
+  return TENANT_SLUG_PATTERN.test(normalized) ? normalized : null;
+};
+
+const decodeJwtPayload = (token: string | null): Record<string, any> | null => {
+  if (!token) return null;
+
+  const parts = token.split('.');
+  if (parts.length < 2) return null;
+
+  try {
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const json = atob(padded);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
 };
 
 export const getRootAppDomain = () => import.meta.env.VITE_ROOT_APP_DOMAIN || 'becms.vpnbeni.com';
@@ -34,7 +58,25 @@ export const resolveTenantSlug = (): string | null => {
 
   if (isLocalRuntime()) {
     const params = getSearchParams();
-    return (params.get('tenant') || localStorage.getItem('tenantSlug') || '').trim().toLowerCase() || null;
+    const fromQuery = sanitizeTenantSlug(params.get('tenant'));
+    if (fromQuery) {
+      localStorage.setItem('tenantSlug', fromQuery);
+      return fromQuery;
+    }
+
+    const fromStorage = sanitizeTenantSlug(localStorage.getItem('tenantSlug'));
+    if (fromStorage) {
+      return fromStorage;
+    }
+
+    const tokenPayload = decodeJwtPayload(localStorage.getItem('token'));
+    const fromToken = sanitizeTenantSlug(tokenPayload?.tenantSlug);
+    if (fromToken) {
+      localStorage.setItem('tenantSlug', fromToken);
+      return fromToken;
+    }
+
+    return null;
   }
 
   const rootAppDomain = getRootAppDomain().toLowerCase();
@@ -44,7 +86,7 @@ export const resolveTenantSlug = (): string | null => {
   }
 
   if (hostname.endsWith(`.${rootAppDomain}`)) {
-    return hostname.replace(`.${rootAppDomain}`, '').trim().toLowerCase() || null;
+    return sanitizeTenantSlug(hostname.replace(`.${rootAppDomain}`, ''));
   }
 
   return null;

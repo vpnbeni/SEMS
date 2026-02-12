@@ -13,6 +13,7 @@ export function FileUpload({ accept, onUpload, label, disabled = false }: FileUp
   const [isDragOver, setIsDragOver] = useState(false)
 
   const hint = useMemo(() => {
+    if (accept.includes('xlsx') && accept.includes('pdf')) return 'Accepted files: .xlsx, .pdf'
     if (accept.includes('xlsx')) return 'Accepted file: .xlsx'
     if (accept.includes('pdf')) return 'Accepted file: .pdf'
     return `Accepted file: ${accept}`

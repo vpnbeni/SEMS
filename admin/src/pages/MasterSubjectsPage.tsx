@@ -199,7 +199,7 @@ export function MasterSubjectsPage() {
       <section className="card">
         <h1 className="section-title" style={{ marginBottom: 8 }}>Master Subjects</h1>
         <p style={{ color: 'var(--text-secondary)', marginTop: 0 }}>
-          Upload one Excel file and roll out subjects to all active tenants.
+          Upload one Excel/PDF file and roll out subjects to all active tenants.
         </p>
 
         {error && <div className="error-text">{error}</div>}
@@ -217,8 +217,8 @@ export function MasterSubjectsPage() {
         </div>
 
         <FileUpload
-          accept=".xlsx"
-          label="Upload Subjects Excel"
+          accept=".xlsx,.pdf"
+          label="Upload Subjects (Excel/PDF)"
           onUpload={handleUpload}
           disabled={uploading || loading}
         />
@@ -350,8 +350,8 @@ export function MasterSubjectsPage() {
                   } : null)}
                 >
                   <option value="none">None</option>
-                  <option value="32_pages">32 Pages</option>
                   <option value="20_pages">20 Pages</option>
+                  <option value="32_pages">32 Pages</option>
                   <option value="40_graph">40 Graph</option>
                 </select>
               </div>

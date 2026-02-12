@@ -10,6 +10,32 @@ const CBSEDatesheet = require('../models/CBSEDatesheet')
 const { getDayNameForDate } = require('../utils/calendarSeeder')
 const { getDayName, addDayNameToEntry } = require('../utils/dateHelper')
 
+const ACTIVE_CANDIDATE_FILTER = {
+  $or: [{ status: 'active' }, { status: { $exists: false } }],
+}
+
+const normalizeSubjectCode = (code) =>
+  String(code || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/\((?:E|H)\)$/i, '')
+
+const normalizeSubjectClass = (classValue) => {
+  const normalized = String(classValue || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+
+  if (!normalized) return ''
+  if (normalized === '10' || normalized === '10th') return '10th'
+  if (normalized === '12' || normalized === '12th') return '12th'
+  return normalized
+}
+
+const buildSubjectKey = (code, classValue) =>
+  `${normalizeSubjectCode(code)}-${normalizeSubjectClass(classValue)}`
+
 // Helper: map month names to numbers
 const MONTHS = {
   JANUARY: 0, FEBRUARY: 1, MARCH: 2, APRIL: 3, MAY: 4, JUNE: 5,
@@ -715,7 +741,7 @@ exports.getCentreDatesheet = asyncHandler(async (req, res) => {
     const Candidate = require('../models/Candidate')
     console.log('🔍 Fetching candidates...')
     
-    const candidates = await Candidate.find({ isActive: true })
+    const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
       .populate('subjects', 'code name class')
       .lean()
     
@@ -752,19 +778,24 @@ exports.getCentreDatesheet = asyncHandler(async (req, res) => {
     candidates.forEach(candidate => {
       // Track unique candidates by class
       if (candidate.class) {
-        const classSet = candidatesByClass.get(candidate.class) || new Set()
+        const normalizedClass = normalizeSubjectClass(candidate.class)
+        const classSet = candidatesByClass.get(normalizedClass) || new Set()
         classSet.add(candidate._id.toString())
-        candidatesByClass.set(candidate.class, classSet)
+        candidatesByClass.set(normalizedClass, classSet)
       }
       
       if (candidate.subjects && candidate.subjects.length > 0) {
         candidate.subjects.forEach(subject => {
           // subject is now the populated Subject document
           if (subject && subject.code && subject.class) {
-            candidateSubjectCodes.add(subject.code)
+            const normalizedCode = normalizeSubjectCode(subject.code)
+            const key = buildSubjectKey(subject.code, subject.class)
+
+            if (!normalizedCode || key.endsWith('-')) return
+
+            candidateSubjectCodes.add(normalizedCode)
             
             // Track frequency by subject code + class combination
-            const key = `${subject.code}-${subject.class}`
             const count = subjectFrequency.get(key) || 0
             subjectFrequency.set(key, count + 1)
           }
@@ -805,7 +836,7 @@ exports.getCentreDatesheet = asyncHandler(async (req, res) => {
     const centreEntries = cbseDatesheet.entries
       .map(entry => {
         // Get candidate count by subject code + class combination
-        const key = `${entry.subject.code}-${entry.subject.class}`
+        const key = buildSubjectKey(entry.subject.code, entry.subject.class)
         const candidateCount = subjectFrequency.get(key) || 0
         // Calculate rooms needed: 1 room per 24 candidates (standard exam room capacity)
         const roomsNeeded = Math.ceil(candidateCount / 24)
@@ -826,14 +857,14 @@ exports.getCentreDatesheet = asyncHandler(async (req, res) => {
     if (centreEntries.length === 0) {
       console.log('❌ No matching subjects found between candidates and CBSE datesheet')
       console.log(`   Candidate subject codes: ${Array.from(candidateSubjectCodes).slice(0, 10).join(', ')}`)
-      console.log(`   CBSE subject codes: ${cbseDatesheet.entries.slice(0, 10).map(e => e.subject.code).join(', ')}`)
+      console.log(`   CBSE subject codes: ${cbseDatesheet.entries.slice(0, 10).map(e => normalizeSubjectCode(e.subject.code)).join(', ')}`)
       return res.status(HTTP_STATUS.NOT_FOUND).json({
         success: false,
         message: `No matching subjects found. Candidates have ${candidateSubjectCodes.size} subjects but none match the CBSE datesheet.`,
         data: { entries: [], count: 0 },
         debug: {
           candidateSubjectCodes: Array.from(candidateSubjectCodes).slice(0, 20),
-          cbseSubjectCodes: cbseDatesheet.entries.slice(0, 20).map(e => e.subject.code)
+          cbseSubjectCodes: cbseDatesheet.entries.slice(0, 20).map(e => normalizeSubjectCode(e.subject.code))
         }
       })
     }
@@ -877,8 +908,8 @@ exports.getCentreDatesheet = asyncHandler(async (req, res) => {
     // Generate statistics
     const class10thEntries = sortedEntries.filter(e => e.subject.class === '10th')
     const class12thEntries = sortedEntries.filter(e => e.subject.class === '12th')
-    const candidates10th = candidates.filter(c => c.class === '10th')
-    const candidates12th = candidates.filter(c => c.class === '12th')
+    const candidates10th = candidates.filter(c => normalizeSubjectClass(c.class) === '10th')
+    const candidates12th = candidates.filter(c => normalizeSubjectClass(c.class) === '12th')
     
     const stats = {
       total: sortedEntries.length,
@@ -953,7 +984,7 @@ exports.getDatesheetStats = asyncHandler(async (req, res) => {
     const cbseDatesheet = await CBSEDatesheet.getActive()
     if (!cbseDatesheet) return res.status(HTTP_STATUS.OK).json({ success: true, data: stats })
 
-    const candidates = await Candidate.find({ isActive: true })
+    const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
       .populate('subjects', 'code name class')
       .lean()
     if (!candidates || candidates.length === 0) return res.status(HTTP_STATUS.OK).json({ success: true, data: stats })
@@ -963,7 +994,7 @@ exports.getDatesheetStats = asyncHandler(async (req, res) => {
       if (candidate.subjects && candidate.subjects.length > 0) {
         candidate.subjects.forEach(subject => {
           if (subject && subject.code && subject.class) {
-            const key = `${subject.code}-${subject.class}`
+            const key = buildSubjectKey(subject.code, subject.class)
             subjectFrequency.set(key, (subjectFrequency.get(key) || 0) + 1)
           }
         })
@@ -973,7 +1004,7 @@ exports.getDatesheetStats = asyncHandler(async (req, res) => {
     const centreEntries = cbseDatesheet.entries
       .map(entry => ({
         ...entry.toObject(),
-        candidateCount: subjectFrequency.get(`${entry.subject.code}-${entry.subject.class}`) || 0
+        candidateCount: subjectFrequency.get(buildSubjectKey(entry.subject.code, entry.subject.class)) || 0
       }))
       .filter(entry => entry.candidateCount > 0)
 
@@ -981,8 +1012,8 @@ exports.getDatesheetStats = asyncHandler(async (req, res) => {
 
     const class10thEntries = centreEntries.filter(e => e.subject.class === '10th')
     const class12thEntries = centreEntries.filter(e => e.subject.class === '12th')
-    const candidates10th = candidates.filter(c => c.class === '10th')
-    const candidates12th = candidates.filter(c => c.class === '12th')
+    const candidates10th = candidates.filter(c => normalizeSubjectClass(c.class) === '10th')
+    const candidates12th = candidates.filter(c => normalizeSubjectClass(c.class) === '12th')
 
     stats.centre = centreEntries.length
     stats.centreDays = [...new Set(centreEntries.map(e => e.examDate.toISOString().slice(0, 10)))].length

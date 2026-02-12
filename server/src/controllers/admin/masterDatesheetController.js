@@ -1,15 +1,29 @@
 const CBSEDatesheetParser = require('../../utils/cbseDatesheetParser');
 const { uploadDocumentToCloudinary } = require('../../config/cloudinary');
+const fs = require('fs');
+
+const getFileBuffer = (file) => {
+  if (file?.tempFilePath && fs.existsSync(file.tempFilePath)) {
+    return fs.readFileSync(file.tempFilePath);
+  }
+
+  if (file?.data && Buffer.isBuffer(file.data) && file.data.length > 0) {
+    return file.data;
+  }
+
+  throw new Error('Uploaded file is empty or unavailable');
+};
 
 // Upload and parse CBSE datesheet PDF
 exports.uploadDatesheet = async (req, res) => {
+  let file = null;
   try {
     if (!req.files || !req.files.file) {
       return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    const file = req.files.file;
-    if (file.mimetype !== 'application/pdf') {
+    file = req.files.file;
+    if (!file.mimetype || !file.mimetype.includes('pdf')) {
       return res.status(400).json({ success: false, message: 'Only PDF files are allowed' });
     }
 
@@ -21,8 +35,9 @@ exports.uploadDatesheet = async (req, res) => {
     const { MasterCBSEDatesheet } = req.platformModels;
 
     // Parse PDF using existing parser
+    const fileBuffer = getFileBuffer(file);
     const parser = new CBSEDatesheetParser();
-    const result = await parser.parsePDF(file.data);
+    const result = await parser.parsePDF(fileBuffer);
 
     if (!result.success || result.data.entries.length === 0) {
       return res.status(400).json({
@@ -43,7 +58,7 @@ exports.uploadDatesheet = async (req, res) => {
     // Optionally upload PDF to Cloudinary for archival
     let cloudinaryUrl, cloudinaryPublicId;
     try {
-      const fileInput = file.tempFilePath || file.data;
+      const fileInput = file.tempFilePath || fileBuffer;
       const cloudResult = await uploadDocumentToCloudinary(
         fileInput,
         'master-datesheets',
@@ -95,6 +110,10 @@ exports.uploadDatesheet = async (req, res) => {
   } catch (error) {
     console.error('Datesheet upload error:', error);
     res.status(500).json({ success: false, message: 'Error uploading datesheet', error: error.message });
+  } finally {
+    if (file?.tempFilePath && fs.existsSync(file.tempFilePath)) {
+      fs.unlinkSync(file.tempFilePath);
+    }
   }
 };
 

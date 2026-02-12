@@ -6,6 +6,53 @@ const cloudinary = require('cloudinary').v2
 const fs = require('fs')
 const path = require('path')
 
+const ACTIVE_CANDIDATE_FILTER = {
+  $or: [{ status: 'active' }, { status: { $exists: false } }],
+}
+
+const calculateTotalFromSerialRange = (serialFrom, serialTo) => {
+  if (!serialFrom || !serialTo) return null
+
+  const from = parseInt(String(serialFrom).replace(/\D/g, ''), 10)
+  const to = parseInt(String(serialTo).replace(/\D/g, ''), 10)
+
+  if (Number.isNaN(from) || Number.isNaN(to) || to < from) return null
+  return to - from + 1
+}
+
+const syncAnswerSheetTotals = async () => {
+  const sheets = await AnswerSheet.find({ isActive: true })
+    .select('_id serialFrom serialTo total used discarded')
+
+  const updates = []
+
+  sheets.forEach(sheet => {
+    const recalculatedTotal = calculateTotalFromSerialRange(sheet.serialFrom, sheet.serialTo)
+    if (recalculatedTotal === null || recalculatedTotal === sheet.total) return
+
+    const consumed = (sheet.used || 0) + (sheet.discarded || 0)
+    if (consumed > recalculatedTotal) {
+      console.warn(
+        `Skipping total sync for sheet ${sheet._id}: consumed (${consumed}) exceeds recalculated total (${recalculatedTotal})`
+      )
+      return
+    }
+
+    updates.push({
+      updateOne: {
+        filter: { _id: sheet._id },
+        update: { $set: { total: recalculatedTotal } }
+      }
+    })
+  })
+
+  if (updates.length > 0) {
+    await AnswerSheet.bulkWrite(updates)
+  }
+
+  return updates.length
+}
+
 /**
  * @desc    Get all answer sheets (always returns all types from PDF, merged with actual data)
  * @route   GET /api/answersheets
@@ -13,6 +60,8 @@ const path = require('path')
  */
 exports.getAnswerSheets = async (req, res) => {
   try {
+    await syncAnswerSheetTotals()
+
     const { type, class: classLevel, status } = req.query
 
     // Get actual answer sheets from database
@@ -155,21 +204,66 @@ exports.createAnswerSheet = async (req, res) => {
  */
 exports.updateAnswerSheet = async (req, res) => {
   try {
-    const answerSheet = await AnswerSheet.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      {
-        new: true,
-        runValidators: true
-      }
-    )
+    const existingAnswerSheet = await AnswerSheet.findById(req.params.id)
 
-    if (!answerSheet) {
+    if (!existingAnswerSheet) {
       return res.status(404).json({
         success: false,
         error: 'Answer sheet not found'
       })
     }
+
+    const updateData = { ...req.body }
+    const hasSerialFrom = Object.prototype.hasOwnProperty.call(updateData, 'serialFrom')
+    const hasSerialTo = Object.prototype.hasOwnProperty.call(updateData, 'serialTo')
+
+    if (hasSerialFrom || hasSerialTo) {
+      const nextSerialFrom = hasSerialFrom ? updateData.serialFrom : existingAnswerSheet.serialFrom
+      const nextSerialTo = hasSerialTo ? updateData.serialTo : existingAnswerSheet.serialTo
+      const recalculatedTotal = calculateTotalFromSerialRange(nextSerialFrom, nextSerialTo)
+
+      if (recalculatedTotal === null) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid serial range. Serial No To must be greater than or equal to Serial No From.'
+        })
+      }
+
+      const nextUsedRaw = Object.prototype.hasOwnProperty.call(updateData, 'used')
+        ? updateData.used
+        : existingAnswerSheet.used
+      const nextDiscardedRaw = Object.prototype.hasOwnProperty.call(updateData, 'discarded')
+        ? updateData.discarded
+        : existingAnswerSheet.discarded
+      const nextUsed = Number(nextUsedRaw)
+      const nextDiscarded = Number(nextDiscardedRaw)
+
+      if (Number.isNaN(nextUsed) || Number.isNaN(nextDiscarded)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Used and discarded values must be valid numbers'
+        })
+      }
+
+      if (nextUsed + nextDiscarded > recalculatedTotal) {
+        return res.status(400).json({
+          success: false,
+          error: `Invalid serial range. Total sheets (${recalculatedTotal}) cannot be less than used + discarded (${nextUsed + nextDiscarded}).`
+        })
+      }
+
+      updateData.total = recalculatedTotal
+    }
+
+    const answerSheet = await AnswerSheet.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      {
+        new: true,
+        runValidators: true,
+        context: 'query'
+      }
+    )
 
     res.status(200).json({
       success: true,
@@ -321,6 +415,8 @@ exports.discardAnswerSheets = async (req, res) => {
  */
 exports.getStatistics = async (req, res) => {
   try {
+    await syncAnswerSheetTotals()
+
     const summaryStats = await AnswerSheet.getSummaryStats()
     const statsByType = await AnswerSheet.getStatsByType()
 
@@ -619,7 +715,7 @@ exports.getAnswerSheetDetails = async (req, res) => {
 
     if (cbseDatesheet) {
       // Get all candidates with their subjects
-      const candidates = await Candidate.find({ isActive: true })
+      const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
         .populate('subjects', 'code name class')
         .lean()
 
@@ -766,7 +862,7 @@ exports.getSerialAllocation = async (req, res) => {
     }
 
     // Get all candidates with their subjects
-    const candidates = await Candidate.find({ isActive: true })
+    const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
       .populate('subjects', 'code name class')
       .lean()
 

@@ -6,7 +6,7 @@ const fs = require('fs');
 const { fromPath: pdfToPic } = require('pdf2pic');
 const Tesseract = require('tesseract.js');
 const os = require('os');
-const { uploadToCloudinary } = require('../config/cloudinary');
+const { uploadDocumentToCloudinary } = require('../config/cloudinary');
 const { SUCCESS_MESSAGES, HTTP_STATUS } = require('../utils/constants');
 
 // @desc    Get all subjects
@@ -218,6 +218,15 @@ const parseAnswerSheet = (text) => {
   return 'none';
 };
 
+const withTimeout = (promise, timeoutMs, message) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(message)), timeoutMs);
+    })
+  ]);
+};
+
 // Helper function to extract subjects from CBSE PDF format
 const extractSubjectsFromCBSEPDF = (text) => {
   const subjects = [];
@@ -280,19 +289,6 @@ module.exports.importSubjectsFromPdf = asyncHandler(async (req, res) => {
   }
   
   try {
-    // Upload PDF to Cloudinary
-    let uploadedUrl = null;
-    try {
-      const upload = await uploadToCloudinary(
-        file.tempFilePath, 
-        'subjects/pdfs', 
-        `subjects_${Date.now()}`
-      );
-      uploadedUrl = upload.url;
-    } catch (error) {
-      console.error('Cloudinary upload error:', error);
-    }
-    
     // Parse PDF content
     const dataBuffer = fs.readFileSync(file.tempFilePath);
     const pdfData = await pdf(dataBuffer);
@@ -356,6 +352,23 @@ module.exports.importSubjectsFromPdf = asyncHandler(async (req, res) => {
         }
       }
     }
+
+    // Cloudinary archival is best-effort; do not block import completion.
+    let uploadedUrl = null;
+    try {
+      const upload = await withTimeout(
+        uploadDocumentToCloudinary(
+          file.tempFilePath,
+          'subjects/pdfs',
+          `subjects_${Date.now()}`
+        ),
+        8000,
+        'Cloudinary upload timed out'
+      );
+      uploadedUrl = upload.url;
+    } catch (error) {
+      console.error('Cloudinary upload skipped:', error.message);
+    }
     
     return res.status(HTTP_STATUS.OK).json(
       generateResponse(true, 'Subjects import completed', {
@@ -379,5 +392,9 @@ module.exports.importSubjectsFromPdf = asyncHandler(async (req, res) => {
     return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json(
       generateResponse(false, 'Error processing PDF file', { error: error.message })
     );
+  } finally {
+    if (file.tempFilePath && fs.existsSync(file.tempFilePath)) {
+      fs.unlinkSync(file.tempFilePath);
+    }
   }
 });

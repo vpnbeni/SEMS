@@ -799,17 +799,17 @@ const EditSubjectModal: React.FC<EditSubjectModalProps> = ({
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, answerSheet: '32_pages' }))}
-                  className={`${segmentBtnBase} ${formData.answerSheet === '32_pages' ? segmentBtnActive : segmentBtnInactive}`}
-                >
-                  32 Pages
-                </button>
-                <button
-                  type="button"
                   onClick={() => setFormData(prev => ({ ...prev, answerSheet: '20_pages' }))}
                   className={`${segmentBtnBase} ${formData.answerSheet === '20_pages' ? segmentBtnActive : segmentBtnInactive}`}
                 >
                   20 Pages
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, answerSheet: '32_pages' }))}
+                  className={`${segmentBtnBase} ${formData.answerSheet === '32_pages' ? segmentBtnActive : segmentBtnInactive}`}
+                >
+                  32 Pages
                 </button>
                 <button
                   type="button"
@@ -1038,17 +1038,17 @@ const AddSubjectModal: React.FC<AddSubjectModalProps> = ({
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, answerSheet: '32_pages' }))}
-                  className={`${segmentBtnBase} ${formData.answerSheet === '32_pages' ? segmentBtnActive : segmentBtnInactive}`}
-                >
-                  32 Pages
-                </button>
-                <button
-                  type="button"
                   onClick={() => setFormData(prev => ({ ...prev, answerSheet: '20_pages' }))}
                   className={`${segmentBtnBase} ${formData.answerSheet === '20_pages' ? segmentBtnActive : segmentBtnInactive}`}
                 >
                   20 Pages
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, answerSheet: '32_pages' }))}
+                  className={`${segmentBtnBase} ${formData.answerSheet === '32_pages' ? segmentBtnActive : segmentBtnInactive}`}
+                >
+                  32 Pages
                 </button>
                 <button
                   type="button"
