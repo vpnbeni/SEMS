@@ -28,10 +28,13 @@ const resolveTenantFromRequest = (req) => {
   }
 
   if (hostname === rootApiDomain) {
+    // Single API host: tenant comes from x-tenant-slug header.
+    const headerSlug = sanitizeSlug(req.headers['x-tenant-slug'] || '');
+    const tenantSlug = headerSlug && isValidSlug(headerSlug) ? headerSlug : null;
     return {
-      tenantSlug: null,
-      source: 'host',
-      isPlatformHost: true,
+      tenantSlug,
+      source: tenantSlug ? 'header' : 'host',
+      isPlatformHost: !tenantSlug,
       host: hostname,
     };
   }

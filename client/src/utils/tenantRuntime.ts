@@ -99,13 +99,8 @@ export const resolveApiBaseUrl = (): string => {
       || 'http://localhost:5000/api');
   }
 
-  const tenantSlug = resolveTenantSlug();
+  // Single API server at root domain for all tenants.
   const rootApiDomain = getRootApiDomain();
-
-  if (tenantSlug) {
-    return `https://${tenantSlug}.${rootApiDomain}/api`;
-  }
-
   return `https://${rootApiDomain}/api`;
 };
 
@@ -134,9 +129,6 @@ export const buildTenantAppRedirectUrl = (tenantSlug: string, ticket: string): s
 };
 
 export const getTenantHeader = (): string | null => {
-  if (!isLocalRuntime()) {
-    return null;
-  }
-
+  // Always send tenant slug when on a tenant subdomain.
   return resolveTenantSlug();
 };

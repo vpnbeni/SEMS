@@ -15,7 +15,24 @@ import type {
   UploadResult,
 } from '../types/platform'
 
-const API_BASE_URL = import.meta.env.VITE_PLATFORM_API_URL || 'http://localhost:5000/api/admin'
+const configuredApiBaseUrl = (import.meta.env.VITE_PLATFORM_API_URL || '').trim()
+
+const isLocalApiUrl = (value: string): boolean => {
+  if (!value) {
+    return false
+  }
+
+  try {
+    const parsedUrl = new URL(value)
+    return parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1'
+  } catch {
+    return false
+  }
+}
+
+const API_BASE_URL = (!import.meta.env.DEV && isLocalApiUrl(configuredApiBaseUrl))
+  ? '/api/admin'
+  : (configuredApiBaseUrl || (import.meta.env.DEV ? 'http://localhost:5000/api/admin' : '/api/admin'))
 
 interface ApiResponse<T> {
   success: boolean

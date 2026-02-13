@@ -252,11 +252,21 @@ tenantScopedRouter.use('/cbse-circulars', cbseCircularsRoutes);
 
 app.use('/api', tenantScopedRouter);
 
-// Handle 404 routes
-app.all('*', (req, res) => {
+// Return API 404s as JSON
+app.use('/api', (req, res) => {
   res.status(404).json({
     success: false,
     message: `Route ${req.originalUrl} not found`
+  });
+});
+
+// Handle non-API 404 routes
+app.all('*', (req, res) => {
+  const message = `Route ${req.originalUrl} not found`;
+
+  res.status(404).json({
+    success: false,
+    message
   });
 });
 

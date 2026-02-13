@@ -1,55 +1,62 @@
-# Deploy Frontend to Vercel
+# Vercel Deployment (Admin + Tenant Client)
 
-## Environment variables
+Deploy `admin` and `client` as two separate Vercel projects.
 
-Set these in **Vercel** → your project → **Settings** → **Environment Variables**.
+## 1. Projects
 
-### Required
+- Project A: `admin` app
+  - Root Directory: `admin`
+- Project B: `client` app
+  - Root Directory: `client`
 
-| Variable        | Description              | Example                          |
-|----------------|--------------------------|----------------------------------|
-| **VITE_API_URL** | Backend API base URL     | `https://your-server.com/api`   |
+Both already include SPA fallback config via:
 
-- Use the **full API base URL** (including `/api`).
-- If the backend is not deployed yet, you can set a placeholder and change it later (each change will trigger a new build).
+- `admin/vercel.json`
+- `client/vercel.json`
 
-### Optional
+## 2. Environment variables
 
-| Variable           | Description   | Example   |
-|--------------------|---------------|-----------|
-| **VITE_APP_NAME**  | App name      | `SEMS`    |
-| **VITE_APP_VERSION** | App version | `1.0.0`   |
+Assume backend API is on `https://api.example.com`.
 
-These are declared in `vite-env.d.ts` but not used in the app yet. You can omit them.
+### 2.1 Admin project (`admin`)
 
----
+Set in Vercel project settings:
 
-## Vercel project settings
+```env
+VITE_PLATFORM_API_URL=https://api.example.com/api/admin
+```
 
-Because the app lives in the `client` folder, use one of these:
+### 2.2 Client project (`client`)
 
-**Option A (recommended):** In Vercel → Project Settings → General:
-- **Root Directory**: `client`
-- **Build Command**: `npm run build`
-- **Output Directory**: `dist`
-- **Install Command**: `npm install`
+Set in Vercel project settings:
 
-**Option B:** Deploy from repo root and use the included `vercel.json` (it runs install and build inside `client` and uses `client/dist` as output).
+```env
+VITE_ROOT_APP_DOMAIN=app.example.com
+VITE_ROOT_API_DOMAIN=api.example.com
+VITE_API_URL=https://api.example.com/api
+VITE_LOCAL_API_URL=http://localhost:5000/api
+```
 
----
+## 3. Domain mapping
 
-## Important
+Recommended:
 
-- **Vite** bakes `VITE_*` variables into the build at **build time**. So:
-  - Add **VITE_API_URL** (and optional vars) in Vercel **before** the first build.
-  - After changing any `VITE_*` variable, trigger a **new deployment** (redeploy) so the new values are used.
-- **CORS**: Your backend must allow the Vercel frontend origin (e.g. `https://your-app.vercel.app`) in `CLIENT_URL` / CORS config.
+- `admin.example.com` -> Vercel `admin` project
+- `app.example.com` and `*.app.example.com` -> Vercel `client` project
+- `api.example.com` -> AWS EC2/Nginx backend
 
----
+## 4. CORS alignment (backend)
 
-## Quick checklist
+Backend must allow these frontend origins:
 
-- [ ] Create Vercel project and connect repo.
-- [ ] Set **Root Directory** to `client` (or use root with `vercel.json`).
-- [ ] Add **VITE_API_URL** = `https://<your-backend>/api`.
-- [ ] Deploy; frontend will use that API URL until you change it and redeploy.
+```env
+CLIENT_URL=https://admin.example.com
+CLIENT_URLS=https://admin.example.com,https://app.example.com
+ROOT_APP_DOMAIN=app.example.com
+ROOT_API_DOMAIN=api.example.com
+```
+
+## 5. Build behavior reminder
+
+`VITE_*` variables are baked at build time.
+After any env change in Vercel, redeploy that project.
