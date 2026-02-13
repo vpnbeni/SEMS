@@ -12,7 +12,9 @@ const {
   getTeachersBySubject,
   getTeacherStats,
   getNextEmployeeId,
-  bulkCreateTeachers
+  bulkCreateTeachers,
+  downloadTeacherImportTemplate,
+  uploadTeachersFromTemplate
 } = require('../controllers/teacherController');
 
 const { protect, authorize } = require('../middleware/auth');
@@ -61,17 +63,23 @@ router.get('/stats', getTeacherStats);
 // Next employee ID route
 router.get('/next-employee-id', getNextEmployeeId);
 
+// Template import/export routes
+router.get('/import-template', downloadTeacherImportTemplate);
+router.post('/import-template/upload', uploadTeachersFromTemplate);
+
 // Bulk operations
 router.post('/bulk', validateJoi(bulkUploadSchema), bulkCreateTeachers);
 
 // Department-based routes
-router.get('/department/:department', 
+router.get(
+  '/department/:department',
   validateParams(Joi.object({ department: departmentSchema })),
   getTeachersByDepartment
 );
 
 // Subject-based routes
-router.get('/subject/:subjectId',
+router.get(
+  '/subject/:subjectId',
   validateParams(Joi.object({ subjectId: objectIdSchema })),
   getTeachersBySubject
 );

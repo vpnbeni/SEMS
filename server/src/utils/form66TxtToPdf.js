@@ -12,7 +12,7 @@ async function convertTxtToPdf(txtContent) {
     console.log('📄 Converting TXT to PDF...');
 
     // Split content by form feed character (page breaks)
-    const pages = txtContent.split('\f').filter(page => page.trim());
+    const pages = txtContent.split('\f').filter((page) => page.trim());
     console.log(`Found ${pages.length} pages in TXT file`);
 
     // Generate HTML with monospace font preserving formatting
@@ -64,8 +64,8 @@ function generateHtml(pages) {
     }
     body {
       font-family: 'Courier New', Courier, monospace;
-      font-size: 10px;
-      line-height: 1.2;
+      font-size: 12px;
+      line-height: 1.3;
       margin: 0;
       padding: 0;
     }
@@ -129,7 +129,7 @@ function extractPageInfo(pageContent) {
  * @returns {Array<{content: string, date: string, subjectCode: string, subject: string, pageIndex: number}>}
  */
 function splitIntoPages(txtContent) {
-  const pages = txtContent.split('\f').filter(page => page.trim());
+  const pages = txtContent.split('\f').filter((page) => page.trim());
 
   return pages.map((content, index) => {
     const info = extractPageInfo(content);

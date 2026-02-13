@@ -102,6 +102,10 @@ const form66UploadSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  uploadedClasses: [{
+    type: String,
+    enum: ['X', 'XII']
+  }],
   status: {
     type: String,
     enum: ['processing', 'completed', 'failed'],

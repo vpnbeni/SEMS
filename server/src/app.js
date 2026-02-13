@@ -36,6 +36,7 @@ const form66Routes = require('./routes/form66');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const dutiesRoutes = require('./routes/dutiesRoutes');
 const undertakingsRoutes = require('./routes/undertakings');
+const cbseCircularsRoutes = require('./routes/cbseCirculars');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -48,14 +49,14 @@ app.set('trust proxy', 1);
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      imgSrc: ["'self'", "data:", "https:"],
-      scriptSrc: ["'self'"],
-      connectSrc: ["'self'"],
-    },
-  },
+      defaultSrc: ['\'self\''],
+      styleSrc: ['\'self\'', '\'unsafe-inline\'', 'https://fonts.googleapis.com'],
+      fontSrc: ['\'self\'', 'https://fonts.gstatic.com'],
+      imgSrc: ['\'self\'', 'data:', 'https:'],
+      scriptSrc: ['\'self\''],
+      connectSrc: ['\'self\'']
+    }
+  }
 }));
 
 // CORS configuration
@@ -144,7 +145,7 @@ if (rateLimitEnabled) {
       error: 'Too many requests from this IP, please try again later.'
     },
     standardHeaders: true,
-    legacyHeaders: false,
+    legacyHeaders: false
   });
   app.use(limiter);
 }
@@ -213,9 +214,10 @@ app.get('/api', (req, res) => {
       dispatch: '/api/dispatch',
       export: '/api/export',
       answersheets: '/api/answersheets',
+      cbseCirculars: '/api/cbse-circulars',
       duties: '/api/duties',
       undertakings: '/api/undertakings',
-      admin: '/api/admin',
+      admin: '/api/admin'
       // calendar: '/api/calendar' // Temporarily disabled for debugging
     },
     documentation: 'See README.md for detailed API documentation'
@@ -245,6 +247,7 @@ tenantScopedRouter.use('/form66', form66Routes);
 tenantScopedRouter.use('/dashboard', dashboardRoutes);
 tenantScopedRouter.use('/duties', dutiesRoutes);
 tenantScopedRouter.use('/undertakings', undertakingsRoutes);
+tenantScopedRouter.use('/cbse-circulars', cbseCircularsRoutes);
 // tenantScopedRouter.use('/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 app.use('/api', tenantScopedRouter);

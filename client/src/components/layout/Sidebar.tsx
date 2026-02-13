@@ -187,6 +187,27 @@ const Sidebar: React.FC = () => {
       badge: null,
     },
     {
+      name: 'CBSE Circulars',
+      href: '/cbse-circulars',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14-4H5m14 8H8m-3 4h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'CBSE Portals',
+      href: '/cbse-portals',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 3h7m0 0v7m0-7L10 14" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5v14h14" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
       name: 'Datesheets',
       href: '/datesheets',
       icon: (

@@ -1,8 +1,113 @@
+const ExcelJS = require('exceljs');
+const fs = require('fs');
 const asyncHandler = require('../middleware/asyncHandler');
 const Teacher = require('../models/Teacher');
 const Subject = require('../models/Subject');
 const { generateResponse, getPaginationParams, buildPaginationResponse, buildFilterObject, buildSortObject } = require('../utils/helpers');
 const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/constants');
+const { getPlatformModels } = require('../tenancy/platformModels');
+const { DEFAULT_TEMPLATE_COLUMNS } = require('./admin/masterTeacherTemplateController');
+
+const getTeacherTemplateColumns = async () => {
+  try {
+    const { MasterTeacherTemplate } = getPlatformModels();
+    const template = await MasterTeacherTemplate.findOne({ isActive: true })
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    if (template?.columns?.length) {
+      return template.columns;
+    }
+  } catch (_error) {
+    // Fall back to defaults when platform template is unavailable.
+  }
+
+  return DEFAULT_TEMPLATE_COLUMNS;
+};
+
+const normalizeString = (value) => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  if (typeof value === 'object' && value.text) {
+    return String(value.text).trim();
+  }
+  return String(value).trim();
+};
+
+const hasAnyNonEmptyValue = (rowValues) => (
+  Object.values(rowValues).some((value) => normalizeString(value) !== '')
+);
+
+const clampText = (value, maxLength) => {
+  const normalized = normalizeString(value);
+  if (!normalized) {
+    return '';
+  }
+  return normalized.slice(0, maxLength);
+};
+
+const escapeCsvCell = (value) => {
+  const stringValue = normalizeString(value);
+  const escaped = stringValue.replace(/"/g, '""');
+  if (/[",\n]/.test(escaped)) {
+    return `"${escaped}"`;
+  }
+  return escaped;
+};
+
+const parseCsvLine = (line) => {
+  const cells = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+
+    if (char === '"' && inQuotes && nextChar === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      cells.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+
+  cells.push(current);
+  return cells;
+};
+
+const parseCsvBuffer = (buffer) => {
+  const text = buffer.toString('utf-8').replace(/^\uFEFF/, '');
+  const lines = text.split(/\r?\n/);
+  const rows = [];
+
+  lines.forEach((line) => {
+    if (line.trim() === '') {
+      return;
+    }
+    rows.push(parseCsvLine(line));
+  });
+
+  return rows;
+};
+
+const getRequiredTemplateKeys = (columns) => (
+  new Set(columns.filter((column) => column.required).map((column) => column.key))
+);
+
+const buildGeneratedImportEmail = (employeeId, rowNumber, batchToken) => {
+  const safeLocalPart = normalizeString(employeeId)
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, '');
+  const localPart = safeLocalPart || `functionary${rowNumber}`;
+  return `${localPart}.${batchToken}.${rowNumber}@sems.local`;
+};
 
 // @desc    Get all teachers
 // @route   GET /api/teachers
@@ -13,7 +118,7 @@ const getTeachers = asyncHandler(async (req, res) => {
 
   // Build filter object
   const filter = {};
-  
+
   if (search) {
     filter.$or = [
       { name: { $regex: search, $options: 'i' } },
@@ -22,20 +127,20 @@ const getTeachers = asyncHandler(async (req, res) => {
       { department: { $regex: search, $options: 'i' } }
     ];
   }
-  
+
   if (department) {
     filter.department = { $regex: department, $options: 'i' };
   }
-  
+
   if (subject) {
     filter.subjects = subject;
   }
-  
+
   if (isActive !== undefined) {
     // Handle both boolean and string values
     filter.isActive = isActive === true || isActive === 'true';
   }
-  
+
   if (minExperience !== undefined || maxExperience !== undefined) {
     filter.experience = {};
     if (minExperience !== undefined) {
@@ -118,11 +223,11 @@ const createTeacher = asyncHandler(async (req, res) => {
 
   // Validate subjects if provided
   if (req.body.subjects && req.body.subjects.length > 0) {
-    const validSubjects = await Subject.find({ 
+    const validSubjects = await Subject.find({
       _id: { $in: req.body.subjects },
-      isActive: true 
+      isActive: true
     });
-    
+
     if (validSubjects.length !== req.body.subjects.length) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json(
         generateResponse(false, 'One or more invalid subject IDs provided')
@@ -154,7 +259,7 @@ const updateTeacher = asyncHandler(async (req, res) => {
 
   // Check for email conflicts (exclude current teacher)
   if (req.body.email && req.body.email !== teacher.email) {
-    const existingEmail = await Teacher.findOne({ 
+    const existingEmail = await Teacher.findOne({
       email: req.body.email,
       _id: { $ne: req.params.id }
     });
@@ -167,11 +272,11 @@ const updateTeacher = asyncHandler(async (req, res) => {
 
   // Validate subjects if provided
   if (req.body.subjects && req.body.subjects.length > 0) {
-    const validSubjects = await Subject.find({ 
+    const validSubjects = await Subject.find({
       _id: { $in: req.body.subjects },
-      isActive: true 
+      isActive: true
     });
-    
+
     if (validSubjects.length !== req.body.subjects.length) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json(
         generateResponse(false, 'One or more invalid subject IDs provided')
@@ -228,11 +333,11 @@ const assignSubjects = asyncHandler(async (req, res) => {
   }
 
   // Validate subjects
-  const validSubjects = await Subject.find({ 
+  const validSubjects = await Subject.find({
     _id: { $in: subjectIds },
-    isActive: true 
+    isActive: true
   });
-  
+
   if (validSubjects.length !== subjectIds.length) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json(
       generateResponse(false, 'One or more invalid subject IDs provided')
@@ -394,11 +499,11 @@ const bulkCreateTeachers = asyncHandler(async (req, res) => {
       } else {
         // Validate subjects if provided
         if (teacherData.subjects && teacherData.subjects.length > 0) {
-          const validSubjects = await Subject.find({ 
+          const validSubjects = await Subject.find({
             _id: { $in: teacherData.subjects },
-            isActive: true 
+            isActive: true
           });
-          
+
           if (validSubjects.length !== teacherData.subjects.length) {
             results.errors.push({
               email: teacherData.email,
@@ -424,6 +529,301 @@ const bulkCreateTeachers = asyncHandler(async (req, res) => {
   );
 });
 
+// @desc    Download exam functionaries import template
+// @route   GET /api/teachers/import-template
+// @access  Private
+const downloadTeacherImportTemplate = asyncHandler(async (req, res) => {
+  const columns = await getTeacherTemplateColumns();
+  const headers = columns.map((column) => column.label);
+  const format = String(req.query.format || 'csv').toLowerCase();
+
+  if (format === 'xlsx') {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Exam Functionaries');
+    worksheet.addRow(headers);
+    worksheet.getRow(1).font = { bold: true };
+    worksheet.views = [{ state: 'frozen', ySplit: 1 }];
+    worksheet.columns = headers.map((header) => ({
+      width: Math.max(18, Math.min(40, header.length + 6))
+    }));
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const fileName = `exam_functionaries_template_${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    return res.status(HTTP_STATUS.OK).send(Buffer.from(buffer));
+  }
+
+  const csvContent = `${headers.map((header) => escapeCsvCell(header)).join(',')}\n`;
+  const fileName = `exam_functionaries_template_${new Date().toISOString().split('T')[0]}.csv`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+  return res.status(HTTP_STATUS.OK).send(csvContent);
+});
+
+// @desc    Upload exam functionaries import template
+// @route   POST /api/teachers/import-template/upload
+// @access  Private
+const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
+  let file = null;
+  if (!req.files || !req.files.file) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, 'No file uploaded. Please upload a .csv or .xlsx file.')
+    );
+  }
+
+  file = req.files.file;
+  const fileName = String(file.name || '').toLowerCase();
+  const isXlsx = fileName.endsWith('.xlsx');
+  const isCsv = fileName.endsWith('.csv');
+  if (!isXlsx && !isCsv) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, 'Only .csv or .xlsx files are supported for import.')
+    );
+  }
+
+  const fileBuffer = file?.tempFilePath && fs.existsSync(file.tempFilePath)
+    ? fs.readFileSync(file.tempFilePath)
+    : file.data;
+
+  const columns = await getTeacherTemplateColumns();
+  const requiredTemplateKeys = getRequiredTemplateKeys(columns);
+  const expectedHeaders = columns.map((column) => column.label);
+  const headerToKeyMap = new Map(columns.map((column) => [column.label, column.key]));
+  let receivedHeaders = [];
+  let dataRows = [];
+  try {
+    if (isCsv) {
+      const rows = parseCsvBuffer(fileBuffer);
+      if (!rows.length) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json(
+          generateResponse(false, 'CSV file is empty.')
+        );
+      }
+      receivedHeaders = expectedHeaders.map((_, index) => normalizeString(rows[0]?.[index]));
+      dataRows = rows.slice(1).map((cells, index) => ({
+        rowNumber: index + 2,
+        valueAt: (cellIndex) => cells[cellIndex] || ''
+      }));
+    } else {
+      const workbook = new ExcelJS.Workbook();
+      try {
+        await workbook.xlsx.load(fileBuffer);
+      } catch (_error) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json(
+          generateResponse(false, 'Invalid or unsupported Excel file.')
+        );
+      }
+
+      const worksheet = workbook.worksheets[0];
+      if (!worksheet) {
+        return res.status(HTTP_STATUS.BAD_REQUEST).json(
+          generateResponse(false, 'Excel file has no worksheets.')
+        );
+      }
+
+      const headerRow = worksheet.getRow(1);
+      receivedHeaders = expectedHeaders.map((_, index) => normalizeString(headerRow.getCell(index + 1).value));
+      dataRows = Array.from({ length: Math.max(0, worksheet.rowCount - 1) }, (_, index) => ({
+        rowNumber: index + 2,
+        valueAt: (cellIndex) => worksheet.getRow(index + 2).getCell(cellIndex + 1).value
+      }));
+    }
+  } finally {
+    if (file?.tempFilePath && fs.existsSync(file.tempFilePath)) {
+      fs.unlinkSync(file.tempFilePath);
+    }
+  }
+
+  const headersAreValid = expectedHeaders.length === receivedHeaders.length
+    && expectedHeaders.every((header, index) => header === receivedHeaders[index]);
+
+  if (!headersAreValid) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      message: 'Template headers do not match. Please use the downloaded template without changing headers.',
+      data: {
+        expectedHeaders,
+        receivedHeaders
+      }
+    });
+  }
+
+  const results = {
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: [],
+    warnings: []
+  };
+
+  const normalizedEntries = [];
+  const subjectCodeUniverse = new Set();
+  const employeeIdUniverse = new Set();
+
+  dataRows.forEach(({ rowNumber, valueAt }) => {
+    const rowData = {};
+    expectedHeaders.forEach((header, cellIndex) => {
+      const key = headerToKeyMap.get(header);
+      rowData[key] = valueAt(cellIndex);
+    });
+
+    if (!hasAnyNonEmptyValue(rowData)) {
+      results.skipped += 1;
+      return;
+    }
+
+    const normalizedRow = Object.fromEntries(
+      Object.entries(rowData).map(([key, value]) => [key, normalizeString(value)])
+    );
+    const missingRequiredKeys = Array.from(requiredTemplateKeys).filter((key) => !normalizedRow[key]);
+    if (missingRequiredKeys.length > 0) {
+      results.errors.push({
+        row: rowNumber,
+        message: `Missing required fields: ${missingRequiredKeys.join(', ')}`
+      });
+      return;
+    }
+
+    const employeeId = clampText(normalizedRow.oasisId || normalizedRow.employeeId, 120);
+    const name = clampText(normalizedRow.functionaryName || normalizedRow.name, 100);
+    const designation = clampText(normalizedRow.designation, 50);
+    if (!employeeId || !name || !designation) {
+      results.errors.push({
+        row: rowNumber,
+        message: 'Oasis ID, Functionary Name, and Designation are required'
+      });
+      return;
+    }
+
+    const subjectCodes = (normalizedRow.subjectCode || normalizedRow.subjectCodes || '')
+      .split(',')
+      .map((code) => code.trim().toUpperCase())
+      .filter(Boolean);
+    subjectCodes.forEach((code) => subjectCodeUniverse.add(code));
+    employeeIdUniverse.add(employeeId);
+
+    normalizedEntries.push({
+      rowNumber,
+      employeeId,
+      name,
+      designation,
+      subjectName: normalizedRow.subject || normalizedRow.department || '',
+      schoolCode: normalizedRow.schoolCode || '',
+      srNo: normalizedRow.srNo || '',
+      subjectCodes
+    });
+  });
+
+  const subjectsByCode = {};
+  if (subjectCodeUniverse.size > 0) {
+    const subjects = await Subject.find({
+      code: { $in: Array.from(subjectCodeUniverse) },
+      isActive: true
+    }).select('_id code').lean();
+    subjects.forEach((subject) => {
+      subjectsByCode[subject.code] = subject;
+    });
+  }
+
+  const existingTeachers = employeeIdUniverse.size > 0
+    ? await Teacher.find({ employeeId: { $in: Array.from(employeeIdUniverse) } })
+      .select('employeeId email phone department experience qualification dateOfJoining dateOfBirth isActive')
+      .lean()
+    : [];
+  const existingByEmployeeId = new Map(existingTeachers.map((teacher) => [teacher.employeeId, teacher]));
+  const importBatchToken = Date.now();
+
+  const operations = [];
+  const operationRows = [];
+
+  normalizedEntries.forEach((entry) => {
+    const matchedSubjects = entry.subjectCodes
+      .map((code) => subjectsByCode[code])
+      .filter(Boolean);
+    const subjectIds = matchedSubjects.map((subject) => subject._id);
+    const matchedCodes = new Set(matchedSubjects.map((subject) => subject.code));
+    const unmatchedSubjectCodes = entry.subjectCodes.filter((code) => !matchedCodes.has(code));
+    if (unmatchedSubjectCodes.length > 0) {
+      results.warnings.push({
+        row: entry.rowNumber,
+        message: `Subject code(s) not found in subjects master: ${unmatchedSubjectCodes.join(', ')}`
+      });
+    }
+
+    const existingTeacher = existingByEmployeeId.get(entry.employeeId);
+    const payload = {
+      employeeId: entry.employeeId,
+      name: entry.name,
+      email: existingTeacher?.email || buildGeneratedImportEmail(entry.employeeId, entry.rowNumber, importBatchToken),
+      phone: existingTeacher?.phone || '9000000000',
+      department: clampText(existingTeacher?.department || 'General', 50),
+      designation: entry.designation,
+      experience: existingTeacher?.experience ?? 0,
+      qualification: clampText(existingTeacher?.qualification || 'N/A', 200),
+      dateOfJoining: existingTeacher?.dateOfJoining || new Date(),
+      dateOfBirth: existingTeacher?.dateOfBirth || new Date('1990-01-01'),
+      isActive: existingTeacher?.isActive ?? true,
+      subjects: subjectIds
+    };
+
+    const notesParts = [];
+    if (entry.schoolCode) notesParts.push(`School Code: ${entry.schoolCode}`);
+    if (entry.subjectName) notesParts.push(`Subject: ${entry.subjectName}`);
+    if (entry.srNo) notesParts.push(`Sr No: ${entry.srNo}`);
+    if (unmatchedSubjectCodes.length > 0) {
+      notesParts.push(`Unmatched Subject Code(s): ${unmatchedSubjectCodes.join(', ')}`);
+    }
+    if (notesParts.length > 0) {
+      payload.notes = clampText(notesParts.join(' | '), 500);
+    }
+
+    operations.push({
+      updateOne: {
+        filter: { employeeId: entry.employeeId },
+        update: { $set: payload },
+        upsert: true
+      }
+    });
+    operationRows.push(entry.rowNumber);
+  });
+
+  if (operations.length > 0) {
+    try {
+      const bulkResult = await Teacher.bulkWrite(operations, { ordered: false });
+      results.created = bulkResult.upsertedCount || 0;
+      results.updated = Math.max(0, operations.length - results.created);
+    } catch (error) {
+      const writeErrors = error?.writeErrors || [];
+      if (writeErrors.length > 0) {
+        writeErrors.forEach((writeError) => {
+          const opIndex = writeError?.index;
+          const rowNumber = operationRows[opIndex] || null;
+          results.errors.push({
+            row: rowNumber,
+            message: writeError?.errmsg || 'Failed to import row'
+          });
+        });
+        const successCount = Math.max(0, operations.length - writeErrors.length);
+        const insertedCount = error?.result?.upsertedCount || 0;
+        results.created = insertedCount;
+        results.updated = Math.max(0, successCount - insertedCount);
+      } else {
+        results.errors.push({
+          row: null,
+          message: error.message || 'Bulk import failed'
+        });
+      }
+    }
+  }
+
+  return res.status(HTTP_STATUS.OK).json({
+    success: true,
+    message: 'Import completed',
+    data: results
+  });
+});
+
 module.exports = {
   getTeachers,
   getTeacher,
@@ -436,5 +836,7 @@ module.exports = {
   getTeachersBySubject,
   getTeacherStats,
   getNextEmployeeId,
-  bulkCreateTeachers
+  bulkCreateTeachers,
+  downloadTeacherImportTemplate,
+  uploadTeachersFromTemplate
 };

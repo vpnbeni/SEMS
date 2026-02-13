@@ -22,6 +22,8 @@ import DateSheets from './pages/DateSheets'
 import RoomAllocation from './pages/RoomAllocation'
 import AnswerSheets from './pages/AnswerSheets'
 import CentreGuidelines from './pages/CentreGuidelines'
+import CBSECirculars from './pages/CBSECirculars'
+import CBSEPortals from './pages/CBSEPortals'
 import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
 import AnswerSheetDetails from './pages/AnswerSheetDetails'
@@ -109,6 +111,8 @@ function App() {
               <Route path="answersheets" element={<AnswerSheets />} />
               <Route path="answersheets/:id" element={<AnswerSheetDetails />} />
               <Route path="centre-guidelines" element={<CentreGuidelines />} />
+              <Route path="cbse-circulars" element={<CBSECirculars />} />
+              <Route path="cbse-portals" element={<CBSEPortals />} />
               <Route path="dropdown-examples" element={<DropdownExamples />} />
               <Route path="dialog-showcase" element={<DialogShowcase />} />
             </Route>

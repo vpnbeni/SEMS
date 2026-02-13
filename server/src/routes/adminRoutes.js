@@ -3,7 +3,7 @@ const rateLimit = require('express-rate-limit');
 const {
   loginPlatformAdmin,
   getPlatformMe,
-  logoutPlatformAdmin,
+  logoutPlatformAdmin
 } = require('../controllers/admin/platformAuthController');
 const {
   listTenants,
@@ -16,7 +16,7 @@ const {
   updateTenant,
   activateTenant,
   suspendTenant,
-  deleteTenant,
+  deleteTenant
 } = require('../controllers/admin/tenantAdminController');
 const auth = require('../middleware/auth');
 const { validateJoi, validateQuery, validateParams } = require('../middleware/validation');
@@ -30,13 +30,14 @@ const {
   updateTenantSchema,
   deleteTenantSchema,
   tenantQuerySchema,
-  tenantIdParamSchema,
+  tenantIdParamSchema
 } = require('../validations/adminValidation');
 const masterSubjectsController = require('../controllers/admin/masterSubjectsController');
 const masterDatesheetController = require('../controllers/admin/masterDatesheetController');
 const masterGuidelinesController = require('../controllers/admin/masterGuidelinesController');
 const masterUndertakingsController = require('../controllers/admin/masterUndertakingsController');
 const rolloutController = require('../controllers/admin/rolloutController');
+const masterTeacherTemplateController = require('../controllers/admin/masterTeacherTemplateController');
 
 const router = express.Router();
 
@@ -58,8 +59,8 @@ const publicSignupStartLimiter = rateLimit({
   message: {
     success: false,
     message: 'Too many signup attempts. Please try again later.',
-    errorCode: 'rate_limit_exceeded',
-  },
+    errorCode: 'rate_limit_exceeded'
+  }
 });
 
 const publicSignupExchangeLimiter = rateLimit({
@@ -70,8 +71,8 @@ const publicSignupExchangeLimiter = rateLimit({
   message: {
     success: false,
     message: 'Too many signup exchange attempts. Please try again later.',
-    errorCode: 'rate_limit_exceeded',
-  },
+    errorCode: 'rate_limit_exceeded'
+  }
 });
 
 const publicSignupResendOtpLimiter = rateLimit({
@@ -82,8 +83,8 @@ const publicSignupResendOtpLimiter = rateLimit({
   message: {
     success: false,
     message: 'Too many OTP resend attempts. Please try again later.',
-    errorCode: 'rate_limit_exceeded',
-  },
+    errorCode: 'rate_limit_exceeded'
+  }
 });
 
 const publicTenantResolveLimiter = rateLimit({
@@ -94,8 +95,8 @@ const publicTenantResolveLimiter = rateLimit({
   message: {
     success: false,
     message: 'Too many tenant lookup attempts. Please try again later.',
-    errorCode: 'rate_limit_exceeded',
-  },
+    errorCode: 'rate_limit_exceeded'
+  }
 });
 
 router.post('/auth/login', validateJoi(platformLoginSchema), loginPlatformAdmin);
@@ -179,5 +180,9 @@ router.post('/rollouts/initiate', rolloutController.initiateRollout);
 router.get('/rollouts', rolloutController.listRollouts);
 router.get('/rollouts/:id', rolloutController.getRollout);
 router.post('/rollouts/:id/retry', rolloutController.retryRollout);
+
+// Master teacher import template routes
+router.get('/master-teacher-template', masterTeacherTemplateController.getTemplate);
+router.put('/master-teacher-template', masterTeacherTemplateController.updateTemplate);
 
 module.exports = router;

@@ -5,6 +5,7 @@ import CreateDatesheetModal, { DatesheetFormData } from '../components/datesheet
 import ScheduleModal, { ScheduleRow } from '../components/datesheets/ScheduleModal'
 import { Tabs } from '../components/common/Tabs'
 import calendarService from '../services/calendarService'
+import datesheetService from '../services/datesheetService'
 import {
   useDatesheets,
   useCBSEDatesheet,
@@ -33,6 +34,7 @@ const DateSheets: React.FC = () => {
   const [sortField, setSortField] = useState<'date' | 'class' | 'subjectName' | 'subjectCode' | 'duration' | null>('date')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
+  const [isDownloadingCentrePDF, setIsDownloadingCentrePDF] = useState(false)
 
   const cbseParams = useMemo(() => ({
     page,
@@ -168,6 +170,265 @@ const DateSheets: React.FC = () => {
     } catch (error: any) {
       const msg = error.response?.data?.message || error.message || 'Failed to save date sheet'
       toast.error(msg)
+    }
+  }
+
+  const downloadCentreDatesheetPDF = async () => {
+    if (isDownloadingCentrePDF) return
+
+    try {
+      setIsDownloadingCentrePDF(true)
+      const response = await datesheetService.getCentreDatesheet({
+        page: 1,
+        limit: 10000,
+        sortField: 'date',
+        sortOrder: 'asc',
+      })
+
+      const entries = response?.data?.data ?? []
+      if (!Array.isArray(entries) || entries.length === 0) {
+        toast.error('No centre datesheet entries found to download.')
+        return
+      }
+
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+      const pageHeight = doc.internal.pageSize.getHeight()
+      const leftMargin = 10
+      const topMargin = 15
+      const bottomMargin = 12
+      const headerHeight = 10
+      let y = topMargin
+
+      const formatPdfDate = (value: string | Date) => {
+        const date = new Date(value)
+        const day = String(date.getDate()).padStart(2, '0')
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const year = date.getFullYear()
+        return `${day}.${month}.${year}`
+      }
+
+      const formatPdfDay = (value: string | Date, fallbackDayName?: string) => {
+        if (fallbackDayName && String(fallbackDayName).trim()) {
+          return String(fallbackDayName).toUpperCase()
+        }
+        return String(getDayName(String(value))).toUpperCase()
+      }
+
+      const formatPdfClass = (value: string) => {
+        const normalized = String(value || '').trim().toLowerCase()
+        if (normalized === '10' || normalized === '10th' || normalized === 'x') return 'X'
+        if (normalized === '12' || normalized === '12th' || normalized === 'xii') return 'XII'
+        return String(value || '').toUpperCase()
+      }
+
+      const formatAnswerSheetForPdf = (value: string) => {
+        const answerSheetConfig: Record<string, string> = {
+          '32_pages': '32 Pages',
+          '20_pages': '20 Pages',
+          '40_graph': '40 Pages (Graph)',
+          none: 'Not specified',
+        }
+        return answerSheetConfig[value] || answerSheetConfig.none
+      }
+
+      const grouped = entries.reduce((acc: Record<string, any[]>, entry: any) => {
+        const key = new Date(entry.examDate).toISOString().slice(0, 10)
+        if (!acc[key]) acc[key] = []
+        acc[key].push(entry)
+        return acc
+      }, {})
+
+      const sortedDates = Object.keys(grouped).sort((a, b) => new Date(a).getTime() - new Date(b).getTime())
+      const colWidths = {
+        srNo: 10,
+        date: 22,
+        day: 22,
+        class: 14,
+        subject: 58,
+        code: 14,
+        duration: 18,
+        answerSheetType: 34,
+        candidates: 24,
+        rooms: 20,
+        invigilators: 21,
+      }
+      const colX = {
+        srNo: leftMargin,
+        date: leftMargin + colWidths.srNo,
+        day: leftMargin + colWidths.srNo + colWidths.date,
+        class: leftMargin + colWidths.srNo + colWidths.date + colWidths.day,
+        subject: leftMargin + colWidths.srNo + colWidths.date + colWidths.day + colWidths.class,
+        code:
+          leftMargin + colWidths.srNo + colWidths.date + colWidths.day + colWidths.class + colWidths.subject,
+        duration:
+          leftMargin +
+          colWidths.srNo +
+          colWidths.date +
+          colWidths.day +
+          colWidths.class +
+          colWidths.subject +
+          colWidths.code,
+        answerSheetType:
+          leftMargin +
+          colWidths.srNo +
+          colWidths.date +
+          colWidths.day +
+          colWidths.class +
+          colWidths.subject +
+          colWidths.code +
+          colWidths.duration,
+        candidates:
+          leftMargin +
+          colWidths.srNo +
+          colWidths.date +
+          colWidths.day +
+          colWidths.class +
+          colWidths.subject +
+          colWidths.code +
+          colWidths.duration +
+          colWidths.answerSheetType,
+        rooms:
+          leftMargin +
+          colWidths.srNo +
+          colWidths.date +
+          colWidths.day +
+          colWidths.class +
+          colWidths.subject +
+          colWidths.code +
+          colWidths.duration +
+          colWidths.answerSheetType +
+          colWidths.candidates,
+        invigilators:
+          leftMargin +
+          colWidths.srNo +
+          colWidths.date +
+          colWidths.day +
+          colWidths.class +
+          colWidths.subject +
+          colWidths.code +
+          colWidths.duration +
+          colWidths.answerSheetType +
+          colWidths.candidates +
+          colWidths.rooms,
+      }
+
+      const drawHeaderRow = () => {
+        doc.setLineWidth(0.3)
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(7.4)
+
+        const headerCells = [
+          { x: colX.srNo, w: colWidths.srNo, label: 'Sr No' },
+          { x: colX.date, w: colWidths.date, label: 'DATE' },
+          { x: colX.day, w: colWidths.day, label: 'DAY' },
+          { x: colX.class, w: colWidths.class, label: 'CLASS' },
+          { x: colX.subject, w: colWidths.subject, label: 'SUBJECT' },
+          { x: colX.code, w: colWidths.code, label: 'CODE' },
+          { x: colX.duration, w: colWidths.duration, label: 'DURATION' },
+          { x: colX.answerSheetType, w: colWidths.answerSheetType, label: 'ANSWERSHEET TYPE' },
+          { x: colX.candidates, w: colWidths.candidates, label: 'CANDIDATES' },
+          { x: colX.rooms, w: colWidths.rooms, label: 'ROOMS' },
+          { x: colX.invigilators, w: colWidths.invigilators, label: 'INVIGILATORS' },
+        ]
+
+        for (const cell of headerCells) {
+          doc.rect(cell.x, y, cell.w, headerHeight)
+          doc.text(cell.label, cell.x + cell.w / 2, y + headerHeight / 2 + 0.9, { align: 'center' })
+        }
+
+        y += headerHeight
+      }
+
+      const drawCell = (
+        x: number,
+        width: number,
+        rowHeight: number,
+        text: string | string[],
+        align: 'left' | 'center' = 'center'
+      ) => {
+        doc.rect(x, y, width, rowHeight)
+        const textArray = Array.isArray(text) ? text : [text]
+        const lineHeight = 3.5
+        const textBlockHeight = textArray.length * lineHeight
+        const textY = y + (rowHeight - textBlockHeight) / 2 + 3
+
+        if (align === 'left') {
+          doc.text(textArray, x + 1.5, textY)
+        } else {
+          doc.text(textArray, x + width / 2, textY, { align: 'center' })
+        }
+      }
+
+      drawHeaderRow()
+
+      let srNo = 1
+      for (const dateKey of sortedDates) {
+        const dateEntries = [...grouped[dateKey]].sort((a: any, b: any) => {
+          const classA = formatPdfClass(a.subject?.class || '')
+          const classB = formatPdfClass(b.subject?.class || '')
+          if (classA !== classB) return classA.localeCompare(classB)
+          return String(a.subject?.code || '').localeCompare(String(b.subject?.code || ''), undefined, {
+            numeric: true,
+            sensitivity: 'base',
+          })
+        })
+
+        for (let index = 0; index < dateEntries.length; index += 1) {
+          const row = dateEntries[index]
+          const subjectText = String(row.subject?.name || 'N/A').toUpperCase()
+          const answerSheetText = formatAnswerSheetForPdf(String(row.answerSheet || row.answerSheetType || 'none'))
+          const durationText = row.subject?.duration ? `${row.subject.duration} Hours` : 'N/A'
+          const candidatesText = String(row.candidateCount || 0)
+          const roomsText = String(row.roomsNeeded || 0)
+          const roomsNeeded = Number(row.roomsNeeded || 0)
+          const invigilatorsText = String(row.invigilatorsNeeded ?? roomsNeeded * 2)
+
+          const subjectLines = doc.splitTextToSize(subjectText, colWidths.subject - 3)
+          const answerSheetLines = doc.splitTextToSize(answerSheetText, colWidths.answerSheetType - 3)
+          const rowLineCount = Math.max(subjectLines.length, answerSheetLines.length, 1)
+          const rowHeight = Math.max(8, rowLineCount * 3.5 + 2.4)
+
+          if (y + rowHeight > pageHeight - bottomMargin) {
+            doc.addPage()
+            y = topMargin
+            drawHeaderRow()
+          }
+
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8.2)
+
+          const showDateColumns = index === 0
+          drawCell(colX.srNo, colWidths.srNo, rowHeight, showDateColumns ? String(srNo) : '')
+          drawCell(colX.date, colWidths.date, rowHeight, showDateColumns ? formatPdfDate(dateKey) : '')
+          drawCell(
+            colX.day,
+            colWidths.day,
+            rowHeight,
+            showDateColumns ? formatPdfDay(dateKey, row.dayName) : ''
+          )
+          drawCell(colX.class, colWidths.class, rowHeight, formatPdfClass(row.subject?.class || ''))
+          drawCell(colX.subject, colWidths.subject, rowHeight, subjectLines, 'left')
+          drawCell(colX.code, colWidths.code, rowHeight, String(row.subject?.code || ''))
+          drawCell(colX.duration, colWidths.duration, rowHeight, durationText)
+          drawCell(colX.answerSheetType, colWidths.answerSheetType, rowHeight, answerSheetLines, 'left')
+          drawCell(colX.candidates, colWidths.candidates, rowHeight, candidatesText)
+          drawCell(colX.rooms, colWidths.rooms, rowHeight, roomsText)
+          drawCell(colX.invigilators, colWidths.invigilators, rowHeight, invigilatorsText)
+
+          y += rowHeight
+        }
+
+        srNo += 1
+      }
+
+      doc.save(`centre-datesheet-datewise-${new Date().toISOString().slice(0, 10)}.pdf`)
+      toast.success('Centre datesheet PDF downloaded successfully.')
+    } catch (error: any) {
+      const message = error?.response?.data?.message || error?.message || 'Failed to download centre datesheet PDF.'
+      toast.error(message)
+    } finally {
+      setIsDownloadingCentrePDF(false)
     }
   }
 
@@ -530,6 +791,18 @@ const DateSheets: React.FC = () => {
               </svg>
               Import PDF
             </button>
+            {activeTab === 'centre' && (
+              <button
+                onClick={downloadCentreDatesheetPDF}
+                disabled={isDownloadingCentrePDF}
+                className="inline-flex items-center px-4 py-2 border border-emerald-600 shadow-sm text-sm font-medium rounded-lg text-emerald-600 bg-white dark:bg-gray-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <svg className="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0l4-4m-4 4l-4-4m-5 8h18" />
+                </svg>
+                {isDownloadingCentrePDF ? 'Downloading...' : 'Download PDF'}
+              </button>
+            )}
             <button
               onClick={() => setShowCreateModal(true)}
               className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"

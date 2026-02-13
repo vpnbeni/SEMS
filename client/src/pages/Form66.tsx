@@ -34,9 +34,11 @@ interface UploadResponse {
   originalFileUrl?: string
   processedPdfUrl?: string
   uploadId?: string
+  uploadedClasses?: string[]
 }
 
 type ProcessingStep = 'idle' | 'uploading' | 'converting' | 'analyzing' | 'saving' | 'complete' | 'error'
+type FormClassKey = 'X' | 'XII'
 
 const processingSteps: { step: ProcessingStep; label: string }[] = [
   { step: 'uploading', label: 'Uploading file to cloud...' },
@@ -55,8 +57,14 @@ const Form66: React.FC = () => {
   const [loadingRecords, setLoadingRecords] = useState(false)
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
   const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set())
-  const [originalFileUrl, setOriginalFileUrl] = useState<string | null>(null)
-  const [processedPdfUrl, setProcessedPdfUrl] = useState<string | null>(null)
+  const [originalFileUrls, setOriginalFileUrls] = useState<Record<FormClassKey, string | null>>({
+    X: null,
+    XII: null,
+  })
+  const [processedPdfUrls, setProcessedPdfUrls] = useState<Record<FormClassKey, string | null>>({
+    X: null,
+    XII: null,
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const API_BASE_URL = resolveApiBaseUrl()
   const tenantHeader = getTenantHeader()
@@ -114,19 +122,30 @@ const Form66: React.FC = () => {
 
   const fetchFileUrls = async () => {
     try {
-      // Fetch processed PDF URL
-      const pdfResponse = await fetch(`${API_BASE_URL}/form66/processed-pdf`, withTenantHeader())
-      if (pdfResponse.ok) {
-        const pdfData = await pdfResponse.json()
-        setProcessedPdfUrl(pdfData.url)
-      }
+      const classConfigs: { key: FormClassKey; query: string }[] = [
+        { key: 'X', query: '10th' },
+        { key: 'XII', query: '12th' },
+      ]
 
-      // Fetch original file URL
-      const originalResponse = await fetch(`${API_BASE_URL}/form66/original-file`, withTenantHeader())
-      if (originalResponse.ok) {
-        const originalData = await originalResponse.json()
-        setOriginalFileUrl(originalData.url)
-      }
+      const nextProcessedUrls: Record<FormClassKey, string | null> = { X: null, XII: null }
+      const nextOriginalUrls: Record<FormClassKey, string | null> = { X: null, XII: null }
+
+      await Promise.all(classConfigs.map(async ({ key, query }) => {
+        const pdfResponse = await fetch(`${API_BASE_URL}/form66/processed-pdf?class=${query}`, withTenantHeader())
+        if (pdfResponse.ok) {
+          const pdfData = await pdfResponse.json()
+          nextProcessedUrls[key] = pdfData.url || null
+        }
+
+        const originalResponse = await fetch(`${API_BASE_URL}/form66/original-file?class=${query}`, withTenantHeader())
+        if (originalResponse.ok) {
+          const originalData = await originalResponse.json()
+          nextOriginalUrls[key] = originalData.url || null
+        }
+      }))
+
+      setProcessedPdfUrls(nextProcessedUrls)
+      setOriginalFileUrls(nextOriginalUrls)
     } catch (error) {
       console.error('Failed to fetch file URLs:', error)
     }
@@ -247,10 +266,7 @@ const Form66: React.FC = () => {
           message: `Successfully uploaded! Processed ${data.count || 0} records across ${data.dateCount || 0} exam dates.`
         })
 
-        // Update file URLs
-        if (data.originalFileUrl) setOriginalFileUrl(data.originalFileUrl)
-        if (data.processedPdfUrl) setProcessedPdfUrl(data.processedPdfUrl)
-
+        await fetchFileUrls()
         fetchRecords() // Refresh the records table
       } else {
         setProcessingStep('error')
@@ -521,26 +537,64 @@ const Form66: React.FC = () => {
               <RefreshCw className="w-4 h-4 mr-1.5" />
               Refresh
             </button>
-            {processedPdfUrl && (
+            {processedPdfUrls.X && (
               <a
-                href={processedPdfUrl}
+                href={processedPdfUrls.X}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center px-3 py-1.5 border border-green-600 shadow-sm text-sm font-medium rounded-lg text-green-600 bg-white dark:bg-gray-800 hover:bg-green-50 dark:hover:bg-green-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                aria-label="Click to download PDF file (10th)"
+                className="group relative inline-flex items-center px-3 py-1.5 border border-green-600 shadow-sm text-sm font-medium rounded-lg text-green-600 bg-white dark:bg-gray-800 hover:bg-green-600 hover:text-white dark:hover:bg-green-500 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
               >
                 <Download className="w-4 h-4 mr-1.5" />
-                Download PDF
+                10th
+                <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
+                  Click to download PDF file
+                </span>
               </a>
             )}
-            {originalFileUrl && (
+            {processedPdfUrls.XII && (
               <a
-                href={originalFileUrl}
+                href={processedPdfUrls.XII}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                aria-label="Click to download PDF file (12th)"
+                className="group relative inline-flex items-center px-3 py-1.5 border border-green-600 shadow-sm text-sm font-medium rounded-lg text-green-600 bg-white dark:bg-gray-800 hover:bg-green-600 hover:text-white dark:hover:bg-green-500 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+              >
+                <Download className="w-4 h-4 mr-1.5" />
+                12th
+                <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
+                  Click to download PDF file
+                </span>
+              </a>
+            )}
+            {originalFileUrls.X && (
+              <a
+                href={originalFileUrls.X}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Click to download original TXT file (10th)"
+                className="group relative inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-blue-600 hover:text-white hover:border-blue-600 dark:hover:bg-blue-500 dark:hover:text-white dark:hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 <FileText className="w-4 h-4 mr-1.5" />
-                Original TXT
+                10th
+                <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
+                  Click to download original TXT file
+                </span>
+              </a>
+            )}
+            {originalFileUrls.XII && (
+              <a
+                href={originalFileUrls.XII}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Click to download original TXT file (12th)"
+                className="group relative inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-blue-600 hover:text-white hover:border-blue-600 dark:hover:bg-blue-500 dark:hover:text-white dark:hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              >
+                <FileText className="w-4 h-4 mr-1.5" />
+                12th
+                <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
+                  Click to download original TXT file
+                </span>
               </a>
             )}
             <button

@@ -55,6 +55,8 @@ const Teachers: React.FC = () => {
   const [joiningDateTo, setJoiningDateTo] = useState("");
   const [yearsOfExperience, setYearsOfExperience] = useState("");
   const [showExportModal, setShowExportModal] = useState(false);
+  const [isTemplateDownloading, setIsTemplateDownloading] = useState(false);
+  const [isTemplateUploading, setIsTemplateUploading] = useState(false);
 
   const [debouncedJoiningDateFrom, setDebouncedJoiningDateFrom] = useState("");
   const [debouncedJoiningDateTo, setDebouncedJoiningDateTo] = useState("");
@@ -255,6 +257,75 @@ const Teachers: React.FC = () => {
     }
   };
 
+  const downloadImportTemplate = async () => {
+    try {
+      setIsTemplateDownloading(true);
+      const token = localStorage.getItem("token");
+      const tenantHeader = getTenantHeader();
+      const response = await axios.get(`${API_BASE_URL}/teachers/import-template`, {
+        params: { format: "csv" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(tenantHeader ? { "x-tenant-slug": tenantHeader } : {}),
+        },
+        responseType: "blob",
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `exam_functionaries_template_${new Date().toISOString().split("T")[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Template download failed:", error);
+      alert("Failed to download template.");
+    } finally {
+      setIsTemplateDownloading(false);
+    }
+  };
+
+  const uploadTemplateFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = "";
+    if (!selectedFile) return;
+
+    try {
+      setIsTemplateUploading(true);
+      const token = localStorage.getItem("token");
+      const tenantHeader = getTenantHeader();
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      const response = await axios.post(`${API_BASE_URL}/teachers/import-template/upload`, formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(tenantHeader ? { "x-tenant-slug": tenantHeader } : {}),
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      const result = response?.data?.data;
+      const errorPreview = (result?.errors || [])
+        .slice(0, 5)
+        .map((item: { row: number; message: string }) => `Row ${item.row}: ${item.message}`)
+        .join("\n");
+      const warningCount = result?.warnings?.length ?? 0;
+      alert(
+        `Import completed.\nCreated: ${result?.created ?? 0}\nUpdated: ${result?.updated ?? 0}\nSkipped: ${result?.skipped ?? 0}\nErrors: ${result?.errors?.length ?? 0}\nWarnings: ${warningCount}${errorPreview ? `\n\nFirst errors:\n${errorPreview}` : ""}`
+      );
+      invalidateTeachers();
+    } catch (error: any) {
+      console.error("Template upload failed:", error);
+      const message = error?.response?.data?.message || "Failed to upload CSV/XLSX template file.";
+      alert(message);
+    } finally {
+      setIsTemplateUploading(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto">
       {/* Error Message */}
@@ -355,6 +426,13 @@ const Teachers: React.FC = () => {
                 </div>
               </div>
               <div className="flex gap-3 flex-shrink-0">
+                <input
+                  type="file"
+                  accept=".csv,.xlsx"
+                  id="teacher-template-upload-input"
+                  onChange={uploadTemplateFile}
+                  className="hidden"
+                />
                 <button
                   onClick={handleExport}
                   className="btn btn-outline"
@@ -374,6 +452,26 @@ const Teachers: React.FC = () => {
                     />
                   </svg>
                   Export
+                </button>
+                <button
+                  onClick={downloadImportTemplate}
+                  className="btn btn-outline"
+                  disabled={loading || isTemplateDownloading || isTemplateUploading}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v10m0 0l-4-4m4 4l4-4M5 19h14" />
+                  </svg>
+                  {isTemplateDownloading ? "Downloading..." : "Template"}
+                </button>
+                <button
+                  onClick={() => document.getElementById("teacher-template-upload-input")?.click()}
+                  className="btn btn-outline"
+                  disabled={loading || isTemplateDownloading || isTemplateUploading}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15V5m0 0l4 4m-4-4L8 9m-3 10h14" />
+                  </svg>
+                  {isTemplateUploading ? "Uploading..." : "Upload"}
                 </button>
                 <button
                   onClick={() => setShowMoreFilters(!showMoreFilters)}
