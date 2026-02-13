@@ -1,5 +1,6 @@
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
 const TENANT_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+const RESERVED_PLATFORM_SUBDOMAINS = new Set(['www']);
 
 const getHostname = () => {
   if (typeof window === 'undefined') {
@@ -44,6 +45,18 @@ export const getRootAppDomain = () => import.meta.env.VITE_ROOT_APP_DOMAIN || 'b
 export const getRootApiDomain = () => import.meta.env.VITE_ROOT_API_DOMAIN || 'api.vpnbeni.com';
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
 
+const isRootHostAlias = (hostname: string, rootAppDomain: string) => {
+  if (hostname === rootAppDomain) {
+    return true;
+  }
+
+  if (rootAppDomain.startsWith('www.')) {
+    return hostname === rootAppDomain.slice(4);
+  }
+
+  return hostname === `www.${rootAppDomain}`;
+};
+
 export const isLocalRuntime = () => {
   const hostname = getHostname();
   return LOCAL_HOSTS.has(hostname) || hostname.endsWith('.localhost');
@@ -81,12 +94,13 @@ export const resolveTenantSlug = (): string | null => {
 
   const rootAppDomain = getRootAppDomain().toLowerCase();
 
-  if (hostname === rootAppDomain) {
+  if (isRootHostAlias(hostname, rootAppDomain)) {
     return null;
   }
 
   if (hostname.endsWith(`.${rootAppDomain}`)) {
-    return sanitizeTenantSlug(hostname.replace(`.${rootAppDomain}`, ''));
+    const subdomain = sanitizeTenantSlug(hostname.replace(`.${rootAppDomain}`, ''));
+    return subdomain && RESERVED_PLATFORM_SUBDOMAINS.has(subdomain) ? null : subdomain;
   }
 
   return null;

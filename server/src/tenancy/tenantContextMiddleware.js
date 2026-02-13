@@ -4,6 +4,27 @@ const { setRequestContext } = require('./requestContext');
 const { getPlatformModels } = require('./platformModels');
 const { TENANT_STATUS } = require('../models/platform/Tenant');
 
+const buildTenantResolutionDebugContext = (req, resolution) => {
+  const headers = req.headers || {};
+  const forwardedHost = headers['x-forwarded-host'];
+  const normalizedForwardedHost = Array.isArray(forwardedHost)
+    ? forwardedHost[0]
+    : (forwardedHost || '');
+
+  return {
+    method: req.method,
+    originalUrl: req.originalUrl || req.url,
+    rootApiDomain: (process.env.ROOT_API_DOMAIN || 'api.vpnbeni.com').toLowerCase(),
+    hostHeader: headers.host || null,
+    xForwardedHostHeader: normalizedForwardedHost || null,
+    originHeader: headers.origin || null,
+    refererHeader: headers.referer || null,
+    tenantHeader: headers['x-tenant-slug'] || null,
+    tenantQuery: req.query?.tenant || null,
+    resolution,
+  };
+};
+
 const platformContextMiddleware = async (req, res, next) => {
   try {
     const resolution = resolveTenantFromRequest(req);
@@ -34,6 +55,12 @@ const tenantContextMiddleware = async (req, res, next) => {
     const resolution = resolveTenantFromRequest(req);
 
     if (!resolution.tenantSlug) {
+      console.warn(
+        `[tenant-context] tenant resolution failed ${JSON.stringify(
+          buildTenantResolutionDebugContext(req, resolution)
+        )}`
+      );
+
       return res.status(400).json({
         success: false,
         message: 'Tenant could not be resolved from request host/header/query',
