@@ -8,6 +8,43 @@ const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/cons
 const { getPlatformModels } = require('../tenancy/platformModels');
 const { DEFAULT_TEMPLATE_COLUMNS } = require('./admin/masterTeacherTemplateController');
 
+const RETRYABLE_DB_ERROR_PATTERNS = [
+  'buffering timed out',
+  'MongoNetworkTimeoutError',
+  'MongoServerSelectionError',
+  'ECONNRESET',
+  'timed out'
+];
+
+const sleep = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
+
+const isRetryableDbError = (error) => {
+  const message = String(error?.message || '');
+  return RETRYABLE_DB_ERROR_PATTERNS.some((pattern) => message.includes(pattern));
+};
+
+const withDbRetry = async (operation, operationName, attempts = 3) => {
+  const attemptOperation = async (attempt) => {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!isRetryableDbError(error) || attempt === attempts) {
+        throw error;
+      }
+      const waitMs = 1200 * attempt;
+      console.warn(
+        `⚠️ ${operationName} failed (attempt ${attempt}/${attempts}). Retrying in ${waitMs}ms...`,
+        error.message
+      );
+      await sleep(waitMs);
+      return attemptOperation(attempt + 1);
+    }
+  };
+  return attemptOperation(1);
+};
+
 const getTeacherTemplateColumns = async () => {
   try {
     const { MasterTeacherTemplate } = getPlatformModels();
@@ -565,6 +602,8 @@ const downloadTeacherImportTemplate = asyncHandler(async (req, res) => {
 // @route   POST /api/teachers/import-template/upload
 // @access  Private
 const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
+  const TeacherModel = req.models?.Teacher || Teacher;
+  const SubjectModel = req.models?.Subject || Subject;
   let file = null;
   if (!req.files || !req.files.file) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json(
@@ -717,19 +756,25 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
 
   const subjectsByCode = {};
   if (subjectCodeUniverse.size > 0) {
-    const subjects = await Subject.find({
-      code: { $in: Array.from(subjectCodeUniverse) },
-      isActive: true
-    }).select('_id code').lean();
+    const subjects = await withDbRetry(
+      () => SubjectModel.find({
+        code: { $in: Array.from(subjectCodeUniverse) },
+        isActive: true
+      }).select('_id code').lean(),
+      'teacher import subject lookup'
+    );
     subjects.forEach((subject) => {
       subjectsByCode[subject.code] = subject;
     });
   }
 
   const existingTeachers = employeeIdUniverse.size > 0
-    ? await Teacher.find({ employeeId: { $in: Array.from(employeeIdUniverse) } })
-      .select('employeeId email phone department experience qualification dateOfJoining dateOfBirth isActive')
-      .lean()
+    ? await withDbRetry(
+      () => TeacherModel.find({ employeeId: { $in: Array.from(employeeIdUniverse) } })
+        .select('employeeId email phone department experience qualification dateOfJoining dateOfBirth isActive')
+        .lean(),
+      'teacher import existing teacher lookup'
+    )
     : [];
   const existingByEmployeeId = new Map(existingTeachers.map((teacher) => [teacher.employeeId, teacher]));
   const importBatchToken = Date.now();
@@ -790,7 +835,10 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
 
   if (operations.length > 0) {
     try {
-      const bulkResult = await Teacher.bulkWrite(operations, { ordered: false });
+      const bulkResult = await withDbRetry(
+        () => TeacherModel.bulkWrite(operations, { ordered: false }),
+        'teacher import bulk write'
+      );
       results.created = bulkResult.upsertedCount || 0;
       results.updated = Math.max(0, operations.length - results.created);
     } catch (error) {
