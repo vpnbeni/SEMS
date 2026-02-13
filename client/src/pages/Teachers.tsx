@@ -319,7 +319,11 @@ const Teachers: React.FC = () => {
       invalidateTeachers();
     } catch (error: any) {
       console.error("Template upload failed:", error);
-      const message = error?.response?.data?.message || "Failed to upload CSV/XLSX template file.";
+      const message =
+        error?.response?.data?.message
+        || error?.response?.data?.error
+        || error?.message
+        || "Failed to upload CSV/XLSX template file.";
       alert(message);
     } finally {
       setIsTemplateUploading(false);
