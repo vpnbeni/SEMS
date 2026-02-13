@@ -22,8 +22,29 @@ const initialState: SubjectState = {
 export const fetchSubjects = createAsyncThunk(
   'subjects/fetchAll',
   async () => {
-    const response = await api.get('/subjects?isActive=true')
-    return response.data.data
+    const limit = 100
+    let page = 1
+    let totalPages = 1
+    const allSubjects: Subject[] = []
+
+    do {
+      const response = await api.get('/subjects', {
+        params: {
+          isActive: true,
+          page,
+          limit,
+        },
+      })
+
+      const items = response?.data?.data ?? []
+      const meta = response?.data?.meta ?? {}
+      allSubjects.push(...items)
+
+      totalPages = meta?.totalPages ?? 1
+      page += 1
+    } while (page <= totalPages)
+
+    return allSubjects
   }
 )
 

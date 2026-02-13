@@ -3,6 +3,7 @@ const fs = require('fs');
 const asyncHandler = require('../middleware/asyncHandler');
 const Teacher = require('../models/Teacher');
 const Subject = require('../models/Subject');
+const Candidate = require('../models/Candidate');
 const { generateResponse, getPaginationParams, buildPaginationResponse, buildFilterObject, buildSortObject } = require('../utils/helpers');
 const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/constants');
 const { getPlatformModels } = require('../tenancy/platformModels');
@@ -151,7 +152,7 @@ const buildGeneratedImportEmail = (employeeId, rowNumber, batchToken) => {
 // @access  Private
 const getTeachers = asyncHandler(async (req, res) => {
   const { page, limit, skip } = getPaginationParams(req);
-  const { search, department, subject, isActive, minExperience, maxExperience, joiningDateFrom, joiningDateTo, sort = '-createdAt' } = req.query;
+  const { search, department, subject, isActive, minExperience, maxExperience, joiningDateFrom, joiningDateTo, schoolName, sort = '-createdAt' } = req.query;
 
   // Build filter object
   const filter = {};
@@ -159,14 +160,19 @@ const getTeachers = asyncHandler(async (req, res) => {
   if (search) {
     filter.$or = [
       { name: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } },
       { employeeId: { $regex: search, $options: 'i' } },
-      { department: { $regex: search, $options: 'i' } }
+      { designation: { $regex: search, $options: 'i' } },
+      { schoolName: { $regex: search, $options: 'i' } },
+      { schoolCode: { $regex: search, $options: 'i' } },
+      { mobileNo: { $regex: search, $options: 'i' } }
     ];
   }
 
   if (department) {
     filter.department = { $regex: department, $options: 'i' };
+  }
+  if (schoolName) {
+    filter.schoolName = { $regex: schoolName, $options: 'i' };
   }
 
   if (subject) {
@@ -242,23 +248,16 @@ const getTeacher = asyncHandler(async (req, res) => {
 // @route   POST /api/teachers
 // @access  Private
 const createTeacher = asyncHandler(async (req, res) => {
-  // Check if email already exists
-  const existingEmail = await Teacher.findOne({ email: req.body.email });
-  if (existingEmail) {
-    return res.status(HTTP_STATUS.CONFLICT).json(
-      generateResponse(false, 'Teacher with this email already exists')
-    );
-  }
-
-  // Check if employee ID already exists
+  // Check if OASIS/employee ID already exists
   const existingEmployeeId = await Teacher.findOne({ employeeId: req.body.employeeId });
   if (existingEmployeeId) {
     return res.status(HTTP_STATUS.CONFLICT).json(
-      generateResponse(false, 'Teacher with this employee ID already exists')
+      generateResponse(false, 'Teacher with this OASIS ID already exists')
     );
   }
 
   // Validate subjects if provided
+  let resolvedSubjectCode = '';
   if (req.body.subjects && req.body.subjects.length > 0) {
     const validSubjects = await Subject.find({
       _id: { $in: req.body.subjects },
@@ -270,9 +269,17 @@ const createTeacher = asyncHandler(async (req, res) => {
         generateResponse(false, 'One or more invalid subject IDs provided')
       );
     }
+    resolvedSubjectCode = validSubjects[0]?.code || '';
   }
 
-  const teacher = await Teacher.create(req.body);
+  const payload = {
+    ...req.body,
+    email: req.body.email || `${String(req.body.employeeId || '').toLowerCase()}@sems.local`,
+    subjectCode: resolvedSubjectCode || req.body.subjectCode || '',
+    phone: req.body.mobileNo || req.body.phone || ''
+  };
+
+  const teacher = await Teacher.create(payload);
 
   // Populate subjects before sending response
   await teacher.populate('subjects', 'name code class');
@@ -294,20 +301,21 @@ const updateTeacher = asyncHandler(async (req, res) => {
     );
   }
 
-  // Check for email conflicts (exclude current teacher)
-  if (req.body.email && req.body.email !== teacher.email) {
-    const existingEmail = await Teacher.findOne({
-      email: req.body.email,
+  // Check for OASIS/employee ID conflicts (exclude current teacher)
+  if (req.body.employeeId && req.body.employeeId !== teacher.employeeId) {
+    const existingEmployeeId = await Teacher.findOne({
+      employeeId: req.body.employeeId,
       _id: { $ne: req.params.id }
     });
-    if (existingEmail) {
+    if (existingEmployeeId) {
       return res.status(HTTP_STATUS.CONFLICT).json(
-        generateResponse(false, 'Teacher with this email already exists')
+        generateResponse(false, 'Teacher with this OASIS ID already exists')
       );
     }
   }
 
   // Validate subjects if provided
+  const updatePayload = { ...req.body };
   if (req.body.subjects && req.body.subjects.length > 0) {
     const validSubjects = await Subject.find({
       _id: { $in: req.body.subjects },
@@ -319,11 +327,18 @@ const updateTeacher = asyncHandler(async (req, res) => {
         generateResponse(false, 'One or more invalid subject IDs provided')
       );
     }
+    updatePayload.subjectCode = validSubjects[0]?.code || req.body.subjectCode || '';
+  }
+  if (req.body.mobileNo) {
+    updatePayload.phone = req.body.mobileNo;
+  }
+  if (req.body.employeeId && !req.body.email && !teacher.email) {
+    updatePayload.email = `${String(req.body.employeeId || '').toLowerCase()}@sems.local`;
   }
 
   teacher = await Teacher.findByIdAndUpdate(
     req.params.id,
-    req.body,
+    updatePayload,
     {
       new: true,
       runValidators: true
@@ -464,6 +479,73 @@ const getTeacherStats = asyncHandler(async (req, res) => {
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, 'Teacher statistics fetched successfully', stats)
+  );
+});
+
+// @desc    Get distinct schools from candidates
+// @route   GET /api/teachers/schools
+// @access  Private
+const getTeacherSchoolOptions = asyncHandler(async (req, res) => {
+  const CandidateModel = req.models?.Candidate || Candidate;
+  const CentreDetail = req.models?.CentreDetail;
+
+  const schools = await CandidateModel.aggregate([
+    {
+      $match: {
+        schoolName: { $exists: true, $ne: '' },
+        schoolCode: { $exists: true, $ne: '' }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          schoolName: '$schoolName',
+          schoolCode: '$schoolCode'
+        }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        schoolName: '$_id.schoolName',
+        schoolCode: '$_id.schoolCode'
+      }
+    },
+    { $sort: { schoolName: 1 } }
+  ]);
+
+  const normalized = schools
+    .map((item) => ({
+      schoolName: String(item?.schoolName || '').trim(),
+      schoolCode: String(item?.schoolCode || '').trim()
+    }))
+    .filter((item) => item.schoolName && item.schoolCode);
+
+  const latestCentre = CentreDetail
+    ? await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean()
+    : null;
+
+  const centreSchoolName = String(latestCentre?.centreName || '').trim();
+  const centreSchoolCode = String(latestCentre?.centreSchoolCode || '').trim();
+  if (centreSchoolName && centreSchoolCode) {
+    normalized.push({
+      schoolName: centreSchoolName,
+      schoolCode: centreSchoolCode
+    });
+  }
+
+  const seen = new Set();
+  const deduped = normalized.filter((item) => {
+    const key = `${item.schoolName.toLowerCase()}__${item.schoolCode.toLowerCase()}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  deduped.sort((a, b) => a.schoolName.localeCompare(b.schoolName));
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.FETCHED, deduped)
   );
 });
 
@@ -771,7 +853,7 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
   const existingTeachers = employeeIdUniverse.size > 0
     ? await withDbRetry(
       () => TeacherModel.find({ employeeId: { $in: Array.from(employeeIdUniverse) } })
-        .select('employeeId email phone department experience qualification dateOfJoining dateOfBirth isActive')
+        .select('employeeId email phone mobileNo department designation schoolName schoolCode bankName accountNumber ifscCode experience qualification dateOfJoining dateOfBirth isActive')
         .lean(),
       'teacher import existing teacher lookup'
     )
@@ -802,8 +884,15 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
       name: entry.name,
       email: existingTeacher?.email || buildGeneratedImportEmail(entry.employeeId, entry.rowNumber, importBatchToken),
       phone: existingTeacher?.phone || '9000000000',
+      mobileNo: existingTeacher?.mobileNo || existingTeacher?.phone || '9000000000',
       department: clampText(existingTeacher?.department || 'General', 50),
       designation: entry.designation,
+      subjectCode: matchedSubjects[0]?.code || entry.subjectCodes[0] || '',
+      schoolName: clampText(existingTeacher?.schoolName || `School ${entry.schoolCode || 'Unknown'}`, 200),
+      schoolCode: clampText(existingTeacher?.schoolCode || entry.schoolCode || 'NA', 20),
+      bankName: clampText(existingTeacher?.bankName || 'N/A Bank', 120),
+      accountNumber: clampText(existingTeacher?.accountNumber || `AC${entry.employeeId}`, 40),
+      ifscCode: clampText((existingTeacher?.ifscCode || 'ABCD0000001').toUpperCase(), 20),
       experience: existingTeacher?.experience ?? 0,
       qualification: clampText(existingTeacher?.qualification || 'N/A', 200),
       dateOfJoining: existingTeacher?.dateOfJoining || new Date(),
@@ -883,6 +972,7 @@ module.exports = {
   getTeachersByDepartment,
   getTeachersBySubject,
   getTeacherStats,
+  getTeacherSchoolOptions,
   getNextEmployeeId,
   bulkCreateTeachers,
   downloadTeacherImportTemplate,

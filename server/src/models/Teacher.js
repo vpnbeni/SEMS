@@ -9,37 +9,13 @@ const teacherSchema = new mongoose.Schema({
     trim: true,
     maxlength: [100, 'Name cannot be more than 100 characters']
   },
-  email: {
-    type: String,
-    required: [true, 'Email is required'],
-    unique: true,
-    lowercase: true,
-    trim: true,
-    match: [
-      REGEX_PATTERNS.EMAIL,
-      'Please provide a valid email'
-    ]
-  },
-  phone: {
-    type: String,
-    required: [true, 'Phone number is required'],
-    match: [
-      REGEX_PATTERNS.PHONE,
-      'Please provide a valid 10-digit phone number'
-    ]
-  },
+  // Stored as employeeId for backward compatibility; shown as OASIS Number in UI.
   employeeId: {
     type: String,
-    required: [true, 'Employee ID is required'],
+    required: [true, 'OASIS ID is required'],
     unique: true,
     trim: true,
-    uppercase: true
-  },
-  department: {
-    type: String,
-    required: [true, 'Department is required'],
-    trim: true,
-    maxlength: [50, 'Department cannot be more than 50 characters']
+    match: [/^\d+$/, 'OASIS ID must contain digits only']
   },
   designation: {
     type: String,
@@ -51,15 +27,82 @@ const teacherSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Subject'
   }],
+  subjectCode: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    maxlength: [20, 'Subject code cannot be more than 20 characters']
+  },
+  schoolName: {
+    type: String,
+    required: [true, 'School name is required'],
+    trim: true,
+    maxlength: [200, 'School name cannot be more than 200 characters']
+  },
+  schoolCode: {
+    type: String,
+    required: [true, 'School code is required'],
+    trim: true,
+    maxlength: [20, 'School code cannot be more than 20 characters']
+  },
+  bankName: {
+    type: String,
+    required: [true, 'Bank name is required'],
+    trim: true,
+    maxlength: [120, 'Bank name cannot be more than 120 characters']
+  },
+  accountNumber: {
+    type: String,
+    required: [true, 'Account number is required'],
+    trim: true,
+    match: [/^\d+$/, 'Account number must contain digits only'],
+    maxlength: [40, 'Account number cannot be more than 40 characters']
+  },
+  ifscCode: {
+    type: String,
+    required: [true, 'IFSC code is required'],
+    trim: true,
+    uppercase: true,
+    maxlength: [20, 'IFSC code cannot be more than 20 characters']
+  },
+  mobileNo: {
+    type: String,
+    required: [true, 'Mobile number is required'],
+    match: [
+      REGEX_PATTERNS.PHONE,
+      'Please provide a valid 10-digit mobile number'
+    ]
+  },
+  // Legacy compatibility fields retained as optional.
+  email: {
+    type: String,
+    lowercase: true,
+    trim: true,
+    sparse: true,
+    match: [
+      REGEX_PATTERNS.EMAIL,
+      'Please provide a valid email'
+    ]
+  },
+  phone: {
+    type: String,
+    match: [
+      REGEX_PATTERNS.PHONE,
+      'Please provide a valid 10-digit phone number'
+    ]
+  },
+  department: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'Department cannot be more than 50 characters']
+  },
   experience: {
     type: Number,
-    required: [true, 'Experience is required'],
     min: [0, 'Experience cannot be negative'],
     max: [50, 'Experience cannot be more than 50 years']
   },
   qualification: {
     type: String,
-    required: [true, 'Qualification is required'],
     trim: true,
     maxlength: [200, 'Qualification cannot be more than 200 characters']
   },
@@ -85,12 +128,10 @@ const teacherSchema = new mongoose.Schema({
     }
   },
   dateOfJoining: {
-    type: Date,
-    required: [true, 'Date of joining is required']
+    type: Date
   },
   dateOfBirth: {
-    type: Date,
-    required: [true, 'Date of birth is required']
+    type: Date
   },
   isActive: {
     type: Boolean,
@@ -131,12 +172,12 @@ const teacherSchema = new mongoose.Schema({
 });
 
 // Indexes
-teacherSchema.index({ email: 1 });
 teacherSchema.index({ employeeId: 1 });
-teacherSchema.index({ phone: 1 });
-teacherSchema.index({ department: 1 });
+teacherSchema.index({ schoolName: 1, schoolCode: 1 });
+teacherSchema.index({ subjectCode: 1 });
+teacherSchema.index({ mobileNo: 1 });
 teacherSchema.index({ isActive: 1 });
-teacherSchema.index({ name: 'text', email: 'text', department: 'text' });
+teacherSchema.index({ name: 'text', employeeId: 'text', schoolName: 'text', schoolCode: 'text' });
 teacherSchema.index({ createdAt: -1 });
 
 // Virtual for age
@@ -181,6 +222,12 @@ teacherSchema.pre('save', function(next) {
   if (this.isModified('name')) {
     this.name = this.name.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
   }
+  if (this.isModified('mobileNo') && !this.phone) {
+    this.phone = this.mobileNo;
+  }
+  if (this.isModified('ifscCode')) {
+    this.ifscCode = String(this.ifscCode || '').toUpperCase();
+  }
   next();
 });
 
@@ -199,14 +246,18 @@ teacherSchema.statics.getStats = async function() {
   const stats = await this.aggregate([
     {
       $group: {
-        _id: '$department',
+        _id: '$schoolName',
         count: { $sum: 1 },
         active: {
           $sum: {
             $cond: [{ $eq: ['$isActive', true] }, 1, 0]
           }
         },
-        averageExperience: { $avg: '$experience' }
+        outsideSchool: {
+          $sum: {
+            $cond: [{ $eq: ['$isActive', false] }, 1, 0]
+          }
+        }
       }
     },
     {
@@ -216,15 +267,13 @@ teacherSchema.statics.getStats = async function() {
 
   const total = await this.countDocuments();
   const activeTotal = await this.countDocuments({ isActive: true });
-  const averageExperience = await this.aggregate([
-    { $group: { _id: null, avg: { $avg: '$experience' } } }
-  ]);
+  const inactiveTotal = await this.countDocuments({ isActive: false });
 
   return {
     total,
     activeTotal,
-    averageExperience: averageExperience[0]?.avg || 0,
-    byDepartment: stats,
+    inactiveTotal,
+    bySchool: stats,
     lastUpdated: new Date()
   };
 };

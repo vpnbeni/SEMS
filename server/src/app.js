@@ -37,6 +37,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const dutiesRoutes = require('./routes/dutiesRoutes');
 const undertakingsRoutes = require('./routes/undertakings');
 const cbseCircularsRoutes = require('./routes/cbseCirculars');
+const centreDetailsRoutes = require('./routes/centreDetailsRoutes');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -248,6 +249,7 @@ tenantScopedRouter.use('/dashboard', dashboardRoutes);
 tenantScopedRouter.use('/duties', dutiesRoutes);
 tenantScopedRouter.use('/undertakings', undertakingsRoutes);
 tenantScopedRouter.use('/cbse-circulars', cbseCircularsRoutes);
+tenantScopedRouter.use('/centre-details', centreDetailsRoutes);
 // tenantScopedRouter.use('/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 app.use('/api', tenantScopedRouter);

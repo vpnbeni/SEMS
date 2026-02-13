@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "../../redux/store";
 import {
@@ -6,9 +6,9 @@ import {
   updateTeacher,
   hideAddTeacherModal,
   hideEditTeacherModal,
-  fetchNextEmployeeId,
 } from "../../redux/slices/teacherSlice";
 import { fetchSubjects } from "../../redux/slices/subjectSlice";
+import api from "../../services/api";
 import Modal from "../common/Modal";
 
 interface Subject {
@@ -17,10 +17,23 @@ interface Subject {
   code: string;
 }
 
+interface SchoolOption {
+  schoolName: string;
+  schoolCode: string;
+}
+
 interface TeacherModalProps {
   mode: "add" | "edit";
   onSuccess?: () => void;
 }
+
+const DESIGNATION_OPTIONS = [
+  "Principal",
+  "Vice Principal",
+  "PGT",
+  "TGT",
+  "Others",
+] as const;
 
 const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -32,265 +45,206 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const isOpen = mode === "add" ? showAddModal : showEditModal;
   const modalTitle = mode === "add" ? "Add New Teacher" : "Edit Teacher";
 
-  // Fetch subjects when modal opens
-  useEffect(() => {
-    if (isOpen) {
-      dispatch(fetchSubjects());
-      // Fetch and auto-fill the next employee ID for add mode
-      if (mode === "add") {
-        dispatch(fetchNextEmployeeId()).then((result) => {
-          if (result.payload) {
-            setFormData((prev) => ({
-              ...prev,
-              employeeId: result.payload as string
-            }));
-          }
-        });
-      }
-    }
-  }, [dispatch, isOpen, mode]);
-
+  const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
+  const [schoolsLoading, setSchoolsLoading] = useState(false);
+  const [subjectSearch, setSubjectSearch] = useState("");
   const [formData, setFormData] = useState({
     name: "",
     employeeId: "",
-    department: "",
-    email: "",
-    phone: "",
     designation: "",
-    experience: 0,
-    qualification: "",
-    address: {
-      street: "",
-      city: "",
-      state: "",
-      pincode: "",
-    },
-    dateOfJoining: "",
-    dateOfBirth: "",
-    emergencyContact: {
-      name: "",
-      phone: "",
-      relation: "",
-    },
-    subjects: [] as string[],
-    status: "active" as "active" | "inactive",
+    subjectId: "",
+    subjectCode: "",
+    schoolName: "",
+    schoolCode: "",
+    bankName: "",
+    accountNumber: "",
+    ifscCode: "",
+    mobileNo: "",
   });
-
-  const [selectedSubject, setSelectedSubject] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const departments = [
-    "Mathematics",
-    "Physics",
-    "English",
-    "Chemistry",
-    "Biology",
-    "History",
-    "Geography",
-    "Computer Science",
-  ];
-
-  // Populate form when selectedTeacher changes (for edit mode)
   useEffect(() => {
-    if (mode === "edit" && selectedTeacher) {
-      // Extract subject IDs - handle both populated objects and plain IDs
-      const subjectIds = (selectedTeacher.subjects || []).map((subject: any) =>
-        typeof subject === 'string' ? subject : subject._id
-      );
+    if (!isOpen) return;
+    dispatch(fetchSubjects());
+    setSchoolsLoading(true);
+    api
+      .get("/teachers/schools")
+      .then((res) => {
+        const data = res?.data?.data ?? [];
+        setSchoolOptions(Array.isArray(data) ? data : []);
+      })
+      .catch((error) => {
+        console.error("Failed to fetch school options:", error);
+        setSchoolOptions([]);
+      })
+      .finally(() => setSchoolsLoading(false));
+  }, [dispatch, isOpen]);
 
-      setFormData({
-        name: selectedTeacher.name || "",
-        employeeId: selectedTeacher.employeeId || "",
-        department: selectedTeacher.department || "",
-        email: selectedTeacher.email || "",
-        phone: selectedTeacher.phone || "",
-        designation: selectedTeacher.designation || "",
-        experience: selectedTeacher.experience || 0,
-        qualification: selectedTeacher.qualification || "",
-        address: {
-          street: selectedTeacher.address?.street || "",
-          city: selectedTeacher.address?.city || "",
-          state: selectedTeacher.address?.state || "",
-          pincode: selectedTeacher.address?.pincode || "",
-        },
-        dateOfJoining: selectedTeacher.dateOfJoining ? selectedTeacher.dateOfJoining.split('T')[0] : "",
-        dateOfBirth: selectedTeacher.dateOfBirth ? selectedTeacher.dateOfBirth.split('T')[0] : "",
-        emergencyContact: {
-          name: selectedTeacher.emergencyContact?.name || "",
-          phone: selectedTeacher.emergencyContact?.phone || "",
-          relation: selectedTeacher.emergencyContact?.relation || "",
-        },
-        subjects: subjectIds,
-        status: selectedTeacher.status || (selectedTeacher.isActive ? "active" : "inactive"),
-      });
+  useEffect(() => {
+    if (mode !== "edit" || !selectedTeacher) return;
+    const firstSubject = Array.isArray(selectedTeacher.subjects) ? selectedTeacher.subjects[0] : "";
+    const subjectId = typeof firstSubject === "string" ? firstSubject : firstSubject?._id || "";
+    const subjectCode =
+      selectedTeacher.subjectCode
+      || (typeof firstSubject === "object" ? firstSubject?.code : "")
+      || "";
+
+    setFormData({
+      name: selectedTeacher.name || "",
+      employeeId: selectedTeacher.employeeId || "",
+      designation: selectedTeacher.designation || "",
+      subjectId,
+      subjectCode,
+      schoolName: selectedTeacher.schoolName || "",
+      schoolCode: selectedTeacher.schoolCode || "",
+      bankName: selectedTeacher.bankName || "",
+      accountNumber: selectedTeacher.accountNumber || "",
+      ifscCode: selectedTeacher.ifscCode || "",
+      mobileNo: selectedTeacher.mobileNo || selectedTeacher.phone || "",
+    });
+    if (typeof firstSubject === "object" && firstSubject?.name) {
+      setSubjectSearch(`${firstSubject.name} (${firstSubject.code || ""})`.trim());
+    } else {
+      setSubjectSearch("");
     }
   }, [mode, selectedTeacher]);
+
+  const schoolButtonItems = useMemo(() => {
+    if (!formData.schoolName || schoolOptions.some((s) => s.schoolName === formData.schoolName)) {
+      return schoolOptions;
+    }
+    return [{ schoolName: formData.schoolName, schoolCode: formData.schoolCode }, ...schoolOptions];
+  }, [formData.schoolCode, formData.schoolName, schoolOptions]);
+
+  const filteredSubjects = useMemo(() => {
+    const term = subjectSearch.trim().toLowerCase();
+    if (!term) return subjects;
+    return subjects.filter((subject: Subject) => {
+      const name = String(subject.name || "").toLowerCase();
+      const code = String(subject.code || "").toLowerCase();
+      const combinedLabel = `${name} (${code})`;
+      return name.includes(term) || code.includes(term) || combinedLabel.includes(term);
+    });
+  }, [subjectSearch, subjects]);
+
+  const designationOptions = useMemo(() => {
+    if (!formData.designation || DESIGNATION_OPTIONS.includes(formData.designation as typeof DESIGNATION_OPTIONS[number])) {
+      return DESIGNATION_OPTIONS;
+    }
+    return [formData.designation, ...DESIGNATION_OPTIONS];
+  }, [formData.designation]);
 
   const resetForm = () => {
     setFormData({
       name: "",
       employeeId: "",
-      department: "",
-      email: "",
-      phone: "",
       designation: "",
-      experience: 0,
-      qualification: "",
-      address: {
-        street: "",
-        city: "",
-        state: "",
-        pincode: "",
-      },
-      dateOfJoining: "",
-      dateOfBirth: "",
-      emergencyContact: {
-        name: "",
-        phone: "",
-        relation: "",
-      },
-      subjects: [],
-      status: "active",
+      subjectId: "",
+      subjectCode: "",
+      schoolName: "",
+      schoolCode: "",
+      bankName: "",
+      accountNumber: "",
+      ifscCode: "",
+      mobileNo: "",
     });
     setErrors({});
   };
 
   const handleClose = () => {
-    if (mode === "add") {
-      dispatch(hideAddTeacherModal());
-    } else {
-      dispatch(hideEditTeacherModal());
-    }
+    if (mode === "add") dispatch(hideAddTeacherModal());
+    else dispatch(hideEditTeacherModal());
     resetForm();
   };
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    // Handle nested object fields
-    if (name.startsWith('address.') || name.startsWith('emergencyContact.')) {
-      const [parent, field] = name.split('.') as ['address' | 'emergencyContact', string];
-      setFormData((prev) => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent],
-          [field]: value
-        }
-      }));
-      // Clear error when user starts typing
-      if (errors[`${parent}${field.charAt(0).toUpperCase()}${field.slice(1)}`]) {
-        setErrors((prev) => ({
-          ...prev,
-          [`${parent}${field.charAt(0).toUpperCase()}${field.slice(1)}`]: ""
-        }));
-      }
-    } else {
-      // Handle top-level fields
-      setFormData((prev) => ({ ...prev, [name]: value }));
-      // Clear error when user starts typing
-      if (errors[name]) {
-        setErrors((prev) => ({ ...prev, [name]: "" }));
-      }
-    }
+    const numericOnlyFields = new Set(["employeeId", "accountNumber", "mobileNo"]);
+    const nextValue = numericOnlyFields.has(name) ? value.replace(/\D/g, "") : value;
+    setFormData((prev) => ({ ...prev, [name]: nextValue }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
-  const handleAddSubject = () => {
-    if (selectedSubject && !formData.subjects.includes(selectedSubject)) {
-      setFormData((prev) => ({
-        ...prev,
-        subjects: [...prev.subjects, selectedSubject],
-      }));
-      setSelectedSubject("");
-    }
-  };
-
-  const handleRemoveSubject = (subjectId: string) => {
+  const handleSubjectChange = (subjectId: string) => {
+    const selected = subjects.find((s: Subject) => s._id === subjectId);
     setFormData((prev) => ({
       ...prev,
-      subjects: prev.subjects.filter((s) => s !== subjectId),
+      subjectId,
+      subjectCode: selected?.code || "",
     }));
+    if (selected) {
+      setSubjectSearch(`${selected.name} (${selected.code})`);
+    }
+    if (errors.subjectId) setErrors((prev) => ({ ...prev, subjectId: "" }));
+  };
+
+  const handleSchoolSelect = (school: SchoolOption) => {
+    setFormData((prev) => ({
+      ...prev,
+      schoolName: school.schoolName,
+      schoolCode: school.schoolCode,
+    }));
+    if (errors.schoolName || errors.schoolCode) {
+      setErrors((prev) => ({ ...prev, schoolName: "", schoolCode: "" }));
+    }
   };
 
   const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.name.trim()) newErrors.name = "Name is required";
-    if (!formData.employeeId.trim())
-      newErrors.employeeId = "Employee ID is required";
-    if (!formData.department) newErrors.department = "Department is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email))
-      newErrors.email = "Email is invalid";
-    if (!formData.phone.trim()) newErrors.phone = "Phone is required";
-    if (!formData.designation.trim())
-      newErrors.designation = "Designation is required";
-    if (formData.experience < 0 || formData.experience > 50)
-      newErrors.experience = "Experience must be between 0 and 50 years";
-    if (!formData.qualification.trim())
-      newErrors.qualification = "Qualification is required";
-    if (!formData.address.street.trim())
-      newErrors.addressStreet = "Street address is required";
-    if (!formData.address.city.trim())
-      newErrors.addressCity = "City is required";
-    if (!formData.address.state.trim())
-      newErrors.addressState = "State is required";
-    if (
-      !formData.address.pincode.trim() ||
-      !/^\d{6}$/.test(formData.address.pincode)
-    )
-      newErrors.addressPincode = "Valid 6-digit pincode is required";
-    if (!formData.dateOfJoining.trim())
-      newErrors.dateOfJoining = "Date of joining is required";
-    if (!formData.dateOfBirth.trim())
-      newErrors.dateOfBirth = "Date of birth is required";
-    if (!formData.emergencyContact.name.trim())
-      newErrors.emergencyContactName = "Emergency contact name is required";
-    if (
-      !formData.emergencyContact.phone.trim() ||
-      !/^\d{10}$/.test(formData.emergencyContact.phone)
-    )
-      newErrors.emergencyContactPhone =
-        "Valid emergency contact phone number is required";
-    if (!formData.emergencyContact.relation.trim())
-      newErrors.emergencyContactRelation =
-        "Relation to emergency contact is required";
-    if (formData.subjects.length === 0)
-      newErrors.subjects = "At least one subject is required";
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const nextErrors: Record<string, string> = {};
+    if (!formData.name.trim()) nextErrors.name = "Teacher name is required";
+    if (!formData.employeeId.trim()) nextErrors.employeeId = "OASIS ID is required";
+    else if (!/^\d+$/.test(formData.employeeId.trim())) nextErrors.employeeId = "OASIS ID must contain digits only";
+    if (!formData.designation.trim()) nextErrors.designation = "Designation is required";
+    if (!formData.subjectId) nextErrors.subjectId = "Subject is required";
+    if (!formData.schoolName.trim()) nextErrors.schoolName = "School is required";
+    if (!formData.schoolCode.trim()) nextErrors.schoolCode = "School code is required";
+    if (!formData.bankName.trim()) nextErrors.bankName = "Bank name is required";
+    if (!formData.accountNumber.trim()) nextErrors.accountNumber = "Account number is required";
+    else if (!/^\d+$/.test(formData.accountNumber.trim())) nextErrors.accountNumber = "Account number must contain digits only";
+    if (!formData.ifscCode.trim()) nextErrors.ifscCode = "IFSC code is required";
+    else if (!/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(formData.ifscCode.trim())) {
+      nextErrors.ifscCode = "Invalid IFSC code format";
+    }
+    if (!formData.mobileNo.trim()) nextErrors.mobileNo = "Mobile number is required";
+    else if (!/^\d{10}$/.test(formData.mobileNo.trim())) {
+      nextErrors.mobileNo = "Mobile number must be 10 digits";
+    }
+    setErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!validateForm()) return;
 
+    const payload = {
+      name: formData.name.trim(),
+      employeeId: formData.employeeId.trim().toUpperCase(),
+      designation: formData.designation.trim(),
+      subjects: [formData.subjectId],
+      subjectCode: formData.subjectCode,
+      schoolName: formData.schoolName.trim(),
+      schoolCode: formData.schoolCode.trim(),
+      bankName: formData.bankName.trim(),
+      accountNumber: formData.accountNumber.trim(),
+      ifscCode: formData.ifscCode.trim().toUpperCase(),
+      mobileNo: formData.mobileNo.trim(),
+      isActive: selectedTeacher?.isActive ?? true,
+    };
+
     try {
-      const teacherData = {
-        ...formData,
-        isActive: formData.status === 'active',
-        avatar: formData.name
-          .split(" ")
-          .map((n) => n[0])
-          .join("")
-          .toUpperCase(),
-      };
-
       if (mode === "add") {
-        await dispatch(createTeacher(teacherData as any)).unwrap();
-        onSuccess?.();
+        await dispatch(createTeacher(payload as any)).unwrap();
       } else if (selectedTeacher?._id) {
-        const updateData = {
-          _id: selectedTeacher._id,
-          id: selectedTeacher.id || selectedTeacher._id,
-          ...teacherData,
-        };
-        await dispatch(updateTeacher(updateData)).unwrap();
-        onSuccess?.();
+        await dispatch(
+          updateTeacher({
+            ...payload,
+            _id: selectedTeacher._id,
+            id: selectedTeacher.id || selectedTeacher._id,
+          } as any)
+        ).unwrap();
       }
-
+      onSuccess?.();
       handleClose();
     } catch (error) {
       console.error(`Failed to ${mode} teacher:`, error);
@@ -300,482 +254,166 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const fieldIdPrefix = mode === "add" ? "" : "edit-";
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title={modalTitle}
-      size="xl"
-    >
+    <Modal isOpen={isOpen} onClose={handleClose} title={modalTitle} size="xl">
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Name */}
           <div>
-            <label
-              htmlFor={`${fieldIdPrefix}name`}
-              className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-            >
-              Full Name <span className="text-error-500">*</span>
+            <label htmlFor={`${fieldIdPrefix}name`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Teacher Name <span className="text-error-500">*</span>
             </label>
-            <input
-              type="text"
-              id={`${fieldIdPrefix}name`}
-              name="name"
-              value={formData.name}
-              onChange={handleInputChange}
-              className={`input w-full ${errors.name ? "input-error" : ""}`}
-              placeholder="Enter teacher's full name"
-            />
-            {errors.name && (
-              <p className="text-error-500 text-xs mt-1">{errors.name}</p>
-            )}
+            <input id={`${fieldIdPrefix}name`} name="name" value={formData.name} onChange={handleInputChange} className={`input w-full ${errors.name ? "input-error" : ""}`} />
+            {errors.name && <p className="text-error-500 text-xs mt-1">{errors.name}</p>}
           </div>
 
-          {/* Employee ID */}
           <div>
-            <label
-              htmlFor={`${fieldIdPrefix}employeeId`}
-              className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-            >
-              Employee ID <span className="text-error-500">*</span>
-              {mode === "add" && (
-                <span className="text-xs text-gray-500 ml-2">(Auto-generated)</span>
-              )}
+            <label htmlFor={`${fieldIdPrefix}employeeId`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              OASIS ID <span className="text-error-500">*</span>
             </label>
-            <input
-              type="text"
-              id={`${fieldIdPrefix}employeeId`}
-              name="employeeId"
-              value={formData.employeeId}
-              onChange={handleInputChange}
-              readOnly={mode === "add"}
-              className={`input w-full ${mode === "add" ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed" : ""} ${errors.employeeId ? "input-error" : ""}`}
-              placeholder={mode === "add" ? "Auto-generating..." : "e.g., EMP001"}
-            />
-            {errors.employeeId && (
-              <p className="text-error-500 text-xs mt-1">{errors.employeeId}</p>
-            )}
+            <input id={`${fieldIdPrefix}employeeId`} name="employeeId" type="text" inputMode="numeric" pattern="[0-9]*" value={formData.employeeId} onChange={handleInputChange} className={`input w-full ${errors.employeeId ? "input-error" : ""}`} />
+            {errors.employeeId && <p className="text-error-500 text-xs mt-1">{errors.employeeId}</p>}
           </div>
 
-          {/* Department */}
           <div>
-            <label
-              htmlFor={`${fieldIdPrefix}department`}
-              className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-            >
-              Department <span className="text-error-500">*</span>
+            <label htmlFor={`${fieldIdPrefix}designation`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Designation <span className="text-error-500">*</span>
             </label>
             <select
-              id={`${fieldIdPrefix}department`}
-              name="department"
-              value={formData.department}
+              id={`${fieldIdPrefix}designation`}
+              name="designation"
+              value={formData.designation}
               onChange={handleInputChange}
-              className={`input w-full ${errors.department ? "input-error" : ""}`}
+              className={`input w-full ${errors.designation ? "input-error" : ""}`}
             >
-              <option value="">Select Department</option>
-              {departments.map((dept) => (
-                <option key={dept} value={dept}>
-                  {dept}
+              <option value="">Select Designation</option>
+              {designationOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
                 </option>
               ))}
             </select>
-            {errors.department && (
-              <p className="text-error-500 text-xs mt-1">{errors.department}</p>
-            )}
+            {errors.designation && <p className="text-error-500 text-xs mt-1">{errors.designation}</p>}
           </div>
 
-          {/* Status */}
           <div>
-            <label
-              htmlFor={`${fieldIdPrefix}status`}
-              className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-            >
-              Status
-            </label>
-            <select
-              id={`${fieldIdPrefix}status`}
-              name="status"
-              value={formData.status}
-              onChange={handleInputChange}
-              className="input w-full"
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-          </div>
-
-          {/* Email */}
-          <div>
-            <label
-              htmlFor={`${fieldIdPrefix}email`}
-              className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-            >
-              Email Address <span className="text-error-500">*</span>
+            <label htmlFor={`${fieldIdPrefix}subjectId`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Subject <span className="text-error-500">*</span>
             </label>
             <input
-              type="email"
-              id={`${fieldIdPrefix}email`}
-              name="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              className={`input w-full ${errors.email ? "input-error" : ""}`}
-              placeholder="teacher@school.edu"
+              id={`${fieldIdPrefix}subjectSearch`}
+              type="text"
+              value={subjectSearch}
+              onChange={(e) => setSubjectSearch(e.target.value)}
+              placeholder="Search subject by name or code"
+              className="input w-full mb-2"
             />
-            {errors.email && (
-              <p className="text-error-500 text-xs mt-1">{errors.email}</p>
-            )}
+            <div className={`rounded-md border ${errors.subjectId ? "border-error-500" : "border-gray-300 dark:border-gray-600"} p-2`}>
+              <div className="max-h-48 overflow-y-auto space-y-1">
+                {filteredSubjects.length === 0 && (
+                  <p className="text-sm text-gray-500 px-2 py-1">No matching subjects found.</p>
+                )}
+                {filteredSubjects.map((subject: Subject) => {
+                  const active = formData.subjectId === subject._id;
+                  return (
+                    <button
+                      key={subject._id}
+                      type="button"
+                      onClick={() => handleSubjectChange(subject._id)}
+                      className={`w-full text-left px-3 py-2 rounded-md text-sm border transition-colors ${active
+                        ? "bg-primary-600 text-white border-primary-600"
+                        : "bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border-gray-200 dark:border-gray-700 hover:border-primary-500"
+                      }`}
+                    >
+                      <span className="font-medium">{subject.name}</span>
+                      <span className={`ml-2 ${active ? "text-primary-100" : "text-gray-500 dark:text-gray-400"}`}>({subject.code})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {errors.subjectId && <p className="text-error-500 text-xs mt-1">{errors.subjectId}</p>}
           </div>
 
-          {/* Phone */}
           <div>
-            <label
-              htmlFor={`${fieldIdPrefix}phone`}
-              className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-            >
-              Phone Number <span className="text-error-500">*</span>
+            <label htmlFor={`${fieldIdPrefix}subjectCode`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Subject Code
             </label>
-            <input
-              type="tel"
-              id={`${fieldIdPrefix}phone`}
-              name="phone"
-              value={formData.phone}
-              onChange={handleInputChange}
-              className={`input w-full ${errors.phone ? "input-error" : ""}`}
-              placeholder="+1 (555) 123-4567"
-            />
-            {errors.phone && (
-              <p className="text-error-500 text-xs mt-1">{errors.phone}</p>
-            )}
+            <input id={`${fieldIdPrefix}subjectCode`} name="subjectCode" value={formData.subjectCode} readOnly className="input w-full bg-gray-100 dark:bg-gray-800 cursor-not-allowed" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              School <span className="text-error-500">*</span>
+            </label>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2 min-h-[44px] max-h-40 overflow-y-auto">
+              <div className="flex flex-wrap gap-2">
+              {schoolsLoading && <span className="text-xs text-gray-500">Loading schools...</span>}
+              {!schoolsLoading && schoolButtonItems.length === 0 && <span className="text-xs text-gray-500">No schools found from candidates.</span>}
+              {!schoolsLoading &&
+                schoolButtonItems.map((school) => {
+                  const active = formData.schoolName === school.schoolName;
+                  return (
+                    <button
+                      key={`${school.schoolName}-${school.schoolCode}`}
+                      type="button"
+                      onClick={() => handleSchoolSelect(school)}
+                      className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${active ? "bg-primary-600 text-white border-primary-600" : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:border-primary-500"}`}
+                    >
+                      {school.schoolName}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {errors.schoolName && <p className="text-error-500 text-xs mt-1">{errors.schoolName}</p>}
+          </div>
+
+          <div>
+            <label htmlFor={`${fieldIdPrefix}schoolCode`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              School Code
+            </label>
+            <input id={`${fieldIdPrefix}schoolCode`} name="schoolCode" value={formData.schoolCode} readOnly className={`input w-full bg-gray-100 dark:bg-gray-800 cursor-not-allowed ${errors.schoolCode ? "input-error" : ""}`} />
+            {errors.schoolCode && <p className="text-error-500 text-xs mt-1">{errors.schoolCode}</p>}
+          </div>
+
+          <div>
+            <label htmlFor={`${fieldIdPrefix}bankName`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Bank Name <span className="text-error-500">*</span>
+            </label>
+            <input id={`${fieldIdPrefix}bankName`} name="bankName" value={formData.bankName} onChange={handleInputChange} className={`input w-full ${errors.bankName ? "input-error" : ""}`} />
+            {errors.bankName && <p className="text-error-500 text-xs mt-1">{errors.bankName}</p>}
+          </div>
+
+          <div>
+            <label htmlFor={`${fieldIdPrefix}accountNumber`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Account Number <span className="text-error-500">*</span>
+            </label>
+            <input id={`${fieldIdPrefix}accountNumber`} name="accountNumber" type="text" inputMode="numeric" pattern="[0-9]*" value={formData.accountNumber} onChange={handleInputChange} className={`input w-full ${errors.accountNumber ? "input-error" : ""}`} />
+            {errors.accountNumber && <p className="text-error-500 text-xs mt-1">{errors.accountNumber}</p>}
+          </div>
+
+          <div>
+            <label htmlFor={`${fieldIdPrefix}ifscCode`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              IFSC Code <span className="text-error-500">*</span>
+            </label>
+            <input id={`${fieldIdPrefix}ifscCode`} name="ifscCode" value={formData.ifscCode} onChange={handleInputChange} className={`input w-full ${errors.ifscCode ? "input-error" : ""}`} />
+            {errors.ifscCode && <p className="text-error-500 text-xs mt-1">{errors.ifscCode}</p>}
+          </div>
+
+          <div>
+            <label htmlFor={`${fieldIdPrefix}mobileNo`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Mobile No. <span className="text-error-500">*</span>
+            </label>
+            <input id={`${fieldIdPrefix}mobileNo`} name="mobileNo" type="text" inputMode="numeric" pattern="[0-9]*" value={formData.mobileNo} onChange={handleInputChange} className={`input w-full ${errors.mobileNo ? "input-error" : ""}`} />
+            {errors.mobileNo && <p className="text-error-500 text-xs mt-1">{errors.mobileNo}</p>}
           </div>
         </div>
 
-        {/* Subjects */}
-        <div>
-          <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-            Subjects <span className="text-error-500">*</span>
-          </label>
-          <div className="flex gap-2 mb-3">
-            <select
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
-              className="input flex-1"
-            >
-              <option value="">Select Subject</option>
-              {subjects.map((subject: Subject) => (
-                <option key={subject._id} value={subject._id}>
-                  {subject.name} ({subject.code})
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={handleAddSubject}
-              className="btn btn-outline"
-              disabled={!selectedSubject}
-            >
-              Add
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {formData.subjects.map((subjectId: string, index) => (
-              <span
-                key={index}
-                className="badge badge-secondary flex items-center gap-2"
-              >
-                {subjects.find((s: Subject) => s._id === subjectId)?.name || subjectId}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveSubject(subjectId)}
-                  className="hover:text-error-500"
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-          {errors.subjects && (
-            <p className="text-error-500 text-xs mt-1">{errors.subjects}</p>
-          )}
-        </div>
-
-        {/* Designation */}
-        <div>
-          <label
-            htmlFor={`${fieldIdPrefix}designation`}
-            className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-          >
-            Designation <span className="text-error-500">*</span>
-          </label>
-          <input
-            type="text"
-            id={`${fieldIdPrefix}designation`}
-            name="designation"
-            value={formData.designation}
-            onChange={handleInputChange}
-            className={`input w-full ${errors.designation ? "input-error" : ""}`}
-            placeholder="Enter designation"
-          />
-          {errors.designation && (
-            <p className="text-error-500 text-xs mt-1">{errors.designation}</p>
-          )}
-        </div>
-
-        {/* Experience */}
-        <div>
-          <label
-            htmlFor={`${fieldIdPrefix}experience`}
-            className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-          >
-            Experience (Years) <span className="text-error-500">*</span>
-          </label>
-          <input
-            type="number"
-            id={`${fieldIdPrefix}experience`}
-            name="experience"
-            value={formData.experience}
-            onChange={handleInputChange}
-            className={`input w-full ${errors.experience ? "input-error" : ""}`}
-            placeholder="Enter years of experience"
-          />
-          {errors.experience && (
-            <p className="text-error-500 text-xs mt-1">{errors.experience}</p>
-          )}
-        </div>
-
-        {/* Qualification */}
-        <div>
-          <label
-            htmlFor={`${fieldIdPrefix}qualification`}
-            className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-          >
-            Qualification <span className="text-error-500">*</span>
-          </label>
-          <input
-            type="text"
-            id={`${fieldIdPrefix}qualification`}
-            name="qualification"
-            value={formData.qualification}
-            onChange={handleInputChange}
-            className={`input w-full ${errors.qualification ? "input-error" : ""}`}
-            placeholder="Enter qualification"
-          />
-          {errors.qualification && (
-            <p className="text-error-500 text-xs mt-1">
-              {errors.qualification}
-            </p>
-          )}
-        </div>
-
-        {/* Address */}
-        <div>
-          <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-            Address
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <input
-                type="text"
-                id={`${fieldIdPrefix}street`}
-                name="address.street"
-                value={formData.address.street}
-                onChange={handleInputChange}
-                className={`input w-full ${errors.addressStreet ? "input-error" : ""}`}
-                placeholder="Street"
-              />
-              {errors.addressStreet && (
-                <p className="text-error-500 text-xs mt-1">
-                  {errors.addressStreet}
-                </p>
-              )}
-            </div>
-            <div>
-              <input
-                type="text"
-                id={`${fieldIdPrefix}city`}
-                name="address.city"
-                value={formData.address.city}
-                onChange={handleInputChange}
-                className={`input w-full ${errors.addressCity ? "input-error" : ""}`}
-                placeholder="City"
-              />
-              {errors.addressCity && (
-                <p className="text-error-500 text-xs mt-1">
-                  {errors.addressCity}
-                </p>
-              )}
-            </div>
-            <div>
-              <input
-                type="text"
-                id={`${fieldIdPrefix}state`}
-                name="address.state"
-                value={formData.address.state}
-                onChange={handleInputChange}
-                className={`input w-full ${errors.addressState ? "input-error" : ""}`}
-                placeholder="State"
-              />
-              {errors.addressState && (
-                <p className="text-error-500 text-xs mt-1">
-                  {errors.addressState}
-                </p>
-              )}
-            </div>
-            <div>
-              <input
-                type="text"
-                id={`${fieldIdPrefix}pincode`}
-                name="address.pincode"
-                value={formData.address.pincode}
-                onChange={handleInputChange}
-                className={`input w-full ${errors.addressPincode ? "input-error" : ""}`}
-                placeholder="Pincode"
-              />
-              {errors.addressPincode && (
-                <p className="text-error-500 text-xs mt-1">
-                  {errors.addressPincode}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Date of Joining */}
-        <div>
-          <label
-            htmlFor={`${fieldIdPrefix}dateOfJoining`}
-            className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-          >
-            Date of Joining <span className="text-error-500">*</span>
-          </label>
-          <input
-            type="date"
-            id={`${fieldIdPrefix}dateOfJoining`}
-            name="dateOfJoining"
-            value={formData.dateOfJoining}
-            onChange={handleInputChange}
-            className={`input w-full ${errors.dateOfJoining ? "input-error" : ""}`}
-          />
-          {errors.dateOfJoining && (
-            <p className="text-error-500 text-xs mt-1">
-              {errors.dateOfJoining}
-            </p>
-          )}
-        </div>
-
-        {/* Date of Birth */}
-        <div>
-          <label
-            htmlFor={`${fieldIdPrefix}dateOfBirth`}
-            className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2"
-          >
-            Date of Birth <span className="text-error-500">*</span>
-          </label>
-          <input
-            type="date"
-            id={`${fieldIdPrefix}dateOfBirth`}
-            name="dateOfBirth"
-            value={formData.dateOfBirth}
-            onChange={handleInputChange}
-            className={`input w-full ${errors.dateOfBirth ? "input-error" : ""}`}
-          />
-          {errors.dateOfBirth && (
-            <p className="text-error-500 text-xs mt-1">{errors.dateOfBirth}</p>
-          )}
-        </div>
-
-        {/* Emergency Contact */}
-        <div>
-          <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-            Emergency Contact
-          </label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div>
-              <input
-                type="text"
-                id={`${fieldIdPrefix}emergencyContactName`}
-                name="emergencyContact.name"
-                value={formData.emergencyContact.name}
-                onChange={handleInputChange}
-                className={`input w-full ${errors.emergencyContactName ? "input-error" : ""}`}
-                placeholder="Name"
-              />
-              {errors.emergencyContactName && (
-                <p className="text-error-500 text-xs mt-1">
-                  {errors.emergencyContactName}
-                </p>
-              )}
-            </div>
-            <div>
-              <input
-                type="text"
-                id={`${fieldIdPrefix}emergencyContactPhone`}
-                name="emergencyContact.phone"
-                value={formData.emergencyContact.phone}
-                onChange={handleInputChange}
-                className={`input w-full ${errors.emergencyContactPhone ? "input-error" : ""}`}
-                placeholder="Phone"
-              />
-              {errors.emergencyContactPhone && (
-                <p className="text-error-500 text-xs mt-1">
-                  {errors.emergencyContactPhone}
-                </p>
-              )}
-            </div>
-            <div>
-              <input
-                type="text"
-                id={`${fieldIdPrefix}emergencyContactRelation`}
-                name="emergencyContact.relation"
-                value={formData.emergencyContact.relation}
-                onChange={handleInputChange}
-                className={`input w-full ${errors.emergencyContactRelation ? "input-error" : ""}`}
-                placeholder="Relation"
-              />
-              {errors.emergencyContactRelation && (
-                <p className="text-error-500 text-xs mt-1">
-                  {errors.emergencyContactRelation}
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Form Actions */}
         <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="btn btn-outline"
-            disabled={loading}
-          >
+          <button type="button" onClick={handleClose} className="btn btn-outline" disabled={loading}>
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? (
-              <>
-                <svg
-                  className="w-4 h-4 mr-2 animate-spin"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
-                </svg>
-                {mode === "add" ? "Creating..." : "Updating..."}
-              </>
-            ) : (
-              mode === "add" ? "Create Teacher" : "Update Teacher"
-            )}
+            {loading ? (mode === "add" ? "Creating..." : "Updating...") : (mode === "add" ? "Create Teacher" : "Update Teacher")}
           </button>
         </div>
       </form>

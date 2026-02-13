@@ -57,6 +57,10 @@ const Teachers: React.FC = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [isTemplateDownloading, setIsTemplateDownloading] = useState(false);
   const [isTemplateUploading, setIsTemplateUploading] = useState(false);
+  const [centreSchoolRef, setCentreSchoolRef] = useState<{ centreName: string; centreSchoolCode: string }>({
+    centreName: "",
+    centreSchoolCode: "",
+  });
 
   const [debouncedJoiningDateFrom, setDebouncedJoiningDateFrom] = useState("");
   const [debouncedJoiningDateTo, setDebouncedJoiningDateTo] = useState("");
@@ -91,6 +95,32 @@ const Teachers: React.FC = () => {
     }, 500);
     return () => clearTimeout(t);
   }, [yearsOfExperience]);
+
+  useEffect(() => {
+    const fetchCentreSchoolRef = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const tenantHeader = getTenantHeader();
+        const response = await axios.get(`${API_BASE_URL}/centre-details`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(tenantHeader ? { "x-tenant-slug": tenantHeader } : {}),
+          },
+        });
+
+        const payload = response?.data?.data || {};
+        setCentreSchoolRef({
+          centreName: String(payload?.centreName || "").trim(),
+          centreSchoolCode: String(payload?.centreSchoolCode || "").trim(),
+        });
+      } catch (error) {
+        console.error("Failed to fetch centre mapping for stats:", error);
+        setCentreSchoolRef({ centreName: "", centreSchoolCode: "" });
+      }
+    };
+
+    fetchCentreSchoolRef();
+  }, [API_BASE_URL]);
 
   const queryParams = useMemo(
     () => ({
@@ -144,13 +174,46 @@ const Teachers: React.FC = () => {
     subjects: teacher.subjects || [],
   });
 
+  const getPrimarySubjectName = (teacher: Teacher): string => {
+    const firstSubject = Array.isArray(teacher.subjects) ? teacher.subjects[0] : null;
+    if (firstSubject && typeof firstSubject === "object" && "name" in firstSubject) {
+      return String((firstSubject as { name?: string }).name || "N/A");
+    }
+    return "N/A";
+  };
+
+  const getPrimarySubjectCode = (teacher: Teacher): string => {
+    if (teacher.subjectCode) return teacher.subjectCode;
+    const firstSubject = Array.isArray(teacher.subjects) ? teacher.subjects[0] : null;
+    if (firstSubject && typeof firstSubject === "object" && "code" in firstSubject) {
+      return String((firstSubject as { code?: string }).code || "N/A");
+    }
+    return "N/A";
+  };
+
   const displayTeachers = teachers ? teachers.map(transformTeacher) : [];
 
   const totalTeachers = pagination.totalItems ?? 0;
-  const activeCount = displayTeachers.filter((t) => t.status === "active").length;
-  const inactiveCount = displayTeachers.filter((t) => t.status === "inactive").length;
-  const departmentsCount = new Set(displayTeachers.map((t) => t.department).filter(Boolean)).size;
+  const normalizeValue = (value: string | undefined) => String(value || "").trim().toLowerCase();
+  const isSelfSchoolTeacher = (teacher: Teacher) => {
+    const teacherSchoolCode = normalizeValue(teacher.schoolCode);
+    const teacherSchoolName = normalizeValue(teacher.schoolName);
+    const centreSchoolCode = normalizeValue(centreSchoolRef.centreSchoolCode);
+    const centreName = normalizeValue(centreSchoolRef.centreName);
 
+    if (centreSchoolCode) {
+      return teacherSchoolCode === centreSchoolCode;
+    }
+
+    if (centreName) {
+      return teacherSchoolName === centreName;
+    }
+
+    return false;
+  };
+
+  const activeCount = displayTeachers.filter((t) => isSelfSchoolTeacher(t)).length;
+  const inactiveCount = Math.max(0, displayTeachers.length - activeCount);
   const departments = DEPARTMENTS_LIST;
 
   const invalidateTeachers = () => {
@@ -167,7 +230,7 @@ const Teachers: React.FC = () => {
   };
 
   const handleViewTeacher = (teacher: Teacher) => {
-    navigate(`/teachers/${teacher._id || teacher.id}`);
+    navigate(`/exam-functionaries/${teacher._id || teacher.id}`);
   };
 
   const handleDeleteTeacher = (teacher: Teacher) => {
@@ -340,7 +403,7 @@ const Teachers: React.FC = () => {
       )}
 
       {/* Stat cards (display only, like Datesheets – not clickable, small number animation) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
           <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
             <div className="flex items-center space-x-4">
               <div className="p-3 rounded-lg flex-shrink-0 bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400">
@@ -349,7 +412,7 @@ const Teachers: React.FC = () => {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Teachers</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Functionaries</p>
                 <span key={totalTeachers} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{totalTeachers}</span>
               </div>
             </div>
@@ -362,7 +425,7 @@ const Teachers: React.FC = () => {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Active</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Self School</p>
                 <span key={activeCount} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{activeCount}</span>
                 <span className="text-xs text-gray-400 font-medium ml-1">on this page</span>
               </div>
@@ -376,22 +439,8 @@ const Teachers: React.FC = () => {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Inactive</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Outside School</p>
                 <span key={inactiveCount} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{inactiveCount}</span>
-                <span className="text-xs text-gray-400 font-medium ml-1">on this page</span>
-              </div>
-            </div>
-          </div>
-          <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 rounded-lg flex-shrink-0 bg-violet-50 text-violet-500 dark:bg-violet-900/20 dark:text-violet-400">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Departments</p>
-                <span key={departmentsCount} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{departmentsCount}</span>
                 <span className="text-xs text-gray-400 font-medium ml-1">on this page</span>
               </div>
             </div>
@@ -434,6 +483,8 @@ const Teachers: React.FC = () => {
                   type="file"
                   accept=".csv,.xlsx"
                   id="teacher-template-upload-input"
+                  title="Upload teacher template file"
+                  aria-label="Upload teacher template file"
                   onChange={uploadTemplateFile}
                   className="hidden"
                 />
@@ -569,6 +620,8 @@ const Teachers: React.FC = () => {
                     </label>
                     <input
                       type="date"
+                      id="teachers-joining-date-from"
+                      title="Joining date from"
                       value={joiningDateFrom}
                       onChange={(e) => setJoiningDateFrom(e.target.value)}
                       className="input w-full"
@@ -580,6 +633,8 @@ const Teachers: React.FC = () => {
                     </label>
                     <input
                       type="date"
+                      id="teachers-joining-date-to"
+                      title="Joining date to"
                       value={joiningDateTo}
                       onChange={(e) => setJoiningDateTo(e.target.value)}
                       className="input w-full"
@@ -620,10 +675,16 @@ const Teachers: React.FC = () => {
                     Designation
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    School Name
+                    Subject Code
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Status
+                    Subject Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    School Code
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    School Name
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Actions
@@ -633,7 +694,7 @@ const Teachers: React.FC = () => {
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-16 text-center">
+                    <td colSpan={9} className="px-6 py-16 text-center">
                       <div className="flex flex-col items-center justify-center gap-3">
                         <svg
                           className="animate-spin h-10 w-10 text-primary-600"
@@ -680,7 +741,7 @@ const Teachers: React.FC = () => {
                             {teacher.name}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {teacher.email}
+                            {teacher.mobileNo || teacher.phone || "N/A"}
                           </div>
                         </div>
                       </div>
@@ -689,15 +750,19 @@ const Teachers: React.FC = () => {
                       {teacher.employeeId}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {teacher.designation || teacher.department}
+                      {teacher.designation || "N/A"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {getPrimarySubjectCode(teacher)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {getPrimarySubjectName(teacher)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {teacher.schoolCode || "N/A"}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
-                      {teacher.address?.city || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`badge ${teacher.status === "active" ? "badge-success" : "badge-secondary"}`}>
-                        {teacher.status}
-                      </span>
+                      {teacher.schoolName || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">

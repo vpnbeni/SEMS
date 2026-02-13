@@ -7,6 +7,7 @@ import type { AppDispatch } from './redux/store'
 
 // Pages
 import Dashboard from './pages/Dashboard'
+import CentreDetails from './pages/CentreDetails'
 import Login from './pages/Login'
 import TenantSignupChat from './pages/TenantSignupChat'
 import TenantSignupComplete from './pages/TenantSignupComplete'
@@ -91,6 +92,7 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
+              <Route path="centre-details" element={<CentreDetails />} />
               <Route path="exam-functionaries" element={<Teachers />} />
               <Route path="exam-functionaries/:id" element={<TeacherDetail />} />
               <Route path="duties" element={<Duties />} />

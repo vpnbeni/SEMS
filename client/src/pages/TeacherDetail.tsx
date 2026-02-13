@@ -151,7 +151,7 @@ const TeacherDetail: React.FC = () => {
                 {teacher.designation}
               </p>
               <p className="text-sm text-secondary-500 dark:text-secondary-400">
-                Employee ID: {teacher.employeeId}
+                OASIS ID: {teacher.employeeId}
               </p>
             </div>
           </div>
@@ -166,6 +166,7 @@ const TeacherDetail: React.FC = () => {
               Contact Information
             </h3>
             <div className="space-y-4">
+              {(teacher.email || "").trim() && (
               <div className="flex items-start gap-3">
                 <svg
                   className="w-5 h-5 text-secondary-400 mt-0.5"
@@ -185,6 +186,7 @@ const TeacherDetail: React.FC = () => {
                   <p className="text-secondary-900 dark:text-white">{teacher.email}</p>
                 </div>
               </div>
+              )}
               <div className="flex items-start gap-3">
                 <svg
                   className="w-5 h-5 text-secondary-400 mt-0.5"
@@ -200,11 +202,11 @@ const TeacherDetail: React.FC = () => {
                   />
                 </svg>
                 <div>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Phone</p>
-                  <p className="text-secondary-900 dark:text-white">{teacher.phone}</p>
+                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Mobile</p>
+                  <p className="text-secondary-900 dark:text-white">{teacher.mobileNo || teacher.phone || "N/A"}</p>
                 </div>
               </div>
-              {teacher.address && (
+              {(teacher.schoolName || teacher.schoolCode) && (
                 <div className="flex items-start gap-3">
                   <svg
                     className="w-5 h-5 text-secondary-400 mt-0.5"
@@ -226,12 +228,9 @@ const TeacherDetail: React.FC = () => {
                     />
                   </svg>
                   <div>
-                    <p className="text-xs text-secondary-500 dark:text-secondary-400">Address</p>
+                    <p className="text-xs text-secondary-500 dark:text-secondary-400">School</p>
                     <p className="text-secondary-900 dark:text-white">
-                      {teacher.address.street && `${teacher.address.street}, `}
-                      {teacher.address.city && `${teacher.address.city}, `}
-                      {teacher.address.state && `${teacher.address.state} `}
-                      {teacher.address.pincode}
+                      {teacher.schoolName || "N/A"}{teacher.schoolCode ? ` (${teacher.schoolCode})` : ""}
                     </p>
                   </div>
                 </div>
@@ -262,8 +261,8 @@ const TeacherDetail: React.FC = () => {
                   />
                 </svg>
                 <div>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Department</p>
-                  <p className="text-secondary-900 dark:text-white">{teacher.department}</p>
+                  <p className="text-xs text-secondary-500 dark:text-secondary-400">School Code</p>
+                  <p className="text-secondary-900 dark:text-white">{teacher.schoolCode || "N/A"}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -281,8 +280,8 @@ const TeacherDetail: React.FC = () => {
                   />
                 </svg>
                 <div>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Qualification</p>
-                  <p className="text-secondary-900 dark:text-white">{teacher.qualification}</p>
+                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Subject Code</p>
+                  <p className="text-secondary-900 dark:text-white">{teacher.subjectCode || "N/A"}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -300,9 +299,9 @@ const TeacherDetail: React.FC = () => {
                   />
                 </svg>
                 <div>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Experience</p>
+                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Bank Name</p>
                   <p className="text-secondary-900 dark:text-white">
-                    {teacher.experience} {teacher.experience === 1 ? "year" : "years"}
+                    {teacher.bankName || "N/A"}
                   </p>
                 </div>
               </div>
@@ -321,10 +320,29 @@ const TeacherDetail: React.FC = () => {
                   />
                 </svg>
                 <div>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Date of Joining</p>
+                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Account Number</p>
                   <p className="text-secondary-900 dark:text-white">
-                    {formatDate(teacher.dateOfJoining)}
+                    {teacher.accountNumber || "N/A"}
                   </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <svg
+                  className="w-5 h-5 text-secondary-400 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8c-1.657 0-3 1.343-3 3m6 0a3 3 0 01-3 3m0 0a3 3 0 01-3-3m3 3V4m0 10v6"
+                  />
+                </svg>
+                <div>
+                  <p className="text-xs text-secondary-500 dark:text-secondary-400">IFSC Code</p>
+                  <p className="text-secondary-900 dark:text-white">{teacher.ifscCode || "N/A"}</p>
                 </div>
               </div>
             </div>
@@ -451,7 +469,7 @@ const TeacherDetail: React.FC = () => {
                 <div>
                   <p className="text-xs text-secondary-500 dark:text-secondary-400">Date of Birth</p>
                   <p className="text-secondary-900 dark:text-white">
-                    {formatDate(teacher.dateOfBirth)}
+                    {formatDate(teacher.dateOfBirth || "")}
                   </p>
                 </div>
               </div>

@@ -34,6 +34,13 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
+      case 'centre-details':
+        return {
+          pageTitle: 'Centre Details',
+          pageSubtitle: 'Manage centre profile, candidate summary, and exam days',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
       case 'exam-functionaries':
         return {
           pageTitle: 'Exam Functionaries',
@@ -172,6 +179,8 @@ const Header: React.FC = () => {
             <div className="relative">
               <button
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
+                aria-label="Toggle notifications"
+                title="Notifications"
                 className={`relative p-2 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${notificationsOpen
                     ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
                     : 'text-secondary-500 hover:text-secondary-700 dark:text-secondary-400 dark:hover:text-secondary-200 hover:bg-secondary-50 dark:hover:bg-secondary-800'

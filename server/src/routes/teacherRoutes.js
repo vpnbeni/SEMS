@@ -11,6 +11,7 @@ const {
   getTeachersByDepartment,
   getTeachersBySubject,
   getTeacherStats,
+  getTeacherSchoolOptions,
   getNextEmployeeId,
   bulkCreateTeachers,
   downloadTeacherImportTemplate,
@@ -59,6 +60,7 @@ router.route('/')
 
 // Statistics route
 router.get('/stats', getTeacherStats);
+router.get('/schools', getTeacherSchoolOptions);
 
 // Next employee ID route
 router.get('/next-employee-id', getNextEmployeeId);

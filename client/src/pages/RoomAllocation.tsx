@@ -14,6 +14,7 @@ const RoomAllocation: React.FC = () => {
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isAllocating, setIsAllocating] = useState(false)
 
   useEffect(() => {
     fetchRooms()
@@ -108,6 +109,52 @@ const RoomAllocation: React.FC = () => {
     }
   }
 
+  const handleAllocate = async () => {
+    if (rooms.length === 0) {
+      alert('No rooms available to allocate')
+      return
+    }
+
+    const getDefaultFloor = (roomNo: string, fallbackIndex: number) => {
+      const leading = String(roomNo || '').trim().match(/^(\d+)/)
+      const number = leading ? parseInt(leading[1], 10) : fallbackIndex + 1
+      if (number <= 20) return 'Ground Floor'
+      if (number <= 40) return 'First Floor'
+      if (number <= 60) return 'Second Floor'
+      return 'Third Floor'
+    }
+
+    setIsAllocating(true)
+    try {
+      const updates = rooms
+        .map((room, index) => {
+          const nextRoomName = String(room.roomName || '').trim() || `Room ${room.roomNo || index + 1}`
+          const nextFloor = String(room.floor || '').trim() || getDefaultFloor(room.roomNo, index)
+          const currentRoomName = String(room.roomName || '').trim()
+          const currentFloor = String(room.floor || '').trim()
+          const shouldUpdate = nextRoomName !== currentRoomName || nextFloor !== currentFloor
+          if (!shouldUpdate) return null
+          return seatingPlanService.updateRoom(room._id, {
+            roomName: nextRoomName,
+            floor: nextFloor,
+          })
+        })
+        .filter(Boolean) as Array<Promise<Room>>
+
+      if (updates.length > 0) {
+        await Promise.all(updates)
+        await fetchRooms()
+      }
+
+      alert(updates.length > 0 ? `Allocated ${updates.length} room(s) successfully` : 'All rooms are already allocated')
+    } catch (error) {
+      console.error('Failed to allocate rooms:', error)
+      alert('Failed to allocate rooms')
+    } finally {
+      setIsAllocating(false)
+    }
+  }
+
   const allOnPageSelected = rooms.length > 0 && rooms.every((r) => selectedIds.has(r._id))
   const someOnPageSelected = rooms.some((r) => selectedIds.has(r._id))
 
@@ -144,11 +191,15 @@ const RoomAllocation: React.FC = () => {
                 Delete {selectedIds.size} selected
               </button>
             )}
-            <button className="btn btn-secondary">
+            <button
+              onClick={handleAllocate}
+              disabled={isAllocating}
+              className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Auto Allocate
+              {isAllocating ? 'Allocating...' : 'Allocate'}
             </button>
             <button 
               onClick={() => setIsAddingNew(true)}
@@ -209,6 +260,7 @@ const RoomAllocation: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input
                       type="text"
+                      title="Room number"
                       value={newRoom.roomNo}
                       onChange={(e) => setNewRoom({ ...newRoom, roomNo: e.target.value })}
                       placeholder="Room No"
@@ -218,6 +270,7 @@ const RoomAllocation: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <input
                       type="text"
+                      title="Room name"
                       value={newRoom.roomName}
                       onChange={(e) => setNewRoom({ ...newRoom, roomName: e.target.value })}
                       placeholder="Room Name"
@@ -226,6 +279,7 @@ const RoomAllocation: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <select
+                      title="Room floor"
                       value={newRoom.floor}
                       onChange={(e) => setNewRoom({ ...newRoom, floor: e.target.value })}
                       className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
@@ -278,6 +332,8 @@ const RoomAllocation: React.FC = () => {
                       {isEditing ? (
                         <input
                           type="text"
+                          title="Edit room number"
+                          placeholder="Room No"
                           value={editingData.roomNo || ''}
                           onChange={(e) => setEditingData({ ...editingData, roomNo: e.target.value })}
                           className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
@@ -290,6 +346,8 @@ const RoomAllocation: React.FC = () => {
                       {isEditing ? (
                         <input
                           type="text"
+                          title="Edit room name"
+                          placeholder="Room Name"
                           value={editingData.roomName || ''}
                           onChange={(e) => setEditingData({ ...editingData, roomName: e.target.value })}
                           className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
@@ -301,6 +359,7 @@ const RoomAllocation: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {isEditing ? (
                         <select
+                          title="Edit room floor"
                           value={editingData.floor || ''}
                           onChange={(e) => setEditingData({ ...editingData, floor: e.target.value })}
                           className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"

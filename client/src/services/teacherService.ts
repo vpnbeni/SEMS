@@ -5,15 +5,22 @@ export interface Teacher {
   id?: string
   name: string
   employeeId: string
-  department: string
   designation: string
   subjects: (string | { _id: string; name: string; code: string; class?: string })[]
-  email: string
-  phone: string
-  experience: number
-  qualification: string
-  dateOfJoining: string
-  dateOfBirth: string
+  subjectCode?: string
+  schoolName?: string
+  schoolCode?: string
+  bankName?: string
+  accountNumber?: string
+  ifscCode?: string
+  mobileNo?: string
+  department?: string
+  email?: string
+  phone?: string
+  experience?: number
+  qualification?: string
+  dateOfJoining?: string
+  dateOfBirth?: string
   isActive: boolean
   profileImage?: string
   address?: {

@@ -14,6 +14,7 @@ const Calendar = require('../models/Calendar');
 const { Form66, Form66Upload } = require('../models/Form66');
 const Guideline = require('../models/Guideline');
 const Undertaking = require('../models/Undertaking');
+const CentreDetail = require('../models/CentreDetail');
 
 const tenantModelExports = {
   User,
@@ -32,7 +33,8 @@ const tenantModelExports = {
   Form66,
   Form66Upload,
   Guideline,
-  Undertaking
+  Undertaking,
+  CentreDetail
 };
 
 const registerModelOnConnection = (modelExport, connection) => {
