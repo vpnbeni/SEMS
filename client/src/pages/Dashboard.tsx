@@ -1,232 +1,347 @@
-import React from 'react'
-import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
-import dashboardService from '@/services/dashboardService'
-import TodaysExams from '@/components/dashboard/TodaysExams'
+import React, { useMemo, useState } from 'react'
+
+type SchoolSummary = {
+  schoolCode: string
+  schoolName: string
+  totalCandidates: number
+  classXRollFrom: string
+  classXRollTo: string
+  classXTotal: number
+  classXIIRollFrom: string
+  classXIIRollTo: string
+  classXIITotal: number
+}
+
+type ObserverDetail = {
+  name: string
+  schoolCode: string
+  schoolName: string
+}
+
+type ExamDayDetail = {
+  examDayNo: number
+  date: string
+  day: string
+  subjectName: string
+  subjectCode: string
+  duration: string
+  classes: 'X' | 'XII' | 'Both'
+  roomsUsed: number
+  examFunctionaries: number
+  observerAssigned: boolean
+  observerDetails: ObserverDetail[]
+  sheetsUsed: number
+  sheetType: string
+  sheetSerialFrom: string
+  sheetSerialTo: string
+  hindiMediumCandidates: Array<{ rollNo: string; roomNo: string; serialNo: string }>
+  pwdCandidates: Array<{ roomNo: string; rollNo: string; sheetNo: string }>
+  clothColour: string
+  markerColour: string
+  packetsCount: number
+}
 
 const Dashboard: React.FC = () => {
-  const { data: todaysExamsData, isLoading: isLoadingExams, isError: isExamsError } = useQuery({
-    queryKey: ['todaysExams'],
-    queryFn: dashboardService.getTodaysExams,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
-  })
+  const schoolSummaries: SchoolSummary[] = [
+    {
+      schoolCode: '40291',
+      schoolName: 'International Bharti School, Rohtak',
+      totalCandidates: 126,
+      classXRollFrom: '31194810',
+      classXRollTo: '31194920',
+      classXTotal: 64,
+      classXIIRollFrom: '31683203',
+      classXIIRollTo: '31683301',
+      classXIITotal: 62,
+    },
+    {
+      schoolCode: '41001',
+      schoolName: 'KV Public School, Ladhot Road',
+      totalCandidates: 84,
+      classXRollFrom: '31194921',
+      classXRollTo: '31194980',
+      classXTotal: 40,
+      classXIIRollFrom: '31683302',
+      classXIIRollTo: '31683345',
+      classXIITotal: 44,
+    },
+  ]
+
+  const examDaysSummary = {
+    total: 12,
+    classX: 6,
+    classXII: 6,
+  }
+
+  const examDayDetails: ExamDayDetail[] = [
+    {
+      examDayNo: 1,
+      date: '2026-03-01',
+      day: 'Sunday',
+      subjectName: 'English Core',
+      subjectCode: '301',
+      duration: '3 Hours',
+      classes: 'Both',
+      roomsUsed: 24,
+      examFunctionaries: 52,
+      observerAssigned: true,
+      observerDetails: [
+        { name: 'Amit Verma', schoolCode: '40988', schoolName: 'Govt Sr Sec School' },
+      ],
+      sheetsUsed: 610,
+      sheetType: 'Main Answer Sheet',
+      sheetSerialFrom: 'A100001',
+      sheetSerialTo: 'A100610',
+      hindiMediumCandidates: [
+        { rollNo: '31194825', roomNo: '7', serialNo: 'A100145' },
+        { rollNo: '31194859', roomNo: '9', serialNo: 'A100188' },
+      ],
+      pwdCandidates: [{ roomNo: '2', rollNo: '31194844', sheetNo: 'A100102' }],
+      clothColour: 'Blue',
+      markerColour: 'Black',
+      packetsCount: 7,
+    },
+    {
+      examDayNo: 2,
+      date: '2026-03-04',
+      day: 'Wednesday',
+      subjectName: 'Accountancy',
+      subjectCode: '055',
+      duration: '3 Hours',
+      classes: 'XII',
+      roomsUsed: 14,
+      examFunctionaries: 30,
+      observerAssigned: false,
+      observerDetails: [],
+      sheetsUsed: 284,
+      sheetType: 'Main Answer Sheet',
+      sheetSerialFrom: 'A100611',
+      sheetSerialTo: 'A100894',
+      hindiMediumCandidates: [],
+      pwdCandidates: [{ roomNo: '5', rollNo: '31683280', sheetNo: 'A100702' }],
+      clothColour: 'Green',
+      markerColour: 'Blue',
+      packetsCount: 3,
+    },
+  ]
+
+  const [selectedExamDayNo, setSelectedExamDayNo] = useState<number>(examDayDetails[0]?.examDayNo || 1)
+  const selectedExamDay = useMemo(
+    () => examDayDetails.find((d) => d.examDayNo === selectedExamDayNo) || examDayDetails[0],
+    [examDayDetails, selectedExamDayNo]
+  )
+
+  const upcomingExam = {
+    examDayNo: 2,
+    date: '2026-03-04',
+    day: 'Wednesday',
+    subjectName: 'Accountancy',
+    subjectCode: '055',
+    classes: 'XII',
+    duration: '3 Hours',
+    reportingTime: '09:30 AM',
+    roomsPlanned: 14,
+    functionariesPlanned: 30,
+  }
+
+  const totalCandidates = schoolSummaries.reduce((sum, s) => sum + s.totalCandidates, 0)
+  const totalClassXCandidates = schoolSummaries.reduce((sum, s) => sum + s.classXTotal, 0)
+  const totalClassXIICandidates = schoolSummaries.reduce((sum, s) => sum + s.classXIITotal, 0)
+  const totalSchools = schoolSummaries.length
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="h-full overflow-hidden flex flex-col p-3 gap-3">
+      {/* Zone 2: KPI Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 flex-shrink-0">
+        <div className="card"><div className="card-content p-3"><p className="text-[11px] uppercase text-gray-500">Total Candidates</p><p className="text-xl font-bold">{totalCandidates}</p></div></div>
+        <div className="card"><div className="card-content p-3"><p className="text-[11px] uppercase text-gray-500">Xth</p><p className="text-xl font-bold">{totalClassXCandidates}</p></div></div>
+        <div className="card"><div className="card-content p-3"><p className="text-[11px] uppercase text-gray-500">XIIth</p><p className="text-xl font-bold">{totalClassXIICandidates}</p></div></div>
+        <div className="card"><div className="card-content p-3"><p className="text-[11px] uppercase text-gray-500">Total Exam Days</p><p className="text-xl font-bold">{examDaysSummary.total}</p></div></div>
+        <div className="card"><div className="card-content p-3"><p className="text-[11px] uppercase text-gray-500">Xth Days</p><p className="text-xl font-bold">{examDaysSummary.classX}</p></div></div>
+        <div className="card"><div className="card-content p-3"><p className="text-[11px] uppercase text-gray-500">XIIth Days</p><p className="text-xl font-bold">{examDaysSummary.classXII}</p></div></div>
+        <div className="card"><div className="card-content p-3"><p className="text-[11px] uppercase text-gray-500">Schools</p><p className="text-xl font-bold">{totalSchools}</p></div></div>
+      </div>
 
-      {/* Quick Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="card group hover:shadow-elegant transition-all duration-300 transform hover:-translate-y-1">
-          <div className="card-content">
-            <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <svg className="w-8 h-8 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <div className="ml-4 flex-1">
-                <p className="text-sm font-medium text-secondary-600 dark:text-secondary-400">Total Students</p>
-                <p className="text-3xl font-bold text-secondary-900 dark:text-white">1,250</p>
-                <p className="text-xs text-success-600 dark:text-success-400 mt-1">+12% from last month</p>
-              </div>
-            </div>
+      {/* New Overview Sections */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 flex-shrink-0">
+        <div className="card">
+          <div className="card-header py-3 px-4">
+            <h2 className="text-base font-semibold">Today&apos;s Exam Overview</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {selectedExamDay.subjectName} ({selectedExamDay.subjectCode}) - Class {selectedExamDay.classes}
+            </p>
+          </div>
+          <div className="card-content p-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div className="rounded-md border p-2"><p className="text-gray-500">Date / Time</p><p className="font-semibold">{selectedExamDay.date} | {selectedExamDay.duration}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Total Candidates</p><p className="font-semibold">{totalCandidates}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Rooms</p><p className="font-semibold">{selectedExamDay.roomsUsed}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Exam Functionaries</p><p className="font-semibold">{selectedExamDay.examFunctionaries}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Checked In</p><p className="font-semibold">{Math.max(0, totalCandidates - 4)}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Absent</p><p className="font-semibold">{4}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Question Paper</p><p className="font-semibold">Received</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Answer Sheets</p><p className="font-semibold">Issued</p></div>
           </div>
         </div>
 
-        <div className="card group hover:shadow-elegant transition-all duration-300 transform hover:-translate-y-1">
-          <div className="card-content">
-            <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-success-100 to-success-200 dark:from-success-900 dark:to-success-800 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <svg className="w-8 h-8 text-success-600 dark:text-success-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                </svg>
-              </div>
-              <div className="ml-4 flex-1">
-                <p className="text-sm font-medium text-secondary-600 dark:text-secondary-400">Total Teachers</p>
-                <p className="text-3xl font-bold text-secondary-900 dark:text-white">85</p>
-                <p className="text-xs text-success-600 dark:text-success-400 mt-1">+3 new this month</p>
-              </div>
-            </div>
+        <div className="card">
+          <div className="card-header py-3 px-4">
+            <h2 className="text-base font-semibold">Next Exam Overview</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {upcomingExam.subjectName} ({upcomingExam.subjectCode}) - Class {upcomingExam.classes}
+            </p>
           </div>
-        </div>
-
-        <div className="card group hover:shadow-elegant transition-all duration-300 transform hover:-translate-y-1">
-          <div className="card-content">
-            <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900 dark:to-purple-800 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <svg className="w-8 h-8 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-              </div>
-              <div className="ml-4 flex-1">
-                <p className="text-sm font-medium text-secondary-600 dark:text-secondary-400">Total Subjects</p>
-                <p className="text-3xl font-bold text-secondary-900 dark:text-white">24</p>
-                <p className="text-xs text-secondary-500 dark:text-secondary-400 mt-1">All departments</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="card group hover:shadow-elegant transition-all duration-300 transform hover:-translate-y-1">
-          <div className="card-content">
-            <div className="flex items-center">
-              <div className="p-3 bg-gradient-to-br from-warning-100 to-warning-200 dark:from-warning-900 dark:to-warning-800 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                <svg className="w-8 h-8 text-warning-600 dark:text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div className="ml-4 flex-1">
-                <p className="text-sm font-medium text-secondary-600 dark:text-secondary-400">Upcoming Exams</p>
-                <p className="text-3xl font-bold text-secondary-900 dark:text-white">7</p>
-                <p className="text-xs text-warning-600 dark:text-warning-400 mt-1">Next: March 15, 2024</p>
-              </div>
-            </div>
+          <div className="card-content p-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            <div className="rounded-md border p-2"><p className="text-gray-500">Date</p><p className="font-semibold">{upcomingExam.date}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Day</p><p className="font-semibold">{upcomingExam.day}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Duration</p><p className="font-semibold">{upcomingExam.duration}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Reporting</p><p className="font-semibold">{upcomingExam.reportingTime}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Exam Functionaries</p><p className="font-semibold">{upcomingExam.functionariesPlanned}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Main Answer Sheets</p><p className="font-semibold">{selectedExamDay.sheetsUsed} Sheets</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Packets</p><p className="font-semibold">{selectedExamDay.packetsCount}</p></div>
+            <div className="rounded-md border p-2"><p className="text-gray-500">Rooms Planned</p><p className="font-semibold">{upcomingExam.roomsPlanned}</p></div>
           </div>
         </div>
       </div>
 
-      {/* Today's Exams Overview */}
-      <TodaysExams
-        data={todaysExamsData}
-        isLoading={isLoadingExams}
-        isError={isExamsError}
-      />
-
-      {/* Recent Activity and Quick Actions */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Activity Card */}
-        <div className="card">
-          <div className="card-header">
-            <div className="flex items-center justify-between">
-              <h2 className="card-title">Recent Activity</h2>
-              <span className="badge badge-secondary">Live</span>
+      {/* Zone 3: Main Grid */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 flex-1 min-h-0">
+        {/* Left: Today-focused blocks */}
+        <div className="xl:col-span-2 flex flex-col gap-3 min-h-0">
+          <div className="card flex-shrink-0">
+            <div className="card-header py-3 px-4">
+              <h2 className="text-base font-semibold">Schools Summary</h2>
             </div>
-            <p className="card-description">Latest system activities and updates</p>
+            <div className="card-content p-0">
+              <div className="max-h-40 overflow-y-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs">
+                  <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 text-left">School Code</th>
+                      <th className="px-3 py-2 text-left">School Name</th>
+                      <th className="px-3 py-2 text-right">Total</th>
+                      <th className="px-3 py-2 text-left">X From-To</th>
+                      <th className="px-3 py-2 text-right">X</th>
+                      <th className="px-3 py-2 text-left">XII From-To</th>
+                      <th className="px-3 py-2 text-right">XII</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {schoolSummaries.map((s) => (
+                      <tr key={`${s.schoolCode}-${s.schoolName}`}>
+                        <td className="px-3 py-2">{s.schoolCode}</td>
+                        <td className="px-3 py-2">{s.schoolName}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{s.totalCandidates}</td>
+                        <td className="px-3 py-2">{s.classXRollFrom} - {s.classXRollTo}</td>
+                        <td className="px-3 py-2 text-right">{s.classXTotal}</td>
+                        <td className="px-3 py-2">{s.classXIIRollFrom} - {s.classXIIRollTo}</td>
+                        <td className="px-3 py-2 text-right">{s.classXIITotal}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
-          <div className="card-content">
-            <div className="space-y-4">
-              {/* Activity items */}
-              <div className="flex items-start space-x-3 p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50 border-l-4 border-primary-500">
-                <div className="flex-shrink-0 w-2 h-2 bg-primary-500 rounded-full mt-2"></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-secondary-900 dark:text-white">
-                    New teacher registration
-                  </p>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                    John Smith joined Mathematics Department - 2 hours ago
-                  </p>
-                </div>
-              </div>
 
-              <div className="flex items-start space-x-3 p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50 border-l-4 border-success-500">
-                <div className="flex-shrink-0 w-2 h-2 bg-success-500 rounded-full mt-2"></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-secondary-900 dark:text-white">
-                    Date sheet published
-                  </p>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                    Final exam schedule for Grade 12 - 4 hours ago
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start space-x-3 p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50 border-l-4 border-warning-500">
-                <div className="flex-shrink-0 w-2 h-2 bg-warning-500 rounded-full mt-2"></div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-secondary-900 dark:text-white">
-                    Room allocation updated
-                  </p>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                    Physics exam moved to Hall A - 6 hours ago
-                  </p>
+          <div className="card flex-1 min-h-0">
+            <div className="card-header py-3 px-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-semibold">Today Exam Focus</h2>
+                <div className="flex flex-wrap gap-2">
+                  {examDayDetails.map((d) => (
+                    <button
+                      key={d.examDayNo}
+                      type="button"
+                      onClick={() => setSelectedExamDayNo(d.examDayNo)}
+                      className={`px-2.5 py-1 rounded-full text-xs border ${
+                        selectedExamDayNo === d.examDayNo
+                          ? 'bg-primary-600 text-white border-primary-600'
+                          : 'bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600'
+                      }`}
+                    >
+                      Day {d.examDayNo}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
+            <div className="card-content p-3 overflow-y-auto">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-3">
+                <div className="rounded-md border p-2"><p className="text-gray-500">Date</p><p className="font-semibold">{selectedExamDay.date}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Day</p><p className="font-semibold">{selectedExamDay.day}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Subject</p><p className="font-semibold">{selectedExamDay.subjectName}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Code</p><p className="font-semibold">{selectedExamDay.subjectCode}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Duration</p><p className="font-semibold">{selectedExamDay.duration}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Classes</p><p className="font-semibold">{selectedExamDay.classes}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Rooms Used</p><p className="font-semibold">{selectedExamDay.roomsUsed}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Functionaries</p><p className="font-semibold">{selectedExamDay.examFunctionaries}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Observer</p><p className="font-semibold">{selectedExamDay.observerAssigned ? 'Assigned' : 'Not assigned'}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Sheets Used</p><p className="font-semibold">{selectedExamDay.sheetsUsed}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Sheet Type</p><p className="font-semibold">{selectedExamDay.sheetType}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Serial</p><p className="font-semibold">{selectedExamDay.sheetSerialFrom} - {selectedExamDay.sheetSerialTo}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Cloth Colour</p><p className="font-semibold">{selectedExamDay.clothColour}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Marker Colour</p><p className="font-semibold">{selectedExamDay.markerColour}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Packets</p><p className="font-semibold">{selectedExamDay.packetsCount}</p></div>
+                <div className="rounded-md border p-2"><p className="text-gray-500">Class-wise Days</p><p className="font-semibold">X: {examDaysSummary.classX} / XII: {examDaysSummary.classXII}</p></div>
+              </div>
 
-            <div className="mt-6">
-              <button className="btn btn-outline w-full" onClick={() => console.log('View All Activities - Feature coming soon')}>
-                View All Activities
-              </button>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
+                <div className="rounded-md border p-2">
+                  <p className="font-semibold mb-1">Observer Details</p>
+                  <div className="max-h-24 overflow-y-auto space-y-1">
+                    {selectedExamDay.observerDetails.length > 0 ? selectedExamDay.observerDetails.map((o, i) => (
+                      <p key={`${o.name}-${i}`}>{o.name} | {o.schoolCode} | {o.schoolName}</p>
+                    )) : <p className="text-gray-500">No observer assigned</p>}
+                  </div>
+                </div>
+                <div className="rounded-md border p-2">
+                  <p className="font-semibold mb-1">Hindi Medium Candidates</p>
+                  <div className="max-h-24 overflow-y-auto space-y-1">
+                    {selectedExamDay.hindiMediumCandidates.length > 0 ? selectedExamDay.hindiMediumCandidates.map((c, i) => (
+                      <p key={`${c.rollNo}-${i}`}>{c.rollNo} | Room {c.roomNo} | Serial {c.serialNo}</p>
+                    )) : <p className="text-gray-500">No Hindi medium candidates</p>}
+                  </div>
+                </div>
+                <div className="rounded-md border p-2">
+                  <p className="font-semibold mb-1">PwD Candidates</p>
+                  <div className="max-h-24 overflow-y-auto space-y-1">
+                    {selectedExamDay.pwdCandidates.length > 0 ? selectedExamDay.pwdCandidates.map((c, i) => (
+                      <p key={`${c.rollNo}-${i}`}>Room {c.roomNo} | {c.rollNo} | Sheet {c.sheetNo}</p>
+                    )) : <p className="text-gray-500">No PwD candidates</p>}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Quick Actions Card */}
-        <div className="card">
-          <div className="card-header">
-            <h2 className="card-title">Quick Actions</h2>
-            <p className="card-description">Frequently used management tools</p>
+        {/* Right: Next Day + Exam Days */}
+        <div className="flex flex-col gap-3 min-h-0">
+          <div className="card flex-shrink-0">
+            <div className="card-header py-3 px-4">
+              <h2 className="text-base font-semibold">Exam Days</h2>
+            </div>
+            <div className="card-content p-3 grid grid-cols-3 gap-2 text-xs">
+              <div className="rounded-md border p-2 text-center"><p className="text-gray-500">Total</p><p className="text-lg font-bold">{examDaysSummary.total}</p></div>
+              <div className="rounded-md border p-2 text-center"><p className="text-gray-500">Class X</p><p className="text-lg font-bold">{examDaysSummary.classX}</p></div>
+              <div className="rounded-md border p-2 text-center"><p className="text-gray-500">Class XII</p><p className="text-lg font-bold">{examDaysSummary.classXII}</p></div>
+            </div>
           </div>
-          <div className="card-content">
-            <div className="grid grid-cols-1 gap-3">
-              <Link
-                to="/exam-functionaries"
-                className="group flex items-center p-4 rounded-xl border-2 border-secondary-200 dark:border-secondary-700 hover:border-primary-300 dark:hover:border-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all duration-200"
-              >
-                <div className="flex-shrink-0 w-10 h-10 bg-primary-100 dark:bg-primary-900 rounded-lg flex items-center justify-center group-hover:bg-primary-200 dark:group-hover:bg-primary-800 transition-colors">
-                  <svg className="w-5 h-5 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
-                <div className="ml-4 flex-1">
-                  <h3 className="text-sm font-semibold text-secondary-900 dark:text-white group-hover:text-primary-700 dark:group-hover:text-primary-300">
-                    Manage Exam Functionaries
-                  </h3>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                    Add, edit, and view teacher profiles
-                  </p>
-                </div>
-                <svg className="w-5 h-5 text-secondary-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
 
-              {/* Students quick action removed */}
-
-              <Link
-                to="/datesheets"
-                className="group flex items-center p-4 rounded-xl border-2 border-secondary-200 dark:border-secondary-700 hover:border-primary-300 dark:hover:border-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all duration-200"
-              >
-                <div className="flex-shrink-0 w-10 h-10 bg-warning-100 dark:bg-warning-900 rounded-lg flex items-center justify-center group-hover:bg-warning-200 dark:group-hover:bg-warning-800 transition-colors">
-                  <svg className="w-5 h-5 text-warning-600 dark:text-warning-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div className="ml-4 flex-1">
-                  <h3 className="text-sm font-semibold text-secondary-900 dark:text-white group-hover:text-primary-700 dark:group-hover:text-primary-300">
-                    Create Date Sheet
-                  </h3>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                    Schedule and publish exam dates
-                  </p>
-                </div>
-                <svg className="w-5 h-5 text-secondary-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
-
-              <Link
-                to="/rooms"
-                className="group flex items-center p-4 rounded-xl border-2 border-secondary-200 dark:border-secondary-700 hover:border-primary-300 dark:hover:border-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-all duration-200"
-              >
-                <div className="flex-shrink-0 w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-lg flex items-center justify-center group-hover:bg-purple-200 dark:group-hover:bg-purple-800 transition-colors">
-                  <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                </div>
-                <div className="ml-4 flex-1">
-                  <h3 className="text-sm font-semibold text-secondary-900 dark:text-white group-hover:text-primary-700 dark:group-hover:text-primary-300">
-                    Room Allocation
-                  </h3>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">
-                    Assign rooms for examinations
-                  </p>
-                </div>
-                <svg className="w-5 h-5 text-secondary-400 group-hover:text-primary-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Link>
+          <div className="card flex-1 min-h-0">
+            <div className="card-header py-3 px-4">
+              <h2 className="text-base font-semibold">Upcoming Exam (Next Day)</h2>
+            </div>
+            <div className="card-content p-3 overflow-y-auto text-xs space-y-2">
+              <div className="rounded-md border p-2"><p className="text-gray-500">Exam Day No</p><p className="font-semibold">{upcomingExam.examDayNo}</p></div>
+              <div className="rounded-md border p-2"><p className="text-gray-500">Date / Day</p><p className="font-semibold">{upcomingExam.date} ({upcomingExam.day})</p></div>
+              <div className="rounded-md border p-2"><p className="text-gray-500">Subject Name</p><p className="font-semibold">{upcomingExam.subjectName}</p></div>
+              <div className="rounded-md border p-2"><p className="text-gray-500">Subject Code</p><p className="font-semibold">{upcomingExam.subjectCode}</p></div>
+              <div className="rounded-md border p-2"><p className="text-gray-500">Classes</p><p className="font-semibold">{upcomingExam.classes}</p></div>
+              <div className="rounded-md border p-2"><p className="text-gray-500">Duration</p><p className="font-semibold">{upcomingExam.duration}</p></div>
+              <div className="rounded-md border p-2"><p className="text-gray-500">Reporting Time</p><p className="font-semibold">{upcomingExam.reportingTime}</p></div>
+              <div className="rounded-md border p-2"><p className="text-gray-500">Rooms Planned</p><p className="font-semibold">{upcomingExam.roomsPlanned}</p></div>
+              <div className="rounded-md border p-2"><p className="text-gray-500">Functionaries Planned</p><p className="font-semibold">{upcomingExam.functionariesPlanned}</p></div>
             </div>
           </div>
         </div>

@@ -1,8 +1,10 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import api from '@/services/api'
 
 const Header: React.FC = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [dashboardCentreLabel, setDashboardCentreLabel] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -123,6 +125,37 @@ const Header: React.FC = () => {
     { id: 3, message: 'Teacher John Smith registered', time: '6 hours ago', type: 'success' },
   ]
 
+  const dashboardDateLabel = useMemo(() => {
+    const now = new Date()
+    const weekday = now.toLocaleDateString('en-US', { weekday: 'long' })
+    const date = now.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
+    return `${weekday}, ${date}`
+  }, [])
+
+  useEffect(() => {
+    const isDashboardRoute = location.pathname === '/dashboard'
+    if (!isDashboardRoute) return
+
+    let isMounted = true
+    const fetchCentreLabel = async () => {
+      try {
+        const response = await api.get('/centre-details')
+        const payload = response?.data?.data || {}
+        const centreNo = String(payload?.centreNo || '').trim()
+        const centreName = String(payload?.centreName || '').trim()
+        const label = [centreNo, centreName].filter(Boolean).join(' - ')
+        if (isMounted) setDashboardCentreLabel(label)
+      } catch {
+        if (isMounted) setDashboardCentreLabel('')
+      }
+    }
+
+    fetchCentreLabel()
+    return () => {
+      isMounted = false
+    }
+  }, [location.pathname])
+
   return (
     <header className="h-20 flex-shrink-0 sticky top-0 z-40 glass border-b border-secondary-100 dark:border-secondary-800 transition-all duration-300">
       <div className="h-full px-4 md:px-8 flex items-center">
@@ -157,8 +190,23 @@ const Header: React.FC = () => {
             </div>
           </div>
 
+          {location.pathname === '/dashboard' && dashboardCentreLabel && (
+            <div className="hidden lg:flex flex-1 justify-center px-2">
+              <p className="text-xl font-bold text-secondary-800 dark:text-secondary-100 truncate max-w-[720px]">
+                {dashboardCentreLabel}
+              </p>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+            {location.pathname === '/dashboard' && (
+              <div className="hidden lg:block">
+                <span className="text-sm font-semibold text-secondary-700 dark:text-secondary-200">
+                  {dashboardDateLabel}
+                </span>
+              </div>
+            )}
             {/* Search */}
             <div className="hidden md:block">
               <div className="relative group">
