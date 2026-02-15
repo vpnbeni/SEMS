@@ -38,6 +38,7 @@ const masterGuidelinesController = require('../controllers/admin/masterGuideline
 const masterUndertakingsController = require('../controllers/admin/masterUndertakingsController');
 const rolloutController = require('../controllers/admin/rolloutController');
 const masterTeacherTemplateController = require('../controllers/admin/masterTeacherTemplateController');
+const billingAdminController = require('../controllers/admin/billingAdminController');
 
 const router = express.Router();
 
@@ -184,5 +185,14 @@ router.post('/rollouts/:id/retry', rolloutController.retryRollout);
 // Master teacher import template routes
 router.get('/master-teacher-template', masterTeacherTemplateController.getTemplate);
 router.put('/master-teacher-template', masterTeacherTemplateController.updateTemplate);
+
+// Billing admin routes
+router.get('/billing/tenants', billingAdminController.listTenants);
+router.get('/billing/tenants/:tenantId', billingAdminController.getTenantById);
+router.post('/billing/tenants/:tenantId/change-plan', billingAdminController.changePlan);
+router.post('/billing/tenants/:tenantId/grant-extension', billingAdminController.grantExtension);
+router.post('/billing/plans', billingAdminController.createPlan);
+router.post('/billing/coupons', billingAdminController.createCoupon);
+router.post('/billing/addons', billingAdminController.createAddon);
 
 module.exports = router;

@@ -31,11 +31,12 @@ export const login = createAsyncThunk<AuthResponse, LoginCredentials>(
   async (credentials, { rejectWithValue }) => {
     try {
       const response = await authService.login(credentials);
-      const { token, refreshToken, user } = response.data;
+      const { token, refreshToken, user, billing } = response.data;
+      const userWithBilling = { ...user, ...(billing ? { billing } : {}) };
       // Store tokens in localStorage
       if (token) localStorage.setItem('token', token);
       if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-      if (user) localStorage.setItem('user', JSON.stringify(user));
+      if (user) localStorage.setItem('user', JSON.stringify(userWithBilling));
       return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || "Login failed");
@@ -48,11 +49,12 @@ export const register = createAsyncThunk<AuthResponse, RegisterData>(
   async (userData, { rejectWithValue }) => {
     try {
       const response = await authService.register(userData);
-      const { token, refreshToken, user } = response.data;
+      const { token, refreshToken, user, billing } = response.data;
+      const userWithBilling = { ...user, ...(billing ? { billing } : {}) };
       // Store tokens in localStorage
       if (token) localStorage.setItem('token', token);
       if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-      if (user) localStorage.setItem('user', JSON.stringify(user));
+      if (user) localStorage.setItem('user', JSON.stringify(userWithBilling));
       return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || "Registration failed");
@@ -156,9 +158,12 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(login.fulfilled, (state, action) => {
-        const { user, token } = action.payload.data;
+        const { user, token, billing } = action.payload.data;
         state.loading = false;
-        state.user = user;
+        state.user = {
+          ...user,
+          ...(billing ? { billing } : {}),
+        };
         state.token = token;
         state.isAuthenticated = true;
         state.error = null;
@@ -176,9 +181,12 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(register.fulfilled, (state, action) => {
-        const { user, token } = action.payload.data;
+        const { user, token, billing } = action.payload.data;
         state.loading = false;
-        state.user = user;
+        state.user = {
+          ...user,
+          ...(billing ? { billing } : {}),
+        };
         state.token = token;
         state.isAuthenticated = true;
         state.error = null;
@@ -277,5 +285,6 @@ export const selectToken = (state: { auth: AuthState }) => state.auth.token;
 export const selectIsAuthenticated = (state: { auth: AuthState }) => state.auth.isAuthenticated;
 export const selectAuthLoading = (state: { auth: AuthState }) => state.auth.loading;
 export const selectAuthError = (state: { auth: AuthState }) => state.auth.error;
+export const selectBillingSnapshot = (state: { auth: AuthState }) => state.auth.user?.billing ?? null;
 
 export default authSlice.reducer;

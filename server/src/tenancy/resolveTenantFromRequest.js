@@ -8,16 +8,22 @@ const sanitizeSlug = (value = '') => value.trim().toLowerCase();
 
 const isValidSlug = (slug) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(slug);
 
-const resolveTenantFromRequest = (req) => {
+const buildHostCandidates = (req) => {
   const forwardedHost = req.headers['x-forwarded-host'];
   const normalizedForwardedHost = Array.isArray(forwardedHost)
     ? forwardedHost[0]
     : (forwardedHost || '');
-  const rawHost = (normalizedForwardedHost.split(',')[0] || req.headers.host || '').trim();
-  const hostname = normalizeHost(rawHost);
+  const firstForwardedHost = (normalizedForwardedHost.split(',')[0] || '').trim();
+  const hostHeader = (req.headers.host || '').trim();
 
-  const rootApiDomain = (process.env.ROOT_API_DOMAIN || 'api.vpnbeni.com').toLowerCase();
+  const candidates = [hostHeader, firstForwardedHost]
+    .map((candidate) => normalizeHost(candidate))
+    .filter(Boolean);
 
+  return [...new Set(candidates)];
+};
+
+const resolveTenantFromHostname = (hostname, req, rootApiDomain) => {
   if (!hostname) {
     return {
       tenantSlug: null,
@@ -70,6 +76,33 @@ const resolveTenantFromRequest = (req) => {
     isPlatformHost: false,
     host: hostname,
   };
+};
+
+const selectBestResolution = (resolutions) => {
+  return resolutions.find((resolution) => Boolean(resolution.tenantSlug))
+    || resolutions.find((resolution) => Boolean(resolution.isPlatformHost))
+    || resolutions.find((resolution) => Boolean(resolution.isLocalHost))
+    || resolutions[0];
+};
+
+const resolveTenantFromRequest = (req) => {
+  const rootApiDomain = (process.env.ROOT_API_DOMAIN || 'api.vpnbeni.com').toLowerCase();
+  const hostCandidates = buildHostCandidates(req);
+
+  if (!hostCandidates.length) {
+    return {
+      tenantSlug: null,
+      source: 'none',
+      isPlatformHost: false,
+      host: '',
+    };
+  }
+
+  const resolutions = hostCandidates.map((hostname) => (
+    resolveTenantFromHostname(hostname, req, rootApiDomain)
+  ));
+
+  return selectBestResolution(resolutions);
 };
 
 module.exports = {

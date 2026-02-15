@@ -30,6 +30,7 @@ import SeatingPlan from './pages/SeatingPlan'
 import AnswerSheetDetails from './pages/AnswerSheetDetails'
 import DropdownExamples from './pages/DropdownExamples'
 import DialogShowcase from './pages/DialogShowcase'
+import Billing from './pages/Billing'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -115,6 +116,7 @@ function App() {
               <Route path="centre-guidelines" element={<CentreGuidelines />} />
               <Route path="cbse-circulars" element={<CBSECirculars />} />
               <Route path="cbse-portals" element={<CBSEPortals />} />
+              <Route path="billing" element={<Billing />} />
               <Route path="dropdown-examples" element={<DropdownExamples />} />
               <Route path="dialog-showcase" element={<DialogShowcase />} />
             </Route>

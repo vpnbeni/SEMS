@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const seatingPlanController = require('../controllers/seatingPlanController');
+const { protect } = require('../middleware/auth');
+
+router.use(protect);
 
 // Room management routes
 router.get('/rooms', seatingPlanController.getRooms);

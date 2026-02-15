@@ -10,6 +10,7 @@
     "seed:subjects": "node scripts/seeds/seed-subjects.js",
     "bootstrap:platform": "node scripts/tenants/bootstrap-platform.js",
     "backfill:tenant-user-directory": "node scripts/tenants/backfill-tenant-user-directory.js",
+    "billing:grandfather": "node scripts/tenants/grandfather-billing.js",
     "test": "jest --watchAll --verbose",
     "test:cloudinary": "node scripts/tests/test-cloudinary.js",
     "lint": "eslint src --ext .js",

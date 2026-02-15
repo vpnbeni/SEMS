@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { resolvePlatformAdminApiBaseUrl } from '@/utils/tenantRuntime'
 import type { User } from '@/types/auth'
+import type { BillingSnapshot } from '@/types/auth'
 
 const tenantSignupApi = axios.create({
   baseURL: resolvePlatformAdminApiBaseUrl(),
@@ -45,6 +46,7 @@ export interface TenantSignupExchangeResponse {
   token: string
   refreshToken: string
   user: User
+  billing?: BillingSnapshot | null
   tenant: {
     slug: string
     name: string

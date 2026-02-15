@@ -3,6 +3,31 @@ const User = require('../models/User');
 const { createTokenResponse, clearTokenCookies, verifyRefreshToken, generateToken } = require('../utils/jwt');
 const { generateResponse, errorResponse } = require('../utils/helpers');
 const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/constants');
+const { getTenantEntitlement } = require('../services/billingServiceClient');
+
+const buildBillingSnapshot = async (tenantSlug) => {
+  if (!tenantSlug) {
+    return null;
+  }
+
+  try {
+    const entitlement = await getTenantEntitlement(tenantSlug);
+    return {
+      accessMode: entitlement.accessMode || 'full',
+      planCode: entitlement.planCode || null,
+      trialEndsAt: entitlement.trialEndsAt || null,
+      graceEndsAt: entitlement.graceEndsAt || null,
+      isReadOnly: Boolean(entitlement.isReadOnly),
+      state: entitlement.state || 'active',
+    };
+  } catch (error) {
+    console.error('[auth] billing snapshot fetch failed', {
+      tenantSlug,
+      message: error.message,
+    });
+    return null;
+  }
+};
 
 // @desc    Register user
 // @route   POST /api/auth/register
@@ -25,8 +50,10 @@ const register = asyncHandler(async (req, res) => {
     role
   });
 
+  const billing = await buildBillingSnapshot(req.tenant?.slug);
+
   // Generate token and send response
-  createTokenResponse(user, HTTP_STATUS.CREATED, res, req.tenant?.slug);
+  createTokenResponse(user, HTTP_STATUS.CREATED, res, req.tenant?.slug, { billing });
 });
 
 // @desc    Login user
@@ -62,8 +89,10 @@ const login = asyncHandler(async (req, res) => {
   user.lastLogin = new Date();
   await user.save({ validateBeforeSave: false });
 
+  const billing = await buildBillingSnapshot(req.tenant?.slug);
+
   // Generate token and send response
-  createTokenResponse(user, HTTP_STATUS.OK, res, req.tenant?.slug);
+  createTokenResponse(user, HTTP_STATUS.OK, res, req.tenant?.slug, { billing });
 });
 
 // @desc    Logout user
@@ -130,6 +159,8 @@ const refreshToken = asyncHandler(async (req, res) => {
       );
     }
 
+    const billing = await buildBillingSnapshot(req.tenant?.slug);
+
     // Generate new access token
     const accessToken = generateToken({ id: user._id, tenantSlug: req.tenant.slug });
 
@@ -141,7 +172,8 @@ const refreshToken = asyncHandler(async (req, res) => {
           email: user.email,
           role: user.role,
           isActive: user.isActive
-        }
+        },
+        billing
       })
     );
   } catch (error) {
@@ -156,9 +188,13 @@ const refreshToken = asyncHandler(async (req, res) => {
 // @access  Private
 const getMe = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user._id);
+  const billing = await buildBillingSnapshot(req.tenant?.slug);
+
+  const payload = user.toObject ? user.toObject() : user;
+  payload.billing = billing;
 
   res.status(HTTP_STATUS.OK).json(
-    generateResponse(true, 'User profile fetched successfully', user)
+    generateResponse(true, 'User profile fetched successfully', payload)
   );
 });
 

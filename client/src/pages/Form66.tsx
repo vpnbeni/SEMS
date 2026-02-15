@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { ChevronRight, ChevronDown, Download, Upload, RefreshCw, FileText, Calendar, Users, BookOpen } from 'lucide-react'
+import { ChevronRight, ChevronDown, Download, Upload, RefreshCw, FileText, Calendar, Users, BookOpen, Eye, X } from 'lucide-react'
 import { getTenantHeader, isLocalRuntime, resolveApiBaseUrl, resolveTenantSlug } from '../utils/tenantRuntime'
+import { Dialog } from '@/components/common/Dialog'
 
 interface Form66Record {
   _id: string
@@ -65,18 +66,46 @@ const Form66: React.FC = () => {
     X: null,
     XII: null,
   })
+  const [downloadDialogClass, setDownloadDialogClass] = useState<FormClassKey | null>(null)
+  const [previewTab, setPreviewTab] = useState<'pdf' | 'txt'>('pdf')
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [pdfPreviewUrls, setPdfPreviewUrls] = useState<Record<FormClassKey, string | null>>({
+    X: null,
+    XII: null,
+  })
+  const [txtPreviewContent, setTxtPreviewContent] = useState<Record<FormClassKey, string | null>>({
+    X: null,
+    XII: null,
+  })
+  const pdfObjectUrlsRef = useRef<Record<FormClassKey, string | null>>({
+    X: null,
+    XII: null,
+  })
   const fileInputRef = useRef<HTMLInputElement>(null)
   const API_BASE_URL = resolveApiBaseUrl()
   const tenantHeader = getTenantHeader()
   const tenantSlug = resolveTenantSlug()
 
-  const withTenantHeader = (options: RequestInit = {}): RequestInit => ({
-    ...options,
-    headers: {
-      ...(options.headers || {}),
-      ...(tenantHeader ? { 'x-tenant-slug': tenantHeader } : {}),
-    },
-  })
+  const withAuthAndTenantHeaders = (options: RequestInit = {}): RequestInit => {
+    const token = localStorage.getItem('token')
+    return {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        ...(tenantHeader ? { 'x-tenant-slug': tenantHeader } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    }
+  }
+
+  const parseJsonSafely = async (response: Response) => {
+    try {
+      return await response.json()
+    } catch {
+      return null
+    }
+  }
 
   const buildLocalTenantQuery = () => {
     if (!isLocalRuntime() || !tenantSlug) {
@@ -103,18 +132,38 @@ const Form66: React.FC = () => {
     fetchFileUrls()
   }, [])
 
+  useEffect(() => {
+    return () => {
+      Object.values(pdfObjectUrlsRef.current).forEach((url) => {
+        if (url) URL.revokeObjectURL(url)
+      })
+    }
+  }, [])
+
   const fetchRecords = async () => {
     try {
       setLoadingRecords(true)
-      const response = await fetch(`${API_BASE_URL}/form66/records`, withTenantHeader())
-      const data = await response.json()
-      setRecords(data)
+      const response = await fetch(`${API_BASE_URL}/form66/records`, withAuthAndTenantHeaders())
+      const data = await parseJsonSafely(response)
+      const normalizedRecords = Array.isArray(data) ? data : []
+
+      setRecords(normalizedRecords)
+
+      if (!response.ok) {
+        const message =
+          (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' && data.error) ||
+          (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string' && data.message) ||
+          `Failed to fetch records (${response.status})`
+        throw new Error(message)
+      }
 
       // Group records by date
-      const grouped = groupRecordsByDate(data)
+      const grouped = groupRecordsByDate(normalizedRecords)
       setDateGroups(grouped)
     } catch (error) {
       console.error('Failed to fetch records:', error)
+      setRecords([])
+      setDateGroups([])
     } finally {
       setLoadingRecords(false)
     }
@@ -131,16 +180,16 @@ const Form66: React.FC = () => {
       const nextOriginalUrls: Record<FormClassKey, string | null> = { X: null, XII: null }
 
       await Promise.all(classConfigs.map(async ({ key, query }) => {
-        const pdfResponse = await fetch(`${API_BASE_URL}/form66/processed-pdf?class=${query}`, withTenantHeader())
+        const pdfResponse = await fetch(`${API_BASE_URL}/form66/processed-pdf?class=${query}`, withAuthAndTenantHeaders())
         if (pdfResponse.ok) {
-          const pdfData = await pdfResponse.json()
-          nextProcessedUrls[key] = pdfData.url || null
+          const pdfData = await parseJsonSafely(pdfResponse)
+          nextProcessedUrls[key] = pdfData?.url || null
         }
 
-        const originalResponse = await fetch(`${API_BASE_URL}/form66/original-file?class=${query}`, withTenantHeader())
+        const originalResponse = await fetch(`${API_BASE_URL}/form66/original-file?class=${query}`, withAuthAndTenantHeaders())
         if (originalResponse.ok) {
-          const originalData = await originalResponse.json()
-          nextOriginalUrls[key] = originalData.url || null
+          const originalData = await parseJsonSafely(originalResponse)
+          nextOriginalUrls[key] = originalData?.url || null
         }
       }))
 
@@ -249,7 +298,7 @@ const Form66: React.FC = () => {
       // Start simulating steps in parallel with actual upload
       const stepPromise = simulateProcessingSteps()
 
-      const response = await fetch(`${API_BASE_URL}/form66/upload`, withTenantHeader({
+      const response = await fetch(`${API_BASE_URL}/form66/upload`, withAuthAndTenantHeaders({
         method: 'POST',
         body: formData
       }))
@@ -336,6 +385,120 @@ const Form66: React.FC = () => {
     setExpandedDates(new Set())
     setExpandedSubjects(new Set())
   }
+
+  const openDownloadDialog = (classKey: FormClassKey) => {
+    const hasPdf = Boolean(processedPdfUrls[classKey])
+    const hasTxt = Boolean(originalFileUrls[classKey])
+
+    if (hasPdf) {
+      setPreviewTab('pdf')
+    } else if (hasTxt) {
+      setPreviewTab('txt')
+    }
+
+    setPreviewError(null)
+    setDownloadDialogClass(classKey)
+  }
+
+  const closeDownloadDialog = () => {
+    setDownloadDialogClass(null)
+    setPreviewTab('pdf')
+    setPreviewError(null)
+    setPreviewLoading(false)
+  }
+
+  useEffect(() => {
+    const classKey = downloadDialogClass
+    if (!classKey) return
+
+    let isCancelled = false
+
+    const loadPreview = async () => {
+      setPreviewError(null)
+
+      if (previewTab === 'pdf') {
+        const sourceUrl = processedPdfUrls[classKey]
+        if (!sourceUrl) {
+          setPreviewError('No PDF available for preview.')
+          return
+        }
+
+        if (pdfPreviewUrls[classKey]) return
+
+        try {
+          setPreviewLoading(true)
+          const response = await fetch(sourceUrl)
+          if (!response.ok) {
+            throw new Error(`Unable to load PDF preview (${response.status})`)
+          }
+
+          const rawBlob = await response.blob()
+          const pdfBlob = rawBlob.type === 'application/pdf'
+            ? rawBlob
+            : new Blob([rawBlob], { type: 'application/pdf' })
+          const objectUrl = URL.createObjectURL(pdfBlob)
+
+          if (isCancelled) {
+            URL.revokeObjectURL(objectUrl)
+            return
+          }
+
+          const previousObjectUrl = pdfObjectUrlsRef.current[classKey]
+          if (previousObjectUrl) {
+            URL.revokeObjectURL(previousObjectUrl)
+          }
+
+          pdfObjectUrlsRef.current[classKey] = objectUrl
+          setPdfPreviewUrls((prev) => ({ ...prev, [classKey]: objectUrl }))
+        } catch (error) {
+          if (!isCancelled) {
+            console.error('Failed to load PDF preview:', error)
+            setPreviewError('Failed to load PDF preview.')
+          }
+        } finally {
+          if (!isCancelled) {
+            setPreviewLoading(false)
+          }
+        }
+      } else {
+        const sourceUrl = originalFileUrls[classKey]
+        if (!sourceUrl) {
+          setPreviewError('No TXT file available for preview.')
+          return
+        }
+
+        if (txtPreviewContent[classKey]) return
+
+        try {
+          setPreviewLoading(true)
+          const response = await fetch(sourceUrl)
+          if (!response.ok) {
+            throw new Error(`Unable to load TXT preview (${response.status})`)
+          }
+
+          const content = await response.text()
+          if (!isCancelled) {
+            setTxtPreviewContent((prev) => ({ ...prev, [classKey]: content }))
+          }
+        } catch (error) {
+          if (!isCancelled) {
+            console.error('Failed to load TXT preview:', error)
+            setPreviewError('Failed to load TXT preview.')
+          }
+        } finally {
+          if (!isCancelled) {
+            setPreviewLoading(false)
+          }
+        }
+      }
+    }
+
+    loadPreview()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [downloadDialogClass, previewTab, processedPdfUrls, originalFileUrls, pdfPreviewUrls, txtPreviewContent])
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-gray-50/50 dark:bg-gray-900">
@@ -537,65 +700,23 @@ const Form66: React.FC = () => {
               <RefreshCw className="w-4 h-4 mr-1.5" />
               Refresh
             </button>
-            {processedPdfUrls.X && (
-              <a
-                href={processedPdfUrls.X}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Click to download PDF file (10th)"
+            {(processedPdfUrls.X || originalFileUrls.X) && (
+              <button
+                onClick={() => openDownloadDialog('X')}
                 className="group relative inline-flex items-center px-3 py-1.5 border border-green-600 shadow-sm text-sm font-medium rounded-lg text-green-600 bg-white dark:bg-gray-800 hover:bg-green-600 hover:text-white dark:hover:bg-green-500 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
               >
-                <Download className="w-4 h-4 mr-1.5" />
+                <Eye className="w-4 h-4 mr-1.5" />
                 10th
-                <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
-                  Click to download PDF file
-                </span>
-              </a>
+              </button>
             )}
-            {processedPdfUrls.XII && (
-              <a
-                href={processedPdfUrls.XII}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Click to download PDF file (12th)"
+            {(processedPdfUrls.XII || originalFileUrls.XII) && (
+              <button
+                onClick={() => openDownloadDialog('XII')}
                 className="group relative inline-flex items-center px-3 py-1.5 border border-green-600 shadow-sm text-sm font-medium rounded-lg text-green-600 bg-white dark:bg-gray-800 hover:bg-green-600 hover:text-white dark:hover:bg-green-500 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
               >
-                <Download className="w-4 h-4 mr-1.5" />
+                <Eye className="w-4 h-4 mr-1.5" />
                 12th
-                <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
-                  Click to download PDF file
-                </span>
-              </a>
-            )}
-            {originalFileUrls.X && (
-              <a
-                href={originalFileUrls.X}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Click to download original TXT file (10th)"
-                className="group relative inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-blue-600 hover:text-white hover:border-blue-600 dark:hover:bg-blue-500 dark:hover:text-white dark:hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-              >
-                <FileText className="w-4 h-4 mr-1.5" />
-                10th
-                <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
-                  Click to download original TXT file
-                </span>
-              </a>
-            )}
-            {originalFileUrls.XII && (
-              <a
-                href={originalFileUrls.XII}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label="Click to download original TXT file (12th)"
-                className="group relative inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-blue-600 hover:text-white hover:border-blue-600 dark:hover:bg-blue-500 dark:hover:text-white dark:hover:border-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-              >
-                <FileText className="w-4 h-4 mr-1.5" />
-                12th
-                <span className="pointer-events-none absolute left-1/2 top-full z-50 mt-1 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100">
-                  Click to download original TXT file
-                </span>
-              </a>
+              </button>
             )}
             <button
               onClick={handleFileSelect}
@@ -769,11 +890,10 @@ const Form66: React.FC = () => {
                                       <React.Fragment key={subjectKey}>
                                         {/* Subject Row */}
                                         <tr
-                                          className={`cursor-pointer transition-colors ${
-                                            isClass10
-                                              ? 'bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
-                                              : 'bg-violet-50/50 dark:bg-violet-900/10 hover:bg-violet-50 dark:hover:bg-violet-900/20'
-                                          }`}
+                                          className={`cursor-pointer transition-colors ${isClass10
+                                            ? 'bg-emerald-50/50 dark:bg-emerald-900/10 hover:bg-emerald-50 dark:hover:bg-emerald-900/20'
+                                            : 'bg-violet-50/50 dark:bg-violet-900/10 hover:bg-violet-50 dark:hover:bg-violet-900/20'
+                                            }`}
                                           onClick={() => toggleSubjectExpansion(subjectKey)}
                                         >
                                           <td className="px-6 py-3 whitespace-nowrap pl-16">
@@ -786,38 +906,34 @@ const Form66: React.FC = () => {
                                             </button>
                                           </td>
                                           <td className="px-6 py-3 whitespace-nowrap">
-                                            <span className={`inline-flex items-center justify-center w-12 h-8 rounded-md text-xs font-bold ${
-                                              isClass10
-                                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                                                : 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300'
-                                            }`}>
+                                            <span className={`inline-flex items-center justify-center w-12 h-8 rounded-md text-xs font-bold ${isClass10
+                                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                              : 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300'
+                                              }`}>
                                               {subject.code}
                                             </span>
                                           </td>
                                           <td className="px-6 py-3 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
-                                              <span className={`text-sm font-medium ${
-                                                isClass10
-                                                  ? 'text-emerald-800 dark:text-emerald-300'
-                                                  : 'text-violet-800 dark:text-violet-300'
-                                              }`}>
+                                              <span className={`text-sm font-medium ${isClass10
+                                                ? 'text-emerald-800 dark:text-emerald-300'
+                                                : 'text-violet-800 dark:text-violet-300'
+                                                }`}>
                                                 {subject.name}
                                               </span>
-                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                                                isClass10
-                                                  ? 'bg-emerald-200 text-emerald-800 dark:bg-emerald-800/50 dark:text-emerald-300'
-                                                  : 'bg-violet-200 text-violet-800 dark:bg-violet-800/50 dark:text-violet-300'
-                                              }`}>
+                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${isClass10
+                                                ? 'bg-emerald-200 text-emerald-800 dark:bg-emerald-800/50 dark:text-emerald-300'
+                                                : 'bg-violet-200 text-violet-800 dark:bg-violet-800/50 dark:text-violet-300'
+                                                }`}>
                                                 {subjectClass}
                                               </span>
                                             </div>
                                           </td>
                                           <td className="px-6 py-3 whitespace-nowrap text-right">
-                                            <span className={`text-sm font-medium ${
-                                              isClass10
-                                                ? 'text-emerald-700 dark:text-emerald-400'
-                                                : 'text-violet-700 dark:text-violet-400'
-                                            }`}>
+                                            <span className={`text-sm font-medium ${isClass10
+                                              ? 'text-emerald-700 dark:text-emerald-400'
+                                              : 'text-violet-700 dark:text-violet-400'
+                                              }`}>
                                               {subject.count}
                                             </span>
                                           </td>
@@ -843,11 +959,10 @@ const Form66: React.FC = () => {
                                                           <td className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400">{recordIndex + 1}</td>
                                                           <td className="px-4 py-2 text-sm font-mono text-gray-900 dark:text-white">{record.rollNo}</td>
                                                           <td className="px-4 py-2">
-                                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                                                              record.class === 'X' || record.class === '10th'
-                                                                ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
-                                                                : 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300'
-                                                            }`}>
+                                                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${record.class === 'X' || record.class === '10th'
+                                                              ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
+                                                              : 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300'
+                                                              }`}>
                                                               {record.class}
                                                             </span>
                                                           </td>
@@ -877,6 +992,160 @@ const Form66: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Download Preview Dialog */}
+      <Dialog
+        isOpen={downloadDialogClass !== null}
+        onClose={closeDownloadDialog}
+        size="full"
+        className="transition-all duration-300 !h-[96vh] !max-h-[96vh]"
+      >
+        <Dialog.Header
+          className="!px-6 !py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
+          showClose={false}
+        >
+          <div className="flex items-center justify-between w-full gap-4">
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-lg font-bold tracking-tight text-gray-900 dark:text-white leading-tight">
+                Form 66 Files
+              </span>
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
+                Class {downloadDialogClass === 'X' ? '10th' : '12th'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="inline-flex p-1 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-inner">
+                {downloadDialogClass && (
+                  <>
+                    {processedPdfUrls[downloadDialogClass] && (
+                      <button
+                        onClick={() => setPreviewTab('pdf')}
+                        className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${previewTab === 'pdf'
+                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-black/5'
+                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-white/50 dark:hover:bg-gray-700/50'
+                          }`}
+                      >
+                        <FileText className={`w-3.5 h-3.5 ${previewTab === 'pdf' ? 'text-blue-500' : ''}`} />
+                        <span>PDF</span>
+                      </button>
+                    )}
+                    {originalFileUrls[downloadDialogClass] && (
+                      <button
+                        onClick={() => setPreviewTab('txt')}
+                        className={`flex items-center gap-2 px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${previewTab === 'txt'
+                          ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-black/5'
+                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-white/50 dark:hover:bg-gray-700/50'
+                          }`}
+                      >
+                        <FileText className={`w-3.5 h-3.5 ${previewTab === 'txt' ? 'text-blue-500' : ''}`} />
+                        <span>TXT</span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <div className="hidden md:flex items-center gap-2 text-[10px] font-medium text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 px-2 py-1 rounded-md border border-gray-100 dark:border-gray-700">
+                <span className={`w-1.5 h-1.5 rounded-full ${previewLoading ? 'bg-amber-500 animate-pulse' : 'bg-green-500'}`}></span>
+                {previewLoading ? 'Loading...' : 'Preview Ready'}
+              </div>
+
+              <button
+                type="button"
+                onClick={closeDownloadDialog}
+                className="flex-shrink-0 p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                aria-label="Close dialog"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        </Dialog.Header>
+
+        <Dialog.Body className="!p-0 !flex-1 !min-h-0 flex flex-col bg-gray-50 dark:bg-gray-950 overflow-hidden">
+
+          {/* Preview area - scrolls inside the body */}
+          <div className="flex-1 min-h-0 p-6 overflow-hidden flex flex-col">
+            <div className="flex-1 rounded-2xl border border-gray-200 dark:border-gray-800 overflow-hidden bg-white dark:bg-gray-900 shadow-lg relative group">
+              {previewLoading ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10 transition-all">
+                  <RefreshCw className="w-10 h-10 text-blue-500 animate-spin mb-4" />
+                  <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Generating preview...</p>
+                </div>
+              ) : previewError ? (
+                <div className="flex flex-col h-full items-center justify-center p-8 text-center">
+                  <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
+                    <FileText className="w-8 h-8 text-red-500" />
+                  </div>
+                  <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-1">Preview Error</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs">{previewError}</p>
+                </div>
+              ) : downloadDialogClass && previewTab === 'pdf' && pdfPreviewUrls[downloadDialogClass] ? (
+                <div className="h-full relative overflow-hidden">
+                  <iframe
+                    src={`${pdfPreviewUrls[downloadDialogClass]}#toolbar=0`}
+                    className="w-full h-full border-0 absolute inset-0"
+                    title="Form 66 PDF Preview"
+                  />
+                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900/80 text-white text-[10px] px-2 py-1 rounded-md backdrop-blur pointer-events-none">
+                    PDF Viewer
+                  </div>
+                </div>
+              ) : downloadDialogClass && previewTab === 'txt' && txtPreviewContent[downloadDialogClass] ? (
+                <div className="h-full overflow-y-auto bg-gray-50/50 dark:bg-gray-900/50 p-8">
+                  <pre className="text-sm leading-relaxed text-gray-700 dark:text-gray-200 whitespace-pre-wrap break-words font-mono bg-white dark:bg-gray-800 p-8 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm min-h-full">
+                    {txtPreviewContent[downloadDialogClass]}
+                  </pre>
+                </div>
+              ) : (
+                <div className="flex flex-col h-full items-center justify-center p-8 text-center">
+                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
+                    <FileText className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h4 className="text-base font-semibold text-gray-900 dark:text-white mb-1">No Selection</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No file selected for preview</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </Dialog.Body>
+
+        <Dialog.Footer className="!px-6 !py-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+          <div className="flex flex-col sm:flex-row gap-3 justify-end items-stretch sm:items-center w-full">
+            <button
+              onClick={closeDownloadDialog}
+              className="px-5 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl transition-all"
+            >
+              Close
+            </button>
+
+            {downloadDialogClass && originalFileUrls[downloadDialogClass] && (
+              <a
+                href={originalFileUrls[downloadDialogClass]!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center px-5 py-2.5 border border-gray-200 dark:border-gray-700 shadow-sm text-sm font-semibold rounded-xl text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition-all"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Original
+              </a>
+            )}
+
+            {downloadDialogClass && processedPdfUrls[downloadDialogClass] && (
+              <a
+                href={processedPdfUrls[downloadDialogClass]!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center px-6 py-2.5 border border-transparent shadow-lg text-sm font-bold rounded-xl text-white bg-blue-600 hover:bg-blue-700 hover:shadow-blue-500/25 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all active:scale-95"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Form 66 PDF
+              </a>
+            )}
+          </div>
+        </Dialog.Footer>
+      </Dialog>
     </div>
   )
 }

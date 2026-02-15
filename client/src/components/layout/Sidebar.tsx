@@ -187,6 +187,16 @@ const Sidebar: React.FC = () => {
       badge: null,
     },
     {
+      name: 'Billing',
+      href: '/billing',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a5 5 0 00-10 0v2m-2 0h14a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1v-9a1 1 0 011-1z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
       name: 'Centre Guidelines',
       href: '/centre-guidelines',
       icon: (

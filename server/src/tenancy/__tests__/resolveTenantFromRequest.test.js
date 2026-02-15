@@ -80,4 +80,37 @@ describe('resolveTenantFromRequest', () => {
 
     expect(result.tenantSlug).toBeNull();
   });
+
+  it('uses host header tenant resolution when forwarded host does not match api domain', () => {
+    const req = {
+      headers: {
+        host: 'api.vpnbeni.com',
+        'x-forwarded-host': 'ib.vpnbeni.com',
+        'x-tenant-slug': 'school-a',
+      },
+      query: {},
+    };
+
+    const result = resolveTenantFromRequest(req);
+
+    expect(result.tenantSlug).toBe('school-a');
+    expect(result.source).toBe('header');
+    expect(result.host).toBe('api.vpnbeni.com');
+  });
+
+  it('falls back to forwarded host when host header cannot resolve tenant context', () => {
+    const req = {
+      headers: {
+        host: 'internal.service',
+        'x-forwarded-host': 'xyz.api.vpnbeni.com',
+      },
+      query: {},
+    };
+
+    const result = resolveTenantFromRequest(req);
+
+    expect(result.tenantSlug).toBe('xyz');
+    expect(result.source).toBe('host');
+    expect(result.host).toBe('xyz.api.vpnbeni.com');
+  });
 });

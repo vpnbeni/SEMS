@@ -101,7 +101,7 @@ const Dialog = ({
     md: 'max-w-lg',
     lg: 'max-w-2xl',
     xl: 'max-w-4xl',
-    full: 'max-w-[90vw]'
+    full: 'max-w-[95vw]'
   }
 
   // Position classes
@@ -155,13 +155,13 @@ const Dialog = ({
             onClick={action.onClick}
             disabled={action.disabled || action.loading}
             className={`btn ${action.variant === 'primary' ? 'btn-primary' :
-                action.variant === 'secondary' ? 'btn-secondary' :
-                  action.variant === 'success' ? 'btn-success' :
-                    action.variant === 'warning' ? 'btn-warning' :
-                      action.variant === 'error' ? 'btn-error' :
-                        action.variant === 'outline' ? 'btn-outline' :
-                          action.variant === 'ghost' ? 'btn-ghost' :
-                            'btn-primary'
+              action.variant === 'secondary' ? 'btn-secondary' :
+                action.variant === 'success' ? 'btn-success' :
+                  action.variant === 'warning' ? 'btn-warning' :
+                    action.variant === 'error' ? 'btn-error' :
+                      action.variant === 'outline' ? 'btn-outline' :
+                        action.variant === 'ghost' ? 'btn-ghost' :
+                          'btn-primary'
               }`}
           >
             {action.loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
@@ -183,7 +183,7 @@ const Dialog = ({
       exit="exit"
       className={`
         relative w-full
-        ${position === 'left' || position === 'right' ? 'h-full' : 'max-h-[90vh]'}
+        ${(position === 'left' || position === 'right' || size === 'full') ? 'h-full' : 'max-h-[90vh]'}
         ${position === 'left' || position === 'right' ? sizeClasses[size].replace('max-w', 'w') : sizeClasses[size]}
         ${position === 'left' || position === 'right' ? '' : 'm-4'}
         ${className}
@@ -204,7 +204,7 @@ const Dialog = ({
           card shadow-hard overflow-hidden
           ${roundedClasses[rounded]}
           ${variantBorderClasses[variant]}
-          ${position === 'left' || position === 'right' ? 'h-full flex flex-col' : ''}
+          ${(position === 'left' || position === 'right' || size === 'full' || maxHeight) ? 'h-full flex flex-col' : ''}
           ${contentClassName}
         `}
         style={{
@@ -234,9 +234,10 @@ const Dialog = ({
           </div>
         )}
 
-        {/* Content wrapper with scroll */}
         <div className={`
-          ${position === 'left' || position === 'right' ? 'flex-1 overflow-y-auto' : 'overflow-y-auto'}
+          ${(position === 'left' || position === 'right' || size === 'full' || maxHeight) ? 'flex-1 min-h-0' : ''}
+          ${!hasCompoundComponents ? 'overflow-y-auto' : ''}
+          ${(hasCompoundComponents && (size === 'full' || maxHeight)) ? 'flex flex-col' : ''}
         `}>
           {hasCompoundComponents ? (
             // Render compound components directly

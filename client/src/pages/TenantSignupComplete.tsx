@@ -50,12 +50,17 @@ const TenantSignupComplete: React.FC = () => {
         otp: normalizedOtp,
       })
 
+      const userWithBilling = {
+        ...response.user,
+        ...(response.billing ? { billing: response.billing } : {}),
+      }
+
       localStorage.setItem('token', response.token)
       localStorage.setItem('refreshToken', response.refreshToken)
-      localStorage.setItem('user', JSON.stringify(response.user))
+      localStorage.setItem('user', JSON.stringify(userWithBilling))
       localStorage.setItem('tenantSlug', response.tenant.slug)
 
-      dispatch(setCredentials({ user: response.user, token: response.token }))
+      dispatch(setCredentials({ user: userWithBilling, token: response.token }))
 
       setStatus('success')
       window.setTimeout(() => {

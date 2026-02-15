@@ -90,7 +90,7 @@ const getTokenFromRequest = (req) => {
   return token;
 };
 
-const createTokenResponse = (user, statusCode, res, tenantSlug) => {
+const createTokenResponse = (user, statusCode, res, tenantSlug, extraData = null) => {
   const resolvedTenantSlug = tenantSlug || user.tenantSlug;
 
   if (!resolvedTenantSlug) {
@@ -130,6 +130,7 @@ const createTokenResponse = (user, statusCode, res, tenantSlug) => {
         token,
         refreshToken,
         user: userResponse,
+        ...(extraData && typeof extraData === 'object' ? extraData : {}),
       },
     });
 };

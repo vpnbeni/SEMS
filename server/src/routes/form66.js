@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
+const { protect } = require('../middleware/auth');
 const form66Controller = require('../controllers/form66Controller');
+
+router.use(protect);
 
 // Upload Form 66 text file
 router.post('/upload', form66Controller.uploadForm66);

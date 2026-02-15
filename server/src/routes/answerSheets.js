@@ -1,5 +1,6 @@
 const express = require('express')
 const router = express.Router()
+const { protect } = require('../middleware/auth')
 const {
   getAnswerSheets,
   getAnswerSheetById,
@@ -18,6 +19,8 @@ const {
   removeDiscardedSerial,
   getDiscardedSerials
 } = require('../controllers/answerSheetController')
+
+router.use(protect)
 
 // Statistics route (must be before :id routes)
 router.get('/stats/summary', getStatistics)

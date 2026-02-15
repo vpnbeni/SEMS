@@ -200,6 +200,11 @@ api.interceptors.response.use(
         showApiErrorToast('You do not have permission to perform this action')
         break
 
+      case 402:
+        // Billing restriction
+        showApiErrorToast(data?.message || 'Billing restriction applied. Open Billing to continue.')
+        break
+
       case 404:
         // Not Found
         showApiErrorToast(data?.error || data?.message || 'Resource not found')

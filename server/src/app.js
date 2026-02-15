@@ -14,6 +14,7 @@ const os = require('os');
 
 // Import custom middleware
 const errorHandler = require('./middleware/errorHandler');
+const { billingEntitlementMiddleware } = require('./middleware/billingEntitlement');
 const { requestContextMiddleware } = require('./tenancy/requestContext');
 const { platformContextMiddleware, tenantContextMiddleware } = require('./tenancy/tenantContextMiddleware');
 
@@ -38,6 +39,7 @@ const dutiesRoutes = require('./routes/dutiesRoutes');
 const undertakingsRoutes = require('./routes/undertakings');
 const cbseCircularsRoutes = require('./routes/cbseCirculars');
 const centreDetailsRoutes = require('./routes/centreDetailsRoutes');
+const billingRoutes = require('./routes/billingRoutes');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -159,7 +161,7 @@ app.use(requestContextMiddleware);
 
 // File upload middleware
 app.use(fileUpload({
-  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: Number.parseInt(process.env.MAX_FILE_SIZE || '', 10) || 10 * 1024 * 1024 }, // 10MB
   abortOnLimit: true,
   createParentPath: true,
   useTempFiles: true,
@@ -218,6 +220,7 @@ app.get('/api', (req, res) => {
       cbseCirculars: '/api/cbse-circulars',
       duties: '/api/duties',
       undertakings: '/api/undertakings',
+      billing: '/api/billing',
       admin: '/api/admin'
       // calendar: '/api/calendar' // Temporarily disabled for debugging
     },
@@ -231,6 +234,7 @@ app.use('/api/admin', platformContextMiddleware, adminRoutes);
 // Tenant-scoped routes
 const tenantScopedRouter = express.Router();
 tenantScopedRouter.use(tenantContextMiddleware);
+tenantScopedRouter.use(billingEntitlementMiddleware);
 tenantScopedRouter.use('/auth', authRoutes);
 tenantScopedRouter.use('/teachers', teacherRoutes);
 tenantScopedRouter.use('/students', studentRoutes);
@@ -250,6 +254,7 @@ tenantScopedRouter.use('/duties', dutiesRoutes);
 tenantScopedRouter.use('/undertakings', undertakingsRoutes);
 tenantScopedRouter.use('/cbse-circulars', cbseCircularsRoutes);
 tenantScopedRouter.use('/centre-details', centreDetailsRoutes);
+tenantScopedRouter.use('/billing', billingRoutes);
 // tenantScopedRouter.use('/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 app.use('/api', tenantScopedRouter);

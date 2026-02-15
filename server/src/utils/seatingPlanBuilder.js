@@ -29,7 +29,7 @@ class SeatingPlanBuilder {
       // Clear caches at the start of each buildSeatingData call
       this._clearCaches();
 
-      const Form66 = require('../models/Form66');
+      const { Form66 } = require('../models/Form66');
       const AnswerSheet = require('../models/AnswerSheet');
 
       // Get CBSE datesheet and find the specific entry
@@ -311,7 +311,7 @@ class SeatingPlanBuilder {
       return this._candidatesCache.get(cacheKey);
     }
 
-    const Form66 = require('../models/Form66');
+    const { Form66 } = require('../models/Form66');
 
     // Get Form 66 records for this exam date and subject
     const form66Records = await Form66.find({

@@ -15,6 +15,10 @@ const { getPlatformConnection } = require('../../config/platformDatabase');
 const { generateTenantToken, generateRefreshToken } = require('../../utils/jwt');
 const { sendMail } = require('../../utils/mailer');
 const { syncTenantUserDirectoryEntry } = require('../../tenancy/tenantUserDirectoryService');
+const {
+  onboardTenantTrial,
+  getTenantEntitlement,
+} = require('../../services/billingServiceClient');
 
 const getClientIp = (req) => {
   const forwarded = req.headers['x-forwarded-for'];
@@ -142,6 +146,51 @@ const syncDirectoryFromTenantUserBestEffort = async ({ tenantRecord, user }) => 
   } catch (error) {
     console.error(
       `[tenant-resolve] status=directory_sync_failed tenantSlug=${tenantRecord.slug} message=${error.message}`
+    );
+  }
+};
+
+const buildBillingSnapshot = async (tenantSlug) => {
+  if (!tenantSlug) {
+    return null;
+  }
+
+  try {
+    const entitlement = await getTenantEntitlement(tenantSlug);
+    return {
+      accessMode: entitlement.accessMode || 'full',
+      planCode: entitlement.planCode || null,
+      trialEndsAt: entitlement.trialEndsAt || null,
+      graceEndsAt: entitlement.graceEndsAt || null,
+      isReadOnly: Boolean(entitlement.isReadOnly),
+      state: entitlement.state || 'active',
+    };
+  } catch (error) {
+    console.error(
+      `[tenant-billing] status=snapshot_failed tenantSlug=${tenantSlug} message=${error.message}`
+    );
+    return null;
+  }
+};
+
+const onboardTenantBillingBestEffort = async ({
+  tenant,
+  tenantAdmin,
+}) => {
+  if (!tenant?.slug || !tenantAdmin?.email) {
+    return;
+  }
+
+  try {
+    await onboardTenantTrial({
+      tenantId: tenant._id?.toString?.() || tenant._id,
+      tenantSlug: tenant.slug,
+      tenantName: tenant.name,
+      billingEmail: tenant.adminEmail || tenantAdmin.email,
+    });
+  } catch (error) {
+    console.error(
+      `[tenant-billing] status=onboard_failed tenantSlug=${tenant.slug} message=${error.message}`
     );
   }
 };
@@ -345,6 +394,11 @@ const createTenant = asyncHandler(async (req, res) => {
       adminPassword,
       dbName,
       createdBy: req.platformUser?._id || null
+    });
+
+    await onboardTenantBillingBestEffort({
+      tenant: result.tenant,
+      tenantAdmin: result.tenantAdmin,
     });
 
     return res.status(201).json({
@@ -630,6 +684,12 @@ const exchangePublicTenantSignup = asyncHandler(async (req, res) => {
   const refreshToken = generateRefreshToken(tokenPayload);
 
   await user.addRefreshToken(refreshToken);
+  await onboardTenantBillingBestEffort({
+    tenant: tenantRecord,
+    tenantAdmin: user,
+  });
+
+  const billing = await buildBillingSnapshot(tenantRecord.slug);
 
   console.info(`[tenant-signup:exchange] status=success tenantSlug=${tenantRecord.slug}`);
 
@@ -650,7 +710,8 @@ const exchangePublicTenantSignup = asyncHandler(async (req, res) => {
         slug: tenantRecord.slug,
         name: tenantRecord.name,
         status: tenantRecord.status
-      }
+      },
+      billing
     }
   });
 });

@@ -1,3 +1,12 @@
+export interface BillingSnapshot {
+  accessMode: 'full' | 'core_only' | 'read_only'
+  state: string
+  planCode: string | null
+  trialEndsAt: string | null
+  graceEndsAt: string | null
+  isReadOnly: boolean
+}
+
 // User interface
 export interface User {
   _id: string
@@ -7,6 +16,7 @@ export interface User {
   createdAt: string
   updatedAt: string
   lastLogin?: string
+  billing?: BillingSnapshot | null
 }
 
 // Login credentials interface
@@ -31,6 +41,7 @@ export interface AuthResponse {
     user: User
     token: string
     refreshToken?: string
+    billing?: BillingSnapshot | null
   }
 }
 

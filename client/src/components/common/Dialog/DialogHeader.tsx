@@ -24,23 +24,23 @@ export const DialogHeader: React.FC<DialogHeaderProps> = ({
   const onClose = customOnClose || context.onClose
 
   return (
-    <div className={`card-header flex items-start justify-between border-b border-gray-200 dark:border-gray-700 ${className}`}>
-      <div className="flex items-start gap-3 flex-1">
+    <div className={`card-header !flex-row !space-y-0 flex items-center justify-between border-b border-gray-200 dark:border-gray-700 ${className}`}>
+      <div className="flex items-center gap-3 flex-1">
         {icon && (
           <div className={`flex-shrink-0 mt-1 ${variantIconColors[variantToUse]}`}>
             {icon}
           </div>
         )}
         <div className="flex-1">
-          <h2 
+          <h2
             id={context.titleId}
-            className="card-title text-xl font-semibold text-gray-900 dark:text-white"
+            className="card-title text-xl font-semibold text-gray-900 dark:text-white w-full"
           >
             {children}
           </h2>
         </div>
       </div>
-      
+
       {showClose && (
         <button
           type="button"

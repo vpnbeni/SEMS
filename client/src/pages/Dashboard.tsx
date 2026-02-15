@@ -150,7 +150,7 @@ const Dashboard: React.FC = () => {
   const totalSchools = schoolSummaries.length
 
   return (
-    <div className="h-full overflow-hidden flex flex-col p-3 gap-3">
+    <div className="overflow-x-hidden p-3 space-y-3">
       {/* Zone 2: KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 flex-shrink-0">
         <div className="card"><div className="card-content p-3"><p className="text-[11px] uppercase text-gray-500">Total Candidates</p><p className="text-xl font-bold">{totalCandidates}</p></div></div>
@@ -204,9 +204,9 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Zone 3: Main Grid */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 flex-1 min-h-0">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
         {/* Left: Today-focused blocks */}
-        <div className="xl:col-span-2 flex flex-col gap-3 min-h-0">
+        <div className="xl:col-span-2 flex flex-col gap-3">
           <div className="card flex-shrink-0">
             <div className="card-header py-3 px-4">
               <h2 className="text-base font-semibold">Schools Summary</h2>
@@ -243,7 +243,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="card flex-1 min-h-0">
+          <div className="card">
             <div className="card-header py-3 px-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-base font-semibold">Today Exam Focus</h2>
@@ -265,7 +265,7 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-            <div className="card-content p-3 overflow-y-auto">
+            <div className="card-content p-3">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs mb-3">
                 <div className="rounded-md border p-2"><p className="text-gray-500">Date</p><p className="font-semibold">{selectedExamDay.date}</p></div>
                 <div className="rounded-md border p-2"><p className="text-gray-500">Day</p><p className="font-semibold">{selectedExamDay.day}</p></div>
@@ -316,7 +316,7 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Right: Next Day + Exam Days */}
-        <div className="flex flex-col gap-3 min-h-0">
+        <div className="flex flex-col gap-3">
           <div className="card flex-shrink-0">
             <div className="card-header py-3 px-4">
               <h2 className="text-base font-semibold">Exam Days</h2>
@@ -328,11 +328,11 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="card flex-1 min-h-0">
+          <div className="card">
             <div className="card-header py-3 px-4">
               <h2 className="text-base font-semibold">Upcoming Exam (Next Day)</h2>
             </div>
-            <div className="card-content p-3 overflow-y-auto text-xs space-y-2">
+            <div className="card-content p-3 text-xs space-y-2">
               <div className="rounded-md border p-2"><p className="text-gray-500">Exam Day No</p><p className="font-semibold">{upcomingExam.examDayNo}</p></div>
               <div className="rounded-md border p-2"><p className="text-gray-500">Date / Day</p><p className="font-semibold">{upcomingExam.date} ({upcomingExam.day})</p></div>
               <div className="rounded-md border p-2"><p className="text-gray-500">Subject Name</p><p className="font-semibold">{upcomingExam.subjectName}</p></div>

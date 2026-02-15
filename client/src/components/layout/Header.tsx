@@ -7,6 +7,8 @@ const Header: React.FC = () => {
   const [dashboardCentreLabel, setDashboardCentreLabel] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
+  const isDashboardRoute = location.pathname === '/dashboard'
+  const defaultDashboardCentreLabel = '829261 - International Bharti School, Rohtak'
 
   const { pageTitle, pageSubtitle, showBackButton, backTo } = useMemo(() => {
     const path = location.pathname
@@ -106,6 +108,13 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
+      case 'billing':
+        return {
+          pageTitle: 'Billing',
+          pageSubtitle: 'Manage subscription, invoices, and billing profile',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
       default:
         return {
           pageTitle: seg
@@ -132,8 +141,9 @@ const Header: React.FC = () => {
     return `${weekday}, ${date}`
   }, [])
 
+  const dashboardHeaderLabel = (dashboardCentreLabel || defaultDashboardCentreLabel).trim()
+
   useEffect(() => {
-    const isDashboardRoute = location.pathname === '/dashboard'
     if (!isDashboardRoute) return
 
     let isMounted = true
@@ -154,10 +164,10 @@ const Header: React.FC = () => {
     return () => {
       isMounted = false
     }
-  }, [location.pathname])
+  }, [isDashboardRoute, location.pathname])
 
   return (
-    <header className="h-20 flex-shrink-0 sticky top-0 z-40 glass border-b border-secondary-100 dark:border-secondary-800 transition-all duration-300">
+    <header className="h-20 flex-shrink-0 sticky top-0 z-40 bg-white dark:bg-secondary-900 border-b border-secondary-100 dark:border-secondary-800 transition-all duration-300">
       <div className="h-full px-4 md:px-8 flex items-center">
         <div className="flex items-center justify-between w-full gap-6">
           {/* Left: Page context + optional back */}
@@ -174,33 +184,27 @@ const Header: React.FC = () => {
                 </svg>
               </button>
             )}
-            <div className="min-w-0">
-              <div className="flex items-center gap-3">
+            {isDashboardRoute ? (
+              <div className="min-w-0 rounded-xl border border-secondary-200/70 dark:border-secondary-700 bg-white/70 dark:bg-secondary-800/40 px-3 py-2 shadow-sm">
+                <h1 className="text-base sm:text-lg md:text-2xl font-bold text-secondary-900 dark:text-white truncate tracking-tight">
+                  {dashboardHeaderLabel}
+                </h1>
+              </div>
+            ) : (
+              <div className="min-w-0">
                 <h1 className="text-xl md:text-2xl font-bold text-secondary-900 dark:text-white truncate tracking-tight">
                   {pageTitle}
                 </h1>
-                <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-primary-50 dark:bg-primary-900/40 text-primary-600 dark:text-primary-300 border border-primary-100 dark:border-primary-800/50 shadow-sm animate-fade-in-up">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary-500 mr-1.5 animate-pulse"></span>
-                  Live
-                </span>
+                <p className="hidden sm:block text-xs md:text-sm text-secondary-500 dark:text-secondary-400 truncate mt-0.5 font-medium">
+                  {pageSubtitle}
+                </p>
               </div>
-              <p className="hidden sm:block text-xs md:text-sm text-secondary-500 dark:text-secondary-400 truncate mt-0.5 font-medium">
-                {pageSubtitle}
-              </p>
-            </div>
+            )}
           </div>
-
-          {location.pathname === '/dashboard' && dashboardCentreLabel && (
-            <div className="hidden lg:flex flex-1 justify-center px-2">
-              <p className="text-xl font-bold text-secondary-800 dark:text-secondary-100 truncate max-w-[720px]">
-                {dashboardCentreLabel}
-              </p>
-            </div>
-          )}
 
           {/* Actions */}
           <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
-            {location.pathname === '/dashboard' && (
+            {isDashboardRoute && (
               <div className="hidden lg:block">
                 <span className="text-sm font-semibold text-secondary-700 dark:text-secondary-200">
                   {dashboardDateLabel}
