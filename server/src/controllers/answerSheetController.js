@@ -2,6 +2,8 @@ const AnswerSheet = require('../models/AnswerSheet')
 const AnswerSheetsParser = require('../utils/answerSheetsParser')
 const AnswerSheetsExcelParser = require('../utils/answerSheetsExcelParser')
 const { ANSWER_SHEET_TYPES } = require('../utils/answerSheetTypes')
+const pdfGenerator = require('../utils/pdfGenerator')
+const seatingPlanBuilder = require('../utils/seatingPlanBuilder')
 const cloudinary = require('cloudinary').v2
 const fs = require('fs')
 const path = require('path')
@@ -51,6 +53,202 @@ const syncAnswerSheetTotals = async () => {
   }
 
   return updates.length
+}
+
+const getExpectedDatesheetAnswerSheetType = (answerSheet) => {
+  let expectedAnswerSheetType = null
+
+  if (answerSheet.answerSheetType === 'Main' || answerSheet.answerSheetType === 'Supplementary') {
+    if (answerSheet.pages === 32) {
+      expectedAnswerSheetType = '32_pages'
+    } else if (answerSheet.pages === 20) {
+      expectedAnswerSheetType = '20_pages'
+    }
+  } else if (answerSheet.answerSheetType === 'Graph') {
+    expectedAnswerSheetType = '40_graph'
+  } else if (answerSheet.answerSheetType === 'Drawing Sheets') {
+    expectedAnswerSheetType = 'drawing_sheets'
+  }
+
+  return expectedAnswerSheetType
+}
+
+const getSerialAllocationDataForAnswerSheet = async (answerSheet) => {
+  if (!answerSheet.serialFrom || !answerSheet.serialTo) {
+    return {
+      hasSerialNumbers: false,
+      allocations: []
+    }
+  }
+
+  const CBSEDatesheet = require('../models/CBSEDatesheet')
+  const Candidate = require('../models/Candidate')
+
+  const cbseDatesheet = await CBSEDatesheet.getActive()
+
+  if (!cbseDatesheet) {
+    return {
+      hasSerialNumbers: true,
+      serialFrom: answerSheet.serialFrom,
+      serialTo: answerSheet.serialTo,
+      total: answerSheet.total,
+      allocations: []
+    }
+  }
+
+  const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
+    .populate('subjects', 'code name class')
+    .lean()
+
+  const subjectFrequency = new Map()
+
+  candidates.forEach(candidate => {
+    if (candidate.subjects && candidate.subjects.length > 0) {
+      candidate.subjects.forEach(subject => {
+        if (subject && subject.code && subject.class) {
+          const key = `${subject.code}-${subject.class}`
+          const count = subjectFrequency.get(key) || 0
+          subjectFrequency.set(key, count + 1)
+        }
+      })
+    }
+  })
+
+  const normalizedClass = answerSheet.class.includes('th') ? answerSheet.class : `${answerSheet.class}th`
+  const expectedAnswerSheetType = getExpectedDatesheetAnswerSheetType(answerSheet)
+
+  const relatedExams = cbseDatesheet.entries
+    .filter(entry => {
+      if (entry.subject.class !== normalizedClass) return false
+      if (expectedAnswerSheetType && entry.answerSheet !== expectedAnswerSheetType) return false
+      return true
+    })
+    .map(entry => {
+      const key = `${entry.subject.code}-${entry.subject.class}`
+      const normalizedKey = `${entry.subject.code}-${entry.subject.class.replace(/th$/i, '')}`
+      const candidateCount = subjectFrequency.get(key) || subjectFrequency.get(normalizedKey) || 0
+
+      return {
+        _id: entry._id,
+        examDate: entry.examDate,
+        dayName: entry.dayName,
+        subjectCode: entry.subject.code,
+        subjectName: entry.subject.name,
+        class: entry.subject.class,
+        timeSlot: entry.timeSlot,
+        duration: entry.subject.duration,
+        candidateCount
+      }
+    })
+    .filter(exam => exam.candidateCount > 0)
+    .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
+
+  const fromNum = parseInt(answerSheet.serialFrom.replace(/\D/g, ''), 10)
+  const toNum = parseInt(answerSheet.serialTo.replace(/\D/g, ''), 10)
+  const prefix = answerSheet.serialFrom.replace(/\d+$/, '')
+  const padLength = answerSheet.serialFrom.replace(/\D/g, '').length
+
+  const discardedSet = new Set(
+    (answerSheet.discardedSerials || []).map(d => parseInt(d.serial.replace(/\D/g, ''), 10))
+  )
+
+  const formatSerial = (num) => prefix + num.toString().padStart(padLength, '0')
+
+  const getNextAvailable = (start) => {
+    let current = start
+    while (discardedSet.has(current) && current <= toNum) {
+      current += 1
+    }
+    return current <= toNum ? current : null
+  }
+
+  let currentSerial = getNextAvailable(fromNum)
+
+  const allocations = relatedExams.map(exam => {
+    if (currentSerial === null) {
+      return {
+        ...exam,
+        serialFrom: 'N/A',
+        serialTo: 'N/A',
+        sheetsAllocated: 0,
+        insufficientSheets: true
+      }
+    }
+
+    const serialStart = currentSerial
+    let sheetsAssigned = 0
+    let serialEnd = currentSerial
+
+    while (sheetsAssigned < exam.candidateCount && currentSerial !== null && currentSerial <= toNum) {
+      if (!discardedSet.has(currentSerial)) {
+        serialEnd = currentSerial
+        sheetsAssigned += 1
+      }
+
+      currentSerial += 1
+
+      while (discardedSet.has(currentSerial) && currentSerial <= toNum) {
+        currentSerial += 1
+      }
+    }
+
+    if (currentSerial > toNum) {
+      currentSerial = null
+    }
+
+    return {
+      ...exam,
+      serialFrom: formatSerial(serialStart),
+      serialTo: formatSerial(serialEnd),
+      sheetsAllocated: sheetsAssigned,
+      insufficientSheets: sheetsAssigned < exam.candidateCount
+    }
+  })
+
+  const totalAllocated = allocations.reduce((sum, alloc) => sum + alloc.sheetsAllocated, 0)
+  const discardedCount = (answerSheet.discardedSerials || []).length
+  const usableTotal = answerSheet.total - discardedCount
+
+  return {
+    hasSerialNumbers: true,
+    serialFrom: answerSheet.serialFrom,
+    serialTo: answerSheet.serialTo,
+    total: answerSheet.total,
+    discardedCount,
+    discardedSerials: answerSheet.discardedSerials || [],
+    usableTotal,
+    allocations,
+    totalAllocated,
+    remaining: usableTotal - totalAllocated
+  }
+}
+
+const getAcademicSession = (dateValue) => {
+  const date = new Date(dateValue)
+
+  if (Number.isNaN(date.getTime())) return ''
+
+  const month = date.getMonth() + 1
+  const year = date.getFullYear()
+  const sessionStartYear = month <= 3 ? year - 1 : year
+  const sessionEndYear = sessionStartYear + 1
+
+  return `${sessionStartYear}-${sessionEndYear}`
+}
+
+const formatDispatchDateWithDay = (dateValue) => {
+  const date = new Date(dateValue)
+
+  if (Number.isNaN(date.getTime())) {
+    return String(dateValue || '')
+  }
+
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
+
+  return `${day}.${month}.${year} (${dayName})`
 }
 
 /**
@@ -830,206 +1028,203 @@ exports.getSerialAllocation = async (req, res) => {
       })
     }
 
-    // Check if serial numbers are set
-    if (!answerSheet.serialFrom || !answerSheet.serialTo) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          hasSerialNumbers: false,
-          allocations: []
-        }
-      })
-    }
-
-    // Get centre datesheet data
-    const CBSEDatesheet = require('../models/CBSEDatesheet')
-    const Candidate = require('../models/Candidate')
-    const Subject = require('../models/Subject')
-
-    const cbseDatesheet = await CBSEDatesheet.getActive()
-
-    if (!cbseDatesheet) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          hasSerialNumbers: true,
-          serialFrom: answerSheet.serialFrom,
-          serialTo: answerSheet.serialTo,
-          total: answerSheet.total,
-          allocations: []
-        }
-      })
-    }
-
-    // Get all candidates with their subjects
-    const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
-      .populate('subjects', 'code name class')
-      .lean()
-
-    // Get all subjects
-    const subjects = await Subject.find({ isActive: true }).lean()
-
-    // Create a map of subject code+class to answer sheet type
-    const subjectAnswerSheetMap = new Map()
-    subjects.forEach(subject => {
-      const key = `${subject.code}-${subject.class}`
-      subjectAnswerSheetMap.set(key, subject.answerSheet || 'none')
-    })
-
-    // Calculate candidate count per subject
-    const subjectFrequency = new Map()
-
-    candidates.forEach(candidate => {
-      if (candidate.subjects && candidate.subjects.length > 0) {
-        candidate.subjects.forEach(subject => {
-          if (subject && subject.code && subject.class) {
-            const key = `${subject.code}-${subject.class}`
-            const count = subjectFrequency.get(key) || 0
-            subjectFrequency.set(key, count + 1)
-          }
-        })
-      }
-    })
-
-    // Normalize answer sheet class
-    const normalizedClass = answerSheet.class.includes('th') ? answerSheet.class : `${answerSheet.class}th`
-
-    // Determine the expected answer sheet type based on BOTH answerSheetType AND pages
-    // This ensures 32-page Main sheets only match 32_pages subjects,
-    // and 20-page Main sheets only match 20_pages subjects
-    let expectedAnswerSheetType = null
-    
-    if (answerSheet.answerSheetType === 'Main' || answerSheet.answerSheetType === 'Supplementary') {
-      // Main/Supplementary sheets come in different page counts
-      if (answerSheet.pages === 32) {
-        expectedAnswerSheetType = '32_pages'
-      } else if (answerSheet.pages === 20) {
-        expectedAnswerSheetType = '20_pages'
-      }
-    } else if (answerSheet.answerSheetType === 'Graph') {
-      expectedAnswerSheetType = '40_graph'
-    } else if (answerSheet.answerSheetType === 'Drawing Sheets') {
-      expectedAnswerSheetType = 'drawing_sheets'
-    }
-
-    // Find related exams and sort by date
-    const relatedExams = cbseDatesheet.entries
-      .filter(entry => {
-        if (entry.subject.class !== normalizedClass) return false
-        // Match on the specific answer sheet type (including page count)
-        if (expectedAnswerSheetType && entry.answerSheet !== expectedAnswerSheetType) return false
-        return true
-      })
-      .map(entry => {
-        const key = `${entry.subject.code}-${entry.subject.class}`
-        const normalizedKey = `${entry.subject.code}-${entry.subject.class.replace(/th$/i, '')}`
-        const candidateCount = subjectFrequency.get(key) || subjectFrequency.get(normalizedKey) || 0
-
-        return {
-          _id: entry._id,
-          examDate: entry.examDate,
-          dayName: entry.dayName,
-          subjectCode: entry.subject.code,
-          subjectName: entry.subject.name,
-          class: entry.subject.class,
-          timeSlot: entry.timeSlot,
-          duration: entry.subject.duration,
-          candidateCount
-        }
-      })
-      .filter(exam => exam.candidateCount > 0)
-      .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
-
-    // Calculate serial number allocation, skipping discarded serials
-    const fromNum = parseInt(answerSheet.serialFrom.replace(/\D/g, ''))
-    const toNum = parseInt(answerSheet.serialTo.replace(/\D/g, ''))
-    const prefix = answerSheet.serialFrom.replace(/\d+$/, '')
-    const padLength = answerSheet.serialFrom.replace(/\D/g, '').length
-
-    // Create a set of discarded serial numbers for quick lookup
-    const discardedSet = new Set(
-      (answerSheet.discardedSerials || []).map(d => parseInt(d.serial.replace(/\D/g, '')))
-    )
-
-    // Helper function to format serial number
-    const formatSerial = (num) => prefix + num.toString().padStart(padLength, '0')
-
-    // Helper function to get next available serial (skipping discarded)
-    const getNextAvailable = (start) => {
-      let current = start
-      while (discardedSet.has(current) && current <= toNum) {
-        current++
-      }
-      return current <= toNum ? current : null
-    }
-
-    let currentSerial = getNextAvailable(fromNum)
-
-    const allocations = relatedExams.map(exam => {
-      if (currentSerial === null) {
-        return {
-          ...exam,
-          serialFrom: 'N/A',
-          serialTo: 'N/A',
-          sheetsAllocated: 0,
-          insufficientSheets: true
-        }
-      }
-
-      const serialStart = currentSerial
-      let sheetsAssigned = 0
-      let serialEnd = currentSerial
-
-      // Assign serials one by one, skipping discarded ones
-      while (sheetsAssigned < exam.candidateCount && currentSerial !== null && currentSerial <= toNum) {
-        if (!discardedSet.has(currentSerial)) {
-          serialEnd = currentSerial
-          sheetsAssigned++
-        }
-        currentSerial++
-        // Skip to next available
-        while (discardedSet.has(currentSerial) && currentSerial <= toNum) {
-          currentSerial++
-        }
-      }
-
-      if (currentSerial > toNum) {
-        currentSerial = null
-      }
-
-      return {
-        ...exam,
-        serialFrom: formatSerial(serialStart),
-        serialTo: formatSerial(serialEnd),
-        sheetsAllocated: sheetsAssigned,
-        insufficientSheets: sheetsAssigned < exam.candidateCount
-      }
-    })
-
-    const totalAllocated = allocations.reduce((sum, alloc) => sum + alloc.sheetsAllocated, 0)
-    const discardedCount = (answerSheet.discardedSerials || []).length
-    const usableTotal = answerSheet.total - discardedCount
+    const allocationData = await getSerialAllocationDataForAnswerSheet(answerSheet)
 
     res.status(200).json({
       success: true,
-      data: {
-        hasSerialNumbers: true,
-        serialFrom: answerSheet.serialFrom,
-        serialTo: answerSheet.serialTo,
-        total: answerSheet.total,
-        discardedCount,
-        discardedSerials: answerSheet.discardedSerials || [],
-        usableTotal,
-        allocations,
-        totalAllocated,
-        remaining: usableTotal - totalAllocated
-      }
+      data: allocationData
     })
   } catch (error) {
     console.error('Error calculating serial allocation:', error)
     res.status(500).json({
       success: false,
       error: 'Failed to calculate serial allocation'
+    })
+  }
+}
+
+/**
+ * @desc    Download answer sheet dispatch record for a specific exam entry
+ * @route   GET /api/answersheets/:id/dispatch-record/:entryId/download
+ * @access  Private
+ */
+exports.downloadDispatchRecord = async (req, res) => {
+  try {
+    const { id, entryId } = req.params
+
+    const answerSheet = await AnswerSheet.findById(id)
+
+    if (!answerSheet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Answer sheet not found'
+      })
+    }
+
+    if (!answerSheet.serialFrom || !answerSheet.serialTo) {
+      return res.status(400).json({
+        success: false,
+        error: 'Serial range is not configured for this answer sheet'
+      })
+    }
+
+    const allocationData = await getSerialAllocationDataForAnswerSheet(answerSheet)
+    const selectedAllocation = allocationData.allocations.find(
+      allocation => String(allocation._id) === String(entryId)
+    )
+
+    if (!selectedAllocation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Allocation entry not found for this answer sheet'
+      })
+    }
+
+    if (
+      selectedAllocation.serialFrom === 'N/A'
+      || selectedAllocation.serialTo === 'N/A'
+      || !selectedAllocation.sheetsAllocated
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot generate dispatch record because serial allocation is unavailable for this exam'
+      })
+    }
+
+    const seatingData = await seatingPlanBuilder.buildSeatingData(entryId)
+
+    const serialStartNum = parseInt(String(selectedAllocation.serialFrom).replace(/\D/g, ''), 10)
+    const serialEndNum = parseInt(String(selectedAllocation.serialTo).replace(/\D/g, ''), 10)
+
+    if (Number.isNaN(serialStartNum) || Number.isNaN(serialEndNum)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid serial allocation for the selected exam'
+      })
+    }
+
+    const prefix = answerSheet.serialFrom.replace(/\d+$/, '')
+    const padLength = answerSheet.serialFrom.replace(/\D/g, '').length
+    const formatSerial = (num) => prefix + num.toString().padStart(padLength, '0')
+
+    const discardedNumberToReason = new Map()
+    ;(answerSheet.discardedSerials || []).forEach(item => {
+      const num = parseInt(String(item.serial).replace(/\D/g, ''), 10)
+      if (!Number.isNaN(num)) {
+        discardedNumberToReason.set(num, item.reason || 'Damaged/Misprinted')
+      }
+    })
+
+    const assignedSerialNumbers = []
+    const skippedDiscardedForExam = new Map()
+
+    let currentSerial = serialStartNum
+    while (currentSerial <= serialEndNum && assignedSerialNumbers.length < selectedAllocation.sheetsAllocated) {
+      if (discardedNumberToReason.has(currentSerial)) {
+        skippedDiscardedForExam.set(currentSerial, {
+          serial: formatSerial(currentSerial),
+          reason: discardedNumberToReason.get(currentSerial)
+        })
+      } else {
+        assignedSerialNumbers.push(currentSerial)
+      }
+      currentSerial += 1
+    }
+
+    const roomRows = []
+    let serialCursor = 0
+    const sheetTypeLabel = answerSheet.pages ? `${answerSheet.pages} Pgs` : answerSheet.answerSheetType
+
+    ;(seatingData.rooms || []).forEach(room => {
+      const roomRegistered = Number(room.registered || 0)
+      if (roomRegistered <= 0) return
+
+      const roomSerials = assignedSerialNumbers.slice(serialCursor, serialCursor + roomRegistered)
+      if (roomSerials.length === 0) return
+
+      roomRows.push({
+        srNo: roomRows.length + 1,
+        roomNo: room.roomNo,
+        type: sheetTypeLabel,
+        colour: answerSheet.colour,
+        from: formatSerial(roomSerials[0]),
+        to: formatSerial(roomSerials[roomSerials.length - 1]),
+        total: roomSerials.length
+      })
+
+      serialCursor += roomSerials.length
+    })
+
+    if (roomRows.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'No room-wise allocation could be generated for this exam'
+      })
+    }
+
+    const registeredTotal = (seatingData.rooms || []).reduce(
+      (sum, room) => sum + Number(room.registered || 0),
+      0
+    )
+    const totalAllocated = roomRows.reduce((sum, row) => sum + row.total, 0)
+
+    const classNumber = String(selectedAllocation.class || '').replace(/th$/i, '')
+    const classLabel = classNumber === '10' ? 'X' : classNumber === '12' ? 'XII' : selectedAllocation.class
+    const examDateValue = selectedAllocation.examDate
+    const examDateLabel = formatDispatchDateWithDay(examDateValue)
+    const examSession = getAcademicSession(examDateValue)
+
+    const notes = Array.from(skippedDiscardedForExam.values()).sort((a, b) =>
+      a.serial.localeCompare(b.serial, undefined, { numeric: true, sensitivity: 'base' })
+    )
+
+    const additionalNotes = []
+    if (registeredTotal !== selectedAllocation.candidateCount) {
+      additionalNotes.push(
+        `Registered candidates from seating plan (${registeredTotal}) differ from allocation schedule (${selectedAllocation.candidateCount}).`
+      )
+    }
+    if (selectedAllocation.sheetsAllocated !== totalAllocated) {
+      additionalNotes.push(
+        `Allocated serial count for this record is ${totalAllocated}, while schedule allocation is ${selectedAllocation.sheetsAllocated}.`
+      )
+    }
+
+    const templateData = {
+      schoolName: seatingPlanBuilder.schoolName || 'EXAMINATION CENTRE',
+      centreNo: seatingPlanBuilder.centreNo || '',
+      examSession,
+      examDate: examDateLabel,
+      subjectName: String(selectedAllocation.subjectName || seatingData.datesheet?.subjectName || '').toUpperCase(),
+      classLabel,
+      subjectCode: selectedAllocation.subjectCode || seatingData.datesheet?.subjectCode || '',
+      rows: roomRows,
+      totalAllocated,
+      registeredTotal,
+      notes,
+      additionalNotes
+    }
+
+    const pdfBuffer = await pdfGenerator.generateAnswerSheetDispatchRecord(templateData)
+
+    const examDate = new Date(examDateValue)
+    const datePart = Number.isNaN(examDate.getTime())
+      ? 'unknown-date'
+      : examDate.toISOString().split('T')[0]
+    const safeSubjectCode = String(selectedAllocation.subjectCode || 'subject')
+      .replace(/[^a-z0-9_-]/gi, '_')
+    const filename = `answer-sheet-dispatch-record-${safeSubjectCode}-${datePart}.pdf`
+
+    const buffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer)
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.setHeader('Content-Length', buffer.length)
+    res.end(buffer)
+  } catch (error) {
+    console.error('Error generating dispatch record PDF:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate dispatch record PDF'
     })
   }
 }

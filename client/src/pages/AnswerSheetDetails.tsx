@@ -20,7 +20,9 @@ import {
     TrendingUp,
     Trash2,
     Plus,
-    Ban
+    Ban,
+    Download,
+    Loader2
 } from 'lucide-react'
 import answerSheetService, { AnswerSheetEntry, DiscardedSerial } from '../services/answerSheetService'
 
@@ -75,6 +77,7 @@ const AnswerSheetDetails: React.FC = () => {
     const [discardInput, setDiscardInput] = useState({ serial: '', fromSerial: '', toSerial: '', reason: 'Damaged/Misprinted' })
     const [discardMode, setDiscardMode] = useState<'single' | 'range'>('single')
     const [savingDiscard, setSavingDiscard] = useState(false)
+    const [downloadingAllocationId, setDownloadingAllocationId] = useState<string | null>(null)
 
     useEffect(() => {
         if (id) {
@@ -181,6 +184,33 @@ const AnswerSheetDetails: React.FC = () => {
         } catch (error: any) {
             console.error('Error removing discarded serial:', error)
             toast.error(error.response?.data?.error || 'Failed to remove discarded serial')
+        }
+    }
+
+    const getDispatchFilename = (alloc: SerialAllocation) => {
+        const datePart = (() => {
+            const date = new Date(alloc.examDate)
+            return Number.isNaN(date.getTime()) ? 'unknown-date' : date.toISOString().split('T')[0]
+        })()
+
+        const subjectCode = (alloc.subjectCode || 'subject').replace(/[^a-z0-9_-]/gi, '_')
+        return `answer-sheet-dispatch-record-${subjectCode}-${datePart}.pdf`
+    }
+
+    const handleDownloadDispatchRecord = async (alloc: SerialAllocation) => {
+        if (!id) return
+
+        const allocationId = String(alloc._id || '')
+        if (!allocationId) return
+
+        try {
+            setDownloadingAllocationId(allocationId)
+            await answerSheetService.downloadDispatchRecord(id, allocationId, getDispatchFilename(alloc))
+        } catch (error: any) {
+            console.error('Error downloading dispatch record:', error)
+            toast.error(error?.response?.data?.error || 'Failed to download dispatch record')
+        } finally {
+            setDownloadingAllocationId(null)
         }
     }
 
@@ -540,44 +570,66 @@ const AnswerSheetDetails: React.FC = () => {
                                                 <th className="px-6 py-3 text-center font-medium text-gray-500 dark:text-gray-400">Students</th>
                                                 <th className="px-6 py-3 text-center font-medium text-gray-500 dark:text-gray-400">Serial Range</th>
                                                 <th className="px-6 py-3 text-right font-medium text-gray-500 dark:text-gray-400">Total</th>
+                                                <th className="px-6 py-3 text-center font-medium text-gray-500 dark:text-gray-400">Download</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-700 dark:border-gray-700">
-                                            {allocation.allocations.map((alloc, index) => (
-                                                <tr key={alloc._id || index} className="group hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
-                                                                <Calendar className="h-5 w-5" />
-                                                            </div>
-                                                            <div>
-                                                                <div className="font-medium text-gray-900 dark:text-white">{formatDate(alloc.examDate)}</div>
-                                                                <div className="text-xs text-gray-500 dark:text-gray-400 max-w-[180px] truncate" title={alloc.subjectName}>
-                                                                    {alloc.subjectName} ({alloc.subjectCode})
+                                            {allocation.allocations.map((alloc, index) => {
+                                                const allocationId = String(alloc._id || '')
+                                                const isCurrentRowDownloading = downloadingAllocationId === allocationId
+                                                const isAnyRowDownloading = downloadingAllocationId !== null
+                                                const hasAllocation = alloc.serialFrom !== 'N/A' && alloc.serialTo !== 'N/A' && alloc.sheetsAllocated > 0
+
+                                                return (
+                                                    <tr key={alloc._id || index} className="group hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+                                                                    <Calendar className="h-5 w-5" />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="font-medium text-gray-900 dark:text-white">{formatDate(alloc.examDate)}</div>
+                                                                    <div className="text-xs text-gray-500 dark:text-gray-400 max-w-[180px] truncate" title={alloc.subjectName}>
+                                                                        {alloc.subjectName} ({alloc.subjectCode})
+                                                                    </div>
                                                                 </div>
                                                             </div>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <div className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-200">
-                                                            <Users className="h-3 w-3" />
-                                                            {alloc.candidateCount}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-center">
-                                                        <div className="font-mono text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded px-2 py-1 inline-block border border-gray-100 dark:border-gray-700">
-                                                            <span className="font-medium text-gray-900 dark:text-white">{alloc.serialFrom}</span>
-                                                            <span className="mx-2 text-gray-400">→</span>
-                                                            <span className="font-medium text-gray-900 dark:text-white">{alloc.serialTo}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <span className="font-bold text-gray-900 dark:text-white">
-                                                            {alloc.sheetsAllocated}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <div className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-200">
+                                                                <Users className="h-3 w-3" />
+                                                                {alloc.candidateCount}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <div className="font-mono text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 rounded px-2 py-1 inline-block border border-gray-100 dark:border-gray-700">
+                                                                <span className="font-medium text-gray-900 dark:text-white">{alloc.serialFrom}</span>
+                                                                <span className="mx-2 text-gray-400">→</span>
+                                                                <span className="font-medium text-gray-900 dark:text-white">{alloc.serialTo}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <span className="font-bold text-gray-900 dark:text-white">
+                                                                {alloc.sheetsAllocated}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <button
+                                                                onClick={() => handleDownloadDispatchRecord(alloc)}
+                                                                disabled={!hasAllocation || (isAnyRowDownloading && !isCurrentRowDownloading)}
+                                                                className="inline-flex items-center justify-center rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-blue-400 dark:hover:bg-blue-900/20 dark:hover:text-blue-300"
+                                                                title={hasAllocation ? 'Download dispatch record PDF' : 'No allocation available for download'}
+                                                            >
+                                                                {isCurrentRowDownloading ? (
+                                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                                ) : (
+                                                                    <Download className="h-4 w-4" />
+                                                                )}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                )
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>

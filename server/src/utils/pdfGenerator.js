@@ -73,6 +73,10 @@ class PDFGenerator {
   async generateCBSECopy(data) {
     return this.generatePDF('cbse-copy', data);
   }
+
+  async generateAnswerSheetDispatchRecord(data) {
+    return this.generatePDF('answer-sheet-dispatch-record', data);
+  }
 }
 
 module.exports = new PDFGenerator();

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Answer Sheet Dispatch Record</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 10mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      color: #111;
+      font-family: Arial, sans-serif;
+      font-size: 10pt;
+      line-height: 1.35;
+    }
+
+    .page {
+      display: flex;
+      flex-direction: column;
+      min-height: 270mm;
+    }
+
+    .header {
+      margin-bottom: 8px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 14pt;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+    }
+
+    .header .sub {
+      font-size: 10pt;
+      font-weight: bold;
+      margin-bottom: 1px;
+    }
+
+    .meta {
+      border: 1px solid #111;
+      border-collapse: collapse;
+      display: table;
+      margin-bottom: 8px;
+      width: 100%;
+    }
+
+    .meta-row {
+      display: table-row;
+    }
+
+    .meta-cell {
+      border-right: 1px solid #111;
+      display: table-cell;
+      padding: 5px 8px;
+      width: 50%;
+    }
+
+    .meta-cell:last-child {
+      border-right: none;
+    }
+
+    .meta strong {
+      display: inline-block;
+      min-width: 62px;
+    }
+
+    .table {
+      border-collapse: collapse;
+      margin-bottom: 8px;
+      table-layout: fixed;
+      width: 100%;
+    }
+
+    .table th,
+    .table td {
+      border: 1px solid #111;
+      padding: 4px 6px;
+      text-align: center;
+      vertical-align: middle;
+      word-wrap: break-word;
+    }
+
+    .table th {
+      background: #f3f3f3;
+      font-size: 9pt;
+      font-weight: bold;
+    }
+
+    .table td {
+      font-size: 9pt;
+    }
+
+    .table .left {
+      text-align: left;
+    }
+
+    .summary {
+      border: 1px solid #111;
+      margin-bottom: 8px;
+      padding: 6px 8px;
+    }
+
+    .summary-row {
+      align-items: center;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      margin-bottom: 4px;
+    }
+
+    .summary-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .line {
+      border-bottom: 1px solid #111;
+      display: inline-block;
+      min-width: 90px;
+      padding-left: 2px;
+    }
+
+    .notes {
+      border: 1px solid #111;
+      margin-bottom: 10px;
+      padding: 6px 8px;
+    }
+
+    .notes-title {
+      font-size: 9pt;
+      font-weight: bold;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+
+    .notes ul {
+      margin-left: 16px;
+    }
+
+    .notes li {
+      font-size: 9pt;
+      margin-bottom: 2px;
+    }
+
+    .footer {
+      margin-top: auto;
+      text-align: right;
+    }
+
+    .signature {
+      display: inline-block;
+      min-width: 220px;
+      text-align: center;
+    }
+
+    .signature-line {
+      border-top: 1px solid #111;
+      margin-bottom: 4px;
+      margin-top: 30px;
+      width: 100%;
+    }
+
+    .signature-label {
+      font-size: 9pt;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <h1>{{schoolName}}</h1>
+      <div class="sub">Answer Sheet Record - Centre No: {{centreNo}}</div>
+      <div class="sub">CBSE BOARD EXAMINATION ({{examSession}})</div>
+    </div>
+
+    <div class="meta">
+      <div class="meta-row">
+        <div class="meta-cell"><strong>Date:</strong> {{examDate}}</div>
+        <div class="meta-cell"><strong>Subject:</strong> {{subjectName}}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-cell"><strong>Class:</strong> {{classLabel}}</div>
+        <div class="meta-cell"><strong>Code:</strong> {{subjectCode}}</div>
+      </div>
+    </div>
+
+    <table class="table">
+      <thead>
+        <tr>
+          <th style="width: 8%;">Sr No</th>
+          <th style="width: 13%;">Room No</th>
+          <th style="width: 16%;">Type</th>
+          <th style="width: 14%;">Colour</th>
+          <th style="width: 18%;">From</th>
+          <th style="width: 18%;">To</th>
+          <th style="width: 13%;">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#rows}}
+        <tr>
+          <td>{{srNo}}</td>
+          <td>{{roomNo}}</td>
+          <td>{{type}}</td>
+          <td>{{colour}}</td>
+          <td>{{from}}</td>
+          <td>{{to}}</td>
+          <td>{{total}}</td>
+        </tr>
+        {{/rows}}
+      </tbody>
+    </table>
+
+    <div class="summary">
+      <div class="summary-row">
+        <div><strong>Total:</strong> {{totalAllocated}}</div>
+        <div><strong>Registered:</strong> {{registeredTotal}}</div>
+      </div>
+      <div class="summary-row">
+        <div><strong>Used:</strong> <span class="line">&nbsp;</span></div>
+        <div><strong>Returned:</strong> <span class="line">&nbsp;</span></div>
+      </div>
+    </div>
+
+    {{#if notes.length}}
+    <div class="notes">
+      <div class="notes-title">Discarded Serials Skipped</div>
+      <ul>
+        {{#notes}}
+        <li><strong>{{serial}}</strong> - {{reason}}</li>
+        {{/notes}}
+      </ul>
+    </div>
+    {{/if}}
+
+    {{#if additionalNotes.length}}
+    <div class="notes">
+      <div class="notes-title">Additional Notes</div>
+      <ul>
+        {{#additionalNotes}}
+        <li>{{this}}</li>
+        {{/additionalNotes}}
+      </ul>
+    </div>
+    {{/if}}
+
+    <div class="footer">
+      <div class="signature">
+        <div class="signature-line"></div>
+        <div class="signature-label">Centre Superintendent</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

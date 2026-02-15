@@ -15,6 +15,7 @@ const {
   uploadExcel,
   getAnswerSheetDetails,
   getSerialAllocation,
+  downloadDispatchRecord,
   addDiscardedSerials,
   removeDiscardedSerial,
   getDiscardedSerials
@@ -43,6 +44,7 @@ router.route('/:id')
 // Details and allocation routes (must be before other :id routes to avoid conflicts)
 router.get('/:id/details', getAnswerSheetDetails)
 router.get('/:id/allocation', getSerialAllocation)
+router.get('/:id/dispatch-record/:entryId/download', downloadDispatchRecord)
 
 // Action routes
 router.post('/:id/use', useAnswerSheets)

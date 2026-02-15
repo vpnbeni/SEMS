@@ -1,4 +1,4 @@
-import api from './api'
+import api, { downloadFile } from './api'
 
 export interface DiscardedSerial {
   serial: string
@@ -192,6 +192,20 @@ class AnswerSheetService {
   async getSerialAllocation(id: string) {
     const response = await api.get(`/answersheets/${id}/allocation`)
     return response.data
+  }
+
+  /**
+   * Download per-exam dispatch record PDF
+   */
+  async downloadDispatchRecord(
+    answerSheetId: string,
+    entryId: string,
+    fallbackFilename = 'answer-sheet-dispatch-record.pdf'
+  ): Promise<void> {
+    await downloadFile(
+      `/answersheets/${answerSheetId}/dispatch-record/${entryId}/download`,
+      fallbackFilename
+    )
   }
 
   /**
