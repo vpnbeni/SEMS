@@ -4,7 +4,7 @@ services:
     name: sems-server
     env: node
     rootDir: server
-    buildCommand: npm install
+    buildCommand: npm install && npx puppeteer browsers install chrome --install-deps
     startCommand: npm start
     envVars:
       - key: NODE_ENV
