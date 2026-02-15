@@ -18,6 +18,30 @@ sudo apt update && sudo apt install -y nginx git
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt install -y nodejs
 sudo npm i -g pm2
+sudo apt install -y \
+  ca-certificates \
+  fonts-liberation \
+  libasound2 \
+  libatk-bridge2.0-0 \
+  libatk1.0-0 \
+  libcups2 \
+  libdbus-1-3 \
+  libdrm2 \
+  libgbm1 \
+  libgtk-3-0 \
+  libnspr4 \
+  libnss3 \
+  libx11-6 \
+  libx11-xcb1 \
+  libxcb1 \
+  libxcomposite1 \
+  libxdamage1 \
+  libxext6 \
+  libxfixes3 \
+  libxrandr2 \
+  xdg-utils
+# If Ubuntu 24 reports missing `libasound2` / `libcups2`, install:
+# sudo apt install -y libasound2t64 libcups2t64
 ```
 
 ### 2.2 Create app directory
