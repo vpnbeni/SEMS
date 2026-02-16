@@ -1164,7 +1164,7 @@ const SeatingPlan: React.FC = () => {
                 </div>
 
                 {/* Footer */}
-                <p className="text-right font-bold text-gray-900 dark:text-white">CENTRE SUPERINTENDENT</p>
+                <p className="mt-16 text-right font-bold text-gray-900 dark:text-white">CENTRE SUPERINTENDENT</p>
                 </div>
               </div>
 
@@ -1688,7 +1688,7 @@ const SeatingPlan: React.FC = () => {
                           Sr. Secondary School Certificate Examination 2026
                         </td>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Subject</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-sm text-gray-900 dark:text-white">ENGLISH (LANG. & LIT.)</td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-sm text-gray-900 dark:text-white">184 ; ENGLISH (LANG. & LIT.)</td>
                       </tr>
                       <tr>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Date</td>
@@ -1843,11 +1843,12 @@ const SeatingPlan: React.FC = () => {
                   <div className="w-1/2 leading-relaxed">
                     <p className="font-bold text-gray-900 dark:text-white">Signature of Assistant</p>
                     <p className="font-bold text-gray-900 dark:text-white mb-3">Superintendent</p>
-                    <p className="text-gray-700 dark:text-gray-300 mt-2">1. ____________________</p>
-                    <p className="text-gray-700 dark:text-gray-300 mt-3">2. ____________________</p>
+                    <p className="text-gray-700 dark:text-gray-300 mt-2">1. ______________</p>
+                    <p className="text-gray-700 dark:text-gray-300 mt-3">2. ______________</p>
                   </div>
-                  <div className="w-1/2 text-left pl-8 leading-relaxed">
-                    <p className="text-gray-700 dark:text-gray-300"><span className="font-bold text-gray-900 dark:text-white">Signature of Total Students Registered:</span> ________</p>
+                  <div className="w-1/2 text-left pl-10 leading-relaxed">
+                    <p className="font-bold text-gray-900 dark:text-white">Total Students</p>
+                    <p className="text-gray-700 dark:text-gray-300 mt-2"><span className="font-bold text-gray-900 dark:text-white">Registered:</span> ________</p>
                     <p className="text-gray-700 dark:text-gray-300 mt-3"><span className="font-bold text-gray-900 dark:text-white">Present:</span> ________</p>
                     <p className="text-gray-700 dark:text-gray-300 mt-3"><span className="font-bold text-gray-900 dark:text-white">Absent:</span> ________</p>
                   </div>

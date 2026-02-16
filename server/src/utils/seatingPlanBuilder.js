@@ -965,6 +965,7 @@ class SeatingPlanBuilder {
         centreNo: identity.centreNo,
         examName: examName,
         examYear: `${examYear}`,
+        subjectCode: datesheet.subjectCode,
         subjectName: datesheet.subjectName.toUpperCase(),
         examDate: this.formatDate(datesheet.date, false),
         roomNo: room.roomNo,

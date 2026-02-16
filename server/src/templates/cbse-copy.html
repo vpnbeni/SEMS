@@ -159,14 +159,19 @@
         }
         
         .footer-left .signature-item .line {
-            flex-grow: 1;
             border-bottom: 1px solid #000;
-            min-width: 150px;
+            width: 260px;
         }
         
         .footer-right {
             width: 50%;
             text-align: left;
+            padding-left: 16px;
+        }
+
+        .footer-right .title {
+            font-weight: bold;
+            margin-bottom: 8px;
         }
         
         .footer-right .stat-item {
@@ -190,6 +195,11 @@
             font-size: 12pt;
             font-weight: bold;
             margin-top: 36px;
+        }
+
+        .centre-superintendent .label {
+            display: block;
+            margin-top: 8px;
         }
         
         .page-break {
@@ -224,7 +234,7 @@
                     {{examName}} {{examYear}}
                 </td>
                 <td class="right-label">Subject</td>
-                <td class="right-value" style="font-size: 10pt;">{{subjectName}}</td>
+                <td class="right-value" style="font-size: 10pt;">{{#if subjectCode}}{{subjectCode}} ; {{/if}}{{subjectName}}</td>
             </tr>
             <tr>
                 <td class="label-cell">Date</td>
@@ -286,8 +296,9 @@
                 </div>
             </div>
             <div class="footer-right">
+                <div class="title">Total Students</div>
                 <div class="stat-item">
-                    <span class="label">Signature of Total Students Registered:</span>
+                    <span class="label">Registered:</span>
                     <div class="line"></div>
                 </div>
                 <div class="stat-item">
@@ -302,7 +313,7 @@
         </div>
         
         <div class="centre-superintendent">
-            Signature of Centre Superintendent
+            <span class="label">Signature of Centre Superintendent</span>
         </div>
     </div>
     {{^last}}<div class="page-break"></div>{{/last}}
