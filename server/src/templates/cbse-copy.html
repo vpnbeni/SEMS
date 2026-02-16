@@ -38,8 +38,15 @@
         .info-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
             margin-bottom: 15px;
         }
+
+        .info-table col.info-col1 { width: {{templateSettings.infoCol1Width}}%; }
+        .info-table col.info-col2 { width: {{templateSettings.infoCol2Width}}%; }
+        .info-table col.info-col3 { width: {{templateSettings.infoCol3Width}}%; }
+        .info-table col.info-col4 { width: {{templateSettings.infoCol4Width}}%; }
+        .info-table col.info-col5 { width: {{templateSettings.infoCol5Width}}%; }
         
         .info-table td {
             border: 2px solid #000;
@@ -81,45 +88,54 @@
         .seating-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
             margin-bottom: 20px;
         }
+
+        .seating-table col.col1 { width: {{templateSettings.col1Width}}%; }
+        .seating-table col.col2 { width: {{templateSettings.col2Width}}%; }
+        .seating-table col.col3 { width: {{templateSettings.col3Width}}%; }
+        .seating-table col.col4 { width: {{templateSettings.col4Width}}%; }
+        .seating-table col.col5 { width: {{templateSettings.col5Width}}%; }
+        .seating-table col.col6 { width: {{templateSettings.col6Width}}%; }
         
         .seating-table th,
         .seating-table td {
             border: 2px solid #000;
-            padding: 6px 8px;
+            padding: {{templateSettings.cellPaddingY}}px {{templateSettings.cellPaddingX}}px;
             text-align: center;
+            vertical-align: middle;
+            height: {{templateSettings.rowHeight}}px;
         }
         
         .seating-table th {
             font-weight: bold;
-            font-size: 12pt;
+            font-size: {{templateSettings.headerFontSize}}pt;
         }
         
         .seating-table .sub-header td {
             font-weight: bold;
-            font-size: 11pt;
+            font-size: {{templateSettings.subHeaderFontSize}}pt;
         }
         
         .seating-table td.roll-number {
-            font-size: 11pt;
+            font-size: {{templateSettings.bodyFontSize}}pt;
             font-weight: normal;
-            min-height: 28px;
-            height: 28px;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
         }
         
         .seating-table td.qp-code {
-            min-height: 28px;
-            height: 28px;
-            width: 70px;
+            font-size: {{templateSettings.bodyFontSize}}pt;
         }
         
         /* Footer Section */
         .footer-section {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 25px;
+            margin-bottom: 32px;
             font-size: 11pt;
+            line-height: 1.45;
         }
         
         .footer-left {
@@ -132,7 +148,7 @@
         }
         
         .footer-left .signature-item {
-            margin-top: 12px;
+            margin-top: 16px;
             display: flex;
             align-items: baseline;
         }
@@ -156,7 +172,7 @@
         .footer-right .stat-item {
             display: flex;
             align-items: baseline;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
         }
         
         .footer-right .stat-item .label {
@@ -173,7 +189,7 @@
             text-align: right;
             font-size: 12pt;
             font-weight: bold;
-            margin-top: 30px;
+            margin-top: 36px;
         }
         
         .page-break {
@@ -187,10 +203,17 @@
         <div class="header">SEATING PLAN</div>
         
         <table class="info-table">
+            <colgroup>
+                <col class="info-col1">
+                <col class="info-col2">
+                <col class="info-col3">
+                <col class="info-col4">
+                <col class="info-col5">
+            </colgroup>
             <tr>
                 <td class="label-cell">Name Of Centre</td>
                 <td colspan="2" class="value-cell">
-                    {{schoolName}}<br>{{schoolAddress}}
+                    {{schoolName}}{{#if schoolAddress}}<br>{{schoolAddress}}{{/if}}
                 </td>
                 <td class="right-label">Centre No</td>
                 <td class="right-value">{{centreNo}}</td>
@@ -198,7 +221,7 @@
             <tr>
                 <td class="label-cell">Name Of<br>Examination</td>
                 <td colspan="2" class="value-cell">
-                    {{examName}}<br>{{examYear}}
+                    {{examName}} {{examYear}}
                 </td>
                 <td class="right-label">Subject</td>
                 <td class="right-value" style="font-size: 10pt;">{{subjectName}}</td>
@@ -212,6 +235,14 @@
         </table>
         
         <table class="seating-table">
+            <colgroup>
+                <col class="col1">
+                <col class="col2">
+                <col class="col3">
+                <col class="col4">
+                <col class="col5">
+                <col class="col6">
+            </colgroup>
             <thead>
                 <tr>
                     <th colspan="2">Row 1</th>

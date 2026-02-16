@@ -42,8 +42,16 @@
         .info-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
             margin-bottom: 10px;
         }
+
+        .info-table col.info-col1 { width: {{templateSettings.infoCol1Width}}%; }
+        .info-table col.info-col2 { width: {{templateSettings.infoCol2Width}}%; }
+        .info-table col.info-col3 { width: {{templateSettings.infoCol3Width}}%; }
+        .info-table col.info-col4 { width: {{templateSettings.infoCol4Width}}%; }
+        .info-table col.info-col5 { width: {{templateSettings.infoCol5Width}}%; }
+        .info-table col.info-col6 { width: {{templateSettings.infoCol6Width}}%; }
         
         .info-table td {
             border: 2px solid #000;
@@ -71,7 +79,12 @@
         .seating-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
+
+        .seating-table col.col1 { width: {{templateSettings.col1Width}}%; }
+        .seating-table col.col2 { width: {{templateSettings.col2Width}}%; }
+        .seating-table col.col3 { width: {{templateSettings.col3Width}}%; }
         
         .seating-table th,
         .seating-table td {
@@ -79,6 +92,8 @@
             padding: 6px 8px;
             text-align: center;
             font-size: 10pt;
+            height: {{templateSettings.rowHeight}}px;
+            vertical-align: middle;
         }
         
         .seating-table th {
@@ -109,10 +124,18 @@
         <div class="slip-title">SEATING PLAN</div>
         
         <table class="info-table">
+            <colgroup>
+                <col class="info-col1">
+                <col class="info-col2">
+                <col class="info-col3">
+                <col class="info-col4">
+                <col class="info-col5">
+                <col class="info-col6">
+            </colgroup>
             <tr>
                 <td>Name Of Centre</td>
                 <td colspan="2" class="value-cell">
-                    {{schoolName}}<br>{{schoolAddress}}
+                    {{schoolName}}{{#if schoolAddress}}<br>{{schoolAddress}}{{/if}}
                 </td>
                 <td class="label-cell">Centre No</td>
                 <td class="value-cell"><strong>{{centreNo}}</strong></td>
@@ -135,6 +158,11 @@
         </table>
         
         <table class="seating-table">
+            <colgroup>
+                <col class="col1">
+                <col class="col2">
+                <col class="col3">
+            </colgroup>
             <thead>
                 <tr>
                     <th>Row 1</th>

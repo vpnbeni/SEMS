@@ -11,6 +11,10 @@ router.post('/rooms', seatingPlanController.createRoom);
 router.put('/rooms/:id', seatingPlanController.updateRoom);
 router.delete('/rooms/:id', seatingPlanController.deleteRoom);
 
+// Template settings routes
+router.get('/template-settings', seatingPlanController.getTemplateSettings);
+router.put('/template-settings', seatingPlanController.upsertTemplateSettings);
+
 // PDF generation routes
 router.get('/generate/main-gate/:datesheetId', seatingPlanController.generateMainGate);
 router.get('/generate/room-folder-slip/:datesheetId', seatingPlanController.generateRoomFolderSlip);

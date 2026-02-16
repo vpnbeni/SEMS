@@ -1,17 +1,22 @@
 import {
   useQuery,
   useMutation,
+  useQueryClient,
   type UseQueryOptions,
   type UseMutationOptions,
 } from '@tanstack/react-query'
 import centreDatesheetService, {
   type CentreDatesheetEntry,
 } from '../services/centreDatesheetService'
-import { seatingPlanService } from '../services/seatingPlanService'
+import {
+  seatingPlanService,
+  type SeatingPlanTemplateSettings,
+} from '../services/seatingPlanService'
 
 export const seatingPlanKeys = {
   all: ['seatingPlan'] as const,
   centreDatesheetEntries: () => [...seatingPlanKeys.all, 'centreDatesheetEntries'] as const,
+  templateSettings: () => [...seatingPlanKeys.all, 'templateSettings'] as const,
 }
 
 async function fetchCentreDatesheetEntries(): Promise<CentreDatesheetEntry[]> {
@@ -28,6 +33,23 @@ export function useCentreDatesheetEntries(
   return useQuery({
     queryKey: seatingPlanKeys.centreDatesheetEntries(),
     queryFn: fetchCentreDatesheetEntries,
+    ...options,
+  })
+}
+
+async function fetchTemplateSettings(): Promise<SeatingPlanTemplateSettings> {
+  return seatingPlanService.getTemplateSettings()
+}
+
+export function useSeatingPlanTemplateSettings(
+  options?: Omit<
+    UseQueryOptions<SeatingPlanTemplateSettings, Error>,
+    'queryKey' | 'queryFn'
+  >
+) {
+  return useQuery({
+    queryKey: seatingPlanKeys.templateSettings(),
+    queryFn: fetchTemplateSettings,
     ...options,
   })
 }
@@ -59,6 +81,7 @@ async function generatePDF(datesheetId: string, format: SeatingPlanFormat): Prom
 export interface GenerateSeatingPlanPDFVariables {
   datesheetId: string
   format: SeatingPlanFormat
+  filename?: string
 }
 
 export function useGenerateSeatingPlanPDFMutation(
@@ -68,8 +91,27 @@ export function useGenerateSeatingPlanPDFMutation(
     mutationFn: ({ datesheetId, format }: GenerateSeatingPlanPDFVariables) =>
       generatePDF(datesheetId, format),
     onSuccess: (blob, variables) => {
-      const filename = FORMAT_FILENAMES[variables.format]
+      const filename = variables.filename || FORMAT_FILENAMES[variables.format]
       seatingPlanService.downloadPDF(blob, filename)
+    },
+    ...options,
+  })
+}
+
+export function useUpdateSeatingPlanTemplateSettingsMutation(
+  options?: UseMutationOptions<
+    SeatingPlanTemplateSettings,
+    Error,
+    SeatingPlanTemplateSettings
+  >
+) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (settings) => seatingPlanService.updateTemplateSettings(settings),
+    onSuccess: (data, variables, onMutateResult, context) => {
+      queryClient.setQueryData(seatingPlanKeys.templateSettings(), data)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })

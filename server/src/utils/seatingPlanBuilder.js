@@ -25,10 +25,23 @@ class SeatingPlanBuilder {
     this._normalizedDateCache.clear();
   }
 
-  async buildSeatingData(entryId) {
+  resolveCentreIdentity(centreDetails = null) {
+    const centreName = String(centreDetails?.centreName || '').trim();
+    const centreNo = String(centreDetails?.centreNo || '').trim();
+    const hasCentreNameFromDetails = centreName.length > 0;
+
+    return {
+      schoolName: centreName || this.schoolName,
+      schoolAddress: hasCentreNameFromDetails ? '' : this.schoolAddress,
+      centreNo: centreNo || this.centreNo,
+    };
+  }
+
+  async buildSeatingData(entryId, options = {}) {
     try {
       // Clear caches at the start of each buildSeatingData call
       this._clearCaches();
+      const centreIdentity = this.resolveCentreIdentity(options.centreDetails);
 
       const { Form66 } = require('../models/Form66');
       const AnswerSheet = require('../models/AnswerSheet');
@@ -95,7 +108,8 @@ class SeatingPlanBuilder {
         },
         rooms: roomAllocations,
         totalCandidates: candidates.length,
-        answerSheetAllocations
+        answerSheetAllocations,
+        centreIdentity,
       };
     } catch (error) {
       console.error('Seating Plan Builder Error:', error);
@@ -551,7 +565,7 @@ class SeatingPlanBuilder {
       const rows = this.buildRowsWithOffset(roomCandidates, seatOffset, candidateIndex, answerSheetAllocations);
 
       allocations.push({
-        roomNo: room.roomNo,
+        roomNo: this.formatRoomNoDisplay(room.roomNo),
         roomName: room.roomName || '',
         floor: room.floor || 'First Floor',
         candidates: roomCandidates,
@@ -658,7 +672,7 @@ class SeatingPlanBuilder {
       const rows = this.buildRows(roomCandidates, candidateIndex, answerSheetAllocations);
 
       allocations.push({
-        roomNo: room.roomNo,
+        roomNo: this.formatRoomNoDisplay(room.roomNo),
         roomName: room.roomName || '',
         floor: room.floor || 'First Floor',
         candidates: roomCandidates,
@@ -808,12 +822,23 @@ class SeatingPlanBuilder {
     return classValue;
   }
 
+  formatRoomNoDisplay(roomNo) {
+    const value = String(roomNo ?? '').trim();
+    if (!value) return value;
+
+    // Keep non-numeric room identifiers unchanged (e.g. A1, Lab-2).
+    if (!/^\d+$/.test(value)) return value;
+
+    return value.padStart(2, '0');
+  }
+
   buildMainGateData(seatingData) {
-    const { datesheet, rooms } = seatingData;
+    const { datesheet, rooms, centreIdentity } = seatingData;
+    const identity = centreIdentity || this.resolveCentreIdentity();
 
     return {
-      schoolName: this.schoolName,
-      centreNo: this.centreNo,
+      schoolName: identity.schoolName,
+      centreNo: identity.centreNo,
       examDate: this.formatDate(datesheet.date, true),
       subjectName: datesheet.subjectName,
       className: this.getClassRoman(datesheet.class),
@@ -828,7 +853,8 @@ class SeatingPlanBuilder {
   }
 
   buildRoomFolderSlipData(seatingData) {
-    const { datesheet, rooms } = seatingData;
+    const { datesheet, rooms, centreIdentity } = seatingData;
+    const identity = centreIdentity || this.resolveCentreIdentity();
     const slips = [];
     const examName = this.getExamName(datesheet.class);
     const examYear = this.getExamYear(datesheet.date);
@@ -839,9 +865,9 @@ class SeatingPlanBuilder {
 
       if (slip1) {
         slips.push({
-          schoolName: this.schoolName,
-          schoolAddress: this.schoolAddress,
-          centreNo: this.centreNo,
+          schoolName: identity.schoolName,
+          schoolAddress: identity.schoolAddress,
+          centreNo: identity.centreNo,
           className: datesheet.class,
           examName: examName,
           examYear: examYear,
@@ -857,9 +883,9 @@ class SeatingPlanBuilder {
 
       if (slip2) {
         slips.push({
-          schoolName: this.schoolName,
-          schoolAddress: this.schoolAddress,
-          centreNo: this.centreNo,
+          schoolName: identity.schoolName,
+          schoolAddress: identity.schoolAddress,
+          centreNo: identity.centreNo,
           className: datesheet.class,
           examName: examName,
           examYear: examYear,
@@ -878,7 +904,8 @@ class SeatingPlanBuilder {
   }
 
   buildRoomDoorSlipData(seatingData) {
-    const { datesheet, rooms } = seatingData;
+    const { datesheet, rooms, centreIdentity } = seatingData;
+    const identity = centreIdentity || this.resolveCentreIdentity();
     const slips = [];
     const examName = this.getExamName(datesheet.class);
     const examYear = this.getExamYear(datesheet.date);
@@ -889,9 +916,9 @@ class SeatingPlanBuilder {
 
       if (slip1) {
         slips.push({
-          schoolName: this.schoolName,
-          schoolAddress: this.schoolAddress,
-          centreNo: this.centreNo,
+          schoolName: identity.schoolName,
+          schoolAddress: identity.schoolAddress,
+          centreNo: identity.centreNo,
           className: this.getClassRoman(datesheet.class),
           examName: examName,
           examYear: examYear,
@@ -906,9 +933,9 @@ class SeatingPlanBuilder {
 
       if (slip2) {
         slips.push({
-          schoolName: this.schoolName,
-          schoolAddress: this.schoolAddress,
-          centreNo: this.centreNo,
+          schoolName: identity.schoolName,
+          schoolAddress: identity.schoolAddress,
+          centreNo: identity.centreNo,
           className: this.getClassRoman(datesheet.class),
           examName: examName,
           examYear: examYear,
@@ -926,15 +953,16 @@ class SeatingPlanBuilder {
   }
 
   buildCBSECopyData(seatingData) {
-    const { datesheet, rooms } = seatingData;
+    const { datesheet, rooms, centreIdentity } = seatingData;
+    const identity = centreIdentity || this.resolveCentreIdentity();
     const examName = this.getExamName(datesheet.class);
     const examYear = this.getExamYear(datesheet.date);
 
     return {
       rooms: rooms.map((room, index) => ({
-        schoolName: this.schoolName,
-        schoolAddress: this.schoolAddress,
-        centreNo: this.centreNo,
+        schoolName: identity.schoolName,
+        schoolAddress: identity.schoolAddress,
+        centreNo: identity.centreNo,
         examName: examName,
         examYear: `${examYear}`,
         subjectName: datesheet.subjectName.toUpperCase(),

@@ -15,6 +15,7 @@ const { Form66, Form66Upload } = require('../models/Form66');
 const Guideline = require('../models/Guideline');
 const Undertaking = require('../models/Undertaking');
 const CentreDetail = require('../models/CentreDetail');
+const SeatingPlanTemplateSetting = require('../models/SeatingPlanTemplateSetting');
 
 const tenantModelExports = {
   User,
@@ -34,7 +35,8 @@ const tenantModelExports = {
   Form66Upload,
   Guideline,
   Undertaking,
-  CentreDetail
+  CentreDetail,
+  SeatingPlanTemplateSetting
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

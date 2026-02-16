@@ -2,6 +2,293 @@ const pdfGenerator = require('../utils/pdfGenerator');
 const seatingPlanBuilder = require('../utils/seatingPlanBuilder');
 const Room = require('../models/Room');
 
+const DEFAULT_TEMPLATE_SETTINGS = Object.freeze({
+  mainGate: {
+    col1Width: 16,
+    col2Width: 28,
+    col3Width: 28,
+    col4Width: 28,
+    rowHeight: 22,
+  },
+  cbseCopy: {
+    infoCol1Width: 20,
+    infoCol2Width: 26,
+    infoCol3Width: 26,
+    infoCol4Width: 14,
+    infoCol5Width: 14,
+    col1Width: 23,
+    col2Width: 10,
+    col3Width: 23,
+    col4Width: 10,
+    col5Width: 23,
+    col6Width: 11,
+    rowHeight: 28,
+    cellPaddingY: 6,
+    cellPaddingX: 8,
+    headerFontSize: 12,
+    subHeaderFontSize: 11,
+    bodyFontSize: 11,
+  },
+  roomFolderSlip: {
+    infoCol1Width: 14.3,
+    infoCol2Width: 19.05,
+    infoCol3Width: 19.05,
+    infoCol4Width: 14.3,
+    infoCol5Width: 9.5,
+    infoCol6Width: 9.5,
+    infoCol7Width: 14.3,
+    col1Width: 14.14,
+    col2Width: 8.08,
+    col3Width: 11.11,
+    col4Width: 14.14,
+    col5Width: 8.08,
+    col6Width: 11.11,
+    col7Width: 14.14,
+    col8Width: 8.08,
+    col9Width: 11.12,
+    rowHeight: 24,
+  },
+  roomDoorSlip: {
+    infoCol1Width: 16.67,
+    infoCol2Width: 20.83,
+    infoCol3Width: 20.83,
+    infoCol4Width: 16.67,
+    infoCol5Width: 12.5,
+    infoCol6Width: 12.5,
+    col1Width: 33.33,
+    col2Width: 33.33,
+    col3Width: 33.34,
+    rowHeight: 30,
+  },
+});
+
+const clampNumber = (value, min, max, fallback) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(min, Math.min(max, numeric));
+};
+
+const normalizePercentageWidths = (widths, fallbackWidths) => {
+  const total = widths.reduce((sum, width) => sum + width, 0);
+  if (total <= 0) return fallbackWidths;
+  return widths.map((width) => Number(((width * 100) / total).toFixed(2)));
+};
+
+const normalizeCbseCopySettings = (input = {}) => {
+  const source = input || {};
+  const fallback = DEFAULT_TEMPLATE_SETTINGS.cbseCopy;
+  const normalizedInfoWidths = normalizePercentageWidths(
+    [
+      clampNumber(source.infoCol1Width, 1, 90, fallback.infoCol1Width),
+      clampNumber(source.infoCol2Width, 1, 90, fallback.infoCol2Width),
+      clampNumber(source.infoCol3Width, 1, 90, fallback.infoCol3Width),
+      clampNumber(source.infoCol4Width, 1, 90, fallback.infoCol4Width),
+      clampNumber(source.infoCol5Width, 1, 90, fallback.infoCol5Width),
+    ],
+    [
+      fallback.infoCol1Width,
+      fallback.infoCol2Width,
+      fallback.infoCol3Width,
+      fallback.infoCol4Width,
+      fallback.infoCol5Width,
+    ]
+  );
+
+  const normalizedWidths = [
+    clampNumber(source.col1Width, 1, 90, fallback.col1Width),
+    clampNumber(source.col2Width, 1, 90, fallback.col2Width),
+    clampNumber(source.col3Width, 1, 90, fallback.col3Width),
+    clampNumber(source.col4Width, 1, 90, fallback.col4Width),
+    clampNumber(source.col5Width, 1, 90, fallback.col5Width),
+    clampNumber(source.col6Width, 1, 90, fallback.col6Width),
+  ];
+  const safeWidths = normalizePercentageWidths(
+    normalizedWidths,
+    [
+      fallback.col1Width,
+      fallback.col2Width,
+      fallback.col3Width,
+      fallback.col4Width,
+      fallback.col5Width,
+      fallback.col6Width,
+    ]
+  );
+
+  return {
+    infoCol1Width: normalizedInfoWidths[0],
+    infoCol2Width: normalizedInfoWidths[1],
+    infoCol3Width: normalizedInfoWidths[2],
+    infoCol4Width: normalizedInfoWidths[3],
+    infoCol5Width: normalizedInfoWidths[4],
+    col1Width: safeWidths[0],
+    col2Width: safeWidths[1],
+    col3Width: safeWidths[2],
+    col4Width: safeWidths[3],
+    col5Width: safeWidths[4],
+    col6Width: safeWidths[5],
+    rowHeight: clampNumber(source.rowHeight, 18, 60, fallback.rowHeight),
+    cellPaddingY: clampNumber(source.cellPaddingY, 2, 16, fallback.cellPaddingY),
+    cellPaddingX: clampNumber(source.cellPaddingX, 2, 20, fallback.cellPaddingX),
+    headerFontSize: clampNumber(source.headerFontSize, 8, 20, fallback.headerFontSize),
+    subHeaderFontSize: clampNumber(source.subHeaderFontSize, 8, 20, fallback.subHeaderFontSize),
+    bodyFontSize: clampNumber(source.bodyFontSize, 8, 20, fallback.bodyFontSize),
+  };
+};
+
+const normalizeMainGateSettings = (input = {}) => {
+  const source = input || {};
+  const fallback = DEFAULT_TEMPLATE_SETTINGS.mainGate;
+  const normalizedWidths = normalizePercentageWidths(
+    [
+      clampNumber(source.col1Width, 1, 90, fallback.col1Width),
+      clampNumber(source.col2Width, 1, 90, fallback.col2Width),
+      clampNumber(source.col3Width, 1, 90, fallback.col3Width),
+      clampNumber(source.col4Width, 1, 90, fallback.col4Width),
+    ],
+    [fallback.col1Width, fallback.col2Width, fallback.col3Width, fallback.col4Width]
+  );
+
+  return {
+    col1Width: normalizedWidths[0],
+    col2Width: normalizedWidths[1],
+    col3Width: normalizedWidths[2],
+    col4Width: normalizedWidths[3],
+    rowHeight: clampNumber(source.rowHeight, 16, 50, fallback.rowHeight),
+  };
+};
+
+const normalizeRoomFolderSlipSettings = (input = {}) => {
+  const source = input || {};
+  const fallback = DEFAULT_TEMPLATE_SETTINGS.roomFolderSlip;
+  const normalizedInfoWidths = normalizePercentageWidths(
+    [
+      clampNumber(source.infoCol1Width, 1, 90, fallback.infoCol1Width),
+      clampNumber(source.infoCol2Width, 1, 90, fallback.infoCol2Width),
+      clampNumber(source.infoCol3Width, 1, 90, fallback.infoCol3Width),
+      clampNumber(source.infoCol4Width, 1, 90, fallback.infoCol4Width),
+      clampNumber(source.infoCol5Width, 1, 90, fallback.infoCol5Width),
+      clampNumber(source.infoCol6Width, 1, 90, fallback.infoCol6Width),
+      clampNumber(source.infoCol7Width, 1, 90, fallback.infoCol7Width),
+    ],
+    [
+      fallback.infoCol1Width,
+      fallback.infoCol2Width,
+      fallback.infoCol3Width,
+      fallback.infoCol4Width,
+      fallback.infoCol5Width,
+      fallback.infoCol6Width,
+      fallback.infoCol7Width,
+    ]
+  );
+
+  const normalizedWidths = normalizePercentageWidths(
+    [
+      clampNumber(source.col1Width, 1, 90, fallback.col1Width),
+      clampNumber(source.col2Width, 1, 90, fallback.col2Width),
+      clampNumber(source.col3Width, 1, 90, fallback.col3Width),
+      clampNumber(source.col4Width, 1, 90, fallback.col4Width),
+      clampNumber(source.col5Width, 1, 90, fallback.col5Width),
+      clampNumber(source.col6Width, 1, 90, fallback.col6Width),
+      clampNumber(source.col7Width, 1, 90, fallback.col7Width),
+      clampNumber(source.col8Width, 1, 90, fallback.col8Width),
+      clampNumber(source.col9Width, 1, 90, fallback.col9Width),
+    ],
+    [
+      fallback.col1Width,
+      fallback.col2Width,
+      fallback.col3Width,
+      fallback.col4Width,
+      fallback.col5Width,
+      fallback.col6Width,
+      fallback.col7Width,
+      fallback.col8Width,
+      fallback.col9Width,
+    ]
+  );
+
+  return {
+    infoCol1Width: normalizedInfoWidths[0],
+    infoCol2Width: normalizedInfoWidths[1],
+    infoCol3Width: normalizedInfoWidths[2],
+    infoCol4Width: normalizedInfoWidths[3],
+    infoCol5Width: normalizedInfoWidths[4],
+    infoCol6Width: normalizedInfoWidths[5],
+    infoCol7Width: normalizedInfoWidths[6],
+    col1Width: normalizedWidths[0],
+    col2Width: normalizedWidths[1],
+    col3Width: normalizedWidths[2],
+    col4Width: normalizedWidths[3],
+    col5Width: normalizedWidths[4],
+    col6Width: normalizedWidths[5],
+    col7Width: normalizedWidths[6],
+    col8Width: normalizedWidths[7],
+    col9Width: normalizedWidths[8],
+    rowHeight: clampNumber(source.rowHeight, 18, 60, fallback.rowHeight),
+  };
+};
+
+const normalizeRoomDoorSlipSettings = (input = {}) => {
+  const source = input || {};
+  const fallback = DEFAULT_TEMPLATE_SETTINGS.roomDoorSlip;
+  const normalizedInfoWidths = normalizePercentageWidths(
+    [
+      clampNumber(source.infoCol1Width, 1, 90, fallback.infoCol1Width),
+      clampNumber(source.infoCol2Width, 1, 90, fallback.infoCol2Width),
+      clampNumber(source.infoCol3Width, 1, 90, fallback.infoCol3Width),
+      clampNumber(source.infoCol4Width, 1, 90, fallback.infoCol4Width),
+      clampNumber(source.infoCol5Width, 1, 90, fallback.infoCol5Width),
+      clampNumber(source.infoCol6Width, 1, 90, fallback.infoCol6Width),
+    ],
+    [
+      fallback.infoCol1Width,
+      fallback.infoCol2Width,
+      fallback.infoCol3Width,
+      fallback.infoCol4Width,
+      fallback.infoCol5Width,
+      fallback.infoCol6Width,
+    ]
+  );
+  const normalizedWidths = normalizePercentageWidths(
+    [
+      clampNumber(source.col1Width, 1, 98, fallback.col1Width),
+      clampNumber(source.col2Width, 1, 98, fallback.col2Width),
+      clampNumber(source.col3Width, 1, 98, fallback.col3Width),
+    ],
+    [fallback.col1Width, fallback.col2Width, fallback.col3Width]
+  );
+
+  return {
+    infoCol1Width: normalizedInfoWidths[0],
+    infoCol2Width: normalizedInfoWidths[1],
+    infoCol3Width: normalizedInfoWidths[2],
+    infoCol4Width: normalizedInfoWidths[3],
+    infoCol5Width: normalizedInfoWidths[4],
+    infoCol6Width: normalizedInfoWidths[5],
+    col1Width: normalizedWidths[0],
+    col2Width: normalizedWidths[1],
+    col3Width: normalizedWidths[2],
+    rowHeight: clampNumber(source.rowHeight, 18, 80, fallback.rowHeight),
+  };
+};
+
+const normalizeTemplateSettings = (input = {}) => ({
+  mainGate: normalizeMainGateSettings(input?.mainGate),
+  cbseCopy: normalizeCbseCopySettings(input?.cbseCopy),
+  roomFolderSlip: normalizeRoomFolderSlipSettings(input?.roomFolderSlip),
+  roomDoorSlip: normalizeRoomDoorSlipSettings(input?.roomDoorSlip),
+});
+
+const getTemplateSettingsDoc = async (req) => {
+  const SeatingPlanTemplateSetting = req.models?.SeatingPlanTemplateSetting;
+  if (!SeatingPlanTemplateSetting) return null;
+  return SeatingPlanTemplateSetting.findOne({}).sort({ updatedAt: -1 });
+};
+
+const getResolvedTemplateSettings = async (req) => {
+  const doc = await getTemplateSettingsDoc(req);
+  return normalizeTemplateSettings(doc ? doc.toObject() : null);
+};
+
 const parseRoomNoForSort = (roomNo) => {
   const value = String(roomNo ?? '').trim();
   if (!value) return Number.POSITIVE_INFINITY;
@@ -24,6 +311,70 @@ const compareRoomNo = (a, b) => {
     numeric: true,
     sensitivity: 'base',
   });
+};
+
+const getLatestCentreDetails = async (req) => {
+  const CentreDetail = req.models?.CentreDetail;
+  if (!CentreDetail) return null;
+  return CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean();
+};
+
+// Get seating plan template settings
+exports.getTemplateSettings = async (req, res) => {
+  try {
+    const settingsDoc = await getTemplateSettingsDoc(req);
+    const data = normalizeTemplateSettings(settingsDoc ? settingsDoc.toObject() : null);
+    res.json({
+      success: true,
+      data,
+      meta: {
+        hasSavedSettings: Boolean(settingsDoc),
+      },
+    });
+  } catch (error) {
+    console.error('Get Template Settings Error:', error);
+    res.status(500).json({ message: 'Failed to fetch template settings', error: error.message });
+  }
+};
+
+// Save/update seating plan template settings
+exports.upsertTemplateSettings = async (req, res) => {
+  try {
+    const SeatingPlanTemplateSetting = req.models?.SeatingPlanTemplateSetting;
+    if (!SeatingPlanTemplateSetting) {
+      return res.status(500).json({ message: 'Template settings model is unavailable' });
+    }
+
+    const payload = normalizeTemplateSettings(req.body || {});
+    const existing = await SeatingPlanTemplateSetting.findOne({}).sort({ updatedAt: -1 });
+
+    if (existing) {
+      existing.mainGate = payload.mainGate;
+      existing.cbseCopy = payload.cbseCopy;
+      existing.roomFolderSlip = payload.roomFolderSlip;
+      existing.roomDoorSlip = payload.roomDoorSlip;
+      await existing.save();
+      return res.json({
+        success: true,
+        data: normalizeTemplateSettings(existing.toObject()),
+        meta: {
+          hasSavedSettings: true,
+        },
+      });
+    }
+
+    const created = await SeatingPlanTemplateSetting.create(payload);
+    return res.status(201).json({
+      success: true,
+      data: normalizeTemplateSettings(created.toObject()),
+      meta: {
+        hasSavedSettings: true,
+      },
+    });
+  } catch (error) {
+    console.error('Upsert Template Settings Error:', error);
+    res.status(500).json({ message: 'Failed to save template settings', error: error.message });
+  }
 };
 
 // Get all rooms
@@ -103,9 +454,12 @@ const sendPDFResponse = (res, pdfBuffer, filename) => {
 exports.generateMainGate = async (req, res) => {
   try {
     const { datesheetId } = req.params;
-    
-    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId);
+    const centreDetails = await getLatestCentreDetails(req);
+    const templateSettings = await getResolvedTemplateSettings(req);
+
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, { centreDetails });
     const templateData = seatingPlanBuilder.buildMainGateData(seatingData);
+    templateData.templateSettings = templateSettings.mainGate;
     const pdfBuffer = await pdfGenerator.generateMainGate(templateData);
     
     sendPDFResponse(res, pdfBuffer, 'main-gate.pdf');
@@ -119,9 +473,12 @@ exports.generateMainGate = async (req, res) => {
 exports.generateRoomFolderSlip = async (req, res) => {
   try {
     const { datesheetId } = req.params;
-    
-    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId);
+    const centreDetails = await getLatestCentreDetails(req);
+    const templateSettings = await getResolvedTemplateSettings(req);
+
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, { centreDetails });
     const templateData = seatingPlanBuilder.buildRoomFolderSlipData(seatingData);
+    templateData.templateSettings = templateSettings.roomFolderSlip;
     const pdfBuffer = await pdfGenerator.generateRoomFolderSlip(templateData);
     
     sendPDFResponse(res, pdfBuffer, 'room-folder-slip.pdf');
@@ -135,9 +492,12 @@ exports.generateRoomFolderSlip = async (req, res) => {
 exports.generateRoomDoorSlip = async (req, res) => {
   try {
     const { datesheetId } = req.params;
-    
-    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId);
+    const centreDetails = await getLatestCentreDetails(req);
+    const templateSettings = await getResolvedTemplateSettings(req);
+
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, { centreDetails });
     const templateData = seatingPlanBuilder.buildRoomDoorSlipData(seatingData);
+    templateData.templateSettings = templateSettings.roomDoorSlip;
     const pdfBuffer = await pdfGenerator.generateRoomDoorSlip(templateData);
     
     sendPDFResponse(res, pdfBuffer, 'room-door-slip.pdf');
@@ -151,9 +511,12 @@ exports.generateRoomDoorSlip = async (req, res) => {
 exports.generateCBSECopy = async (req, res) => {
   try {
     const { datesheetId } = req.params;
-    
-    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId);
+    const centreDetails = await getLatestCentreDetails(req);
+    const templateSettings = await getResolvedTemplateSettings(req);
+
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, { centreDetails });
     const templateData = seatingPlanBuilder.buildCBSECopyData(seatingData);
+    templateData.templateSettings = templateSettings.cbseCopy;
     const pdfBuffer = await pdfGenerator.generateCBSECopy(templateData);
     
     sendPDFResponse(res, pdfBuffer, 'cbse-copy.pdf');

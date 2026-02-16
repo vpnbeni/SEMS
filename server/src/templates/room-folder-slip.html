@@ -42,8 +42,17 @@
         .info-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
             margin-bottom: 8px;
         }
+
+        .info-table col.info-col1 { width: {{templateSettings.infoCol1Width}}%; }
+        .info-table col.info-col2 { width: {{templateSettings.infoCol2Width}}%; }
+        .info-table col.info-col3 { width: {{templateSettings.infoCol3Width}}%; }
+        .info-table col.info-col4 { width: {{templateSettings.infoCol4Width}}%; }
+        .info-table col.info-col5 { width: {{templateSettings.infoCol5Width}}%; }
+        .info-table col.info-col6 { width: {{templateSettings.infoCol6Width}}%; }
+        .info-table col.info-col7 { width: {{templateSettings.infoCol7Width}}%; }
         
         .info-table td {
             border: 2px solid #000;
@@ -71,8 +80,19 @@
         .seating-table {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
             margin-bottom: 0;
         }
+
+        .seating-table col.col1 { width: {{templateSettings.col1Width}}%; }
+        .seating-table col.col2 { width: {{templateSettings.col2Width}}%; }
+        .seating-table col.col3 { width: {{templateSettings.col3Width}}%; }
+        .seating-table col.col4 { width: {{templateSettings.col4Width}}%; }
+        .seating-table col.col5 { width: {{templateSettings.col5Width}}%; }
+        .seating-table col.col6 { width: {{templateSettings.col6Width}}%; }
+        .seating-table col.col7 { width: {{templateSettings.col7Width}}%; }
+        .seating-table col.col8 { width: {{templateSettings.col8Width}}%; }
+        .seating-table col.col9 { width: {{templateSettings.col9Width}}%; }
         
         .seating-table th,
         .seating-table td {
@@ -80,6 +100,8 @@
             padding: 3px 4px;
             text-align: center;
             font-size: 8pt;
+            height: {{templateSettings.rowHeight}}px;
+            vertical-align: middle;
         }
         
         .seating-table th {
@@ -115,10 +137,19 @@
         <div class="slip-title">SEATING PLAN</div>
         
         <table class="info-table">
+            <colgroup>
+                <col class="info-col1">
+                <col class="info-col2">
+                <col class="info-col3">
+                <col class="info-col4">
+                <col class="info-col5">
+                <col class="info-col6">
+                <col class="info-col7">
+            </colgroup>
             <tr>
                 <td>Name Of Centre</td>
                 <td colspan="3" class="value-cell">
-                    {{schoolName}}<br>{{schoolAddress}}
+                    {{schoolName}}{{#if schoolAddress}}<br>{{schoolAddress}}{{/if}}
                 </td>
                 <td class="label-cell">Centre No</td>
                 <td class="value-cell"><strong>{{centreNo}}</strong></td>
@@ -141,6 +172,11 @@
         </table>
         
         <table class="seating-table">
+            <colgroup>
+                <col class="col1"><col class="col2"><col class="col3">
+                <col class="col4"><col class="col5"><col class="col6">
+                <col class="col7"><col class="col8"><col class="col9">
+            </colgroup>
             <thead>
                 <tr>
                     <th colspan="3">Row 1</th>

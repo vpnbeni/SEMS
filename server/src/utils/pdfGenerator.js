@@ -9,6 +9,8 @@ class PDFGenerator {
   }
 
   async generatePDF(templateName, data, options = {}) {
+    let browser = null;
+
     try {
       // Read template file
       const templatePath = path.join(this.templatesPath, `${templateName}.html`);
@@ -17,20 +19,29 @@ class PDFGenerator {
       // Compile template with Handlebars
       const template = handlebars.compile(templateContent);
       const html = template(data);
-      
-      // Launch browser (extra args help on Linux/EB where Chromium has fewer resources)
-      const browser = await puppeteer.launch({
-        headless: 'new',
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
+
+      // Keep Chromium flags platform-aware to avoid Windows crashes.
+      const launchArgs = [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+      ];
+
+      if (process.platform === 'linux') {
+        launchArgs.push(
           '--disable-gpu',
           '--single-process',
           '--no-zygote',
           '--disable-software-rasterizer'
-        ]
+        );
+      }
+
+      // Launch browser
+      browser = await puppeteer.launch({
+        headless: 'new',
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+        args: launchArgs,
+        pipe: true,
       });
       
       const page = await browser.newPage();
@@ -50,11 +61,16 @@ class PDFGenerator {
       });
       
       await browser.close();
+      browser = null;
       
       return pdfBuffer;
     } catch (error) {
       console.error('PDF Generation Error:', error);
       throw new Error(`Failed to generate PDF: ${error.message}`);
+    } finally {
+      if (browser) {
+        await browser.close().catch(() => {});
+      }
     }
   }
 

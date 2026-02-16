@@ -33,6 +33,10 @@ interface CentreForm {
   centreClerkContact: string
 }
 
+interface CentreDetailsResponse extends Partial<CentreForm> {
+  _id?: string
+}
+
 const PAGE_LIMIT = 1000
 
 const defaultForm: CentreForm = {
@@ -70,18 +74,23 @@ const CentreDetails: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [loadingCentre, setLoadingCentre] = useState(true)
   const [savingCentre, setSavingCentre] = useState(false)
+  const [hasSavedCentreDetails, setHasSavedCentreDetails] = useState(false)
   const [examDays, setExamDays] = useState<number>(0)
 
   useEffect(() => {
     const fetchCentreInfo = async () => {
       try {
         const res = await api.get('/centre-details')
-        const data = res?.data?.data as Partial<CentreForm> | null
+        const data = res?.data?.data as CentreDetailsResponse | null
         if (data) {
           setForm((prev) => ({
             ...prev,
             ...data,
           }))
+          const hasAnySavedField = Object.values(data).some(
+            (value) => typeof value === 'string' && value.trim().length > 0
+          )
+          setHasSavedCentreDetails(Boolean(data._id) || hasAnySavedField)
         }
       } catch (error) {
         console.error('Failed to fetch saved centre information:', error)
@@ -205,6 +214,7 @@ const CentreDetails: React.FC = () => {
     setSavingCentre(true)
     try {
       await api.put('/centre-details', form)
+      setHasSavedCentreDetails(true)
     } catch (error) {
       console.error('Failed to save centre details:', error)
     } finally {
@@ -222,9 +232,9 @@ const CentreDetails: React.FC = () => {
             className="btn-primary px-4 py-2 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
             onClick={handleSaveCentreInfo}
             disabled={savingCentre || loadingCentre}
-            title="Save centre information"
+            title={hasSavedCentreDetails ? 'Update centre information' : 'Save centre information'}
           >
-            {savingCentre ? 'Saving...' : 'Save Details'}
+            {savingCentre ? 'Saving...' : hasSavedCentreDetails ? 'Update Details' : 'Save Details'}
           </button>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
