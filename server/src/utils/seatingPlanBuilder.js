@@ -1,6 +1,7 @@
 const Candidate = require('../models/Candidate');
 const Room = require('../models/Room');
 const CBSEDatesheet = require('../models/CBSEDatesheet');
+const { compareRoomNo } = require('./roomSort');
 
 const ACTIVE_CANDIDATE_FILTER = {
   $or: [{ status: 'active' }, { status: { $exists: false } }],
@@ -44,8 +45,9 @@ class SeatingPlanBuilder {
         throw new Error('Datesheet entry not found');
       }
 
-      // Get all rooms
-      const rooms = await Room.find({ isActive: true }).sort({ roomNo: 1 });
+      // Get all rooms sorted numerically by room number
+      const rooms = await Room.find({ isActive: true }).lean();
+      rooms.sort(compareRoomNo);
 
       // Get candidates for this exam
       const candidates = await this.getCandidatesForExam(entry);
@@ -604,7 +606,7 @@ class SeatingPlanBuilder {
       if (seat1) {
         row.col1 = seat1.rollNo;
         row.row1RollNo = seat1.rollNo;
-        row.row1QpCode = this.getQPCode(seat1);
+        row.row1QpCode = this.getQPCodeBySequenceIndex(i - seatOffset);
         row.row1SheetNo = this.getSheetNo(seat1, seat1GlobalIndex, answerSheetAllocations);
       }
 
@@ -616,7 +618,7 @@ class SeatingPlanBuilder {
       if (seat2) {
         row.col2 = seat2.rollNo;
         row.row2RollNo = seat2.rollNo;
-        row.row2QpCode = this.getQPCode(seat2);
+        row.row2QpCode = this.getQPCodeBySequenceIndex((i + 8) - seatOffset);
         row.row2SheetNo = this.getSheetNo(seat2, seat2GlobalIndex, answerSheetAllocations);
       }
 
@@ -628,7 +630,7 @@ class SeatingPlanBuilder {
       if (seat3) {
         row.col3 = seat3.rollNo;
         row.row3RollNo = seat3.rollNo;
-        row.row3QpCode = this.getQPCode(seat3);
+        row.row3QpCode = this.getQPCodeBySequenceIndex((i + 16) - seatOffset);
         row.row3SheetNo = this.getSheetNo(seat3, seat3GlobalIndex, answerSheetAllocations);
       }
 
@@ -695,7 +697,7 @@ class SeatingPlanBuilder {
       if (candidates[idx1]) {
         row.col1 = candidates[idx1].rollNo;
         row.row1RollNo = candidates[idx1].rollNo;
-        row.row1QpCode = this.getQPCode(candidates[idx1]);
+        row.row1QpCode = this.getQPCodeBySequenceIndex(idx1);
         row.row1SheetNo = this.getSheetNo(candidates[idx1], globalCandidateStartIndex + idx1, answerSheetAllocations);
       }
 
@@ -704,7 +706,7 @@ class SeatingPlanBuilder {
       if (candidates[idx2]) {
         row.col2 = candidates[idx2].rollNo;
         row.row2RollNo = candidates[idx2].rollNo;
-        row.row2QpCode = this.getQPCode(candidates[idx2]);
+        row.row2QpCode = this.getQPCodeBySequenceIndex(idx2);
         row.row2SheetNo = this.getSheetNo(candidates[idx2], globalCandidateStartIndex + idx2, answerSheetAllocations);
       }
 
@@ -713,7 +715,7 @@ class SeatingPlanBuilder {
       if (candidates[idx3]) {
         row.col3 = candidates[idx3].rollNo;
         row.row3RollNo = candidates[idx3].rollNo;
-        row.row3QpCode = this.getQPCode(candidates[idx3]);
+        row.row3QpCode = this.getQPCodeBySequenceIndex(idx3);
         row.row3SheetNo = this.getSheetNo(candidates[idx3], globalCandidateStartIndex + idx3, answerSheetAllocations);
       }
 
@@ -723,10 +725,12 @@ class SeatingPlanBuilder {
     return rows;
   }
 
-  getQPCode(candidate) {
-    // QP Code logic - can be enhanced based on subject/medium
+  getQPCodeBySequenceIndex(sequenceIndex) {
     const qpCodes = ['1', '2', '3'];
-    return qpCodes[Math.floor(Math.random() * qpCodes.length)];
+    const normalizedIndex = Number.isInteger(sequenceIndex) && sequenceIndex >= 0
+      ? sequenceIndex
+      : 0;
+    return qpCodes[normalizedIndex % qpCodes.length];
   }
 
   getSheetNo(candidate, globalIndex, answerSheetAllocations = null) {
