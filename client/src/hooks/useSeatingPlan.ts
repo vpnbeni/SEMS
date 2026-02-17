@@ -63,18 +63,70 @@ const FORMAT_FILENAMES: Record<SeatingPlanFormat, string> = {
   cbseCopy: 'cbse-copy.pdf',
 }
 
+const extractPdfErrorMessage = async (error: any): Promise<string> => {
+  const fallback = 'Failed to generate PDF. Please try again.'
+  const data = error?.response?.data
+  const status = Number(error?.response?.status || 0)
+  const allocationGuidance =
+    'Rooms are not allocated for this exam date. Please allocate rooms first in Exam Room/Hall or switch room allocation mode to Auto.'
+
+  if (data instanceof Blob) {
+    try {
+      const text = await data.text()
+      if (!text) return error?.message || fallback
+      try {
+        const parsed = JSON.parse(text)
+        return parsed?.message || parsed?.error || text || error?.message || fallback
+      } catch {
+        return text || error?.message || fallback
+      }
+    } catch {
+      return error?.message || fallback
+    }
+  }
+
+  if (typeof data === 'string' && data.trim()) {
+    try {
+      const parsed = JSON.parse(data)
+      return parsed?.message || parsed?.error || data
+    } catch {
+      return data
+    }
+  }
+
+  if (data && typeof data === 'object') {
+    return data.message || data.error || error?.message || fallback
+  }
+
+  if (status === 400) {
+    return allocationGuidance
+  }
+
+  const genericMessage = String(error?.message || '')
+  if (genericMessage.includes('status code 400')) {
+    return allocationGuidance
+  }
+
+  return error?.message || fallback
+}
+
 async function generatePDF(datesheetId: string, format: SeatingPlanFormat): Promise<Blob> {
-  switch (format) {
-    case 'mainGate':
-      return seatingPlanService.generateMainGate(datesheetId)
-    case 'roomFolderSlip':
-      return seatingPlanService.generateRoomFolderSlip(datesheetId)
-    case 'roomDoorSlip':
-      return seatingPlanService.generateRoomDoorSlip(datesheetId)
-    case 'cbseCopy':
-      return seatingPlanService.generateCBSECopy(datesheetId)
-    default:
-      throw new Error(`Unknown format: ${format}`)
+  try {
+    switch (format) {
+      case 'mainGate':
+        return await seatingPlanService.generateMainGate(datesheetId)
+      case 'roomFolderSlip':
+        return await seatingPlanService.generateRoomFolderSlip(datesheetId)
+      case 'roomDoorSlip':
+        return await seatingPlanService.generateRoomDoorSlip(datesheetId)
+      case 'cbseCopy':
+        return await seatingPlanService.generateCBSECopy(datesheetId)
+      default:
+        throw new Error(`Unknown format: ${format}`)
+    }
+  } catch (error: any) {
+    const message = await extractPdfErrorMessage(error)
+    throw new Error(message)
   }
 }
 

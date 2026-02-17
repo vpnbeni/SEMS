@@ -46,6 +46,38 @@ const getValidationErrorMessage = (details: any[] | undefined, fallback: string)
   return remainingCount > 0 ? `${firstMessage} (+${remainingCount} more error(s))` : firstMessage
 }
 
+const extractApiErrorMessage = async (data: any, fallback: string) => {
+  if (data instanceof Blob) {
+    try {
+      const text = await data.text()
+      if (!text) return fallback
+      try {
+        const parsed = JSON.parse(text)
+        return parsed?.message || parsed?.error || text || fallback
+      } catch {
+        return text || fallback
+      }
+    } catch {
+      return fallback
+    }
+  }
+
+  if (typeof data === 'string' && data.trim()) {
+    try {
+      const parsed = JSON.parse(data)
+      return parsed?.message || parsed?.error || data
+    } catch {
+      return data
+    }
+  }
+
+  if (data && typeof data === 'object') {
+    return data?.message || data?.error || fallback
+  }
+
+  return fallback
+}
+
 // Export function to set store dispatch
 export const setStoreDispatch = (dispatch: any) => {
   storeDispatch = dispatch
@@ -227,7 +259,7 @@ api.interceptors.response.use(
 
       case 500:
         // Internal Server Error
-        showApiErrorToast('Server error. Please try again later.')
+        showApiErrorToast(await extractApiErrorMessage(data, 'Server error. Please try again later.'))
         break
 
       default:

@@ -117,8 +117,13 @@ const SeatingPlan: React.FC = () => {
   const updateTemplateSettingsMutation = useUpdateSeatingPlanTemplateSettingsMutation()
   const saveTemplateSettings = updateTemplateSettingsMutation.mutate
   const pdfMutation = useGenerateSeatingPlanPDFMutation({
-    onError: () => {
-      alert('Failed to generate PDF. Please try again.')
+    onError: (err) => {
+      const text = String(err?.message || '')
+      if (text.includes('status code 400')) {
+        alert('Rooms are not allocated for this exam date. Please allocate rooms first in Exam Room/Hall or switch room allocation mode to Auto.')
+        return
+      }
+      alert(text || 'Failed to generate PDF. Please try again.')
     },
   })
 
@@ -1226,7 +1231,7 @@ const SeatingPlan: React.FC = () => {
                         </td>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Centre No</td>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">829261</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: 12</td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: XII</td>
                       </tr>
                       <tr>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Examination</td>
@@ -1355,7 +1360,7 @@ const SeatingPlan: React.FC = () => {
                         </td>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Centre No</td>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">829261</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: 12</td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: XII</td>
                       </tr>
                       <tr>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Examination</td>
@@ -1848,7 +1853,7 @@ const SeatingPlan: React.FC = () => {
                   </div>
                   <div className="w-1/2 text-left pl-10 leading-relaxed">
                     <p className="font-bold text-gray-900 dark:text-white">Total Students</p>
-                    <p className="text-gray-700 dark:text-gray-300 mt-2"><span className="font-bold text-gray-900 dark:text-white">Registered:</span> ________</p>
+                    <p className="text-gray-700 dark:text-gray-300 mt-2"><span className="font-bold text-gray-900 dark:text-white">Registered:</span> 24</p>
                     <p className="text-gray-700 dark:text-gray-300 mt-3"><span className="font-bold text-gray-900 dark:text-white">Present:</span> ________</p>
                     <p className="text-gray-700 dark:text-gray-300 mt-3"><span className="font-bold text-gray-900 dark:text-white">Absent:</span> ________</p>
                   </div>

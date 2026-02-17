@@ -502,6 +502,19 @@ const sendPDFResponse = (res, pdfBuffer, filename) => {
   res.end(buffer);
 };
 
+const sendGenerationError = (res, error, fallbackLabel) => {
+  const message = String(error?.message || '').trim();
+  const userFacing =
+    message.includes('No rooms are allocated for this exam date in Manual mode')
+    || message.includes('No rooms available for allocation');
+
+  const status = userFacing ? 400 : 500;
+  return res.status(status).json({
+    message: message || fallbackLabel,
+    error: message || fallbackLabel,
+  });
+};
+
 // Generate Main Gate PDF
 exports.generateMainGate = async (req, res) => {
   try {
@@ -520,7 +533,7 @@ exports.generateMainGate = async (req, res) => {
     sendPDFResponse(res, pdfBuffer, 'main-gate.pdf');
   } catch (error) {
     console.error('Generate Main Gate PDF Error:', error);
-    res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
+    sendGenerationError(res, error, 'Failed to generate Main Gate PDF');
   }
 };
 
@@ -542,7 +555,7 @@ exports.generateRoomFolderSlip = async (req, res) => {
     sendPDFResponse(res, pdfBuffer, 'room-folder-slip.pdf');
   } catch (error) {
     console.error('Generate Room Folder Slip PDF Error:', error);
-    res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
+    sendGenerationError(res, error, 'Failed to generate Room Folder Slip PDF');
   }
 };
 
@@ -564,7 +577,7 @@ exports.generateRoomDoorSlip = async (req, res) => {
     sendPDFResponse(res, pdfBuffer, 'room-door-slip.pdf');
   } catch (error) {
     console.error('Generate Room Door Slip PDF Error:', error);
-    res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
+    sendGenerationError(res, error, 'Failed to generate Room Door Slip PDF');
   }
 };
 
@@ -586,6 +599,6 @@ exports.generateCBSECopy = async (req, res) => {
     sendPDFResponse(res, pdfBuffer, 'cbse-copy.pdf');
   } catch (error) {
     console.error('Generate CBSE Copy PDF Error:', error);
-    res.status(500).json({ message: 'Failed to generate PDF', error: error.message });
+    sendGenerationError(res, error, 'Failed to generate CBSE Copy PDF');
   }
 };

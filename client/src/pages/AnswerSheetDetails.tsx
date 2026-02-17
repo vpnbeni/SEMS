@@ -806,6 +806,7 @@ const AnswerSheetDetails: React.FC = () => {
                                 className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
                             >
                                 <option value="Damaged/Misprinted">Damaged/Misprinted</option>
+                                <option value="Received Damaged (Wear/Tear during transport)">Received Damaged (Wear/Tear during transport)</option>
                                 <option value="Torn">Torn</option>
                                 <option value="Water Damage">Water Damage</option>
                                 <option value="Missing Pages">Missing Pages</option>

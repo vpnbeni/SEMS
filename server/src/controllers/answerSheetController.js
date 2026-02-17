@@ -1091,7 +1091,25 @@ exports.downloadDispatchRecord = async (req, res) => {
       })
     }
 
-    const seatingData = await seatingPlanBuilder.buildSeatingData(entryId)
+    const SeatingPlanTemplateSetting = req.models?.SeatingPlanTemplateSetting
+    const CentreDetail = req.models?.CentreDetail
+
+    let roomAllocationMode = 'auto'
+    if (SeatingPlanTemplateSetting) {
+      const settingsDoc = await SeatingPlanTemplateSetting.findOne({}).sort({ updatedAt: -1 })
+      if (String(settingsDoc?.roomAllocationMode || '').toLowerCase() === 'manual') {
+        roomAllocationMode = 'manual'
+      }
+    }
+
+    const centreDetails = CentreDetail
+      ? await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean()
+      : null
+
+    const seatingData = await seatingPlanBuilder.buildSeatingData(entryId, {
+      centreDetails,
+      roomAllocationMode,
+    })
 
     const serialStartNum = parseInt(String(selectedAllocation.serialFrom).replace(/\D/g, ''), 10)
     const serialEndNum = parseInt(String(selectedAllocation.serialTo).replace(/\D/g, ''), 10)

@@ -142,21 +142,51 @@ const RoomAllocation: React.FC = () => {
     if (allocationMode !== 'manual') return
 
     setDateRoomOrderDraft((prev) => {
-      const current = [...(prev[dateKey] || [])]
-      const index = current.indexOf(roomId)
+      const roomIdsInOrder = rooms.map((room) => room._id)
+      const clickedIndex = roomIdsInOrder.indexOf(roomId)
+      if (clickedIndex < 0) return prev
+
       const requiredRooms = Number(requiredRoomsByDate[dateKey] || 0)
-      if (index >= 0) {
-        current.splice(index, 1)
-      } else {
-        if (requiredRooms > 0 && current.length >= requiredRooms) {
-          alert(`Only ${requiredRooms} room(s) can be selected for ${formatDateLabel(dateKey)}.`)
-          return prev
+      const maxSelectable = requiredRooms > 0 ? requiredRooms : roomIdsInOrder.length
+      const current = [...(prev[dateKey] || [])]
+      const currentIndex = current.indexOf(roomId)
+
+      // If user selects any unchecked room, choose required rooms in series from that room.
+      if (currentIndex < 0) {
+        const series = roomIdsInOrder.slice(clickedIndex, clickedIndex + maxSelectable)
+        return {
+          ...prev,
+          [dateKey]: series,
         }
-        current.push(roomId)
       }
+
+      // If user deselects a selected room, shift sequence forward to next rooms.
+      current.splice(currentIndex, 1)
+
+      if (requiredRooms > 0) {
+        const selectedSet = new Set(current)
+        let searchFrom = -1
+        if (current.length > 0) {
+          const lastSelected = current[current.length - 1]
+          searchFrom = roomIdsInOrder.indexOf(lastSelected)
+        } else {
+          searchFrom = clickedIndex
+        }
+
+        for (let i = searchFrom + 1; i < roomIdsInOrder.length && current.length < requiredRooms; i += 1) {
+          const candidateId = roomIdsInOrder[i]
+          if (!selectedSet.has(candidateId)) {
+            current.push(candidateId)
+            selectedSet.add(candidateId)
+          }
+        }
+      } else {
+        // No strict limit configured for this date; simple deselect.
+      }
+
       return {
         ...prev,
-        [dateKey]: current,
+        [dateKey]: current.slice(0, maxSelectable),
       }
     })
   }
@@ -167,12 +197,6 @@ const RoomAllocation: React.FC = () => {
   const getSelectionOrder = (roomId: string, dateKey: string) => {
     const index = (dateRoomOrderDraft[dateKey] || []).indexOf(roomId)
     return index >= 0 ? index + 1 : null
-  }
-
-  const isDateSelectionLimitReached = (dateKey: string) => {
-    const required = Number(requiredRoomsByDate[dateKey] || 0)
-    if (required <= 0) return false
-    return (dateRoomOrderDraft[dateKey] || []).length >= required
   }
 
   const handleModeChange = async (mode: 'auto' | 'manual') => {
@@ -191,18 +215,6 @@ const RoomAllocation: React.FC = () => {
 
   const handleSaveRoomAllocations = async () => {
     if (rooms.length === 0) return
-    if (allocationMode === 'manual') {
-      const invalidDates = examDates.filter((dateKey) => {
-        const required = Number(requiredRoomsByDate[dateKey] || 0)
-        if (required <= 0) return false
-        const selected = (dateRoomOrderDraft[dateKey] || []).length
-        return selected !== required
-      })
-      if (invalidDates.length > 0) {
-        alert(`Please select exactly required rooms for: ${invalidDates.map((d) => formatDateLabel(d)).join(', ')}`)
-        return
-      }
-    }
 
     const updates = rooms
       .map((room) => {
@@ -751,10 +763,7 @@ const RoomAllocation: React.FC = () => {
                             type="checkbox"
                             checked={isRoomSelectedForDate(room._id, dateKey)}
                             onChange={() => toggleRoomDateAllocation(room._id, dateKey)}
-                            disabled={
-                              allocationMode !== 'manual' ||
-                              (!isRoomSelectedForDate(room._id, dateKey) && isDateSelectionLimitReached(dateKey))
-                            }
+                            disabled={allocationMode !== 'manual'}
                             className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
                             title={`${room.roomNo} - ${formatDateLabel(dateKey)}${allocationMode === 'manual' ? '' : ' (disabled in auto mode)'}`}
                           />

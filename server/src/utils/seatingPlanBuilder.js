@@ -104,6 +104,9 @@ class SeatingPlanBuilder {
         : allRooms;
 
       if (rooms.length === 0) {
+        if (allocationMode === 'manual') {
+          throw new Error('No rooms are allocated for this exam date in Manual mode. Please allocate rooms in Exam Room/Hall first, or switch allocation mode to Auto.');
+        }
         throw new Error('No rooms available for allocation');
       }
 
@@ -122,15 +125,14 @@ class SeatingPlanBuilder {
       console.log(`Entries with candidates at this centre: ${entriesWithCandidates.length}`);
 
       // Calculate room allocation with class-based rotation
-      const { startRoomIndex, startSeatOffset } = allocationMode === 'manual'
-        ? { startRoomIndex: 0, startSeatOffset: 0 }
-        : await this.calculateStartingPositionClassBased(
-          entry,
-          entriesWithCandidates, // Use filtered entries instead of all entries
-          null, // scheduleMap no longer used
-          rooms,
-          candidates.length
-        );
+      const { startRoomIndex, startSeatOffset, allowWrap } = await this.calculateStartingPositionClassBased(
+        entry,
+        entriesWithCandidates, // Use filtered entries instead of all entries
+        null, // scheduleMap no longer used
+        rooms,
+        candidates.length,
+        { manualMode: allocationMode === 'manual' }
+      );
 
       console.log(`Exam ${entry.subject.code} (${entry.subject.class}): Starting from Room ${rooms[startRoomIndex]?.roomNo || 'N/A'}, Seat offset: ${startSeatOffset}`);
 
@@ -140,8 +142,14 @@ class SeatingPlanBuilder {
         rooms,
         startRoomIndex,
         startSeatOffset,
-        answerSheetAllocations
+        answerSheetAllocations,
+        allowWrap ?? true
       );
+
+      const allocatedCount = roomAllocations.reduce((sum, room) => sum + Number(room.registered || 0), 0);
+      if (allocatedCount < candidates.length) {
+        throw new Error('Insufficient rooms for this exam date. Please allocate more rooms in Exam Room/Hall or switch to Auto mode.');
+      }
 
       return {
         datesheet: {
@@ -483,14 +491,18 @@ class SeatingPlanBuilder {
    *   - If ALL candidates fit in remaining seats of last room → continue in that room
    *   - Otherwise → start from the next room
    */
-  async calculateStartingPositionClassBased(currentEntry, allEntries, _scheduleMap, rooms, currentCandidateCount) {
+  async calculateStartingPositionClassBased(currentEntry, allEntries, _scheduleMap, rooms, currentCandidateCount, options = {}) {
     const candidatesPerRoom = 24;
     const totalRooms = rooms.length;
     const currentClass = currentEntry.subject.class;
     const currentDateNorm = this.normalizeDate(currentEntry.examDate);
+    const manualMode = Boolean(options?.manualMode);
 
-    // Get class-based room rotation offset (used for first exam of the day)
-    const dayRotationOffset = await this.getClassBasedDayRotation(currentEntry, allEntries, totalRooms);
+    // In manual mode, always start day progression from first allocated room.
+    // In auto mode, keep class-based day rotation.
+    const dayRotationOffset = manualMode
+      ? 0
+      : await this.getClassBasedDayRotation(currentEntry, allEntries, totalRooms);
 
     // Find ALL exams on the same day (regardless of class) for continuous room allocation
     const allSameDayExams = allEntries.filter(e => {
@@ -498,85 +510,111 @@ class SeatingPlanBuilder {
       return entryDateNorm === currentDateNorm;
     });
 
-    // Sort by time slot (start time), then by class (10th before 12th), then by subject code
-    allSameDayExams.sort((a, b) => {
-      const timeA = a.timeSlot?.start || '10:30';
-      const timeB = b.timeSlot?.start || '10:30';
-      if (timeA !== timeB) return timeA.localeCompare(timeB);
-      // If same time slot, sort by class (10th before 12th for consistency)
-      const classA = String(a.subject.class).replace(/th$/i, '');
-      const classB = String(b.subject.class).replace(/th$/i, '');
-      if (classA !== classB) return parseInt(classA) - parseInt(classB);
-      return a.subject.code.localeCompare(b.subject.code);
+    // Sort same-day exams by candidate count (higher first), then class, then subject code.
+    // This ensures the class with more students consumes room order first.
+    const sameDayWithCounts = await Promise.all(
+      allSameDayExams.map(async exam => {
+        const count = (await this.getCandidatesForExam(exam)).length;
+        return { exam, count };
+      })
+    );
+    sameDayWithCounts.sort((a, b) => {
+      if (a.count !== b.count) return b.count - a.count; // higher candidate count first
+      const classA = parseInt(String(a.exam.subject.class).replace(/th$/i, ''), 10) || 0;
+      const classB = parseInt(String(b.exam.subject.class).replace(/th$/i, ''), 10) || 0;
+      if (classA !== classB) return classA - classB;
+      return String(a.exam.subject.code || '').localeCompare(String(b.exam.subject.code || ''), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
     });
+    const orderedSameDayExams = sameDayWithCounts.map(item => item.exam);
 
     // Find position of current exam among ALL exams today
-    const currentExamIndex = allSameDayExams.findIndex(e =>
+    const currentExamIndex = orderedSameDayExams.findIndex(e =>
       e._id.toString() === currentEntry._id.toString()
     );
 
-    console.log(`Exam ${currentEntry.subject.code} (${currentClass}) is exam #${currentExamIndex + 1} of ${allSameDayExams.length} total exams today`);
-    console.log(`All same-day exams (in order): ${allSameDayExams.map(e => `${e.subject.code}(${e.subject.class})`).join(', ')}`);
+    console.log(`Exam ${currentEntry.subject.code} (${currentClass}) is exam #${currentExamIndex + 1} of ${orderedSameDayExams.length} total exams today`);
+    console.log(`All same-day exams (in order): ${orderedSameDayExams.map(e => `${e.subject.code}(${e.subject.class})`).join(', ')}`);
 
     // If this is the FIRST exam of the day (regardless of class), use this exam's class-based rotation
     if (currentExamIndex <= 0) {
       console.log(`First exam of the day (${currentClass}) - starting from Room ${rooms[dayRotationOffset]?.roomNo} (rotation offset: ${dayRotationOffset})`);
-      return { startRoomIndex: dayRotationOffset, startSeatOffset: 0 };
+      return { startRoomIndex: dayRotationOffset, startSeatOffset: 0, allowWrap: !manualMode };
     }
 
-    // For subsequent exams: calculate total candidates from ALL previous exams today
-    // Get the first exam of the day to determine base rotation offset
-    const firstExamOfDay = allSameDayExams[0];
+    // For subsequent exams: simulate room progression exam-by-exam for robust same-day continuity.
+    // Get the first exam of the day to determine base rotation offset.
+    const firstExamOfDay = orderedSameDayExams[0];
     const firstExamClass = firstExamOfDay.subject.class;
-    const baseRotationOffset = await this.getClassBasedDayRotation(firstExamOfDay, allEntries, totalRooms);
+    const baseRotationOffset = manualMode
+      ? 0
+      : await this.getClassBasedDayRotation(firstExamOfDay, allEntries, totalRooms);
 
     console.log(`Base rotation offset from first exam (${firstExamClass}): ${baseRotationOffset}`);
 
-    // Fetch candidates for all previous exams in parallel (caching ensures no duplicate DB calls)
-    const previousExams = allSameDayExams.slice(0, currentExamIndex);
-    const prevCandidateCounts = await Promise.all(
+    // Fetch candidates for all previous exams in parallel (cache avoids duplicate DB calls).
+    const previousExams = orderedSameDayExams.slice(0, currentExamIndex);
+    const previousExamCandidates = await Promise.all(
       previousExams.map(async exam => {
         const candidates = await this.getCandidatesForExam(exam);
         console.log(`  Previous exam ${exam.subject.code} (${exam.subject.class}): ${candidates.length} candidates`);
-        return candidates.length;
+        return candidates;
       })
     );
-    const totalPreviousCandidates = prevCandidateCounts.reduce((sum, count) => sum + count, 0);
 
-    console.log(`Total candidates from previous exams today: ${totalPreviousCandidates}`);
+    let simulatedStartRoomIndex = baseRotationOffset;
+    let simulatedStartSeatOffset = 0;
 
-    // Calculate room and seat position after all previous exams
-    const fullRoomsUsed = Math.floor(totalPreviousCandidates / candidatesPerRoom);
-    const seatsUsedInLastRoom = totalPreviousCandidates % candidatesPerRoom;
-    const remainingSeatsInLastRoom = candidatesPerRoom - seatsUsedInLastRoom;
+    for (let i = 0; i < previousExams.length; i += 1) {
+      const prevCandidates = previousExamCandidates[i];
+      if (!prevCandidates || prevCandidates.length === 0) continue;
 
-    // Calculate actual room index using the base rotation offset (from first exam of the day)
-    const lastUsedRoomIndex = (baseRotationOffset + fullRoomsUsed) % totalRooms;
+      const prevAllocations = this.allocateCandidatesToRoomsWithOffset(
+        prevCandidates,
+        rooms,
+        simulatedStartRoomIndex,
+        simulatedStartSeatOffset
+      );
 
-    console.log(`Full rooms used: ${fullRoomsUsed}, Seats in last room: ${seatsUsedInLastRoom}, Remaining: ${remainingSeatsInLastRoom}`);
-    console.log(`Current exam needs ${currentCandidateCount} seats`);
+      const lastAllocation = prevAllocations[prevAllocations.length - 1];
+      if (!lastAllocation) continue;
 
-    // Decision: Can ALL current exam candidates fit in remaining seats of the last room?
-    if (seatsUsedInLastRoom > 0 && currentCandidateCount <= remainingSeatsInLastRoom) {
-      console.log(`Continuing in Room ${rooms[lastUsedRoomIndex]?.roomNo} with seat offset ${seatsUsedInLastRoom}`);
-      return {
-        startRoomIndex: lastUsedRoomIndex,
-        startSeatOffset: seatsUsedInLastRoom
-      };
-    } else {
-      // Start from the next room
-      const nextRoomIndex = seatsUsedInLastRoom > 0
-        ? (lastUsedRoomIndex + 1) % totalRooms
-        : lastUsedRoomIndex;
-      console.log(`Starting fresh from Room ${rooms[nextRoomIndex]?.roomNo} (cannot fit ${currentCandidateCount} in remaining ${remainingSeatsInLastRoom} seats)`);
-      return {
-        startRoomIndex: nextRoomIndex,
-        startSeatOffset: 0
-      };
+      const lastRoomIndex = Number(lastAllocation.roomIndex || 0);
+      const seatsUsedInLastRoom = prevAllocations.length === 1
+        ? Number(lastAllocation.seatOffset || 0) + Number(lastAllocation.registered || 0)
+        : Number(lastAllocation.registered || 0);
+      const remainingSeatsInLastRoom = candidatesPerRoom - seatsUsedInLastRoom;
+
+      const nextExamCandidateCount = i === previousExams.length - 1
+        ? currentCandidateCount
+        : previousExamCandidates[i + 1].length;
+
+      if (seatsUsedInLastRoom > 0 && nextExamCandidateCount <= remainingSeatsInLastRoom) {
+        simulatedStartRoomIndex = lastRoomIndex;
+        simulatedStartSeatOffset = seatsUsedInLastRoom;
+      } else {
+        simulatedStartRoomIndex = lastRoomIndex + 1;
+        simulatedStartSeatOffset = 0;
+      }
     }
+
+    if (simulatedStartRoomIndex >= totalRooms) {
+      throw new Error('No next room available for same-day class progression. Please allocate additional rooms for this date.');
+    }
+
+    console.log(
+      `Simulated same-day start for ${currentEntry.subject.code}: Room ${rooms[simulatedStartRoomIndex]?.roomNo}, seat offset ${simulatedStartSeatOffset}`
+    );
+    return {
+      startRoomIndex: simulatedStartRoomIndex,
+      startSeatOffset: simulatedStartSeatOffset,
+      allowWrap: false,
+    };
   }
 
-  allocateCandidatesToRoomsWithOffset(candidates, rooms, startRoomIndex, startSeatOffset, answerSheetAllocations = null) {
+  allocateCandidatesToRoomsWithOffset(candidates, rooms, startRoomIndex, startSeatOffset, answerSheetAllocations = null, allowWrap = true) {
     const allocations = [];
     const candidatesPerRoom = 24;
     const totalRooms = rooms.length;
@@ -584,10 +622,14 @@ class SeatingPlanBuilder {
     let isFirstRoom = true;
     let roomsProcessed = 0;
 
-    // Loop through rooms with wrap-around support
-    // Start from startRoomIndex and wrap around if needed
-    while (candidateIndex < candidates.length && roomsProcessed < totalRooms) {
-      const roomIdx = (startRoomIndex + roomsProcessed) % totalRooms;
+    // Loop through rooms with optional wrap-around support.
+    while (candidateIndex < candidates.length) {
+      if (allowWrap && roomsProcessed >= totalRooms) break;
+      const roomIdx = allowWrap
+        ? (startRoomIndex + roomsProcessed) % totalRooms
+        : (startRoomIndex + roomsProcessed);
+      if (!allowWrap && roomIdx >= totalRooms) break;
+
       const room = rooms[roomIdx];
       let seatsAvailable = candidatesPerRoom;
       let seatOffset = 0;
@@ -612,6 +654,7 @@ class SeatingPlanBuilder {
       const rows = this.buildRowsWithOffset(roomCandidates, seatOffset, candidateIndex, answerSheetAllocations);
 
       allocations.push({
+        roomIndex: roomIdx,
         roomNo: this.formatRoomNoDisplay(room.roomNo),
         roomName: room.roomName || '',
         floor: room.floor || 'First Floor',
@@ -915,7 +958,7 @@ class SeatingPlanBuilder {
           schoolName: identity.schoolName,
           schoolAddress: identity.schoolAddress,
           centreNo: identity.centreNo,
-          className: datesheet.class,
+          className: this.getClassRoman(datesheet.class),
           examName: examName,
           examYear: examYear,
           subjectCode: datesheet.subjectCode,
@@ -933,7 +976,7 @@ class SeatingPlanBuilder {
           schoolName: identity.schoolName,
           schoolAddress: identity.schoolAddress,
           centreNo: identity.centreNo,
-          className: datesheet.class,
+          className: this.getClassRoman(datesheet.class),
           examName: examName,
           examYear: examYear,
           subjectCode: datesheet.subjectCode,
@@ -1018,6 +1061,7 @@ class SeatingPlanBuilder {
         roomNo: room.roomNo,
         rows: room.rows,
         registered: room.registered,
+        registeredDisplay: String(room.registered ?? 0).padStart(2, '0'),
         last: index === rooms.length - 1
       }))
     };

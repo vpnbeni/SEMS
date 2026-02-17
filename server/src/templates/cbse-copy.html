@@ -183,6 +183,11 @@
         .footer-right .stat-item .label {
             font-weight: bold;
         }
+
+        .footer-right .stat-item .value {
+            font-weight: bold;
+            margin-left: 6px;
+        }
         
         .footer-right .stat-item .line {
             border-bottom: 1px solid #000;
@@ -299,7 +304,7 @@
                 <div class="title">Total Students</div>
                 <div class="stat-item">
                     <span class="label">Registered:</span>
-                    <div class="line"></div>
+                    <span class="value">{{registeredDisplay}}</span>
                 </div>
                 <div class="stat-item">
                     <span class="label">Present:</span>

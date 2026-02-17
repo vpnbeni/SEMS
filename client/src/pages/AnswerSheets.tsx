@@ -92,6 +92,9 @@ const AnswerSheets: React.FC = () => {
   const updateMutation = useUpdateAnswerSheetMutation()
   const discardMutation = useDiscardSheetsMutation()
 
+  const getDiscardedCount = (entry: AnswerSheetEntry) =>
+    Math.max(Number(entry.discarded || 0), Number(entry.discardedSerials?.length || 0))
+
   const loading =
     loadingList ||
     isFetching ||
@@ -186,7 +189,7 @@ const AnswerSheets: React.FC = () => {
   const totals = entries.reduce((acc, entry) => {
     acc.received += entry.total
     acc.used += entry.used
-    acc.discarded += entry.discarded
+    acc.discarded += getDiscardedCount(entry)
     return acc
   }, { received: 0, used: 0, discarded: 0 })
 
@@ -485,12 +488,60 @@ const AnswerSheets: React.FC = () => {
       case 'used':
         return []
       case 'balance':
-        return byClass.filter(e => (e.total - e.used - e.discarded) > 0)
+        return byClass.filter(e => (e.total - e.used - getDiscardedCount(e)) > 0)
       case 'discarded':
-        return byClass.filter(e => e.discarded > 0)
+        return byClass.filter(e => getDiscardedCount(e) > 0)
       default:
         return byClass
     }
+  }
+
+  const getDiscardedRows = () => {
+    const byClass = entries.filter(classFilter).sort(sortByAnswerSheetSequence)
+    const rows: Array<{
+      key: string
+      serialNo: string
+      date: string
+      subject: string
+      code: string
+      roomNo: string
+      reason: string
+      entry: AnswerSheetEntry
+    }> = []
+
+    byClass.forEach((entry) => {
+      const discardedSerials = entry.discardedSerials || []
+      const linkedRoomNo = (entry as AnswerSheetEntry & { linkedRoomNo?: string | number }).linkedRoomNo
+
+      discardedSerials.forEach((item, index) => {
+        rows.push({
+          key: `${entry._id || getEntryEditingKey(entry)}-${item.serial}-${index}`,
+          serialNo: item.serial || '-',
+          date: entry.linkedExamDate ? new Date(entry.linkedExamDate).toLocaleDateString('en-IN') : '-',
+          subject: entry.linkedSubjectName || entry.subject || '-',
+          code: entry.linkedSubjectCode || '-',
+          roomNo: linkedRoomNo ? String(linkedRoomNo) : '-',
+          reason: item.reason || 'Damaged/Misprinted',
+          entry,
+        })
+      })
+
+      const remainingDiscarded = Math.max(0, Number(entry.discarded || 0) - discardedSerials.length)
+      for (let i = 0; i < remainingDiscarded; i += 1) {
+        rows.push({
+          key: `${entry._id || getEntryEditingKey(entry)}-count-only-${i}`,
+          serialNo: '-',
+          date: entry.linkedExamDate ? new Date(entry.linkedExamDate).toLocaleDateString('en-IN') : '-',
+          subject: entry.linkedSubjectName || entry.subject || '-',
+          code: entry.linkedSubjectCode || '-',
+          roomNo: linkedRoomNo ? String(linkedRoomNo) : '-',
+          reason: 'Quantity discard (serial not captured)',
+          entry,
+        })
+      }
+    })
+
+    return rows
   }
 
   // Get centre datesheet entries for Used tab (optionally filtered by class)
@@ -817,7 +868,26 @@ const AnswerSheets: React.FC = () => {
                       </th>
                     </>
                   )}
-                  {activeTab !== 'used' && (
+                  {activeTab === 'discarded' && (
+                    <>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Serial No
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Subject
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Code
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Room No
+                      </th>
+                    </>
+                  )}
+                  {activeTab !== 'used' && activeTab !== 'discarded' && (
                     <>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Answer Sheet
@@ -847,7 +917,7 @@ const AnswerSheets: React.FC = () => {
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={12} className="px-6 py-12 text-center">
+                    <td colSpan={activeTab === 'used' ? 13 : activeTab === 'discarded' ? 11 : 8} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading...</p>
@@ -988,11 +1058,77 @@ const AnswerSheets: React.FC = () => {
                       </td>
                     </tr>
                   )
+                ) : activeTab === 'discarded' ? (
+                  getDiscardedRows().length > 0 ? (
+                    getDiscardedRows().map((row, index) => {
+                      const entryDiscarded = getDiscardedCount(row.entry)
+                      const entryBalance = row.entry.total - row.entry.used - entryDiscarded
+                      return (
+                        <tr key={row.key} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
+                            {row.serialNo}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {row.date}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white" title={row.subject}>
+                            <span className="inline-block max-w-[220px] truncate align-bottom">{row.subject}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
+                            {row.code}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                            {row.roomNo}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
+                            {row.entry.total}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600 dark:text-green-400">
+                            {row.entry.used}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-yellow-600 dark:text-yellow-400">
+                            {entryBalance}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600 dark:text-red-400">
+                            {entryDiscarded}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                            {row.entry._id && (
+                              <button
+                                onClick={() => navigate(`/answersheets/${row.entry._id}`)}
+                                className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                                title={row.reason}
+                              >
+                                View
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={11} className="px-6 py-12 text-center">
+                        <div className="flex flex-col items-center">
+                          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                            No discarded sheet records found.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  )
                 ) : (
                   // Other Tabs - Show Answer Sheets
                   getFilteredEntries().length > 0 ? (
                     getFilteredEntries().map((entry, index) => {
-                      const entryBalance = entry.total - entry.used - entry.discarded
+                      const entryDiscarded = getDiscardedCount(entry)
+                      const entryBalance = entry.total - entry.used - entryDiscarded
                       return (
                         <tr key={entry._id} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -1014,7 +1150,7 @@ const AnswerSheets: React.FC = () => {
                             {entryBalance}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600 dark:text-red-400">
-                            {entry.discarded}
+                            {entryDiscarded}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                             {entryBalance > 0 && (
