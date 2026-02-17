@@ -37,6 +37,28 @@ class SeatingPlanBuilder {
     };
   }
 
+  normalizeDateKey(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().slice(0, 10);
+  }
+
+  getManualRoomOrder(room, dateKey) {
+    const mapValue = room?.allocationOrderByDate;
+    if (!mapValue || !dateKey) return null;
+
+    let orderValue;
+    if (mapValue instanceof Map) {
+      orderValue = mapValue.get(dateKey);
+    } else if (typeof mapValue === 'object') {
+      orderValue = mapValue[dateKey];
+    }
+
+    const order = Number(orderValue);
+    if (!Number.isFinite(order) || order <= 0) return null;
+    return order;
+  }
+
   async buildSeatingData(entryId, options = {}) {
     try {
       // Clear caches at the start of each buildSeatingData call
@@ -59,8 +81,31 @@ class SeatingPlanBuilder {
       }
 
       // Get all rooms sorted numerically by room number
-      const rooms = await Room.find({ isActive: true }).lean();
-      rooms.sort(compareRoomNo);
+      const allRooms = await Room.find({ isActive: true }).lean();
+      allRooms.sort(compareRoomNo);
+
+      const allocationMode = options.roomAllocationMode === 'manual' ? 'manual' : 'auto';
+      const examDateKey = this.normalizeDateKey(entry.examDate);
+
+      const rooms = allocationMode === 'manual'
+        ? allRooms
+          .map((room) => ({
+            ...room,
+            __manualOrder: this.getManualRoomOrder(room, examDateKey),
+          }))
+          .filter((room) => room.__manualOrder !== null)
+          .sort((a, b) => {
+            if (a.__manualOrder !== b.__manualOrder) {
+              return a.__manualOrder - b.__manualOrder;
+            }
+            return compareRoomNo(a, b);
+          })
+          .map(({ __manualOrder, ...room }) => room)
+        : allRooms;
+
+      if (rooms.length === 0) {
+        throw new Error('No rooms available for allocation');
+      }
 
       // Get candidates for this exam
       const candidates = await this.getCandidatesForExam(entry);
@@ -77,13 +122,15 @@ class SeatingPlanBuilder {
       console.log(`Entries with candidates at this centre: ${entriesWithCandidates.length}`);
 
       // Calculate room allocation with class-based rotation
-      const { startRoomIndex, startSeatOffset } = await this.calculateStartingPositionClassBased(
-        entry,
-        entriesWithCandidates, // Use filtered entries instead of all entries
-        null, // scheduleMap no longer used
-        rooms,
-        candidates.length
-      );
+      const { startRoomIndex, startSeatOffset } = allocationMode === 'manual'
+        ? { startRoomIndex: 0, startSeatOffset: 0 }
+        : await this.calculateStartingPositionClassBased(
+          entry,
+          entriesWithCandidates, // Use filtered entries instead of all entries
+          null, // scheduleMap no longer used
+          rooms,
+          candidates.length
+        );
 
       console.log(`Exam ${entry.subject.code} (${entry.subject.class}): Starting from Room ${rooms[startRoomIndex]?.roomNo || 'N/A'}, Seat offset: ${startSeatOffset}`);
 

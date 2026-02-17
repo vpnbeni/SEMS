@@ -3,6 +3,7 @@ const seatingPlanBuilder = require('../utils/seatingPlanBuilder');
 const Room = require('../models/Room');
 
 const DEFAULT_TEMPLATE_SETTINGS = Object.freeze({
+  roomAllocationMode: 'auto',
   mainGate: {
     col1Width: 16,
     col2Width: 28,
@@ -272,6 +273,9 @@ const normalizeRoomDoorSlipSettings = (input = {}) => {
 };
 
 const normalizeTemplateSettings = (input = {}) => ({
+  roomAllocationMode: String(input?.roomAllocationMode || DEFAULT_TEMPLATE_SETTINGS.roomAllocationMode).toLowerCase() === 'manual'
+    ? 'manual'
+    : 'auto',
   mainGate: normalizeMainGateSettings(input?.mainGate),
   cbseCopy: normalizeCbseCopySettings(input?.cbseCopy),
   roomFolderSlip: normalizeRoomFolderSlipSettings(input?.roomFolderSlip),
@@ -349,6 +353,9 @@ exports.upsertTemplateSettings = async (req, res) => {
     const existing = await SeatingPlanTemplateSetting.findOne({}).sort({ updatedAt: -1 });
 
     if (existing) {
+      existing.roomAllocationMode = typeof req.body?.roomAllocationMode === 'string'
+        ? payload.roomAllocationMode
+        : (existing.roomAllocationMode || DEFAULT_TEMPLATE_SETTINGS.roomAllocationMode);
       existing.mainGate = payload.mainGate;
       existing.cbseCopy = payload.cbseCopy;
       existing.roomFolderSlip = payload.roomFolderSlip;
@@ -374,6 +381,51 @@ exports.upsertTemplateSettings = async (req, res) => {
   } catch (error) {
     console.error('Upsert Template Settings Error:', error);
     res.status(500).json({ message: 'Failed to save template settings', error: error.message });
+  }
+};
+
+exports.getRoomAllocationMode = async (req, res) => {
+  try {
+    const settings = await getResolvedTemplateSettings(req);
+    res.json({
+      success: true,
+      data: {
+        mode: settings.roomAllocationMode || 'auto',
+      },
+    });
+  } catch (error) {
+    console.error('Get Room Allocation Mode Error:', error);
+    res.status(500).json({ message: 'Failed to fetch room allocation mode', error: error.message });
+  }
+};
+
+exports.updateRoomAllocationMode = async (req, res) => {
+  try {
+    const SeatingPlanTemplateSetting = req.models?.SeatingPlanTemplateSetting;
+    if (!SeatingPlanTemplateSetting) {
+      return res.status(500).json({ message: 'Template settings model is unavailable' });
+    }
+
+    const mode = String(req.body?.mode || '').toLowerCase() === 'manual' ? 'manual' : 'auto';
+    const existing = await SeatingPlanTemplateSetting.findOne({}).sort({ updatedAt: -1 });
+
+    if (existing) {
+      existing.roomAllocationMode = mode;
+      await existing.save();
+    } else {
+      await SeatingPlanTemplateSetting.create({
+        ...normalizeTemplateSettings({}),
+        roomAllocationMode: mode,
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: { mode },
+    });
+  } catch (error) {
+    console.error('Update Room Allocation Mode Error:', error);
+    res.status(500).json({ message: 'Failed to update room allocation mode', error: error.message });
   }
 };
 
@@ -457,7 +509,10 @@ exports.generateMainGate = async (req, res) => {
     const centreDetails = await getLatestCentreDetails(req);
     const templateSettings = await getResolvedTemplateSettings(req);
 
-    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, { centreDetails });
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, {
+      centreDetails,
+      roomAllocationMode: templateSettings.roomAllocationMode,
+    });
     const templateData = seatingPlanBuilder.buildMainGateData(seatingData);
     templateData.templateSettings = templateSettings.mainGate;
     const pdfBuffer = await pdfGenerator.generateMainGate(templateData);
@@ -476,7 +531,10 @@ exports.generateRoomFolderSlip = async (req, res) => {
     const centreDetails = await getLatestCentreDetails(req);
     const templateSettings = await getResolvedTemplateSettings(req);
 
-    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, { centreDetails });
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, {
+      centreDetails,
+      roomAllocationMode: templateSettings.roomAllocationMode,
+    });
     const templateData = seatingPlanBuilder.buildRoomFolderSlipData(seatingData);
     templateData.templateSettings = templateSettings.roomFolderSlip;
     const pdfBuffer = await pdfGenerator.generateRoomFolderSlip(templateData);
@@ -495,7 +553,10 @@ exports.generateRoomDoorSlip = async (req, res) => {
     const centreDetails = await getLatestCentreDetails(req);
     const templateSettings = await getResolvedTemplateSettings(req);
 
-    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, { centreDetails });
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, {
+      centreDetails,
+      roomAllocationMode: templateSettings.roomAllocationMode,
+    });
     const templateData = seatingPlanBuilder.buildRoomDoorSlipData(seatingData);
     templateData.templateSettings = templateSettings.roomDoorSlip;
     const pdfBuffer = await pdfGenerator.generateRoomDoorSlip(templateData);
@@ -514,7 +575,10 @@ exports.generateCBSECopy = async (req, res) => {
     const centreDetails = await getLatestCentreDetails(req);
     const templateSettings = await getResolvedTemplateSettings(req);
 
-    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, { centreDetails });
+    const seatingData = await seatingPlanBuilder.buildSeatingData(datesheetId, {
+      centreDetails,
+      roomAllocationMode: templateSettings.roomAllocationMode,
+    });
     const templateData = seatingPlanBuilder.buildCBSECopyData(seatingData);
     templateData.templateSettings = templateSettings.cbseCopy;
     const pdfBuffer = await pdfGenerator.generateCBSECopy(templateData);

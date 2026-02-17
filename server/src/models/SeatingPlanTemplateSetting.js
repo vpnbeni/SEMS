@@ -63,6 +63,11 @@ const roomDoorSlipSchema = new mongoose.Schema({
 }, { _id: false });
 
 const seatingPlanTemplateSettingSchema = new mongoose.Schema({
+  roomAllocationMode: {
+    type: String,
+    enum: ['auto', 'manual'],
+    default: 'auto',
+  },
   mainGate: {
     type: mainGateSchema,
     default: () => ({}),

@@ -14,6 +14,8 @@ router.delete('/rooms/:id', seatingPlanController.deleteRoom);
 // Template settings routes
 router.get('/template-settings', seatingPlanController.getTemplateSettings);
 router.put('/template-settings', seatingPlanController.upsertTemplateSettings);
+router.get('/room-allocation-mode', seatingPlanController.getRoomAllocationMode);
+router.put('/room-allocation-mode', seatingPlanController.updateRoomAllocationMode);
 
 // PDF generation routes
 router.get('/generate/main-gate/:datesheetId', seatingPlanController.generateMainGate);

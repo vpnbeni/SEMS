@@ -6,6 +6,8 @@ export interface Room {
   roomName?: string;
   floor?: string;
   capacity: number;
+  allocatedExamDates?: string[];
+  allocationOrderByDate?: Record<string, number>;
   isActive: boolean;
 }
 
@@ -71,6 +73,7 @@ export interface RoomDoorSlipTemplateSettings {
 }
 
 export interface SeatingPlanTemplateSettings {
+  roomAllocationMode?: 'auto' | 'manual';
   mainGate: MainGateTemplateSettings;
   cbseCopy: CBSECopyTemplateSettings;
   roomFolderSlip: RoomFolderSlipTemplateSettings;
@@ -135,6 +138,16 @@ export const seatingPlanService = {
   async updateTemplateSettings(settings: SeatingPlanTemplateSettings): Promise<SeatingPlanTemplateSettings> {
     const response = await api.put('/seating-plan/template-settings', settings);
     return response.data?.data;
+  },
+
+  async getRoomAllocationMode(): Promise<'auto' | 'manual'> {
+    const response = await api.get('/seating-plan/room-allocation-mode');
+    return response.data?.data?.mode === 'manual' ? 'manual' : 'auto';
+  },
+
+  async updateRoomAllocationMode(mode: 'auto' | 'manual'): Promise<'auto' | 'manual'> {
+    const response = await api.put('/seating-plan/room-allocation-mode', { mode });
+    return response.data?.data?.mode === 'manual' ? 'manual' : 'auto';
   },
 
   // Helper to download PDF

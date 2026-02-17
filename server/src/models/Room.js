@@ -20,6 +20,15 @@ const roomSchema = new mongoose.Schema({
     type: Number,
     default: 24
   },
+  allocatedExamDates: {
+    type: [String],
+    default: []
+  },
+  allocationOrderByDate: {
+    type: Map,
+    of: Number,
+    default: {}
+  },
   isActive: {
     type: Boolean,
     default: true
