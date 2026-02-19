@@ -745,6 +745,13 @@ const SeatingPlan: React.FC = () => {
     window.addEventListener('mouseup', onMouseUp)
   }
 
+  const scheduleHighlightRingClass: Record<SeatingPlanFormat, string> = {
+    mainGate: 'ring-2 ring-blue-500',
+    roomFolderSlip: 'ring-2 ring-green-500',
+    roomDoorSlip: 'ring-2 ring-yellow-500',
+    cbseCopy: 'ring-2 ring-purple-500',
+  }
+
   return (
     <div className="p-6">
       {/* Status Overview - Clickable Tabs */}
@@ -752,8 +759,9 @@ const SeatingPlan: React.FC = () => {
         <button
           onClick={() => setActiveTab('mainGate')}
           disabled={pdfMutation.isPending && activeTab !== 'mainGate'}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${activeTab === 'mainGate' ? 'ring-2 ring-blue-500' : 'hover:shadow-lg'
+          className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'mainGate' ? 'ring-2 ring-blue-500 border-blue-400 dark:border-blue-500 bg-blue-100 dark:bg-blue-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800'
             } ${pdfMutation.isPending && activeTab !== 'mainGate' ? 'opacity-50 cursor-not-allowed' : ''}`}
+          aria-pressed={activeTab === 'mainGate'}
         >
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
@@ -763,7 +771,7 @@ const SeatingPlan: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-lg font-semibold text-gray-900 dark:text-white">Main Gate</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">View format</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'mainGate' ? 'Selected format' : 'Click to switch format'}</p>
             </div>
           </div>
         </button>
@@ -771,8 +779,9 @@ const SeatingPlan: React.FC = () => {
         <button
           onClick={() => setActiveTab('roomFolderSlip')}
           disabled={pdfMutation.isPending && activeTab !== 'roomFolderSlip'}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${activeTab === 'roomFolderSlip' ? 'ring-2 ring-green-500' : 'hover:shadow-lg'
+          className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'roomFolderSlip' ? 'ring-2 ring-green-500 border-green-400 dark:border-green-500 bg-green-100 dark:bg-green-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-green-200 dark:hover:border-green-800'
             } ${pdfMutation.isPending && activeTab !== 'roomFolderSlip' ? 'opacity-50 cursor-not-allowed' : ''}`}
+          aria-pressed={activeTab === 'roomFolderSlip'}
         >
           <div className="flex items-center">
             <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
@@ -782,7 +791,7 @@ const SeatingPlan: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-lg font-semibold text-gray-900 dark:text-white">Room Folder Slip</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">View format</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'roomFolderSlip' ? 'Selected format' : 'Click to switch format'}</p>
             </div>
           </div>
         </button>
@@ -790,8 +799,9 @@ const SeatingPlan: React.FC = () => {
         <button
           onClick={() => setActiveTab('roomDoorSlip')}
           disabled={pdfMutation.isPending && activeTab !== 'roomDoorSlip'}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${activeTab === 'roomDoorSlip' ? 'ring-2 ring-yellow-500' : 'hover:shadow-lg'
+          className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'roomDoorSlip' ? 'ring-2 ring-yellow-500 border-yellow-400 dark:border-yellow-500 bg-yellow-100 dark:bg-yellow-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-yellow-200 dark:hover:border-yellow-800'
             } ${pdfMutation.isPending && activeTab !== 'roomDoorSlip' ? 'opacity-50 cursor-not-allowed' : ''}`}
+          aria-pressed={activeTab === 'roomDoorSlip'}
         >
           <div className="flex items-center">
             <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
@@ -801,7 +811,7 @@ const SeatingPlan: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-lg font-semibold text-gray-900 dark:text-white">Room Door Slip</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">View format</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'roomDoorSlip' ? 'Selected format' : 'Click to switch format'}</p>
             </div>
           </div>
         </button>
@@ -809,8 +819,9 @@ const SeatingPlan: React.FC = () => {
         <button
           onClick={() => setActiveTab('cbseCopy')}
           disabled={pdfMutation.isPending && activeTab !== 'cbseCopy'}
-          className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 transition-all ${activeTab === 'cbseCopy' ? 'ring-2 ring-purple-500' : 'hover:shadow-lg'
+          className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'cbseCopy' ? 'ring-2 ring-purple-500 border-purple-400 dark:border-purple-500 bg-purple-100 dark:bg-purple-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-purple-200 dark:hover:border-purple-800'
             } ${pdfMutation.isPending && activeTab !== 'cbseCopy' ? 'opacity-50 cursor-not-allowed' : ''}`}
+          aria-pressed={activeTab === 'cbseCopy'}
         >
           <div className="flex items-center">
             <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
@@ -820,14 +831,14 @@ const SeatingPlan: React.FC = () => {
             </div>
             <div className="ml-4">
               <p className="text-lg font-semibold text-gray-900 dark:text-white">CBSE Copy</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">View format</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'cbseCopy' ? 'Selected format' : 'Click to switch format'}</p>
             </div>
           </div>
         </button>
       </div>
 
       {/* Datesheet Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-8">
+      <div className={`bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-8 transition-all ${scheduleHighlightRingClass[activeTab]}`}>
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Examination Schedule

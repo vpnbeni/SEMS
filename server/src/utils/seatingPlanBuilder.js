@@ -202,10 +202,13 @@ class SeatingPlanBuilder {
 
       // Determine expected answer sheet type from entry
       let expectedAnswerSheetType = null;
+      let expectedPages = null;
       if (entry.answerSheet === '32_pages') {
         expectedAnswerSheetType = 'Main';
+        expectedPages = 32;
       } else if (entry.answerSheet === '20_pages') {
         expectedAnswerSheetType = 'Main';
+        expectedPages = 20;
       } else if (entry.answerSheet === '40_graph') {
         expectedAnswerSheetType = 'Graph';
       } else if (entry.answerSheet === 'drawing_sheets') {
@@ -218,10 +221,17 @@ class SeatingPlanBuilder {
       }
 
       // Find matching answer sheets
-      const answerSheets = await AnswerSheet.find({
+      const answerSheetFilter = {
         answerSheetType: expectedAnswerSheetType,
         class: classNumber,
         isActive: true
+      };
+      if (expectedPages !== null) {
+        answerSheetFilter.pages = expectedPages;
+      }
+
+      const answerSheets = await AnswerSheet.find({
+        ...answerSheetFilter
       }).sort({ sortOrder: 1 });
 
       if (answerSheets.length === 0) {

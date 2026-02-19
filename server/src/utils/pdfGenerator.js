@@ -51,12 +51,14 @@ class PDFGenerator {
       const pdfBuffer = await page.pdf({
         format: 'A4',
         printBackground: true,
+        // Use template-defined @page margins to keep PDF output aligned with preview.
         margin: {
-          top: '10mm',
-          right: '10mm',
-          bottom: '10mm',
-          left: '10mm'
+          top: '0mm',
+          right: '0mm',
+          bottom: '0mm',
+          left: '0mm'
         },
+        preferCSSPageSize: true,
         ...options
       });
       
