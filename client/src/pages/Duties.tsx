@@ -105,7 +105,7 @@ const getMaxRowLabel = (tabKey: string): string => {
 /* ────────── component ────────── */
 
 const Duties: React.FC = () => {
-  const [rooms, setRooms] = useState<Room[]>([])
+  const [, setRooms] = useState<Room[]>([])
   const [examDates, setExamDates] = useState<string[]>([])
   const [requiredRoomsByDate, setRequiredRoomsByDate] = useState<Record<string, number>>({})
   const [candidatesByDate, setCandidatesByDate] = useState<Record<string, number>>({})
