@@ -6,6 +6,7 @@ dotenv.config();
 
 // Import database connection
 const { connectPlatformDB, getCentralDbName } = require('./config/platformDatabase');
+const { runTenantModelStartupSanityCheck } = require('./tenancy/startupTenantModelSanityCheck');
 
 // Import app
 const app = require('./app');
@@ -25,6 +26,7 @@ const initializeServer = async () => {
   try {
     await connectPlatformDB();
     console.log(`✅ Platform database '${getCentralDbName()}' connected successfully`.green.bold);
+    await runTenantModelStartupSanityCheck();
     
     // TODO: Re-enable calendar initialization after debugging
     // setTimeout(async () => {

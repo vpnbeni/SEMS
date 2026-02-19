@@ -16,6 +16,7 @@ const Guideline = require('../models/Guideline');
 const Undertaking = require('../models/Undertaking');
 const CentreDetail = require('../models/CentreDetail');
 const SeatingPlanTemplateSetting = require('../models/SeatingPlanTemplateSetting');
+const DutyAssignment = require('../models/DutyAssignment');
 
 const tenantModelExports = {
   User,
@@ -36,7 +37,8 @@ const tenantModelExports = {
   Guideline,
   Undertaking,
   CentreDetail,
-  SeatingPlanTemplateSetting
+  SeatingPlanTemplateSetting,
+  DutyAssignment
 };
 
 const registerModelOnConnection = (modelExport, connection) => {
