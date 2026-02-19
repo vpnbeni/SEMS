@@ -35,6 +35,13 @@ const DUTY_TYPE_OPTIONS = [
   'Class IV',
 ];
 
+const getDutyOptionsForDesignation = (designation: string | undefined): string[] => {
+  const d = (designation || '').trim().toLowerCase();
+  if (d === 'principal') return ['Centre Superintendent', 'Observer'];
+  if (d === 'vice principal') return ['Centre Superintendent', 'Deputy Centre Superintendent'];
+  return DUTY_TYPE_OPTIONS;
+};
+
 const DEPARTMENTS_LIST = [
   "Mathematics",
   "Physics",
@@ -219,7 +226,25 @@ const Teachers: React.FC = () => {
     return "N/A";
   };
 
-  const displayTeachers = teachers ? teachers.map(transformTeacher) : [];
+  const displayTeachers = useMemo(() => {
+    if (!teachers) return [];
+    const transformed = teachers.map(transformTeacher);
+
+    // Default sort: Principal first, then Vice Principal, then rest by name
+    const designationPriority = (d: string | undefined): number => {
+      const v = (d || '').trim().toUpperCase();
+      if (v === 'PRINCIPAL') return 0;
+      if (v === 'VICE PRINCIPAL') return 1;
+      return 2;
+    };
+
+    return [...transformed].sort((a, b) => {
+      const pa = designationPriority(a.designation);
+      const pb = designationPriority(b.designation);
+      if (pa !== pb) return pa - pb;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+  }, [teachers]);
 
   const totalTeachers = pagination.totalItems ?? 0;
   const normalizeValue = (value: string | undefined) => String(value || "").trim().toLowerCase();
@@ -687,12 +712,12 @@ const Teachers: React.FC = () => {
                 {[
                   { label: "Teacher Name", field: "name" },
                   { label: "OASIS ID", field: "employeeId" },
+                  { label: "Duty Type", field: "dutyType" },
                   { label: "Designation", field: "designation" },
                   { label: "Subject Code", field: "subjectCode" },
                   { label: "Subject Name", field: "subjects" },
                   { label: "School Code", field: "schoolCode" },
                   { label: "School Name", field: "schoolName" },
-                  { label: "Duty Type", field: "dutyType" },
                 ].map(({ label, field }) => (
                   <th
                     key={field}
@@ -780,6 +805,43 @@ const Teachers: React.FC = () => {
                       {teacher.employeeId}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {(() => {
+                        const currentDuty = dutyTypeOverrides[teacher._id || teacher.id!] ?? teacher.dutyType ?? '';
+                        if (currentDuty) {
+                          return (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300 border border-primary-200 dark:border-primary-700">
+                              {currentDuty}
+                            </span>
+                          );
+                        }
+                        return (
+                          <select
+                            value=""
+                            onChange={async (e) => {
+                              const teacherId = teacher._id || teacher.id!;
+                              const newDutyType = e.target.value;
+                              if (!newDutyType) return;
+                              setDutyTypeOverrides((prev) => ({ ...prev, [teacherId]: newDutyType }));
+                              try {
+                                await teacherService.update(teacherId, { dutyType: newDutyType } as any);
+                                queryClient.invalidateQueries({ queryKey: teacherKeys.all });
+                                toast.success(`Duty type updated for ${teacher.name}`);
+                              } catch (err: any) {
+                                setDutyTypeOverrides((prev) => { const next = { ...prev }; delete next[teacherId]; return next; });
+                                toast.error(err?.response?.data?.message || 'Failed to update duty type');
+                              }
+                            }}
+                            className="block min-w-[180px] rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white py-1.5 px-2 focus:ring-primary-500 focus:border-primary-500"
+                          >
+                            <option value="">Select Duty</option>
+                            {getDutyOptionsForDesignation(teacher.designation).map((duty: string) => (
+                              <option key={duty} value={duty}>{duty}</option>
+                            ))}
+                          </select>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {teacher.designation || "N/A"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
@@ -793,30 +855,6 @@ const Teachers: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                       {teacher.schoolName || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      <select
-                        value={dutyTypeOverrides[teacher._id || teacher.id!] ?? teacher.dutyType ?? ''}
-                        onChange={async (e) => {
-                          const teacherId = teacher._id || teacher.id!;
-                          const newDutyType = e.target.value;
-                          setDutyTypeOverrides((prev) => ({ ...prev, [teacherId]: newDutyType }));
-                          try {
-                            await teacherService.update(teacherId, { dutyType: newDutyType } as any);
-                            queryClient.invalidateQueries({ queryKey: teacherKeys.all });
-                            toast.success(`Duty type updated for ${teacher.name}`);
-                          } catch (err: any) {
-                            setDutyTypeOverrides((prev) => { const next = { ...prev }; delete next[teacherId]; return next; });
-                            toast.error(err?.response?.data?.message || 'Failed to update duty type');
-                          }
-                        }}
-                        className="block min-w-[180px] rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white py-1.5 px-2 focus:ring-primary-500 focus:border-primary-500"
-                      >
-                        <option value="">Select Duty</option>
-                        {DUTY_TYPE_OPTIONS.map((duty: string) => (
-                          <option key={duty} value={duty}>{duty}</option>
-                        ))}
-                      </select>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">

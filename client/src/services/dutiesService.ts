@@ -40,9 +40,23 @@ const assignDailyDuties = async (payload: { examDate: string; functionaryIds: st
   return response.data?.data ?? { examDate: payload.examDate, duties: [], totalAssigned: 0 }
 }
 
+/** Fetch saved duty selections for a given dutyType */
+const getDutySelections = async (dutyType: string): Promise<Record<string, boolean>> => {
+  const response = await api.get('/duties/selections', { params: { dutyType } })
+  return response.data?.data ?? {}
+}
+
+/** Save duty selections (replaces all existing for the dutyType) */
+const saveDutySelections = async (dutyType: string, selections: Record<string, boolean>): Promise<void> => {
+  await api.post('/duties/selections', { dutyType, selections })
+}
+
 const dutiesService = {
   getDailyDuties,
   assignDailyDuties,
+  getDutySelections,
+  saveDutySelections,
 }
 
 export default dutiesService
+

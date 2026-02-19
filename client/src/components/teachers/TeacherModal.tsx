@@ -35,6 +35,25 @@ const DESIGNATION_OPTIONS = [
   "Others",
 ] as const;
 
+const DUTY_TYPE_OPTIONS = [
+  'Centre Superintendent',
+  'Deputy Centre Superintendent',
+  'Observer',
+  'Invigilator',
+  'ASI (CCTV)',
+  'ASI (Frisking Male)',
+  'ASI (Frisking Female)',
+  'Clerk',
+  'Class IV',
+] as const;
+
+const getDutyOptionsForDesignation = (designation: string): string[] => {
+  const d = (designation || '').trim().toLowerCase();
+  if (d === 'principal') return ['Centre Superintendent', 'Observer'];
+  if (d === 'vice principal') return ['Centre Superintendent', 'Deputy Centre Superintendent'];
+  return [...DUTY_TYPE_OPTIONS];
+};
+
 const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { showAddModal, showEditModal, loading, selectedTeacher } = useSelector(
@@ -60,6 +79,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     accountNumber: "",
     ifscCode: "",
     mobileNo: "",
+    dutyType: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -101,6 +121,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       accountNumber: selectedTeacher.accountNumber || "",
       ifscCode: selectedTeacher.ifscCode || "",
       mobileNo: selectedTeacher.mobileNo || selectedTeacher.phone || "",
+      dutyType: selectedTeacher.dutyType || "",
     });
     if (typeof firstSubject === "object" && firstSubject?.name) {
       setSubjectSearch(`${firstSubject.name} (${firstSubject.code || ""})`.trim());
@@ -134,6 +155,17 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     return [formData.designation, ...DESIGNATION_OPTIONS];
   }, [formData.designation]);
 
+  const allowedDutyOptions = useMemo(() => {
+    return getDutyOptionsForDesignation(formData.designation);
+  }, [formData.designation]);
+
+  // Auto-clear dutyType if it becomes invalid for the current designation
+  useEffect(() => {
+    if (formData.dutyType && !allowedDutyOptions.includes(formData.dutyType)) {
+      setFormData((prev) => ({ ...prev, dutyType: '' }));
+    }
+  }, [allowedDutyOptions, formData.dutyType]);
+
   const resetForm = () => {
     setFormData({
       name: "",
@@ -147,6 +179,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       accountNumber: "",
       ifscCode: "",
       mobileNo: "",
+      dutyType: "",
     });
     setErrors({});
   };
@@ -230,6 +263,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       ifscCode: formData.ifscCode.trim().toUpperCase(),
       mobileNo: formData.mobileNo.trim(),
       isActive: selectedTeacher?.isActive ?? true,
+      dutyType: formData.dutyType,
     };
 
     try {
@@ -321,7 +355,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
                       className={`w-full text-left px-3 py-2 rounded-md text-sm border transition-colors ${active
                         ? "bg-primary-600 text-white border-primary-600"
                         : "bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border-gray-200 dark:border-gray-700 hover:border-primary-500"
-                      }`}
+                        }`}
                     >
                       <span className="font-medium">{subject.name}</span>
                       <span className={`ml-2 ${active ? "text-primary-100" : "text-gray-500 dark:text-gray-400"}`}>({subject.code})</span>
@@ -346,22 +380,22 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
             </label>
             <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2 min-h-[44px] max-h-40 overflow-y-auto">
               <div className="flex flex-wrap gap-2">
-              {schoolsLoading && <span className="text-xs text-gray-500">Loading schools...</span>}
-              {!schoolsLoading && schoolButtonItems.length === 0 && <span className="text-xs text-gray-500">No schools found from candidates.</span>}
-              {!schoolsLoading &&
-                schoolButtonItems.map((school) => {
-                  const active = formData.schoolName === school.schoolName;
-                  return (
-                    <button
-                      key={`${school.schoolName}-${school.schoolCode}`}
-                      type="button"
-                      onClick={() => handleSchoolSelect(school)}
-                      className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${active ? "bg-primary-600 text-white border-primary-600" : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:border-primary-500"}`}
-                    >
-                      {school.schoolName}
-                    </button>
-                  );
-                })}
+                {schoolsLoading && <span className="text-xs text-gray-500">Loading schools...</span>}
+                {!schoolsLoading && schoolButtonItems.length === 0 && <span className="text-xs text-gray-500">No schools found from candidates.</span>}
+                {!schoolsLoading &&
+                  schoolButtonItems.map((school) => {
+                    const active = formData.schoolName === school.schoolName;
+                    return (
+                      <button
+                        key={`${school.schoolName}-${school.schoolCode}`}
+                        type="button"
+                        onClick={() => handleSchoolSelect(school)}
+                        className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${active ? "bg-primary-600 text-white border-primary-600" : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:border-primary-500"}`}
+                      >
+                        {school.schoolName}
+                      </button>
+                    );
+                  })}
               </div>
             </div>
             {errors.schoolName && <p className="text-error-500 text-xs mt-1">{errors.schoolName}</p>}
@@ -406,6 +440,26 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
             <input id={`${fieldIdPrefix}mobileNo`} name="mobileNo" type="text" inputMode="numeric" pattern="[0-9]*" value={formData.mobileNo} onChange={handleInputChange} className={`input w-full ${errors.mobileNo ? "input-error" : ""}`} />
             {errors.mobileNo && <p className="text-error-500 text-xs mt-1">{errors.mobileNo}</p>}
           </div>
+
+          {mode === "edit" && (
+            <div>
+              <label htmlFor={`${fieldIdPrefix}dutyType`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+                Duty Type
+              </label>
+              <select
+                id={`${fieldIdPrefix}dutyType`}
+                name="dutyType"
+                value={formData.dutyType}
+                onChange={handleInputChange}
+                className="input w-full"
+              >
+                <option value="">Select Duty</option>
+                {allowedDutyOptions.map((duty) => (
+                  <option key={duty} value={duty}>{duty}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">

@@ -136,7 +136,26 @@ const createTeacherSchema = Joi.object({
   }).default({}),
   notes: Joi.string().trim().max(500).allow(''),
   isActive: Joi.boolean()
-    .default(true)
+    .default(true),
+  dutyType: Joi.string()
+    .trim()
+    .valid(
+      '',
+      'Centre Superintendent',
+      'Deputy Centre Superintendent',
+      'Observer',
+      'Invigilator',
+      'ASI (CCTV)',
+      'ASI (Frisking Male)',
+      'ASI (Frisking Female)',
+      'Clerk',
+      'Class IV'
+    )
+    .allow('')
+    .default('')
+    .messages({
+      'any.only': 'Invalid duty type'
+    })
 });
 
 // Update teacher validation schema
@@ -259,7 +278,25 @@ const updateTeacherSchema = Joi.object({
     .messages({
       'string.max': 'Notes cannot exceed 500 characters'
     }),
-  isActive: Joi.boolean()
+  isActive: Joi.boolean(),
+  dutyType: Joi.string()
+    .trim()
+    .valid(
+      '',
+      'Centre Superintendent',
+      'Deputy Centre Superintendent',
+      'Observer',
+      'Invigilator',
+      'ASI (CCTV)',
+      'ASI (Frisking Male)',
+      'ASI (Frisking Female)',
+      'Clerk',
+      'Class IV'
+    )
+    .allow('')
+    .messages({
+      'any.only': 'Invalid duty type'
+    })
 });
 
 // Assign subjects validation schema

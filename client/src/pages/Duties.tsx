@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { useTeachers } from '../hooks/useTeachers'
 import { seatingPlanService, type Room } from '../services/seatingPlanService'
 import centreDatesheetService from '../services/centreDatesheetService'
+import dutiesService from '../services/dutiesService'
 
 /* ────────── constants ────────── */
 
@@ -93,8 +94,8 @@ const getMaxRowLabel = (tabKey: string): string => {
     case 'OBR': return 'Max Observers'
     case 'ASI': return 'Max Invigilators'
     case 'ASC': return 'Max ASI (CCTV)'
-    case 'ASFM': return 'Max ASI (Frisking M)'
-    case 'ASFF': return 'Max ASI (Frisking F)'
+    case 'ASFM': return 'Max ASI (Frisking; Male)'
+    case 'ASFF': return 'Max ASI (Frisking; Female)'
     case 'CLR': return 'Max Clerks'
     case 'CL4': return 'Max Class IV'
     default: return 'Maximum Duties'
@@ -110,6 +111,10 @@ const Duties: React.FC = () => {
   const [candidatesByDate, setCandidatesByDate] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('CS')
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  // Track checked duties: key = "funcId::dateKey", value = true/false
+  const [checkedDuties, setCheckedDuties] = useState<Record<string, boolean>>({})
 
   /* ── Fetch teachers ── */
   const { data: teachersData, isLoading: loadingTeachers } = useTeachers({
@@ -144,6 +149,22 @@ const Duties: React.FC = () => {
     }
     return counts
   }, [allFunctionaries])
+
+  /* ── Count checked duties per date ── */
+  const checkedCountByDate = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const key of Object.keys(checkedDuties)) {
+      if (!checkedDuties[key]) continue
+      const dateKey = key.split('::')[1]
+      if (dateKey) counts[dateKey] = (counts[dateKey] || 0) + 1
+    }
+    return counts
+  }, [checkedDuties])
+
+  const toggleDuty = (funcId: string, dateKey: string) => {
+    const key = `${funcId}::${dateKey}`
+    setCheckedDuties((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
 
   /* ── Fetch rooms + exam dates + candidate counts ── */
   useEffect(() => {
@@ -186,6 +207,34 @@ const Duties: React.FC = () => {
     fetchSupportData()
   }, [])
 
+  /* ── Load saved selections when tab changes ── */
+  const loadSelections = useCallback(async () => {
+    try {
+      const saved = await dutiesService.getDutySelections(activeDutyType)
+      setCheckedDuties(saved)
+    } catch (err) {
+      console.error('Failed to load duty selections:', err)
+    }
+  }, [activeDutyType])
+
+  useEffect(() => {
+    if (activeDutyType) loadSelections()
+  }, [activeDutyType, loadSelections])
+
+  /* ── Save (Assign) handler ── */
+  const handleAssign = async () => {
+    setIsSaving(true)
+    try {
+      await dutiesService.saveDutySelections(activeDutyType, checkedDuties)
+      toast.success(`Selections saved for ${activeDutyType}`)
+      setIsEditing(false)
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || 'Failed to save selections')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   /* ────────── render ────────── */
 
   return (
@@ -215,16 +264,18 @@ const Duties: React.FC = () => {
               />
             </div>
             <button
-              className="btn btn-outline disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => setIsEditing((prev) => !prev)}
+              className={`btn ${isEditing ? 'btn-primary' : 'btn-outline'} disabled:opacity-50 disabled:cursor-not-allowed`}
               disabled={filteredFunctionaries.length === 0 || examDates.length === 0}
             >
-              Assign
+              {isEditing ? 'Done Selecting' : 'Select Functionaries'}
             </button>
             <button
               className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={filteredFunctionaries.length === 0 || examDates.length === 0}
+              disabled={filteredFunctionaries.length === 0 || examDates.length === 0 || isSaving}
+              onClick={handleAssign}
             >
-              Save Duties
+              {isSaving ? 'Saving...' : 'Assign'}
             </button>
           </div>
         </div>
@@ -241,6 +292,7 @@ const Duties: React.FC = () => {
                   onClick={() => {
                     setActiveTab(tab.key)
                     setSearch('')
+                    setIsEditing(false)
                   }}
                   className={`
                     relative px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors
@@ -276,9 +328,9 @@ const Duties: React.FC = () => {
             Loading functionaries...
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-auto max-h-[370px]" style={{ scrollbarGutter: 'stable' }}>
             <table className="min-w-full border-collapse border-2 border-gray-400 dark:border-gray-500">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                 <tr>
                   <th className="border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider">
                     Sr No
@@ -310,12 +362,15 @@ const Duties: React.FC = () => {
                     const roomsForDate = Number(requiredRoomsByDate[dateKey] || 0)
                     const candidatesForDate = Number(candidatesByDate[dateKey] || 0)
                     const maxDuties = computeMaxDuties(activeTab, roomsForDate, candidatesForDate)
+                    const checked = checkedCountByDate[dateKey] || 0
                     return (
                       <th
                         key={`max-${dateKey}`}
-                        className="border border-gray-400 dark:border-gray-500 px-4 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-100 whitespace-nowrap"
+                        className="border border-gray-400 dark:border-gray-500 px-4 py-2 text-center text-[11px] font-semibold whitespace-nowrap"
                       >
-                        {maxDuties}
+                        <span className={checked >= maxDuties && maxDuties > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-100'}>
+                          {checked}/{maxDuties}
+                        </span>
                       </th>
                     )
                   })}
@@ -333,15 +388,28 @@ const Duties: React.FC = () => {
                     <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {func.employeeId || '-'}
                     </td>
-                    {examDates.map((dateKey) => (
-                      <td key={`${func._id}-${dateKey}`} className="border border-gray-400 dark:border-gray-500 px-4 py-4 text-center">
-                        <input
-                          type="checkbox"
-                          className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
-                          title={`${func.name} - ${formatDateLabel(dateKey)}`}
-                        />
-                      </td>
-                    ))}
+                    {examDates.map((dateKey) => {
+                      const key = `${func._id}::${dateKey}`
+                      const isChecked = !!checkedDuties[key]
+                      const roomsForDate = Number(requiredRoomsByDate[dateKey] || 0)
+                      const candidatesForDate = Number(candidatesByDate[dateKey] || 0)
+                      const maxDuties = computeMaxDuties(activeTab, roomsForDate, candidatesForDate)
+                      const dateCheckedCount = checkedCountByDate[dateKey] || 0
+                      const maxReached = dateCheckedCount >= maxDuties && maxDuties > 0
+                      const isDisabled = !isEditing || (maxReached && !isChecked)
+                      return (
+                        <td key={key} className="border border-gray-400 dark:border-gray-500 px-4 py-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            disabled={isDisabled}
+                            onChange={() => toggleDuty(func._id, dateKey)}
+                            className={`rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title={isDisabled && maxReached && !isChecked ? `Maximum ${maxDuties} reached for ${formatDateLabel(dateKey)}` : `${func.name} - ${formatDateLabel(dateKey)}`}
+                          />
+                        </td>
+                      )
+                    })}
                   </tr>
                 ))}
                 {filteredFunctionaries.length === 0 && (
