@@ -151,38 +151,29 @@ const RoomAllocation: React.FC = () => {
       const current = [...(prev[dateKey] || [])]
       const currentIndex = current.indexOf(roomId)
 
-      // If user selects any unchecked room, choose required rooms in series from that room.
+      // On first selection, keep existing convenience behavior: pick rooms in sequence.
       if (currentIndex < 0) {
-        const series = roomIdsInOrder.slice(clickedIndex, clickedIndex + maxSelectable)
-        return {
-          ...prev,
-          [dateKey]: series,
-        }
-      }
-
-      // If user deselects a selected room, shift sequence forward to next rooms.
-      current.splice(currentIndex, 1)
-
-      if (requiredRooms > 0) {
-        const selectedSet = new Set(current)
-        let searchFrom = -1
-        if (current.length > 0) {
-          const lastSelected = current[current.length - 1]
-          searchFrom = roomIdsInOrder.indexOf(lastSelected)
-        } else {
-          searchFrom = clickedIndex
-        }
-
-        for (let i = searchFrom + 1; i < roomIdsInOrder.length && current.length < requiredRooms; i += 1) {
-          const candidateId = roomIdsInOrder[i]
-          if (!selectedSet.has(candidateId)) {
-            current.push(candidateId)
-            selectedSet.add(candidateId)
+        if (current.length === 0 && requiredRooms > 0) {
+          const series = roomIdsInOrder.slice(clickedIndex, clickedIndex + maxSelectable)
+          return {
+            ...prev,
+            [dateKey]: series,
           }
         }
-      } else {
-        // No strict limit configured for this date; simple deselect.
+
+        // For subsequent selections, preserve existing order and append as next selection.
+        if (requiredRooms > 0 && current.length >= maxSelectable) {
+          return prev
+        }
+
+        return {
+          ...prev,
+          [dateKey]: [...current, roomId],
+        }
       }
+
+      // On deselect, only remove the clicked room and preserve the rest of the order.
+      current.splice(currentIndex, 1)
 
       return {
         ...prev,
