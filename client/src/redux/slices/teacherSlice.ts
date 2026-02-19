@@ -44,6 +44,7 @@ export interface Teacher {
     relation?: string
   }
   notes?: string
+  dutyType?: string
   createdAt?: string
   updatedAt?: string
   // Computed fields for frontend compatibility
@@ -102,11 +103,11 @@ export const fetchTeachers = createAsyncThunk(
   async (params: FetchTeachersParams = {}, { rejectWithValue }) => {
     try {
       const queryParams = new URLSearchParams();
-      
+
       // Add pagination params
       if (params.page) queryParams.append('page', params.page.toString());
       if (params.limit) queryParams.append('limit', params.limit.toString());
-      
+
       // Add filter params
       if (params.search) queryParams.append('search', params.search);
       if (params.department) queryParams.append('department', params.department);
@@ -119,11 +120,11 @@ export const fetchTeachers = createAsyncThunk(
 
       const response = await api.get(`/teachers?${queryParams.toString()}`);
       console.log('API Response:', response.data.data);
-      
+
       // Handle the case where response.data.data might be the paginated response itself
       const responseData = response.data.data.data || response.data;
       const paginationData = response.data.pagination;
-       
+
       // If response.data.data is an array, it means the pagination data is in response.data.pagination
       if (Array.isArray(responseData)) {
         return {
@@ -134,7 +135,7 @@ export const fetchTeachers = createAsyncThunk(
           itemsPerPage: paginationData?.limit || paginationData?.itemsPerPage || 10
         } as PaginatedResponse<Teacher>;
       }
-      
+
       // If response.data.data has pagination structure
       return {
         items: responseData.items || responseData,
@@ -146,8 +147,8 @@ export const fetchTeachers = createAsyncThunk(
     } catch (error: any) {
       console.error('Fetch teachers error:', error);
       return rejectWithValue(
-        error.response?.data?.message || 
-        error.message || 
+        error.response?.data?.message ||
+        error.message ||
         'Failed to fetch teachers. Please try again later.'
       )
     }
@@ -162,8 +163,8 @@ export const createTeacher = createAsyncThunk(
       return response.data.data
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 
-        error.message || 
+        error.response?.data?.message ||
+        error.message ||
         'Failed to create teacher. Please check your input and try again.'
       )
     }
@@ -178,8 +179,8 @@ export const updateTeacher = createAsyncThunk(
       return response.data.data
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 
-        error.message || 
+        error.response?.data?.message ||
+        error.message ||
         'Failed to update teacher. Please check your input and try again.'
       )
     }
@@ -194,8 +195,8 @@ export const deleteTeacher = createAsyncThunk(
       return id
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 
-        error.message || 
+        error.response?.data?.message ||
+        error.message ||
         'Failed to delete teacher. Please try again later.'
       )
     }
@@ -210,8 +211,8 @@ export const fetchNextEmployeeId = createAsyncThunk(
       return response.data.data.employeeId
     } catch (error: any) {
       return rejectWithValue(
-        error.response?.data?.message || 
-        error.message || 
+        error.response?.data?.message ||
+        error.message ||
         'Failed to fetch next employee ID. Please try again later.'
       )
     }

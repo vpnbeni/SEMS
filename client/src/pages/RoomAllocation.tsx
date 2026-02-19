@@ -257,9 +257,10 @@ const RoomAllocation: React.FC = () => {
         await fetchRooms()
         setNewRoom({ roomNo: '', roomName: '', floor: '' })
         setIsAddingNew(false)
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to add room:', error)
-        alert('Failed to add room')
+        const message = error?.response?.data?.message || 'Failed to add room'
+        alert(message)
       }
     }
   }
@@ -275,9 +276,10 @@ const RoomAllocation: React.FC = () => {
       await fetchRooms()
       setEditingId(null)
       setEditingData({})
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update room:', error)
-      alert('Failed to update room')
+      const message = error?.response?.data?.message || 'Failed to update room'
+      alert(message)
     }
   }
 
@@ -419,7 +421,7 @@ const RoomAllocation: React.FC = () => {
               </svg>
               {isAllocating ? 'Allocating...' : 'Allocate'}
             </button>
-            <button 
+            <button
               onClick={() => setIsAddingNew(true)}
               disabled={isAddingNew}
               className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -431,7 +433,7 @@ const RoomAllocation: React.FC = () => {
             </button>
           </div>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-700">
@@ -633,7 +635,7 @@ const RoomAllocation: React.FC = () => {
                     <p className="text-gray-500 dark:text-gray-400 mb-6">
                       Add examination rooms and configure seating arrangements for your exams.
                     </p>
-                    <button 
+                    <button
                       onClick={() => setIsAddingNew(true)}
                       className="btn btn-primary"
                     >
@@ -670,7 +672,7 @@ const RoomAllocation: React.FC = () => {
                 className={`px-3 py-1.5 text-xs font-semibold ${allocationMode === 'auto'
                   ? 'bg-blue-600 text-white'
                   : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                }`}
+                  }`}
               >
                 Auto
               </button>
@@ -681,7 +683,7 @@ const RoomAllocation: React.FC = () => {
                 className={`px-3 py-1.5 text-xs font-semibold border-l border-gray-300 dark:border-gray-600 ${allocationMode === 'manual'
                   ? 'bg-blue-600 text-white'
                   : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                }`}
+                  }`}
               >
                 Manual
               </button>

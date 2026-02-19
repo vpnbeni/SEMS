@@ -35,6 +35,7 @@ export interface Teacher {
     relation?: string
   }
   notes?: string
+  dutyType?: string
   createdAt?: string
   updatedAt?: string
   status?: 'active' | 'inactive'

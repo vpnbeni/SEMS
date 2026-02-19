@@ -444,6 +444,17 @@ exports.getRooms = async (req, res) => {
 // Create room
 exports.createRoom = async (req, res) => {
   try {
+    const roomNo = String(req.body.roomNo || '').trim();
+    if (!roomNo) {
+      return res.status(400).json({ message: 'Room number is required' });
+    }
+
+    // Check for duplicate roomNo among active rooms
+    const existing = await Room.findOne({ roomNo, isActive: true });
+    if (existing) {
+      return res.status(400).json({ message: `Room number '${roomNo}' already exists` });
+    }
+
     const room = new Room(req.body);
     await room.save();
     res.status(201).json(room);
@@ -456,16 +467,33 @@ exports.createRoom = async (req, res) => {
 // Update room
 exports.updateRoom = async (req, res) => {
   try {
+    // Check for duplicate roomNo if roomNo is being updated
+    if (req.body.roomNo !== undefined) {
+      const roomNo = String(req.body.roomNo || '').trim();
+      if (!roomNo) {
+        return res.status(400).json({ message: 'Room number is required' });
+      }
+
+      const existing = await Room.findOne({
+        roomNo,
+        isActive: true,
+        _id: { $ne: req.params.id },
+      });
+      if (existing) {
+        return res.status(400).json({ message: `Room number '${roomNo}' already exists` });
+      }
+    }
+
     const room = await Room.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, runValidators: true }
     );
-    
+
     if (!room) {
       return res.status(404).json({ message: 'Room not found' });
     }
-    
+
     res.json(room);
   } catch (error) {
     console.error('Update Room Error:', error);
@@ -481,11 +509,11 @@ exports.deleteRoom = async (req, res) => {
       { isActive: false },
       { new: true }
     );
-    
+
     if (!room) {
       return res.status(404).json({ message: 'Room not found' });
     }
-    
+
     res.json({ message: 'Room deleted successfully' });
   } catch (error) {
     console.error('Delete Room Error:', error);
@@ -529,7 +557,7 @@ exports.generateMainGate = async (req, res) => {
     const templateData = seatingPlanBuilder.buildMainGateData(seatingData);
     templateData.templateSettings = templateSettings.mainGate;
     const pdfBuffer = await pdfGenerator.generateMainGate(templateData);
-    
+
     sendPDFResponse(res, pdfBuffer, 'main-gate.pdf');
   } catch (error) {
     console.error('Generate Main Gate PDF Error:', error);
@@ -551,7 +579,7 @@ exports.generateRoomFolderSlip = async (req, res) => {
     const templateData = seatingPlanBuilder.buildRoomFolderSlipData(seatingData);
     templateData.templateSettings = templateSettings.roomFolderSlip;
     const pdfBuffer = await pdfGenerator.generateRoomFolderSlip(templateData);
-    
+
     sendPDFResponse(res, pdfBuffer, 'room-folder-slip.pdf');
   } catch (error) {
     console.error('Generate Room Folder Slip PDF Error:', error);
@@ -573,7 +601,7 @@ exports.generateRoomDoorSlip = async (req, res) => {
     const templateData = seatingPlanBuilder.buildRoomDoorSlipData(seatingData);
     templateData.templateSettings = templateSettings.roomDoorSlip;
     const pdfBuffer = await pdfGenerator.generateRoomDoorSlip(templateData);
-    
+
     sendPDFResponse(res, pdfBuffer, 'room-door-slip.pdf');
   } catch (error) {
     console.error('Generate Room Door Slip PDF Error:', error);
@@ -595,7 +623,7 @@ exports.generateCBSECopy = async (req, res) => {
     const templateData = seatingPlanBuilder.buildCBSECopyData(seatingData);
     templateData.templateSettings = templateSettings.cbseCopy;
     const pdfBuffer = await pdfGenerator.generateCBSECopy(templateData);
-    
+
     sendPDFResponse(res, pdfBuffer, 'cbse-copy.pdf');
   } catch (error) {
     console.error('Generate CBSE Copy PDF Error:', error);

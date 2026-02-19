@@ -1,286 +1,366 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import teacherService, { type Teacher } from '../services/teacherService'
+import { useTeachers } from '../hooks/useTeachers'
 import { seatingPlanService, type Room } from '../services/seatingPlanService'
-import dutiesService, { type DutyRecord } from '../services/dutiesService'
+import centreDatesheetService from '../services/centreDatesheetService'
 
-const toLocalYmd = (date: Date) => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
+/* ────────── constants ────────── */
 
-const formatExamDate = (value: string) => {
-  if (!value) return '-'
+const DUTY_TABS = [
+  { key: 'CS', label: 'CS', dutyType: 'Centre Superintendent' },
+  { key: 'DCS', label: 'DCS', dutyType: 'Deputy Centre Superintendent' },
+  { key: 'OBR', label: 'OBR', dutyType: 'Observer' },
+  { key: 'ASI', label: 'ASI', dutyType: 'Invigilator' },
+  { key: 'ASC', label: 'ASC', dutyType: 'ASI (CCTV)' },
+  { key: 'ASFM', label: 'ASFM', dutyType: 'ASI (Frisking Male)' },
+  { key: 'ASFF', label: 'ASFF', dutyType: 'ASI (Frisking Female)' },
+  { key: 'CLR', label: 'CLR', dutyType: 'Clerk' },
+  { key: 'CL4', label: 'CL4', dutyType: 'Class IV' },
+] as const
+
+/* ────────── helpers ────────── */
+
+const normalizeDateKey = (value: string | Date) => {
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
 }
+
+const formatDateLabel = (dateKey: string) => {
+  const [year, month, day] = dateKey.split('-')
+  if (!year || !month || !day) return dateKey
+  return `${day}.${month}.${year.slice(-2)}`
+}
+
+/**
+ * Calculate maximum duties per date for the active tab.
+ *
+ * CS:   1 per day
+ * DCS:  1 per day
+ * OBR:  as per observer schedule (0 for now – needs separate schedule)
+ * ASI:  2 × rooms used that day
+ * ASC:  ⌈rooms / 10⌉ per day
+ * ASFM: 1 per day
+ * ASFF: 1 per day
+ * CLR:  1 per day
+ * CL4:  1 if candidates < 20
+ *       2 if 20 ≤ candidates ≤ 100
+ *       3 if 101 ≤ candidates ≤ 400
+ *       4 if candidates > 400
+ */
+const computeMaxDuties = (
+  tabKey: string,
+  roomsForDate: number,
+  candidatesForDate: number
+): number => {
+  switch (tabKey) {
+    case 'CS':
+    case 'DCS':
+    case 'ASFM':
+    case 'ASFF':
+    case 'CLR':
+      return 1
+
+    case 'OBR':
+      // Observer schedule-based – show 0 until schedule is configured
+      return 0
+
+    case 'ASI':
+      // Twice the number of rooms used that day
+      return roomsForDate * 2
+
+    case 'ASC':
+      // 1 per 10 rooms
+      return roomsForDate > 0 ? Math.ceil(roomsForDate / 10) : 0
+
+    case 'CL4':
+      if (candidatesForDate <= 0) return 0
+      if (candidatesForDate < 20) return 1
+      if (candidatesForDate <= 100) return 2
+      if (candidatesForDate <= 400) return 3
+      return 4
+
+    default:
+      return 0
+  }
+}
+
+/* ── Header label for the "maximum" row per tab ── */
+const getMaxRowLabel = (tabKey: string): string => {
+  switch (tabKey) {
+    case 'CS': return 'Max CS per Day'
+    case 'DCS': return 'Max DCS per Day'
+    case 'OBR': return 'Max Observers'
+    case 'ASI': return 'Max Invigilators'
+    case 'ASC': return 'Max ASI (CCTV)'
+    case 'ASFM': return 'Max ASI (Frisking M)'
+    case 'ASFF': return 'Max ASI (Frisking F)'
+    case 'CLR': return 'Max Clerks'
+    case 'CL4': return 'Max Class IV'
+    default: return 'Maximum Duties'
+  }
+}
+
+/* ────────── component ────────── */
 
 const Duties: React.FC = () => {
-  const [examDate, setExamDate] = useState(toLocalYmd(new Date()))
-  const [loading, setLoading] = useState(true)
-  const [assigning, setAssigning] = useState(false)
-  const [functionaries, setFunctionaries] = useState<Teacher[]>([])
   const [rooms, setRooms] = useState<Room[]>([])
-  const [duties, setDuties] = useState<DutyRecord[]>([])
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [examDates, setExamDates] = useState<string[]>([])
+  const [requiredRoomsByDate, setRequiredRoomsByDate] = useState<Record<string, number>>({})
+  const [candidatesByDate, setCandidatesByDate] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
+  const [activeTab, setActiveTab] = useState('CS')
 
-  const fetchInitialData = async () => {
-    try {
-      setLoading(true)
-      const [teachersRes, roomsRes] = await Promise.all([
-        teacherService.getAll({ isActive: true, limit: 1000, sort: 'name' }),
-        seatingPlanService.getRooms(),
-      ])
+  /* ── Fetch teachers ── */
+  const { data: teachersData, isLoading: loadingTeachers } = useTeachers({
+    limit: 100,
+    sort: 'name',
+  })
 
-      setFunctionaries(
-        [...(teachersRes?.items || [])].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
-      )
-      setRooms(roomsRes || [])
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load duties setup data')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const allFunctionaries = useMemo(() => {
+    return teachersData?.items || []
+  }, [teachersData])
 
-  const fetchDuties = async (date: string) => {
-    try {
-      const data = await dutiesService.getDailyDuties(date)
-      setDuties(data?.duties || [])
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to load duties')
-      setDuties([])
-    }
-  }
-
-  useEffect(() => {
-    fetchInitialData()
-  }, [])
-
-  useEffect(() => {
-    fetchDuties(examDate)
-  }, [examDate])
+  /* ── Filter by active tab + search ── */
+  const activeDutyType = DUTY_TABS.find((t) => t.key === activeTab)?.dutyType || ''
 
   const filteredFunctionaries = useMemo(() => {
+    let list = allFunctionaries.filter((f) => f.dutyType === activeDutyType)
     const term = search.trim().toLowerCase()
-    if (!term) return functionaries
-    return functionaries.filter((f) => {
-      const haystack = `${f.name} ${f.employeeId || ''} ${f.department || ''}`.toLowerCase()
-      return haystack.includes(term)
-    })
-  }, [functionaries, search])
-
-  const dutyByRoomId = useMemo(() => {
-    const map = new Map<string, DutyRecord>()
-    duties.forEach((duty) => {
-      if (duty?.room?._id) map.set(duty.room._id, duty)
-    })
-    return map
-  }, [duties])
-
-  const selectedCount = selectedIds.size
-  const roomsCount = rooms.length
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const toggleSelectAllFiltered = () => {
-    const ids = filteredFunctionaries.map((f) => f._id)
-    const allSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id))
-
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (allSelected) {
-        ids.forEach((id) => next.delete(id))
-      } else {
-        ids.forEach((id) => next.add(id))
-      }
-      return next
-    })
-  }
-
-  const assignDuties = async () => {
-    if (!examDate) {
-      toast.error('Please select an exam date')
-      return
-    }
-    if (selectedCount === 0) {
-      toast.error('Please select at least one exam functionary')
-      return
-    }
-    if (selectedCount < roomsCount) {
-      toast.error(`Select at least ${roomsCount} functionaries to cover all rooms`)
-      return
-    }
-
-    try {
-      setAssigning(true)
-      const data = await dutiesService.assignDailyDuties({
-        examDate,
-        functionaryIds: Array.from(selectedIds),
+    if (term) {
+      list = list.filter((f) => {
+        const haystack = `${f.name} ${f.employeeId || ''}`.toLowerCase()
+        return haystack.includes(term)
       })
-      setDuties(data?.duties || [])
-      toast.success(`Duties assigned for ${data?.totalAssigned || 0} room(s)`)
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to assign duties')
-    } finally {
-      setAssigning(false)
     }
-  }
+    return list
+  }, [allFunctionaries, activeDutyType, search])
 
-  if (loading) {
-    return (
-      <div className="p-6 flex justify-center items-center">
-        <div className="text-gray-600 dark:text-gray-400">Loading duties setup...</div>
-      </div>
-    )
-  }
+  /* ── Count per tab ── */
+  const tabCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const tab of DUTY_TABS) {
+      counts[tab.key] = allFunctionaries.filter((f) => f.dutyType === tab.dutyType).length
+    }
+    return counts
+  }, [allFunctionaries])
+
+  /* ── Fetch rooms + exam dates + candidate counts ── */
+  useEffect(() => {
+    const fetchSupportData = async () => {
+      try {
+        const [roomsRes, datesheetRes] = await Promise.all([
+          seatingPlanService.getRooms(),
+          centreDatesheetService.getEntries(),
+        ])
+
+        setRooms(roomsRes || [])
+
+        const entries = Array.isArray(datesheetRes?.data) ? datesheetRes.data : []
+        const nextRequired: Record<string, number> = {}
+        const nextCandidates: Record<string, number> = {}
+        const uniqueDates = Array.from(
+          new Set(
+            entries
+              .map((entry) => {
+                const dateKey = normalizeDateKey(entry.examDate)
+                if (dateKey) {
+                  nextRequired[dateKey] = (nextRequired[dateKey] || 0) + Number(entry.roomsNeeded || 0)
+                  nextCandidates[dateKey] = (nextCandidates[dateKey] || 0) + Number(entry.candidateCount || 0)
+                }
+                return dateKey
+              })
+              .filter(Boolean) as string[]
+          )
+        ).sort()
+
+        setExamDates(uniqueDates)
+        setRequiredRoomsByDate(nextRequired)
+        setCandidatesByDate(nextCandidates)
+      } catch (error: any) {
+        console.error('Failed to load support data:', error)
+        toast.error('Failed to load exam dates or rooms')
+      }
+    }
+
+    fetchSupportData()
+  }, [])
+
+  /* ────────── render ────────── */
 
   return (
     <div className="p-6 space-y-6">
-      <div className="glass p-5 rounded-xl border border-secondary-200 dark:border-secondary-700">
-        <div className="flex flex-col md:flex-row md:items-end gap-4 md:gap-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">Exam Day</label>
-            <input
-              type="date"
-              value={examDate}
-              onChange={(e) => setExamDate(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-            />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Duty Assignment by Date</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Assign exam functionaries to rooms for each exam date.
+            </p>
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-300">
-            <div>Rooms: <span className="font-semibold text-gray-900 dark:text-white">{roomsCount}</span></div>
-            <div>Selected Functionaries: <span className="font-semibold text-gray-900 dark:text-white">{selectedCount}</span></div>
-            <div>Assigned Today: <span className="font-semibold text-gray-900 dark:text-white">{duties.length}</span></div>
-          </div>
-          <div className="md:ml-auto">
-            <button
-              onClick={assignDuties}
-              disabled={assigning || roomsCount === 0}
-              className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {assigning ? 'Assigning...' : 'Assign Duties'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="glass rounded-xl border border-secondary-200 dark:border-secondary-700 overflow-hidden">
-          <div className="px-5 py-4 border-b border-secondary-200 dark:border-secondary-700 flex flex-col sm:flex-row sm:items-center gap-3">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Exam Functionaries</h3>
-            <div className="sm:ml-auto flex gap-2">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
               <input
                 type="text"
                 placeholder="Search functionaries..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
+                className="pl-9 pr-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white w-56"
               />
-              <button
-                onClick={toggleSelectAllFiltered}
-                className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Toggle All
-              </button>
             </div>
+            <button
+              className="btn btn-outline disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={filteredFunctionaries.length === 0 || examDates.length === 0}
+            >
+              Assign
+            </button>
+            <button
+              className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={filteredFunctionaries.length === 0 || examDates.length === 0}
+            >
+              Save Duties
+            </button>
           </div>
-          <div className="max-h-[520px] overflow-y-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        </div>
+
+        {/* Duty Type Tabs */}
+        <div className="px-6 border-b border-gray-200 dark:border-gray-700">
+          <nav className="flex gap-0 -mb-px overflow-x-auto" aria-label="Duty type tabs">
+            {DUTY_TABS.map((tab) => {
+              const isActive = activeTab === tab.key
+              const count = tabCounts[tab.key] || 0
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => {
+                    setActiveTab(tab.key)
+                    setSearch('')
+                  }}
+                  className={`
+                    relative px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors
+                    ${isActive
+                      ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
+                      : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                    }
+                  `}
+                  title={tab.dutyType}
+                >
+                  {tab.label}
+                  {count > 0 && (
+                    <span
+                      className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none
+                        ${isActive
+                          ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
+                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                        }
+                      `}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </nav>
+        </div>
+
+        {/* Table */}
+        {loadingTeachers ? (
+          <div className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+            Loading functionaries...
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full border-collapse border-2 border-gray-400 dark:border-gray-500">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Select</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Name</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Employee ID</th>
+                  <th className="border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider">
+                    Sr No
+                  </th>
+                  <th className="border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider">
+                    Functionary Name
+                  </th>
+                  <th className="border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider">
+                    OASIS ID
+                  </th>
+                  {examDates.map((dateKey) => (
+                    <th
+                      key={dateKey}
+                      className="border border-gray-400 dark:border-gray-500 px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider whitespace-nowrap"
+                    >
+                      {formatDateLabel(dateKey)}
+                    </th>
+                  ))}
+                </tr>
+                {/* Dynamic Maximum Duties row */}
+                <tr>
+                  <th
+                    colSpan={3}
+                    className="border border-gray-400 dark:border-gray-500 px-4 py-2 text-left text-[11px] font-semibold text-gray-700 dark:text-gray-100 uppercase tracking-wide"
+                  >
+                    {getMaxRowLabel(activeTab)}
+                  </th>
+                  {examDates.map((dateKey) => {
+                    const roomsForDate = Number(requiredRoomsByDate[dateKey] || 0)
+                    const candidatesForDate = Number(candidatesByDate[dateKey] || 0)
+                    const maxDuties = computeMaxDuties(activeTab, roomsForDate, candidatesForDate)
+                    return (
+                      <th
+                        key={`max-${dateKey}`}
+                        className="border border-gray-400 dark:border-gray-500 px-4 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-100 whitespace-nowrap"
+                      >
+                        {maxDuties}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredFunctionaries.map((f) => (
-                  <tr key={f._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(f._id)}
-                        onChange={() => toggleSelect(f._id)}
-                        className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
-                      />
+              <tbody className="bg-white dark:bg-gray-800">
+                {filteredFunctionaries.map((func, index) => (
+                  <tr key={func._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {index + 1}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                      <div className="font-medium">{f.name}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{f.department || '-'}</div>
+                    <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      {func.name}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">{f.employeeId}</td>
+                    <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {func.employeeId || '-'}
+                    </td>
+                    {examDates.map((dateKey) => (
+                      <td key={`${func._id}-${dateKey}`} className="border border-gray-400 dark:border-gray-500 px-4 py-4 text-center">
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+                          title={`${func.name} - ${formatDateLabel(dateKey)}`}
+                        />
+                      </td>
+                    ))}
                   </tr>
                 ))}
                 {filteredFunctionaries.length === 0 && (
                   <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                      No exam functionaries found.
+                    <td
+                      colSpan={3 + examDates.length}
+                      className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
+                    >
+                      {allFunctionaries.length === 0
+                        ? 'No exam functionaries found.'
+                        : `No functionaries assigned as "${activeDutyType}". Assign duty types on the Exam Functionaries page.`
+                      }
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
-        </div>
-
-        <div className="glass rounded-xl border border-secondary-200 dark:border-secondary-700 overflow-hidden">
-          <div className="px-5 py-4 border-b border-secondary-200 dark:border-secondary-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Duty Record for {formatExamDate(examDate)}
-            </h3>
-          </div>
-          <div className="max-h-[520px] overflow-y-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Room</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Functionary</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">Employee ID</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {rooms.map((room) => {
-                  const duty = dutyByRoomId.get(room._id)
-                  return (
-                    <tr key={room._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                        <div className="font-medium">{room.roomNo}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {room.roomName || '-'} • {room.floor || '-'}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
-                        {duty?.functionary?.name || <span className="text-gray-500 dark:text-gray-400">Not assigned</span>}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-200">
-                        {duty?.functionary?.employeeId || '-'}
-                      </td>
-                    </tr>
-                  )
-                })}
-                {rooms.length === 0 && (
-                  <tr>
-                    <td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                      No active rooms found. Add rooms first.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )

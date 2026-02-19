@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -17,12 +17,22 @@ import ExportModal, { ExportFilters } from "../components/common/ExportModal";
 import { Dropdown } from "../components/common/Dropdown";
 import { useTeachers, teacherKeys } from "../hooks/useTeachers";
 import axios from "axios";
+import toast from "react-hot-toast";
 import { getTenantHeader, resolveApiBaseUrl } from "../utils/tenantRuntime";
+import teacherService from "../services/teacherService";
 
-const STATUS_OPTIONS = [
-  { value: "all", label: "All Status" },
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
+
+
+const DUTY_TYPE_OPTIONS = [
+  'Centre Superintendent',
+  'Deputy Centre Superintendent',
+  'Observer',
+  'Invigilator',
+  'ASI (CCTV)',
+  'ASI (Frisking Male)',
+  'ASI (Frisking Female)',
+  'Clerk',
+  'Class IV',
 ];
 
 const DEPARTMENTS_LIST = [
@@ -50,7 +60,7 @@ const Teachers: React.FC = () => {
   const [selectedDepartment, setSelectedDepartment] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
+
   const [joiningDateFrom, setJoiningDateFrom] = useState("");
   const [joiningDateTo, setJoiningDateTo] = useState("");
   const [yearsOfExperience, setYearsOfExperience] = useState("");
@@ -61,11 +71,27 @@ const Teachers: React.FC = () => {
     centreName: "",
     centreSchoolCode: "",
   });
+  const [sortField, setSortField] = useState("name");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [dutyTypeOverrides, setDutyTypeOverrides] = useState<Record<string, string>>({});
 
   const [debouncedJoiningDateFrom, setDebouncedJoiningDateFrom] = useState("");
   const [debouncedJoiningDateTo, setDebouncedJoiningDateTo] = useState("");
   const [debouncedYearsOfExperience, setDebouncedYearsOfExperience] = useState("");
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
   const API_BASE_URL = resolveApiBaseUrl();
+
+  // Close filter dropdown on click outside
+  useEffect(() => {
+    if (!showMoreFilters) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target as Node)) {
+        setShowMoreFilters(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showMoreFilters]);
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -128,20 +154,22 @@ const Teachers: React.FC = () => {
       limit: LIMIT,
       search: debouncedSearchTerm || undefined,
       department: selectedDepartment !== "all" ? selectedDepartment : undefined,
-      isActive: statusFilter !== "all" ? statusFilter === "active" : undefined,
+
       joiningDateFrom: debouncedJoiningDateFrom || undefined,
       joiningDateTo: debouncedJoiningDateTo || undefined,
       minExperience: debouncedYearsOfExperience ? parseInt(debouncedYearsOfExperience, 10) : undefined,
-      sort: "-createdAt",
+      sort: `${sortDirection === "desc" ? "-" : ""}${sortField}`,
     }),
     [
       currentPage,
       debouncedSearchTerm,
       selectedDepartment,
-      statusFilter,
+
       debouncedJoiningDateFrom,
       debouncedJoiningDateTo,
       debouncedYearsOfExperience,
+      sortField,
+      sortDirection,
     ]
   );
 
@@ -149,11 +177,11 @@ const Teachers: React.FC = () => {
   const teachers = data?.items ?? null;
   const pagination = data
     ? {
-        currentPage: data.currentPage,
-        totalPages: data.totalPages,
-        totalItems: data.totalItems,
-        itemsPerPage: data.itemsPerPage,
-      }
+      currentPage: data.currentPage,
+      totalPages: data.totalPages,
+      totalItems: data.totalItems,
+      itemsPerPage: data.itemsPerPage,
+    }
     : { currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: LIMIT };
   const error = useSelector((state: RootState) => state.teachers.error) || queryError?.message || null;
 
@@ -404,90 +432,92 @@ const Teachers: React.FC = () => {
 
       {/* Stat cards (display only, like Datesheets – not clickable, small number animation) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-          <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 rounded-lg flex-shrink-0 bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Functionaries</p>
-                <span key={totalTeachers} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{totalTeachers}</span>
-              </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
             </div>
-          </div>
-          <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 rounded-lg flex-shrink-0 bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Self School</p>
-                <span key={activeCount} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{activeCount}</span>
-                <span className="text-xs text-gray-400 font-medium ml-1">on this page</span>
-              </div>
-            </div>
-          </div>
-          <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-            <div className="flex items-center space-x-4">
-              <div className="p-3 rounded-lg flex-shrink-0 bg-amber-50 text-amber-500 dark:bg-amber-900/20 dark:text-amber-400">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Outside School</p>
-                <span key={inactiveCount} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{inactiveCount}</span>
-                <span className="text-xs text-gray-400 font-medium ml-1">on this page</span>
-              </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Functionaries</p>
+              <span key={totalTeachers} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{totalTeachers}</span>
             </div>
           </div>
         </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Self School</p>
+              <span key={activeCount} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{activeCount}</span>
+              <span className="text-xs text-gray-400 font-medium ml-1">on this page</span>
+            </div>
+          </div>
+        </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-amber-50 text-amber-500 dark:bg-amber-900/20 dark:text-amber-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Outside School</p>
+              <span key={inactiveCount} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{inactiveCount}</span>
+              <span className="text-xs text-gray-400 font-medium ml-1">on this page</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Teachers Table */}
       <div className="card overflow-hidden">
-          {/* Toolbar: search + actions (inside table card) */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-              <div className="flex-1 w-full max-w-md">
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg
-                      className="h-5 w-5 text-secondary-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Search teachers..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="input pl-10 w-full"
-                  />
+        {/* Toolbar: search + actions (inside table card) */}
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+            <div className="flex-1 w-full max-w-md">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg
+                    className="h-5 w-5 text-secondary-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
                 </div>
-              </div>
-              <div className="flex gap-3 flex-shrink-0">
                 <input
-                  type="file"
-                  accept=".csv,.xlsx"
-                  id="teacher-template-upload-input"
-                  title="Upload teacher template file"
-                  aria-label="Upload teacher template file"
-                  onChange={uploadTemplateFile}
-                  className="hidden"
+                  type="text"
+                  placeholder="Search teachers..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="input pl-10 w-full"
                 />
+              </div>
+            </div>
+            <div className="flex gap-3 flex-shrink-0">
+              <input
+                type="file"
+                accept=".csv,.xlsx"
+                id="teacher-template-upload-input"
+                title="Upload teacher template file"
+                aria-label="Upload teacher template file"
+                onChange={uploadTemplateFile}
+                className="hidden"
+              />
+              {/* Export button hidden for now */}
+              {false && (
                 <button
                   onClick={handleExport}
                   className="btn btn-outline"
@@ -508,26 +538,28 @@ const Teachers: React.FC = () => {
                   </svg>
                   Export
                 </button>
-                <button
-                  onClick={downloadImportTemplate}
-                  className="btn btn-outline"
-                  disabled={loading || isTemplateDownloading || isTemplateUploading}
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v10m0 0l-4-4m4 4l4-4M5 19h14" />
-                  </svg>
-                  {isTemplateDownloading ? "Downloading..." : "Template"}
-                </button>
-                <button
-                  onClick={() => document.getElementById("teacher-template-upload-input")?.click()}
-                  className="btn btn-outline"
-                  disabled={loading || isTemplateDownloading || isTemplateUploading}
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15V5m0 0l4 4m-4-4L8 9m-3 10h14" />
-                  </svg>
-                  {isTemplateUploading ? "Uploading..." : "Upload"}
-                </button>
+              )}
+              <button
+                onClick={downloadImportTemplate}
+                className="btn btn-outline"
+                disabled={loading || isTemplateDownloading || isTemplateUploading}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v10m0 0l-4-4m4 4l4-4M5 19h14" />
+                </svg>
+                {isTemplateDownloading ? "Downloading..." : "Template"}
+              </button>
+              <button
+                onClick={() => document.getElementById("teacher-template-upload-input")?.click()}
+                className="btn btn-outline"
+                disabled={loading || isTemplateDownloading || isTemplateUploading}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15V5m0 0l4 4m-4-4L8 9m-3 10h14" />
+                </svg>
+                {isTemplateUploading ? "Uploading..." : "Upload"}
+              </button>
+              <div className="relative" ref={filterDropdownRef}>
                 <button
                   onClick={() => setShowMoreFilters(!showMoreFilters)}
                   className="btn btn-outline"
@@ -561,170 +593,168 @@ const Teachers: React.FC = () => {
                     />
                   </svg>
                 </button>
-                <button
-                  onClick={handleAddTeacher}
-                  className="btn btn-primary"
-                  disabled={loading}
+
+                {/* Filters Dropdown */}
+                {showMoreFilters && (
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-4 space-y-4">
+
+                    <div>
+                      <Dropdown
+                        id="teachers-department-filter"
+                        label="Department"
+                        options={DEPARTMENT_OPTIONS}
+                        value={selectedDepartment}
+                        onChange={(value) => setSelectedDepartment(String(value))}
+                        placeholder="All Departments"
+                        clearable={false}
+                        size="md"
+                        portal={true}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+                        Joining Date From
+                      </label>
+                      <input
+                        type="date"
+                        id="teachers-joining-date-from"
+                        title="Joining date from"
+                        value={joiningDateFrom}
+                        onChange={(e) => setJoiningDateFrom(e.target.value)}
+                        className="input w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+                        Joining Date To
+                      </label>
+                      <input
+                        type="date"
+                        id="teachers-joining-date-to"
+                        title="Joining date to"
+                        value={joiningDateTo}
+                        onChange={(e) => setJoiningDateTo(e.target.value)}
+                        className="input w-full"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+                        Min Years of Experience
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g., 5"
+                        value={yearsOfExperience}
+                        onChange={(e) => setYearsOfExperience(e.target.value)}
+                        className="input w-full"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button
+                onClick={handleAddTeacher}
+                className="btn btn-primary"
+                disabled={loading}
+              >
+                <svg
+                  className="w-5 h-5 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  <svg
-                    className="w-5 h-5 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                    />
-                  </svg>
-                  Add Teacher
-                </button>
-              </div>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
+                </svg>
+                Add Teacher
+              </button>
             </div>
-
-            {/* More Filters Accordion */}
-            {showMoreFilters && (
-              <div className="mt-4 pt-4 border-t border-secondary-200 dark:border-secondary-700">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <div>
-                    <Dropdown
-                      id="teachers-status-filter"
-                      label="Status"
-                      options={STATUS_OPTIONS}
-                      value={statusFilter}
-                      onChange={(value) => setStatusFilter(String(value))}
-                      placeholder="All Status"
-                      clearable={false}
-                      size="md"
-                      portal={true}
-                    />
-                  </div>
-                  <div>
-                    <Dropdown
-                      id="teachers-department-filter"
-                      label="Department"
-                      options={DEPARTMENT_OPTIONS}
-                      value={selectedDepartment}
-                      onChange={(value) => setSelectedDepartment(String(value))}
-                      placeholder="All Departments"
-                      clearable={false}
-                      size="md"
-                      portal={true}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                      Joining Date From
-                    </label>
-                    <input
-                      type="date"
-                      id="teachers-joining-date-from"
-                      title="Joining date from"
-                      value={joiningDateFrom}
-                      onChange={(e) => setJoiningDateFrom(e.target.value)}
-                      className="input w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                      Joining Date To
-                    </label>
-                    <input
-                      type="date"
-                      id="teachers-joining-date-to"
-                      title="Joining date to"
-                      value={joiningDateTo}
-                      onChange={(e) => setJoiningDateTo(e.target.value)}
-                      className="input w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                      Min Years of Experience
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="e.g., 5"
-                      value={yearsOfExperience}
-                      onChange={(e) => setYearsOfExperience(e.target.value)}
-                      className="input w-full"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
+        </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-800">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Sr No
+                </th>
+                {[
+                  { label: "Teacher Name", field: "name" },
+                  { label: "OASIS ID", field: "employeeId" },
+                  { label: "Designation", field: "designation" },
+                  { label: "Subject Code", field: "subjectCode" },
+                  { label: "Subject Name", field: "subjects" },
+                  { label: "School Code", field: "schoolCode" },
+                  { label: "School Name", field: "schoolName" },
+                  { label: "Duty Type", field: "dutyType" },
+                ].map(({ label, field }) => (
+                  <th
+                    key={field}
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer select-none hover:text-gray-900 dark:hover:text-white transition-colors group"
+                    onClick={() => {
+                      if (sortField === field) {
+                        setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
+                      } else {
+                        setSortField(field);
+                        setSortDirection("asc");
+                      }
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {label}
+                      <span className={`inline-flex flex-col text-[8px] leading-none ${sortField === field ? "text-primary-600 dark:text-primary-400" : "text-gray-400 dark:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"}`}>
+                        <span className={sortField === field && sortDirection === "asc" ? "text-primary-600 dark:text-primary-400" : ""}>▲</span>
+                        <span className={sortField === field && sortDirection === "desc" ? "text-primary-600 dark:text-primary-400" : ""}>▼</span>
+                      </span>
+                    </span>
+                  </th>
+                ))}
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+              {loading ? (
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Sr No
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Teacher Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    OASIS ID
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Designation
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Subject Code
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Subject Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    School Code
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    School Name
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <td colSpan={10} className="px-6 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <svg
+                        className="animate-spin h-10 w-10 text-primary-600"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        />
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        />
+                      </svg>
+                      <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                        Loading teachers...
+                      </span>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {loading ? (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-16 text-center">
-                      <div className="flex flex-col items-center justify-center gap-3">
-                        <svg
-                          className="animate-spin h-10 w-10 text-primary-600"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          aria-hidden="true"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          />
-                        </svg>
-                        <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                          Loading teachers...
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  displayTeachers.map((teacher: Teacher, index: number) => (
+              ) : (
+                displayTeachers.map((teacher: Teacher, index: number) => (
                   <tr key={teacher.id || teacher._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {(currentPage - 1) * 50 + index + 1}
@@ -764,6 +794,30 @@ const Teachers: React.FC = () => {
                     <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
                       {teacher.schoolName || 'N/A'}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      <select
+                        value={dutyTypeOverrides[teacher._id || teacher.id!] ?? teacher.dutyType ?? ''}
+                        onChange={async (e) => {
+                          const teacherId = teacher._id || teacher.id!;
+                          const newDutyType = e.target.value;
+                          setDutyTypeOverrides((prev) => ({ ...prev, [teacherId]: newDutyType }));
+                          try {
+                            await teacherService.update(teacherId, { dutyType: newDutyType } as any);
+                            queryClient.invalidateQueries({ queryKey: teacherKeys.all });
+                            toast.success(`Duty type updated for ${teacher.name}`);
+                          } catch (err: any) {
+                            setDutyTypeOverrides((prev) => { const next = { ...prev }; delete next[teacherId]; return next; });
+                            toast.error(err?.response?.data?.message || 'Failed to update duty type');
+                          }
+                        }}
+                        className="block min-w-[180px] rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white py-1.5 px-2 focus:ring-primary-500 focus:border-primary-500"
+                      >
+                        <option value="">Select Duty</option>
+                        {DUTY_TYPE_OPTIONS.map((duty: string) => (
+                          <option key={duty} value={duty}>{duty}</option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
                         <button
@@ -798,11 +852,11 @@ const Teachers: React.FC = () => {
                     </td>
                   </tr>
                 ))
-                )}
-              </tbody>
-            </table>
-          </div>
+              )}
+            </tbody>
+          </table>
         </div>
+      </div>
 
       {/* Empty State for when no teachers match filters */}
       {!loading && displayTeachers.length === 0 && (
@@ -827,7 +881,7 @@ const Teachers: React.FC = () => {
               No teachers found
             </h3>
             <p className="text-secondary-600 dark:text-secondary-400 mb-6">
-              {searchTerm || selectedDepartment !== "all" || statusFilter !== "all" || joiningDateFrom || joiningDateTo || yearsOfExperience
+              {searchTerm || selectedDepartment !== "all" || joiningDateFrom || joiningDateTo || yearsOfExperience
                 ? "No teachers match your search criteria. Try adjusting your filters."
                 : "Get started by adding your first teacher to the system."}
             </p>
@@ -902,21 +956,20 @@ const Teachers: React.FC = () => {
                       <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </button>
-                  
+
                   {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
-                        page === currentPage
-                          ? 'z-10 bg-blue-50 dark:bg-blue-900 border-blue-500 text-blue-600 dark:text-blue-400'
-                          : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                      }`}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${page === currentPage
+                        ? 'z-10 bg-blue-50 dark:bg-blue-900 border-blue-500 text-blue-600 dark:text-blue-400'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
                     >
                       {page}
                     </button>
                   ))}
-                  
+
                   <button
                     onClick={() => setCurrentPage((prev) => Math.min(prev + 1, pagination.totalPages))}
                     disabled={currentPage === pagination.totalPages}

@@ -164,6 +164,26 @@ const teacherSchema = new mongoose.Schema({
     type: String,
     trim: true,
     maxlength: [500, 'Notes cannot be more than 500 characters']
+  },
+  dutyType: {
+    type: String,
+    trim: true,
+    enum: {
+      values: [
+        '',
+        'Centre Superintendent',
+        'Deputy Centre Superintendent',
+        'Observer',
+        'Invigilator',
+        'ASI (CCTV)',
+        'ASI (Frisking Male)',
+        'ASI (Frisking Female)',
+        'Clerk',
+        'Class IV'
+      ],
+      message: '{VALUE} is not a valid duty type'
+    },
+    default: ''
   }
 }, {
   timestamps: true,
@@ -181,44 +201,44 @@ teacherSchema.index({ name: 'text', employeeId: 'text', schoolName: 'text', scho
 teacherSchema.index({ createdAt: -1 });
 
 // Virtual for age
-teacherSchema.virtual('age').get(function() {
+teacherSchema.virtual('age').get(function () {
   if (!this.dateOfBirth) return null;
-  
+
   const today = new Date();
   const birthDate = new Date(this.dateOfBirth);
   let age = today.getFullYear() - birthDate.getFullYear();
   const monthDiff = today.getMonth() - birthDate.getMonth();
-  
+
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
     age--;
   }
-  
+
   return age;
 });
 
 // Virtual for full address
-teacherSchema.virtual('fullAddress').get(function() {
+teacherSchema.virtual('fullAddress').get(function () {
   if (!this.address) return '';
-  
+
   const { street, city, state, pincode } = this.address;
   const parts = [street, city, state, pincode].filter(Boolean);
   return parts.join(', ');
 });
 
 // Virtual for years of service
-teacherSchema.virtual('yearsOfService').get(function() {
+teacherSchema.virtual('yearsOfService').get(function () {
   if (!this.dateOfJoining) return 0;
-  
+
   const today = new Date();
   const joiningDate = new Date(this.dateOfJoining);
   const diffTime = Math.abs(today - joiningDate);
   const diffYears = Math.floor(diffTime / (1000 * 60 * 60 * 24 * 365));
-  
+
   return diffYears;
 });
 
 // Pre-save middleware to format name
-teacherSchema.pre('save', function(next) {
+teacherSchema.pre('save', function (next) {
   if (this.isModified('name')) {
     this.name = this.name.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
   }
@@ -232,17 +252,17 @@ teacherSchema.pre('save', function(next) {
 });
 
 // Static method to find by department
-teacherSchema.statics.findByDepartment = function(department) {
+teacherSchema.statics.findByDepartment = function (department) {
   return this.find({ department, isActive: true });
 };
 
 // Static method to find by subject
-teacherSchema.statics.findBySubject = function(subjectId) {
+teacherSchema.statics.findBySubject = function (subjectId) {
   return this.find({ subjects: subjectId, isActive: true });
 };
 
 // Static method to get teacher statistics
-teacherSchema.statics.getStats = async function() {
+teacherSchema.statics.getStats = async function () {
   const stats = await this.aggregate([
     {
       $group: {
@@ -279,13 +299,13 @@ teacherSchema.statics.getStats = async function() {
 };
 
 // Instance method to assign subjects
-teacherSchema.methods.assignSubjects = function(subjectIds) {
+teacherSchema.methods.assignSubjects = function (subjectIds) {
   this.subjects = [...new Set([...this.subjects, ...subjectIds])];
   return this.save();
 };
 
 // Instance method to remove subjects
-teacherSchema.methods.removeSubjects = function(subjectIds) {
+teacherSchema.methods.removeSubjects = function (subjectIds) {
   this.subjects = this.subjects.filter(
     subject => !subjectIds.includes(subject.toString())
   );
@@ -293,7 +313,7 @@ teacherSchema.methods.removeSubjects = function(subjectIds) {
 };
 
 // Instance method to check if teacher teaches a subject
-teacherSchema.methods.teachesSubject = function(subjectId) {
+teacherSchema.methods.teachesSubject = function (subjectId) {
   return this.subjects.some(subject => subject.toString() === subjectId.toString());
 };
 

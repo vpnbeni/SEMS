@@ -1045,142 +1045,142 @@ const SeatingPlan: React.FC = () => {
                   className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto"
                   style={{ width: '210mm', minHeight: '297mm' }}
                 >
-                {/* Header */}
-                <div className="text-center mb-4">
-                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">INTERNATIONAL BHARTI SCHOOL, ROHTAK</h2>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">Seating Plan CBSE Board Exam</p>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">Centre No: 827403</p>
-                </div>
-
-                {/* Exam Details */}
-                <div className="flex justify-between mb-4 text-sm font-bold text-gray-900 dark:text-white">
-                  <div>
-                    <p>Date: 15.02.2026 (Saturday)</p>
-                    <p>Subject: English (Lang. & Lit.)</p>
+                  {/* Header */}
+                  <div className="text-center mb-4">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">INTERNATIONAL BHARTI SCHOOL, ROHTAK</h2>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">Seating Plan CBSE Board Exam</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">Centre No: 827403</p>
                   </div>
-                  <div className="text-right">
-                    <p>Class: X</p>
-                    <p>Code: 184</p>
+
+                  {/* Exam Details */}
+                  <div className="flex justify-between mb-4 text-sm font-bold text-gray-900 dark:text-white">
+                    <div>
+                      <p>Date: 15.02.2026 (Saturday)</p>
+                      <p>Subject: English (Lang. & Lit.)</p>
+                    </div>
+                    <div className="text-right">
+                      <p>Class: X</p>
+                      <p>Subject Code: 184</p>
+                    </div>
                   </div>
-                </div>
 
-                {/* Room Table 1 */}
-                <div className="relative mb-5" ref={mainGateTableWrapperRef}>
-                <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
-                  <colgroup>
-                    <col style={{ width: `${mainGateLayoutDraft.col1Width}%` }} />
-                    <col style={{ width: `${mainGateLayoutDraft.col2Width}%` }} />
-                    <col style={{ width: `${mainGateLayoutDraft.col3Width}%` }} />
-                    <col style={{ width: `${mainGateLayoutDraft.col4Width}%` }} />
-                  </colgroup>
-                  <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
-                    Room No. 01 - X Rose (First Floor)
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row</th>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 1</th>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 2</th>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 3</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...Array(8)].map((_, i) => (
-                      <tr key={i}>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>Roll No</td>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248737 + i}</td>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248745 + i}</td>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248753 + i}</td>
-                      </tr>
+                  {/* Room Table 1 */}
+                  <div className="relative mb-5" ref={mainGateTableWrapperRef}>
+                    <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+                      <colgroup>
+                        <col style={{ width: `${mainGateLayoutDraft.col1Width}%` }} />
+                        <col style={{ width: `${mainGateLayoutDraft.col2Width}%` }} />
+                        <col style={{ width: `${mainGateLayoutDraft.col3Width}%` }} />
+                        <col style={{ width: `${mainGateLayoutDraft.col4Width}%` }} />
+                      </colgroup>
+                      <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
+                        Room No. 01 - X Rose (First Floor)
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row</th>
+                          <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 1</th>
+                          <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 2</th>
+                          <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 3</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...Array(8)].map((_, i) => (
+                          <tr key={i}>
+                            <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>Roll No</td>
+                            <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248737 + i}</td>
+                            <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248745 + i}</td>
+                            <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248753 + i}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {mainGateColumnBoundaries.map((boundary, index) => (
+                      <div
+                        key={`main-gate-boundary-${index}`}
+                        className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
+                        style={{ left: `${boundary}%` }}
+                        onMouseDown={(event) => startMainGateColumnResize(index, event)}
+                        title="Drag to resize column"
+                      />
                     ))}
-                  </tbody>
-                </table>
-                {mainGateColumnBoundaries.map((boundary, index) => (
-                  <div
-                    key={`main-gate-boundary-${index}`}
-                    className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
-                    style={{ left: `${boundary}%` }}
-                    onMouseDown={(event) => startMainGateColumnResize(index, event)}
-                    title="Drag to resize column"
-                  />
-                ))}
-                </div>
+                  </div>
 
-                {/* Room Table 2 */}
-                <table className="w-full border-collapse mb-5" style={{ tableLayout: 'fixed' }}>
-                  <colgroup>
-                    <col style={{ width: `${mainGateLayoutDraft.col1Width}%` }} />
-                    <col style={{ width: `${mainGateLayoutDraft.col2Width}%` }} />
-                    <col style={{ width: `${mainGateLayoutDraft.col3Width}%` }} />
-                    <col style={{ width: `${mainGateLayoutDraft.col4Width}%` }} />
-                  </colgroup>
-                  <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
-                    Room No. 02 - X Tulip (First Floor)
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row</th>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 1</th>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 2</th>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 3</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...Array(8)].map((_, i) => (
-                      <tr key={i}>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>Roll No</td>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248761 + i}</td>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248769 + i}</td>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248777 + i}</td>
+                  {/* Room Table 2 */}
+                  <table className="w-full border-collapse mb-5" style={{ tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: `${mainGateLayoutDraft.col1Width}%` }} />
+                      <col style={{ width: `${mainGateLayoutDraft.col2Width}%` }} />
+                      <col style={{ width: `${mainGateLayoutDraft.col3Width}%` }} />
+                      <col style={{ width: `${mainGateLayoutDraft.col4Width}%` }} />
+                    </colgroup>
+                    <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
+                      Room No. 02 - X Tulip (First Floor)
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row</th>
+                        <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 1</th>
+                        <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 2</th>
+                        <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 3</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {[...Array(8)].map((_, i) => (
+                        <tr key={i}>
+                          <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>Roll No</td>
+                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248761 + i}</td>
+                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248769 + i}</td>
+                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248777 + i}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
 
-                {/* Room Table 3 */}
-                <table className="w-full border-collapse mb-5" style={{ tableLayout: 'fixed' }}>
-                  <colgroup>
-                    <col style={{ width: `${mainGateLayoutDraft.col1Width}%` }} />
-                    <col style={{ width: `${mainGateLayoutDraft.col2Width}%` }} />
-                    <col style={{ width: `${mainGateLayoutDraft.col3Width}%` }} />
-                    <col style={{ width: `${mainGateLayoutDraft.col4Width}%` }} />
-                  </colgroup>
-                  <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
-                    Room No. 03 - X Lotus (First Floor)
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row</th>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 1</th>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 2</th>
-                      <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 3</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...Array(8)].map((_, i) => (
-                      <tr key={i}>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>Roll No</td>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248785 + i}</td>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248793 + i}</td>
-                        <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248801 + i}</td>
+                  {/* Room Table 3 */}
+                  <table className="w-full border-collapse mb-5" style={{ tableLayout: 'fixed' }}>
+                    <colgroup>
+                      <col style={{ width: `${mainGateLayoutDraft.col1Width}%` }} />
+                      <col style={{ width: `${mainGateLayoutDraft.col2Width}%` }} />
+                      <col style={{ width: `${mainGateLayoutDraft.col3Width}%` }} />
+                      <col style={{ width: `${mainGateLayoutDraft.col4Width}%` }} />
+                    </colgroup>
+                    <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
+                      Room No. 03 - X Lotus (First Floor)
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row</th>
+                        <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 1</th>
+                        <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 2</th>
+                        <th className="border border-black dark:border-gray-400 p-1.5 font-bold text-gray-900 dark:text-white text-sm">Row 3</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {[...Array(8)].map((_, i) => (
+                        <tr key={i}>
+                          <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>Roll No</td>
+                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248785 + i}</td>
+                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248793 + i}</td>
+                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248801 + i}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
 
-                <div className="flex items-center gap-3 mb-4">
-                  <div
-                    className="h-2 flex-1 rounded bg-blue-100 dark:bg-blue-900/30 cursor-row-resize"
-                    onMouseDown={startMainGateRowHeightResize}
-                    title="Drag up/down to resize row height"
-                  />
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Row Height: {mainGateLayoutDraft.rowHeight}px
-                  </span>
-                </div>
+                  <div className="flex items-center gap-3 mb-4">
+                    <div
+                      className="h-2 flex-1 rounded bg-blue-100 dark:bg-blue-900/30 cursor-row-resize"
+                      onMouseDown={startMainGateRowHeightResize}
+                      title="Drag up/down to resize row height"
+                    />
+                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                      Row Height: {mainGateLayoutDraft.rowHeight}px
+                    </span>
+                  </div>
 
-                {/* Footer */}
-                <p className="mt-16 text-right font-bold text-gray-900 dark:text-white">CENTRE SUPERINTENDENT</p>
+                  {/* Footer */}
+                  <p className="mt-16 text-right font-bold text-gray-900 dark:text-white">CENTRE SUPERINTENDENT</p>
                 </div>
               </div>
 
@@ -1234,33 +1234,33 @@ const SeatingPlan: React.FC = () => {
                         <col style={{ width: `${roomFolderLayoutDraft.infoCol6Width}%` }} />
                         <col style={{ width: `${roomFolderLayoutDraft.infoCol7Width}%` }} />
                       </colgroup>
-                    <tbody>
-                      <tr>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Centre</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={3}>
-                          International Bharti School, Rohtak
-                        </td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Centre No</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">829261</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: XII</td>
-                      </tr>
-                      <tr>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Examination</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={3}>
-                          Sr. Secondary School Certificate Examination 2026
-                        </td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Subject</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
-                          048 ; PHYSICAL EDUCATION
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Date</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={3}>18.02.2026 (Wednesday)</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Room No.</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-900 dark:text-white font-bold" colSpan={2}>02 - XII A</td>
-                      </tr>
-                    </tbody>
+                      <tbody>
+                        <tr>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Centre</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={3}>
+                            International Bharti School, Rohtak
+                          </td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Centre No</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">829261</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: XII</td>
+                        </tr>
+                        <tr>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Examination</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={3}>
+                            Sr. Secondary School Certificate Examination 2026
+                          </td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Subject</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
+                            048 ; PHYSICAL EDUCATION
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Date</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={3}>18.02.2026 (Wednesday)</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Room No.</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-900 dark:text-white font-bold" colSpan={2}>02 - XII A</td>
+                        </tr>
+                      </tbody>
                     </table>
                     {roomFolderInfoColumnBoundaries.map((boundary, index) => (
                       <div
@@ -1286,49 +1286,49 @@ const SeatingPlan: React.FC = () => {
                         <col style={{ width: `${roomFolderLayoutDraft.col8Width}%` }} />
                         <col style={{ width: `${roomFolderLayoutDraft.col9Width}%` }} />
                       </colgroup>
-                    <thead>
-                      <tr>
-                        <th className="border border-gray-800 dark:border-gray-400 p-2" colSpan={3}>Row 1</th>
-                        <th className="border border-gray-800 dark:border-gray-400 p-2" colSpan={3}>Row 2</th>
-                        <th className="border border-gray-800 dark:border-gray-400 p-2" colSpan={3}>Row 3</th>
-                      </tr>
-                      <tr>
-                        <th className="border border-gray-800 dark:border-gray-400 p-1.5">Roll No</th>
-                        <th className="border border-gray-800 dark:border-gray-400 p-1.5">QP Code</th>
-                        <th className="border border-gray-800 dark:border-gray-400 p-1.5">Sheet No</th>
-                        <th className="border border-gray-800 dark:border-gray-400 p-1.5">Roll No</th>
-                        <th className="border border-gray-800 dark:border-gray-400 p-1.5">QP Code</th>
-                        <th className="border border-gray-800 dark:border-gray-400 p-1.5">Sheet No</th>
-                        <th className="border border-gray-800 dark:border-gray-400 p-1.5">Roll No</th>
-                        <th className="border border-gray-800 dark:border-gray-400 p-1.5">QP Code</th>
-                        <th className="border border-gray-800 dark:border-gray-400 p-1.5">Sheet No</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...Array(8)].map((_, i) => (
-                        <tr key={i}>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683240 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{(i % 3) + 1}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A00{41 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683263 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{((i + 1) % 3) + 1}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A00{49 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683284 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{((i + 2) % 3) + 1}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A00{57 + i}</td>
+                      <thead>
+                        <tr>
+                          <th className="border border-gray-800 dark:border-gray-400 p-2" colSpan={3}>Row 1</th>
+                          <th className="border border-gray-800 dark:border-gray-400 p-2" colSpan={3}>Row 2</th>
+                          <th className="border border-gray-800 dark:border-gray-400 p-2" colSpan={3}>Row 3</th>
                         </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="font-semibold">
-                        <td className="border border-gray-800 dark:border-gray-400 p-2" colSpan={2}>Registered:</td>
-                        <td className="border border-gray-800 dark:border-gray-400 p-2 text-center">24</td>
-                        <td className="border border-gray-800 dark:border-gray-400 p-2" colSpan={2}>Present:</td>
-                        <td className="border border-gray-800 dark:border-gray-400 p-2"></td>
-                        <td className="border border-gray-800 dark:border-gray-400 p-2" colSpan={2}>Absent:</td>
-                        <td className="border border-gray-800 dark:border-gray-400 p-2"></td>
-                      </tr>
-                    </tfoot>
+                        <tr>
+                          <th className="border border-gray-800 dark:border-gray-400 p-1.5">Roll No</th>
+                          <th className="border border-gray-800 dark:border-gray-400 p-1.5">QP Code</th>
+                          <th className="border border-gray-800 dark:border-gray-400 p-1.5">Sheet No</th>
+                          <th className="border border-gray-800 dark:border-gray-400 p-1.5">Roll No</th>
+                          <th className="border border-gray-800 dark:border-gray-400 p-1.5">QP Code</th>
+                          <th className="border border-gray-800 dark:border-gray-400 p-1.5">Sheet No</th>
+                          <th className="border border-gray-800 dark:border-gray-400 p-1.5">Roll No</th>
+                          <th className="border border-gray-800 dark:border-gray-400 p-1.5">QP Code</th>
+                          <th className="border border-gray-800 dark:border-gray-400 p-1.5">Sheet No</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...Array(8)].map((_, i) => (
+                          <tr key={i}>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683240 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{(i % 3) + 1}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A00{41 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683263 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{((i + 1) % 3) + 1}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A00{49 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683284 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{((i + 2) % 3) + 1}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A00{57 + i}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="font-semibold">
+                          <td className="border border-gray-800 dark:border-gray-400 p-2" colSpan={2}>Registered:</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-2 text-center">24</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-2" colSpan={2}>Present:</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-2"></td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-2" colSpan={2}>Absent:</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-2"></td>
+                        </tr>
+                      </tfoot>
                     </table>
                     {roomFolderColumnBoundaries.map((boundary, index) => (
                       <div
@@ -1486,33 +1486,33 @@ const SeatingPlan: React.FC = () => {
                         <col style={{ width: `${roomDoorLayoutDraft.infoCol5Width}%` }} />
                         <col style={{ width: `${roomDoorLayoutDraft.infoCol6Width}%` }} />
                       </colgroup>
-                    <tbody>
-                      <tr>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Centre</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
-                          International Bharti School, Rohtak
-                        </td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Centre No</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">829261</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: XII</td>
-                      </tr>
-                      <tr>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Examination</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
-                          Sr. Secondary School Certificate Examination 2026
-                        </td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Subject</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
-                          048 ; PHYSICAL EDUCATION
-                        </td>
-                      </tr>
-                      <tr>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Date</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>18.02.2026 (Wednesday)</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Room No.</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-900 dark:text-white font-bold" colSpan={2}>02 - XII A</td>
-                      </tr>
-                    </tbody>
+                      <tbody>
+                        <tr>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Centre</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
+                            International Bharti School, Rohtak
+                          </td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Centre No</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">829261</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: XII</td>
+                        </tr>
+                        <tr>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Examination</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
+                            Sr. Secondary School Certificate Examination 2026
+                          </td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Subject</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
+                            048 ; PHYSICAL EDUCATION
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Date</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>18.02.2026 (Wednesday)</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Room No.</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-900 dark:text-white font-bold" colSpan={2}>02 - XII A</td>
+                        </tr>
+                      </tbody>
                     </table>
                     {roomDoorInfoColumnBoundaries.map((boundary, index) => (
                       <div
@@ -1532,27 +1532,27 @@ const SeatingPlan: React.FC = () => {
                         <col style={{ width: `${roomDoorLayoutDraft.col2Width}%` }} />
                         <col style={{ width: `${roomDoorLayoutDraft.col3Width}%` }} />
                       </colgroup>
-                    <thead>
-                      <tr>
-                        <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Row 1</th>
-                        <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Row 2</th>
-                        <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Row 3</th>
-                      </tr>
-                      <tr>
-                        <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Roll No</th>
-                        <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Roll No</th>
-                        <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Roll No</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...Array(8)].map((_, i) => (
-                        <tr key={i}>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683240 + i}</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683263 + i}</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683284 + i}</td>
+                      <thead>
+                        <tr>
+                          <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Row 1</th>
+                          <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Row 2</th>
+                          <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Row 3</th>
                         </tr>
-                      ))}
-                    </tbody>
+                        <tr>
+                          <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Roll No</th>
+                          <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Roll No</th>
+                          <th className="border-2 border-gray-800 dark:border-gray-400 p-2">Roll No</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...Array(8)].map((_, i) => (
+                          <tr key={i}>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683240 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683263 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683284 + i}</td>
+                          </tr>
+                        ))}
+                      </tbody>
                     </table>
                     {roomDoorColumnBoundaries.map((boundary, index) => (
                       <div
@@ -1676,201 +1676,201 @@ const SeatingPlan: React.FC = () => {
                   className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto"
                   style={{ width: '210mm', minHeight: '297mm' }}
                 >
-                {/* Header */}
-                <h2 className="text-xl font-bold text-center mb-4 text-gray-900 dark:text-white">SEATING PLAN</h2>
+                  {/* Header */}
+                  <h2 className="text-xl font-bold text-center mb-4 text-gray-900 dark:text-white">SEATING PLAN</h2>
 
-                {/* Info Table */}
-                <div className="relative mb-4" ref={cbseInfoTableWrapperRef}>
-                  <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
-                    <colgroup>
-                      <col style={{ width: `${cbseLayoutDraft.infoCol1Width}%` }} />
-                      <col style={{ width: `${cbseLayoutDraft.infoCol2Width}%` }} />
-                      <col style={{ width: `${cbseLayoutDraft.infoCol3Width}%` }} />
-                      <col style={{ width: `${cbseLayoutDraft.infoCol4Width}%` }} />
-                      <col style={{ width: `${cbseLayoutDraft.infoCol5Width}%` }} />
-                    </colgroup>
-                    <tbody>
-                      <tr>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Name Of Centre</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
-                          International Bharti School<br />Gohana Road, Rohtak
-                        </td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Centre No</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">827403</td>
-                      </tr>
-                      <tr>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Name Of<br />Examination</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
-                          Sr. Secondary School Certificate Examination 2026
-                        </td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Subject</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-sm text-gray-900 dark:text-white">184 ; ENGLISH (LANG. & LIT.)</td>
-                      </tr>
-                      <tr>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Date</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>15.02.2026</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Room No.</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">01</td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  {/* Info Table */}
+                  <div className="relative mb-4" ref={cbseInfoTableWrapperRef}>
+                    <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+                      <colgroup>
+                        <col style={{ width: `${cbseLayoutDraft.infoCol1Width}%` }} />
+                        <col style={{ width: `${cbseLayoutDraft.infoCol2Width}%` }} />
+                        <col style={{ width: `${cbseLayoutDraft.infoCol3Width}%` }} />
+                        <col style={{ width: `${cbseLayoutDraft.infoCol4Width}%` }} />
+                        <col style={{ width: `${cbseLayoutDraft.infoCol5Width}%` }} />
+                      </colgroup>
+                      <tbody>
+                        <tr>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Name Of Centre</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
+                            International Bharti School<br />Gohana Road, Rohtak
+                          </td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Centre No</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">827403</td>
+                        </tr>
+                        <tr>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Name Of<br />Examination</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
+                            Sr. Secondary School Certificate Examination 2026
+                          </td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Subject</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-sm text-gray-900 dark:text-white">184 ; ENGLISH (LANG. & LIT.)</td>
+                        </tr>
+                        <tr>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Date</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>15.02.2026</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Room No.</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">01</td>
+                        </tr>
+                      </tbody>
+                    </table>
 
-                  {cbseInfoColumnBoundaries.map((boundary, index) => (
-                    <div
-                      key={`cbse-info-boundary-${index}`}
-                      className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
-                      style={{ left: `${boundary}%` }}
-                      onMouseDown={(event) => startInfoColumnResize(index, event)}
-                      title="Drag to resize info table columns"
-                    />
-                  ))}
-                </div>
-
-                {/* Seating Table */}
-                <div className="relative" ref={cbseTableWrapperRef}>
-                  <table className="w-full border-collapse mb-4" style={{ tableLayout: 'fixed' }}>
-                    <colgroup>
-                      <col style={{ width: `${cbseLayoutDraft.col1Width}%` }} />
-                      <col style={{ width: `${cbseLayoutDraft.col2Width}%` }} />
-                      <col style={{ width: `${cbseLayoutDraft.col3Width}%` }} />
-                      <col style={{ width: `${cbseLayoutDraft.col4Width}%` }} />
-                      <col style={{ width: `${cbseLayoutDraft.col5Width}%` }} />
-                      <col style={{ width: `${cbseLayoutDraft.col6Width}%` }} />
-                    </colgroup>
-                  <thead>
-                    <tr>
-                      <th
-                        className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white"
-                        colSpan={2}
-                        style={{ fontSize: `${cbseLayoutDraft.headerFontSize}pt` }}
-                      >
-                        Row 1
-                      </th>
-                      <th
-                        className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white"
-                        colSpan={2}
-                        style={{ fontSize: `${cbseLayoutDraft.headerFontSize}pt` }}
-                      >
-                        Row 2
-                      </th>
-                      <th
-                        className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white"
-                        colSpan={2}
-                        style={{ fontSize: `${cbseLayoutDraft.headerFontSize}pt` }}
-                      >
-                        Row 3
-                      </th>
-                    </tr>
-                    <tr>
-                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Roll No</td>
-                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Q.P. Code</td>
-                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Roll No</td>
-                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Q.P. Code</td>
-                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Roll No</td>
-                      <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Q.P. Code</td>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {[...Array(8)].map((_, i) => (
-                      <tr key={i}>
-                        <td
-                          className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300"
-                          style={{
-                            height: `${cbseLayoutDraft.rowHeight}px`,
-                            padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                            fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                          }}
-                        >
-                          {17248737 + i}
-                        </td>
-                        <td
-                          className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500"
-                          style={{
-                            height: `${cbseLayoutDraft.rowHeight}px`,
-                            padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                            fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                          }}
-                        />
-                        <td
-                          className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300"
-                          style={{
-                            height: `${cbseLayoutDraft.rowHeight}px`,
-                            padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                            fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                          }}
-                        >
-                          {17248745 + i}
-                        </td>
-                        <td
-                          className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500"
-                          style={{
-                            height: `${cbseLayoutDraft.rowHeight}px`,
-                            padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                            fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                          }}
-                        />
-                        <td
-                          className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300"
-                          style={{
-                            height: `${cbseLayoutDraft.rowHeight}px`,
-                            padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                            fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                          }}
-                        >
-                          {17248753 + i}
-                        </td>
-                        <td
-                          className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500"
-                          style={{
-                            height: `${cbseLayoutDraft.rowHeight}px`,
-                            padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                            fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                          }}
-                        />
-                      </tr>
+                    {cbseInfoColumnBoundaries.map((boundary, index) => (
+                      <div
+                        key={`cbse-info-boundary-${index}`}
+                        className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
+                        style={{ left: `${boundary}%` }}
+                        onMouseDown={(event) => startInfoColumnResize(index, event)}
+                        title="Drag to resize info table columns"
+                      />
                     ))}
-                  </tbody>
-                  </table>
+                  </div>
 
-                  {cbseColumnBoundaries.map((boundary, index) => (
+                  {/* Seating Table */}
+                  <div className="relative" ref={cbseTableWrapperRef}>
+                    <table className="w-full border-collapse mb-4" style={{ tableLayout: 'fixed' }}>
+                      <colgroup>
+                        <col style={{ width: `${cbseLayoutDraft.col1Width}%` }} />
+                        <col style={{ width: `${cbseLayoutDraft.col2Width}%` }} />
+                        <col style={{ width: `${cbseLayoutDraft.col3Width}%` }} />
+                        <col style={{ width: `${cbseLayoutDraft.col4Width}%` }} />
+                        <col style={{ width: `${cbseLayoutDraft.col5Width}%` }} />
+                        <col style={{ width: `${cbseLayoutDraft.col6Width}%` }} />
+                      </colgroup>
+                      <thead>
+                        <tr>
+                          <th
+                            className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white"
+                            colSpan={2}
+                            style={{ fontSize: `${cbseLayoutDraft.headerFontSize}pt` }}
+                          >
+                            Row 1
+                          </th>
+                          <th
+                            className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white"
+                            colSpan={2}
+                            style={{ fontSize: `${cbseLayoutDraft.headerFontSize}pt` }}
+                          >
+                            Row 2
+                          </th>
+                          <th
+                            className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white"
+                            colSpan={2}
+                            style={{ fontSize: `${cbseLayoutDraft.headerFontSize}pt` }}
+                          >
+                            Row 3
+                          </th>
+                        </tr>
+                        <tr>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Roll No</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Q.P. Code</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Roll No</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Q.P. Code</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Roll No</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Q.P. Code</td>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {[...Array(8)].map((_, i) => (
+                          <tr key={i}>
+                            <td
+                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300"
+                              style={{
+                                height: `${cbseLayoutDraft.rowHeight}px`,
+                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
+                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
+                              }}
+                            >
+                              {17248737 + i}
+                            </td>
+                            <td
+                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500"
+                              style={{
+                                height: `${cbseLayoutDraft.rowHeight}px`,
+                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
+                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
+                              }}
+                            />
+                            <td
+                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300"
+                              style={{
+                                height: `${cbseLayoutDraft.rowHeight}px`,
+                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
+                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
+                              }}
+                            >
+                              {17248745 + i}
+                            </td>
+                            <td
+                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500"
+                              style={{
+                                height: `${cbseLayoutDraft.rowHeight}px`,
+                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
+                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
+                              }}
+                            />
+                            <td
+                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300"
+                              style={{
+                                height: `${cbseLayoutDraft.rowHeight}px`,
+                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
+                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
+                              }}
+                            >
+                              {17248753 + i}
+                            </td>
+                            <td
+                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500"
+                              style={{
+                                height: `${cbseLayoutDraft.rowHeight}px`,
+                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
+                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
+                              }}
+                            />
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    {cbseColumnBoundaries.map((boundary, index) => (
+                      <div
+                        key={`cbse-boundary-${index}`}
+                        className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
+                        style={{ left: `${boundary}%` }}
+                        onMouseDown={(event) => startColumnResize(index, event)}
+                        title="Drag to resize column"
+                      />
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-3 mb-4">
                     <div
-                      key={`cbse-boundary-${index}`}
-                      className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
-                      style={{ left: `${boundary}%` }}
-                      onMouseDown={(event) => startColumnResize(index, event)}
-                      title="Drag to resize column"
+                      className="h-2 flex-1 rounded bg-purple-100 dark:bg-purple-900/30 cursor-row-resize"
+                      onMouseDown={startRowHeightResize}
+                      title="Drag up/down to resize row height"
                     />
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-3 mb-4">
-                  <div
-                    className="h-2 flex-1 rounded bg-purple-100 dark:bg-purple-900/30 cursor-row-resize"
-                    onMouseDown={startRowHeightResize}
-                    title="Drag up/down to resize row height"
-                  />
-                  <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                    Row Height: {cbseLayoutDraft.rowHeight}px
-                  </span>
-                </div>
-
-                {/* Footer Section */}
-                <div className="flex justify-between mb-6 text-sm">
-                  <div className="w-1/2 leading-relaxed">
-                    <p className="font-bold text-gray-900 dark:text-white">Signature of Assistant</p>
-                    <p className="font-bold text-gray-900 dark:text-white mb-3">Superintendent</p>
-                    <p className="text-gray-700 dark:text-gray-300 mt-2">1. ______________</p>
-                    <p className="text-gray-700 dark:text-gray-300 mt-3">2. ______________</p>
+                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                      Row Height: {cbseLayoutDraft.rowHeight}px
+                    </span>
                   </div>
-                  <div className="w-1/2 text-left pl-10 leading-relaxed">
-                    <p className="font-bold text-gray-900 dark:text-white">Total Students</p>
-                    <p className="text-gray-700 dark:text-gray-300 mt-2"><span className="font-bold text-gray-900 dark:text-white">Registered:</span> 24</p>
-                    <p className="text-gray-700 dark:text-gray-300 mt-3"><span className="font-bold text-gray-900 dark:text-white">Present:</span> ________</p>
-                    <p className="text-gray-700 dark:text-gray-300 mt-3"><span className="font-bold text-gray-900 dark:text-white">Absent:</span> ________</p>
-                  </div>
-                </div>
 
-                <p className="text-right font-bold text-gray-900 dark:text-white">Signature of Centre Superintendent</p>
+                  {/* Footer Section */}
+                  <div className="flex justify-between mb-6 text-sm">
+                    <div className="w-1/2 leading-relaxed">
+                      <p className="font-bold text-gray-900 dark:text-white">Signature of Assistant</p>
+                      <p className="font-bold text-gray-900 dark:text-white mb-3">Superintendent</p>
+                      <p className="text-gray-700 dark:text-gray-300 mt-2">1. ______________</p>
+                      <p className="text-gray-700 dark:text-gray-300 mt-3">2. ______________</p>
+                    </div>
+                    <div className="w-1/2 text-left pl-10 leading-relaxed">
+                      <p className="font-bold text-gray-900 dark:text-white">Total Students</p>
+                      <p className="text-gray-700 dark:text-gray-300 mt-2"><span className="font-bold text-gray-900 dark:text-white">Registered:</span> 24</p>
+                      <p className="text-gray-700 dark:text-gray-300 mt-3"><span className="font-bold text-gray-900 dark:text-white">Present:</span> ________</p>
+                      <p className="text-gray-700 dark:text-gray-300 mt-3"><span className="font-bold text-gray-900 dark:text-white">Absent:</span> ________</p>
+                    </div>
+                  </div>
+
+                  <p className="text-right font-bold text-gray-900 dark:text-white">Signature of Centre Superintendent</p>
                 </div>
               </div>
 
