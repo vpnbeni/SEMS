@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Tabs } from '../components/common/Tabs'
 import type { TabConfig } from '../components/common/Tabs'
+import api from '../services/api'
 
 interface Chapter {
   number: string
@@ -90,13 +91,8 @@ const CentreGuidelines: React.FC = () => {
 
     let cancelled = false
     setPdfViewerLoading(true)
-    fetch('/api/guidelines/file', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error('Failed to load PDF')
-        return res.blob()
-      })
+    api.get('/guidelines/file', { responseType: 'blob' })
+      .then((res) => res.data as Blob)
       .then((blob) => {
         if (cancelled) return
         const url = URL.createObjectURL(blob)
@@ -126,19 +122,11 @@ const CentreGuidelines: React.FC = () => {
 
   const checkForExistingPdf = async () => {
     try {
-      const response = await fetch('/api/guidelines/check', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-      if (response.ok) {
-        const data = await response.json()
-        if (data.exists && data.path) {
-          setUploadedPdf(data.path)
-          await loadGuidelinesData()
-        } else {
-          setLoading(false)
-        }
+      const response = await api.get('/guidelines/check')
+      const data = response.data
+      if (data.exists && data.path) {
+        setUploadedPdf(data.path)
+        await loadGuidelinesData()
       } else {
         setLoading(false)
       }
@@ -150,16 +138,8 @@ const CentreGuidelines: React.FC = () => {
 
   const loadGuidelinesData = async () => {
     try {
-      const response = await fetch('/api/guidelines/parse', {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setGuidelinesData(data.data)
-      }
+      const response = await api.get('/guidelines/parse')
+      setGuidelinesData(response.data?.data ?? null)
     } catch (error) {
       console.error('Error loading guidelines data:', error)
     } finally {
@@ -207,25 +187,16 @@ const CentreGuidelines: React.FC = () => {
     formData.append('pdf', selectedFile)
 
     try {
-      const response = await fetch('/api/guidelines/upload', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: formData
+      const response = await api.post('/guidelines/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       })
-
-      if (response.ok) {
-        const data = await response.json()
-        setUploadedPdf(data.path)
-        setShowUploadModal(false)
-        setSelectedFile(null)
-        alert('Guidelines uploaded successfully!')
-        setLoading(true)
-        await loadGuidelinesData()
-      } else {
-        alert('Failed to upload guidelines')
-      }
+      const data = response.data
+      setUploadedPdf(data.path)
+      setShowUploadModal(false)
+      setSelectedFile(null)
+      alert('Guidelines uploaded successfully!')
+      setLoading(true)
+      await loadGuidelinesData()
     } catch (error) {
       console.error('Upload error:', error)
       alert('Error uploading guidelines')
@@ -242,17 +213,12 @@ const CentreGuidelines: React.FC = () => {
 
     setSearching(true)
     try {
-      const response = await fetch(`/api/guidelines/search?query=${encodeURIComponent(searchQuery)}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+      const response = await api.get('/guidelines/search', {
+        params: { query: searchQuery }
       })
-
-      if (response.ok) {
-        const data = await response.json()
-        setSearchResults(data.results)
-        setActiveTab('search')
-      }
+      const data = response.data
+      setSearchResults(data.results)
+      setActiveTab('search')
     } catch (error) {
       console.error('Search error:', error)
       alert('Error searching guidelines')
@@ -546,7 +512,11 @@ const CentreGuidelines: React.FC = () => {
                                         </p>
                                       )}
                                     </div>
-                                    <button className="ml-2 flex-shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors">
+                                    <button
+                                      className="ml-2 flex-shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                                      title={isExpanded ? 'Collapse chapter' : 'Expand chapter'}
+                                      aria-label={isExpanded ? 'Collapse chapter' : 'Expand chapter'}
+                                    >
                                       <svg
                                         className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                                         fill="none"
@@ -695,7 +665,11 @@ const CentreGuidelines: React.FC = () => {
                                         </p>
                                       )}
                                     </div>
-                                    <button className="ml-2 flex-shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors">
+                                    <button
+                                      className="ml-2 flex-shrink-0 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                                      title={isExpanded ? 'Collapse appendix' : 'Expand appendix'}
+                                      aria-label={isExpanded ? 'Collapse appendix' : 'Expand appendix'}
+                                    >
                                       <svg
                                         className={`w-5 h-5 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
                                         fill="none"
@@ -871,6 +845,8 @@ const CentreGuidelines: React.FC = () => {
                     setSelectedFile(null)
                   }}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  title="Close upload modal"
+                  aria-label="Close upload modal"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />

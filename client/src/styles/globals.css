@@ -180,6 +180,10 @@
 
 /* Utility classes */
 @layer utilities {
+  .duties-table-scroll {
+    overflow-y: scroll;
+  }
+
   .text-balance {
     text-wrap: balance;
   }

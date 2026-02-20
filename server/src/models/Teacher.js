@@ -184,7 +184,26 @@ const teacherSchema = new mongoose.Schema({
       message: '{VALUE} is not a valid duty type'
     },
     default: ''
-  }
+  },
+  // Keep all duty types ever assigned to this functionary.
+  dutyHistory: [{
+    type: String,
+    trim: true,
+    enum: {
+      values: [
+        'Centre Superintendent',
+        'Deputy Centre Superintendent',
+        'Observer',
+        'Invigilator',
+        'ASI (CCTV)',
+        'ASI (Frisking Male)',
+        'ASI (Frisking Female)',
+        'Clerk',
+        'Class IV'
+      ],
+      message: '{VALUE} is not a valid duty type'
+    }
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

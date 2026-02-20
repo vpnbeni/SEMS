@@ -135,6 +135,23 @@ const parseCsvBuffer = (buffer) => {
   return rows;
 };
 
+const normalizeDutyType = (value) => String(value || '').trim();
+
+const mergeDutyHistory = (existingHistory = [], ...dutyTypes) => {
+  const normalizedHistory = Array.isArray(existingHistory)
+    ? existingHistory.map((item) => normalizeDutyType(item)).filter(Boolean)
+    : [];
+
+  dutyTypes.forEach((dutyType) => {
+    const normalized = normalizeDutyType(dutyType);
+    if (normalized) {
+      normalizedHistory.push(normalized);
+    }
+  });
+
+  return Array.from(new Set(normalizedHistory));
+};
+
 const getRequiredTemplateKeys = (columns) => (
   new Set(columns.filter((column) => column.required).map((column) => column.key))
 );
@@ -279,6 +296,10 @@ const createTeacher = asyncHandler(async (req, res) => {
     phone: req.body.mobileNo || req.body.phone || ''
   };
 
+  if (normalizeDutyType(payload.dutyType)) {
+    payload.dutyHistory = mergeDutyHistory([], payload.dutyType);
+  }
+
   const teacher = await Teacher.create(payload);
 
   // Populate subjects before sending response
@@ -334,6 +355,18 @@ const updateTeacher = asyncHandler(async (req, res) => {
   }
   if (req.body.employeeId && !req.body.email && !teacher.email) {
     updatePayload.email = `${String(req.body.employeeId || '').toLowerCase()}@sems.local`;
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body, 'dutyType')) {
+    const previousDutyType = normalizeDutyType(teacher.dutyType);
+    const nextDutyType = normalizeDutyType(req.body.dutyType);
+
+    if (previousDutyType !== nextDutyType) {
+      updatePayload.dutyHistory = mergeDutyHistory(
+        teacher.dutyHistory || [],
+        previousDutyType,
+        nextDutyType
+      );
+    }
   }
 
   teacher = await Teacher.findByIdAndUpdate(

@@ -77,16 +77,129 @@ function formatContent(content) {
   return formatted;
 }
 
+const sanitizeTextForParsing = (value) => String(value || '')
+  .replace(/\r/g, '\n')
+  .replace(/[^\x20-\x7E\n]/g, ' ')
+  .replace(/[ \t]+/g, ' ')
+  .replace(/\n{3,}/g, '\n\n');
+
+const extractStructuredFromText = (rawText) => {
+  const text = sanitizeTextForParsing(rawText);
+  const chapters = [];
+  const appendices = [];
+  const seenChapterNumbers = new Set();
+  const seenAppendixLetters = new Set();
+
+  const upper = text.toUpperCase();
+  const contentsIdx = upper.indexOf('CONTENTS');
+  const appendicesIdx = upper.indexOf('APPENDICES');
+  const chapterSegmentRaw = contentsIdx >= 0
+    ? text.slice(contentsIdx, appendicesIdx > contentsIdx ? appendicesIdx : Math.min(text.length, contentsIdx + 25000))
+    : text.slice(0, Math.min(text.length, 25000));
+  const appendixSegmentRaw = appendicesIdx >= 0
+    ? text.slice(appendicesIdx, Math.min(text.length, appendicesIdx + 25000))
+    : text.slice(0, Math.min(text.length, 25000));
+
+  const chapterSegment = chapterSegmentRaw.replace(/\s+/g, ' ');
+  const appendixSegment = appendixSegmentRaw.replace(/\s+/g, ' ');
+
+  // Common TOC chapter format: "1. SOME TITLE 4-5 2. NEXT TITLE 6-7"
+  const chapterLineRegex = /(?:^|\n)\s*(\d{1,2})\.\s+([A-Z][A-Z ,()'\/&\-\.;]{6,180}?)(?:\s+\d{1,3}(?:-\d{1,3})?)?(?=\n|$)/g;
+  let match;
+  while ((match = chapterLineRegex.exec(text)) !== null) {
+    const number = String(match[1] || '').trim();
+    const title = String(match[2] || '').trim();
+    if (!number || !title) continue;
+    if (title.includes('APPENDICES')) continue;
+    if (seenChapterNumbers.has(number)) continue;
+    seenChapterNumbers.add(number);
+    chapters.push({
+      number,
+      title,
+      description: '',
+      fullContent: '',
+      formattedContent: [],
+    });
+  }
+
+  const chapterInlineRegex = /(\d{1,2})\.\s+([A-Z][A-Z ,()'\/&\-\.;]{6,220}?)(?=\s+\d{1,3}(?:-\d{1,3})?\s+(?:\d{1,2}\.|APPENDICES|$))/g;
+  while ((match = chapterInlineRegex.exec(chapterSegment)) !== null) {
+    const number = String(match[1] || '').trim();
+    const title = String(match[2] || '').trim().replace(/\s+/g, ' ');
+    if (!number || !title) continue;
+    if (seenChapterNumbers.has(number)) continue;
+    seenChapterNumbers.add(number);
+    chapters.push({
+      number,
+      title,
+      description: '',
+      fullContent: '',
+      formattedContent: [],
+    });
+  }
+
+  // Prefer appendix extraction from APPENDICES section.
+  const appendicesSectionStart = text.search(/\bAPPENDICES\b/i);
+  const appendicesSource = appendicesSectionStart >= 0 ? text.slice(appendicesSectionStart) : text;
+  const appendixLineRegex = /(?:^|\n)\s*([A-Z])\s+([A-Z][A-Z ,()'\/&\-\.;]{5,200}?)(?:\s+\d{1,3}(?:-\d{1,3})?)?(?=\n|$)/g;
+  while ((match = appendixLineRegex.exec(appendicesSource)) !== null) {
+    const letter = String(match[1] || '').trim();
+    const title = String(match[2] || '').trim();
+    if (!letter || !title) continue;
+    if (letter === 'I') continue; // avoid accidental "I BACKGROUND" chapter misread
+    if (seenAppendixLetters.has(letter)) continue;
+    seenAppendixLetters.add(letter);
+    appendices.push({
+      letter,
+      title,
+      subtitle: '',
+      fullContent: '',
+      formattedContent: [],
+    });
+  }
+
+  const appendixInlineRegex = /\b([A-Z])\s+([A-Z][A-Z ,()'\/&\-\.;]{5,220}?)(?=\s+\d{1,3}(?:-\d{1,3})?\s+(?:[A-Z]\s+|$))/g;
+  while ((match = appendixInlineRegex.exec(appendixSegment)) !== null) {
+    const letter = String(match[1] || '').trim();
+    const title = String(match[2] || '').trim().replace(/\s+/g, ' ');
+    if (!letter || !title) continue;
+    if (letter === 'I') continue;
+    if (seenAppendixLetters.has(letter)) continue;
+    seenAppendixLetters.add(letter);
+    appendices.push({
+      letter,
+      title,
+      subtitle: '',
+      fullContent: '',
+      formattedContent: [],
+    });
+  }
+
+  return {
+    chapters: chapters.slice(0, 30),
+    appendices: appendices.slice(0, 30),
+  };
+};
+
 /**
  * Parse guidelines PDF and extract structured content
  * @param {Buffer} pdfBuffer - PDF file buffer
  * @returns {Promise<Object>} Parsed guidelines structure
  */
 async function parseGuidelinesPdf(pdfBuffer) {
-  const data = await pdf(pdfBuffer);
-  const text = data.text;
+  let data = null;
+  let text = '';
+  let fallbackMode = false;
+  try {
+    data = await pdf(pdfBuffer);
+    text = String(data?.text || '');
+  } catch (error) {
+    // Fallback for malformed-but-viewable PDFs: attempt TOC-style extraction from binary text.
+    fallbackMode = true;
+    text = sanitizeTextForParsing(pdfBuffer.toString('latin1'));
+  }
 
-  // Extract chapters with content
+  // Extract chapters with content (full parser path)
   const chapterRegex = /(?:CHAPTER|Chapter)\s+(\d+|[IVX]+)[:\s]+([^\n]+)/gi;
   const chapters = [];
   const chapterMatches = [];
@@ -130,7 +243,7 @@ async function parseGuidelinesPdf(pdfBuffer) {
     });
   });
 
-  // Extract appendices with content
+  // Extract appendices with content (full parser path)
   const appendixRegex = /APPENDIX-([A-Z])\n([^\n]+)/gi;
   const appendices = [];
   const appendixMatches = [];
@@ -186,10 +299,22 @@ async function parseGuidelinesPdf(pdfBuffer) {
     headings.push(match[1].trim());
   }
 
+  // If strict parsing yielded no useful structure, derive from TOC-like lines.
+  if (chapters.length === 0 || appendices.length === 0) {
+    const fallback = extractStructuredFromText(text);
+    if (chapters.length === 0 && fallback.chapters.length > 0) {
+      chapters.push(...fallback.chapters);
+    }
+    if (appendices.length === 0 && fallback.appendices.length > 0) {
+      appendices.push(...fallback.appendices);
+    }
+  }
+
   return {
     metadata: {
-      pages: data.numpages,
+      pages: Number(data?.numpages || 0),
       totalCharacters: text.length,
+      fallbackMode,
     },
     structure: {
       chapters: chapters.slice(0, 20),

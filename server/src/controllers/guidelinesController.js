@@ -3,15 +3,73 @@ const { parseGuidelinesPdf } = require('../utils/guidelinesParser');
 
 const GUIDELINES_PUBLIC_ID = 'guidelines/centre-guidelines';
 
+const isValidPdfBuffer = (buffer) => {
+  if (!buffer || buffer.length < 8) return false;
+  const header = buffer.subarray(0, 5).toString('utf8');
+  if (!header.startsWith('%PDF-')) return false;
+  const trailerProbe = buffer.subarray(Math.max(0, buffer.length - 2048)).toString('utf8');
+  return trailerProbe.includes('%%EOF');
+};
+
+async function getActiveTenantGuideline(req) {
+  try {
+    const Guideline = req.models?.Guideline;
+    if (!Guideline) return null;
+    return await Guideline.findOne({ isActive: true })
+      .sort({ createdAt: -1 })
+      .lean();
+  } catch {
+    return null;
+  }
+}
+
+async function resolveGuidelinesSource(req) {
+  const tenantGuideline = await getActiveTenantGuideline(req);
+  if (tenantGuideline?.cloudinaryUrl || tenantGuideline?.cloudinaryPublicId) {
+    return {
+      publicId: tenantGuideline.cloudinaryPublicId || null,
+      url: tenantGuideline.cloudinaryUrl || null,
+    };
+  }
+
+  return {
+    publicId: GUIDELINES_PUBLIC_ID,
+    url: null,
+  };
+}
+
 /**
  * Fetch the guidelines PDF buffer from Cloudinary (if uploaded).
+ * @param {{ publicId?: string|null, url?: string|null }} source
  * @returns {Promise<Buffer|null>} - PDF buffer or null if not found
  */
-async function getGuidelinesPdfBuffer() {
+async function getGuidelinesPdfBuffer(source = {}) {
+  const publicId = source?.publicId ? String(source.publicId) : '';
+  const isLocalReference = publicId.startsWith('local:');
+  if (publicId && !isLocalReference) {
+    try {
+      const resource = await cloudinary.api.resource(publicId, { resource_type: 'raw' });
+      const response = await fetch(resource.secure_url);
+      if (!response.ok) return null;
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (err) {
+      if (err.error?.http_code === 404) return null;
+      throw err;
+    }
+  }
+
+  const directUrl = source?.url ? String(source.url) : '';
+  if (directUrl) {
+    const response = await fetch(directUrl);
+    if (!response.ok) return null;
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  }
+
   try {
     const resource = await cloudinary.api.resource(GUIDELINES_PUBLIC_ID, { resource_type: 'raw' });
-    const url = resource.secure_url;
-    const response = await fetch(url);
+    const response = await fetch(resource.secure_url);
     if (!response.ok) return null;
     const arrayBuffer = await response.arrayBuffer();
     return Buffer.from(arrayBuffer);
@@ -32,6 +90,12 @@ exports.uploadGuidelines = async (req, res) => {
     }
 
     const pdfFile = req.files.pdf;
+    if (pdfFile.truncated) {
+      return res.status(413).json({
+        success: false,
+        message: 'Uploaded file exceeds the server size limit. Please upload a smaller PDF.'
+      });
+    }
 
     if (pdfFile.mimetype !== 'application/pdf') {
       return res.status(400).json({
@@ -40,7 +104,18 @@ exports.uploadGuidelines = async (req, res) => {
       });
     }
 
-    const fileInput = pdfFile.tempFilePath || pdfFile.data;
+    const fileBuffer = pdfFile.tempFilePath
+      ? require('fs').readFileSync(pdfFile.tempFilePath)
+      : pdfFile.data;
+
+    if (!isValidPdfBuffer(fileBuffer)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or corrupted PDF. Please upload a valid PDF file.'
+      });
+    }
+
+    const fileInput = pdfFile.tempFilePath || fileBuffer;
     const { url } = await uploadDocumentToCloudinary(
       fileInput,
       'guidelines',
@@ -65,7 +140,8 @@ exports.uploadGuidelines = async (req, res) => {
 // Parse and extract guidelines structure
 exports.parseGuidelines = async (req, res) => {
   try {
-    const dataBuffer = await getGuidelinesPdfBuffer();
+    const source = await resolveGuidelinesSource(req);
+    const dataBuffer = await getGuidelinesPdfBuffer(source);
     if (!dataBuffer) {
       return res.status(404).json({
         success: false,
@@ -73,7 +149,25 @@ exports.parseGuidelines = async (req, res) => {
       });
     }
 
-    const parsed = await parseGuidelinesPdf(dataBuffer);
+    let parsed = null;
+    try {
+      parsed = await parseGuidelinesPdf(dataBuffer);
+    } catch (parseError) {
+      console.warn('Guidelines parse failed; returning fallback structure:', parseError.message);
+      parsed = {
+        metadata: {
+          pages: 0,
+          totalCharacters: 0,
+        },
+        structure: {
+          chapters: [],
+          appendices: [],
+          guidelines: [],
+          headings: [],
+        },
+        fullText: '',
+      };
+    }
 
     res.json({
       success: true,
@@ -102,7 +196,8 @@ exports.searchGuidelines = async (req, res) => {
     }
 
     const pdf = require('pdf-parse');
-    const dataBuffer = await getGuidelinesPdfBuffer();
+    const source = await resolveGuidelinesSource(req);
+    const dataBuffer = await getGuidelinesPdfBuffer(source);
     if (!dataBuffer) {
       return res.status(404).json({
         success: false,
@@ -145,7 +240,8 @@ exports.searchGuidelines = async (req, res) => {
 // Stream PDF for in-browser viewing (inline, not download)
 exports.getGuidelinesFile = async (req, res) => {
   try {
-    const buffer = await getGuidelinesPdfBuffer();
+    const source = await resolveGuidelinesSource(req);
+    const buffer = await getGuidelinesPdfBuffer(source);
     if (!buffer) {
       return res.status(404).json({
         success: false,
@@ -169,18 +265,33 @@ exports.getGuidelinesFile = async (req, res) => {
 // Check if guidelines exist
 exports.checkGuidelines = async (req, res) => {
   try {
-    const resource = await cloudinary.api.resource(GUIDELINES_PUBLIC_ID, { resource_type: 'raw' }).catch((err) => {
-      if (err.error?.http_code === 404) return null;
-      throw err;
-    });
-    if (!resource) {
-      return res.json({ success: true, exists: false });
+    const source = await resolveGuidelinesSource(req);
+    const publicId = String(source?.publicId || GUIDELINES_PUBLIC_ID);
+    const isLocalReference = publicId.startsWith('local:');
+
+    if (!isLocalReference) {
+      const resource = await cloudinary.api.resource(publicId, { resource_type: 'raw' }).catch((err) => {
+        if (err.error?.http_code === 404) return null;
+        throw err;
+      });
+      if (resource?.secure_url) {
+        return res.json({
+          success: true,
+          exists: true,
+          path: resource.secure_url
+        });
+      }
     }
-    res.json({
-      success: true,
-      exists: true,
-      path: resource.secure_url
-    });
+
+    if (source?.url) {
+      return res.json({
+        success: true,
+        exists: true,
+        path: source.url
+      });
+    }
+
+    return res.json({ success: true, exists: false });
   } catch (error) {
     console.error('Check guidelines error:', error);
     res.status(500).json({

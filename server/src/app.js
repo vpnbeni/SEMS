@@ -160,9 +160,15 @@ app.use(cookieParser());
 app.use(requestContextMiddleware);
 
 // File upload middleware
+const configuredMaxFileSize = Number.parseInt(process.env.MAX_FILE_SIZE || '', 10);
+const effectiveMaxFileSize = Number.isFinite(configuredMaxFileSize) && configuredMaxFileSize > 0
+  ? Math.max(configuredMaxFileSize, 200 * 1024 * 1024)
+  : 200 * 1024 * 1024;
+
 app.use(fileUpload({
-  limits: { fileSize: Number.parseInt(process.env.MAX_FILE_SIZE || '', 10) || 10 * 1024 * 1024 }, // 10MB
-  abortOnLimit: true,
+  limits: { fileSize: effectiveMaxFileSize }, // min 200MB
+  abortOnLimit: false,
+  responseOnLimit: 'Uploaded file exceeds the allowed size limit',
   createParentPath: true,
   useTempFiles: true,
   tempFileDir: os.tmpdir() // Cross-platform temp directory

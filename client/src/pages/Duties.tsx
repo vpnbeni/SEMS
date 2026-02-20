@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { useTeachers } from '../hooks/useTeachers'
+import type { Teacher } from '../services/teacherService'
 import { seatingPlanService, type Room } from '../services/seatingPlanService'
 import centreDatesheetService from '../services/centreDatesheetService'
 import dutiesService from '../services/dutiesService'
@@ -31,6 +32,29 @@ const formatDateLabel = (dateKey: string) => {
   const [year, month, day] = dateKey.split('-')
   if (!year || !month || !day) return dateKey
   return `${day}.${month}.${year.slice(-2)}`
+}
+
+const hasDutyType = (functionary: Teacher, dutyType: string) => {
+  if (functionary?.dutyType === dutyType) return true
+  if (!Array.isArray(functionary?.dutyHistory)) return false
+  return functionary.dutyHistory.some((duty: string) => duty === dutyType)
+}
+
+const compareRoomNo = (a: Room, b: Room) => {
+  const aNo = String(a?.roomNo || '')
+  const bNo = String(b?.roomNo || '')
+  return aNo.localeCompare(bNo, undefined, { numeric: true, sensitivity: 'base' })
+}
+
+const getRoomAllocationOrderForDate = (room: Room, dateKey: string) => {
+  if (!dateKey) return Number.MAX_SAFE_INTEGER
+  const source = room?.allocationOrderByDate as unknown
+  if (!source) return Number.MAX_SAFE_INTEGER
+  const value =
+    source instanceof Map
+      ? source.get(dateKey)
+      : (source as Record<string, number | undefined>)[dateKey]
+  return typeof value === 'number' ? value : Number.MAX_SAFE_INTEGER
 }
 
 /**
@@ -105,17 +129,21 @@ const getMaxRowLabel = (tabKey: string): string => {
 /* ────────── component ────────── */
 
 const Duties: React.FC = () => {
-  const [, setRooms] = useState<Room[]>([])
+  const [rooms, setRooms] = useState<Room[]>([])
   const [examDates, setExamDates] = useState<string[]>([])
   const [requiredRoomsByDate, setRequiredRoomsByDate] = useState<Record<string, number>>({})
   const [candidatesByDate, setCandidatesByDate] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
-  const [activeTab, setActiveTab] = useState('CS')
+  const [activeTab, setActiveTab] = useState('ASI')
   const [isSaving, setIsSaving] = useState(false)
   const [allocationMode, setAllocationMode] = useState<'auto' | 'manual'>('manual')
   const [loadingAllocationMode, setLoadingAllocationMode] = useState(false)
   // Track checked duties: key = "funcId::dateKey", value = true/false
   const [checkedDuties, setCheckedDuties] = useState<Record<string, boolean>>({})
+  const [selectedRoomDate, setSelectedRoomDate] = useState('')
+  const [roomAssignmentsByDate, setRoomAssignmentsByDate] = useState<Record<string, Record<string, string>>>({})
+  const [loadingRoomAssignments, setLoadingRoomAssignments] = useState(false)
+  const [savingRoomAssignments, setSavingRoomAssignments] = useState(false)
 
   /* ── Fetch teachers ── */
   const { data: teachersData, isLoading: loadingTeachers } = useTeachers({
@@ -131,7 +159,7 @@ const Duties: React.FC = () => {
   const activeDutyType = DUTY_TABS.find((t) => t.key === activeTab)?.dutyType || ''
 
   const filteredFunctionaries = useMemo(() => {
-    let list = allFunctionaries.filter((f) => f.dutyType === activeDutyType)
+    let list = allFunctionaries.filter((f) => hasDutyType(f, activeDutyType))
     const term = search.trim().toLowerCase()
     if (term) {
       list = list.filter((f) => {
@@ -141,6 +169,42 @@ const Duties: React.FC = () => {
     }
     return list
   }, [allFunctionaries, activeDutyType, search])
+
+  const allocatedRoomsForSelectedDate = useMemo(() => {
+    if (!selectedRoomDate) return []
+    return [...rooms]
+      .filter((room) => room?.isActive !== false)
+      .filter((room) => Array.isArray(room?.allocatedExamDates) && room.allocatedExamDates.includes(selectedRoomDate))
+      .sort((a, b) => {
+        const orderDiff =
+          getRoomAllocationOrderForDate(a, selectedRoomDate) - getRoomAllocationOrderForDate(b, selectedRoomDate)
+        if (orderDiff !== 0) return orderDiff
+        return compareRoomNo(a, b)
+      })
+  }, [rooms, selectedRoomDate])
+
+  const functionaryById = useMemo(() => {
+    const map: Record<string, Teacher> = {}
+    for (const functionary of allFunctionaries) {
+      if (functionary?._id) map[functionary._id] = functionary
+    }
+    return map
+  }, [allFunctionaries])
+
+  const invigilatorsForTab = useMemo(() => {
+    const dutyType = DUTY_TABS.find((t) => t.key === 'ASI')?.dutyType || 'Invigilator'
+    return allFunctionaries.filter((f) => hasDutyType(f, dutyType))
+  }, [allFunctionaries])
+
+  const selectedInvigilatorsForDate = useMemo(() => {
+    if (!selectedRoomDate) return []
+    return invigilatorsForTab.filter((func) => checkedDuties[`${func._id}::${selectedRoomDate}`])
+  }, [invigilatorsForTab, checkedDuties, selectedRoomDate])
+
+  const roomDropdownInvigilators = useMemo(() => {
+    const source = allocationMode === 'manual' ? selectedInvigilatorsForDate : invigilatorsForTab
+    return [...source].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }))
+  }, [allocationMode, selectedInvigilatorsForDate, invigilatorsForTab])
 
   /* ── Count per tab ── */
   const tabCounts = useMemo(() => {
@@ -250,9 +314,43 @@ const Duties: React.FC = () => {
     if (activeDutyType) loadSelections()
   }, [activeDutyType, loadSelections])
 
+  useEffect(() => {
+    if (activeTab !== 'ASI') return
+    if (examDates.length === 0) {
+      setSelectedRoomDate('')
+      return
+    }
+    setSelectedRoomDate((prev) => (prev && examDates.includes(prev) ? prev : examDates[0]))
+  }, [activeTab, examDates])
+
+  useEffect(() => {
+    const loadRoomAssignmentsForDate = async () => {
+      if (activeTab !== 'ASI' || !selectedRoomDate) return
+      try {
+        setLoadingRoomAssignments(true)
+        const response = await dutiesService.getDailyDuties(selectedRoomDate)
+        const nextAssignments: Record<string, string> = {}
+        for (const duty of response?.duties || []) {
+          const roomId = String(duty?.room?._id || '')
+          const functionaryId = String(duty?.functionary?._id || '')
+          if (roomId && functionaryId) nextAssignments[roomId] = functionaryId
+        }
+        setRoomAssignmentsByDate((prev) => ({
+          ...prev,
+          [selectedRoomDate]: nextAssignments,
+        }))
+      } catch (error) {
+        console.error('Failed to load room assignments:', error)
+      } finally {
+        setLoadingRoomAssignments(false)
+      }
+    }
+
+    loadRoomAssignmentsForDate()
+  }, [activeTab, selectedRoomDate])
+
   /* ── Save handler ── */
   const handleSaveFunctionaries = async () => {
-    if (allocationMode !== 'manual') return
     setIsSaving(true)
     try {
       await dutiesService.saveDutySelections(activeDutyType, checkedDuties)
@@ -267,11 +365,6 @@ const Duties: React.FC = () => {
   const handleModeChange = async (mode: 'auto' | 'manual') => {
     if (mode === allocationMode) return
     try {
-      // Persist current manual selections before switching modes.
-      if (allocationMode === 'manual' && activeDutyType) {
-        await dutiesService.saveDutySelections(activeDutyType, checkedDuties)
-      }
-
       setLoadingAllocationMode(true)
       const savedMode = await dutiesService.updateDutyAllocationMode(mode)
       setAllocationMode(savedMode)
@@ -284,6 +377,85 @@ const Duties: React.FC = () => {
     }
   }
 
+  const handleRoomAssignmentChange = (roomId: string, functionaryId: string) => {
+    if (!selectedRoomDate) return
+    setRoomAssignmentsByDate((prev) => ({
+      ...prev,
+      [selectedRoomDate]: {
+        ...(prev[selectedRoomDate] || {}),
+        [roomId]: functionaryId,
+      },
+    }))
+  }
+
+  const selectedRoomDateIndex = useMemo(() => {
+    if (!selectedRoomDate) return -1
+    return examDates.indexOf(selectedRoomDate)
+  }, [examDates, selectedRoomDate])
+
+  const canGoToPreviousRoomDate = selectedRoomDateIndex > 0
+  const canGoToNextRoomDate = selectedRoomDateIndex >= 0 && selectedRoomDateIndex < examDates.length - 1
+
+  const goToPreviousRoomDate = () => {
+    if (!canGoToPreviousRoomDate) return
+    setSelectedRoomDate(examDates[selectedRoomDateIndex - 1])
+  }
+
+  const goToNextRoomDate = () => {
+    if (!canGoToNextRoomDate) return
+    setSelectedRoomDate(examDates[selectedRoomDateIndex + 1])
+  }
+
+  const handleSaveRoomAssignments = async () => {
+    if (!selectedRoomDate) {
+      toast.error('Select exam date first')
+      return
+    }
+    if (allocatedRoomsForSelectedDate.length === 0) {
+      toast.error('No allocated rooms found for selected date')
+      return
+    }
+
+    const assignmentsForDate = roomAssignmentsByDate[selectedRoomDate] || {}
+    const orderedFunctionaryIds = allocatedRoomsForSelectedDate.map((room) => String(assignmentsForDate[room._id] || '').trim())
+
+    if (orderedFunctionaryIds.some((value) => !value)) {
+      toast.error('Assign an invigilator for each room')
+      return
+    }
+
+    const uniqueFunctionaryIds = new Set(orderedFunctionaryIds)
+    if (uniqueFunctionaryIds.size !== orderedFunctionaryIds.length) {
+      toast.error('One invigilator cannot be assigned to multiple rooms on same date')
+      return
+    }
+
+    setSavingRoomAssignments(true)
+    try {
+      const response = await dutiesService.assignDailyDuties({
+        examDate: selectedRoomDate,
+        functionaryIds: orderedFunctionaryIds,
+      })
+
+      const nextAssignments: Record<string, string> = {}
+      for (const duty of response?.duties || []) {
+        const roomId = String(duty?.room?._id || '')
+        const functionaryId = String(duty?.functionary?._id || '')
+        if (roomId && functionaryId) nextAssignments[roomId] = functionaryId
+      }
+      setRoomAssignmentsByDate((prev) => ({
+        ...prev,
+        [selectedRoomDate]: nextAssignments,
+      }))
+
+      toast.success(`Room assignments saved for ${formatDateLabel(selectedRoomDate)}`)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to save room assignments')
+    } finally {
+      setSavingRoomAssignments(false)
+    }
+  }
+
   /* ────────── render ────────── */
 
   return (
@@ -293,37 +465,9 @@ const Duties: React.FC = () => {
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Duty Assignment by Date</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {allocationMode === 'auto'
-                ? 'Auto mode active: duty allocation rules will be applied automatically.'
-                : 'Manual mode active: select functionaries date-wise and save.'}
-            </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Select functionaries date-wise and save.</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="inline-flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => handleModeChange('auto')}
-                disabled={loadingAllocationMode}
-                className={`px-3 py-1.5 text-xs font-semibold ${allocationMode === 'auto'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                  }`}
-              >
-                Auto
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModeChange('manual')}
-                disabled={loadingAllocationMode}
-                className={`px-3 py-1.5 text-xs font-semibold border-l border-gray-300 dark:border-gray-600 ${allocationMode === 'manual'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                  }`}
-              >
-                Manual
-              </button>
-            </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -340,7 +484,7 @@ const Duties: React.FC = () => {
             </div>
             <button
               className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={allocationMode !== 'manual' || filteredFunctionaries.length === 0 || examDates.length === 0 || isSaving}
+              disabled={filteredFunctionaries.length === 0 || examDates.length === 0 || isSaving}
               onClick={handleSaveFunctionaries}
             >
               {isSaving ? 'Saving...' : 'Save Functionaries'}
@@ -353,6 +497,7 @@ const Duties: React.FC = () => {
           <nav className="flex gap-0 -mb-px overflow-x-auto" aria-label="Duty type tabs">
             {DUTY_TABS.map((tab) => {
               const isActive = activeTab === tab.key
+              const isAsiTab = tab.key === 'ASI'
               const count = tabCounts[tab.key] || 0
               return (
                 <button
@@ -363,25 +508,54 @@ const Duties: React.FC = () => {
                   }}
                   className={`
                     relative px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors
+                    ${isAsiTab ? 'bg-blue-50/60 dark:bg-blue-900/20 rounded-t-md' : ''}
                     ${isActive
-                      ? 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
+                      ? `${isAsiTab
+                        ? 'border-blue-600 text-blue-700 dark:border-blue-400 dark:text-blue-300 shadow-[inset_0_-2px_0_0_rgba(37,99,235,1)]'
+                        : 'border-primary-600 text-primary-600 dark:border-primary-400 dark:text-primary-400'
+                      }`
                       : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
                     }
                   `}
                   title={tab.dutyType}
                 >
-                  {tab.label}
-                  {count > 0 && (
-                    <span
-                      className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none
-                        ${isActive
-                          ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
-                        }
-                      `}
-                    >
-                      {count}
+                  {isAsiTab ? (
+                    <span className="inline-flex flex-col items-center leading-tight">
+                      <span className="mb-0.5 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-blue-600 text-white shadow-sm">
+                        Invigilators
+                      </span>
+                      <span className="inline-flex items-center">
+                        {tab.label}
+                        {count > 0 && (
+                          <span
+                            className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none
+                              ${isActive
+                                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
+                                : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                              }
+                            `}
+                          >
+                            {count}
+                          </span>
+                        )}
+                      </span>
                     </span>
+                  ) : (
+                    <>
+                      {tab.label}
+                      {count > 0 && (
+                        <span
+                          className={`ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none
+                            ${isActive
+                              ? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
+                              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+                            }
+                          `}
+                        >
+                          {count}
+                        </span>
+                      )}
+                    </>
                   )}
                 </button>
               )
@@ -395,7 +569,7 @@ const Duties: React.FC = () => {
             Loading functionaries...
           </div>
         ) : (
-          <div className="overflow-auto max-h-[370px]" style={{ scrollbarGutter: 'stable' }}>
+          <div className="overflow-x-auto duties-table-scroll max-h-[370px]">
             <table className="min-w-full border-collapse border-2 border-gray-400 dark:border-gray-500">
               <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                 <tr>
@@ -471,7 +645,7 @@ const Duties: React.FC = () => {
                       const maxDuties = computeMaxDuties(activeTab, roomsForDate, candidatesForDate)
                       const dateCheckedCount = checkedCountByDate[dateKey] || 0
                       const maxReached = dateCheckedCount >= maxDuties && maxDuties > 0
-                      const isDisabled = allocationMode !== 'manual' || (maxReached && !isChecked)
+                      const isDisabled = maxReached && !isChecked
                       return (
                         <td key={key} className="border border-gray-400 dark:border-gray-500 px-4 py-4 text-center">
                           <input
@@ -502,6 +676,144 @@ const Duties: React.FC = () => {
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {activeTab === 'ASI' && (
+          <div className="px-6 py-5 border-t border-gray-200 dark:border-gray-700 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Room-wise Invigilator Assignment</h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Assign selected invigilators to specific rooms for the chosen date (Auto/Manual applies here).
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange('auto')}
+                    disabled={loadingAllocationMode}
+                    className={`px-3 py-1.5 text-xs font-semibold ${allocationMode === 'auto'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                      }`}
+                  >
+                    Auto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleModeChange('manual')}
+                    disabled={loadingAllocationMode}
+                    className={`px-3 py-1.5 text-xs font-semibold border-l border-gray-300 dark:border-gray-600 ${allocationMode === 'manual'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                      }`}
+                  >
+                    Manual
+                  </button>
+                </div>
+                <div className="inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={goToPreviousRoomDate}
+                    disabled={!canGoToPreviousRoomDate}
+                    className="px-2.5 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Previous exam date"
+                  >
+                    &larr;
+                  </button>
+                  <div className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-800 border-l border-r border-gray-300 dark:border-gray-600 min-w-[90px] text-center">
+                    {selectedRoomDate ? formatDateLabel(selectedRoomDate) : '-'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={goToNextRoomDate}
+                    disabled={!canGoToNextRoomDate}
+                    className="px-2.5 py-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Next exam date"
+                  >
+                    &rarr;
+                  </button>
+                </div>
+                <button
+                  className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={handleSaveRoomAssignments}
+                  disabled={!selectedRoomDate || savingRoomAssignments || loadingRoomAssignments}
+                >
+                  {savingRoomAssignments ? 'Saving Rooms...' : 'Save Room Assignments'}
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto max-h-[320px] duties-table-scroll">
+              <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-600">
+                <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
+                  <tr>
+                    <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">
+                      Room
+                    </th>
+                    <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">
+                      Invigilator
+                    </th>
+                    <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">
+                      OASIS ID
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800">
+                  {allocatedRoomsForSelectedDate.map((room) => {
+                    const selectedFunctionaryId = roomAssignmentsByDate[selectedRoomDate]?.[room._id] || ''
+                    const selectedFunctionary = functionaryById[selectedFunctionaryId]
+                    const options = [...roomDropdownInvigilators]
+                    if (selectedFunctionaryId && selectedFunctionary && !options.some((func) => func._id === selectedFunctionaryId)) {
+                      options.push(selectedFunctionary)
+                    }
+
+                    return (
+                      <tr key={room._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-900 dark:text-white whitespace-nowrap">
+                          {room.roomNo}{room.roomName ? ` - ${room.roomName}` : ''}
+                        </td>
+                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                          <select
+                            value={selectedFunctionaryId}
+                            onChange={(e) => handleRoomAssignmentChange(room._id, e.target.value)}
+                            className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white px-2 py-1.5"
+                            disabled={loadingRoomAssignments}
+                            title={`Assign invigilator for room ${room.roomNo}`}
+                          >
+                            <option value="">Select invigilator</option>
+                            {options.map((func) => (
+                              <option key={func._id} value={func._id}>
+                                {func.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-900 dark:text-white whitespace-nowrap">
+                          {selectedFunctionary?.employeeId || '-'}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  {allocatedRoomsForSelectedDate.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                        No rooms are allotted for this date.
+                      </td>
+                    </tr>
+                  )}
+                  {allocatedRoomsForSelectedDate.length > 0 && allocationMode === 'manual' && roomDropdownInvigilators.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-4 text-center text-xs text-amber-700 dark:text-amber-300">
+                        No invigilators selected for this date. Select invigilators in the upper table first.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>

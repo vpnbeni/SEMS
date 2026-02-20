@@ -45,6 +45,7 @@ export interface Teacher {
   }
   notes?: string
   dutyType?: string
+  dutyHistory?: string[]
   createdAt?: string
   updatedAt?: string
   // Computed fields for frontend compatibility

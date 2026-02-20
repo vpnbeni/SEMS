@@ -32,9 +32,11 @@ const isLocalApiUrl = (value: string): boolean => {
   }
 }
 
-const API_BASE_URL = (!import.meta.env.DEV && isLocalApiUrl(configuredApiBaseUrl))
+const API_BASE_URL = import.meta.env.DEV
   ? '/api/admin'
-  : (configuredApiBaseUrl || (import.meta.env.DEV ? 'http://localhost:5000/api/admin' : '/api/admin'))
+  : ((!import.meta.env.DEV && isLocalApiUrl(configuredApiBaseUrl))
+    ? '/api/admin'
+    : (configuredApiBaseUrl || '/api/admin'))
 
 interface ApiResponse<T> {
   success: boolean
@@ -215,9 +217,14 @@ export const masterDatesheetApi = {
 
 export const masterGuidelinesApi = {
   async upload(formData: FormData): Promise<UploadResult<MasterGuideline>> {
-    const response = await platformApi.post<UploadResult<MasterGuideline>>('/master-guidelines/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
+    const response = await platformApi.post<UploadResult<MasterGuideline>>(
+      '/master-guidelines/upload',
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 300000,
+      },
+    )
     return response.data
   },
 

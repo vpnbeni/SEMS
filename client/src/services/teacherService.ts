@@ -36,6 +36,7 @@ export interface Teacher {
   }
   notes?: string
   dutyType?: string
+  dutyHistory?: string[]
   createdAt?: string
   updatedAt?: string
   status?: 'active' | 'inactive'

@@ -59,8 +59,13 @@ export function MasterGuidelinesPage() {
   }, [])
 
   const handleUpload = async (file: File) => {
+    const MAX_GUIDELINES_SIZE_BYTES = 200 * 1024 * 1024
     if (!academicYear.trim()) {
       setError('Academic year is required for guideline upload')
+      return
+    }
+    if (file.size > MAX_GUIDELINES_SIZE_BYTES) {
+      setError('Selected file is too large. Maximum allowed size is 200MB.')
       return
     }
 
@@ -78,10 +83,11 @@ export function MasterGuidelinesPage() {
       await loadGuidelines()
     } catch (err: unknown) {
       if (typeof err === 'object' && err && 'response' in err) {
-        const response = (err as { response?: { data?: { message?: string } } }).response
-        setError(response?.data?.message || 'Failed to upload guidelines')
+        const response = (err as { response?: { data?: { message?: string } }; message?: string }).response
+        const fallbackMessage = (err as { message?: string }).message || 'Failed to upload guidelines'
+        setError(response?.data?.message || fallbackMessage)
       } else {
-        setError('Failed to upload guidelines')
+        setError((err as { message?: string })?.message || 'Failed to upload guidelines')
       }
     } finally {
       setUploading(false)
