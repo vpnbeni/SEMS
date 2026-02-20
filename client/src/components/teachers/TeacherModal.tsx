@@ -15,6 +15,7 @@ interface Subject {
   _id: string;
   name: string;
   code: string;
+  class?: string;
 }
 
 interface SchoolOption {
@@ -53,6 +54,8 @@ const getDutyOptionsForDesignation = (designation: string): string[] => {
   if (d === 'vice principal') return ['Centre Superintendent', 'Deputy Centre Superintendent'];
   return [...DUTY_TYPE_OPTIONS];
 };
+const normalizeSubjectCode = (value: string | undefined) => String(value || "").trim().toUpperCase();
+const normalizeClassLabel = (value: string | undefined) => String(value || "").trim();
 
 const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -71,7 +74,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     name: "",
     employeeId: "",
     designation: "",
-    subjectId: "",
+    subjectIds: [] as string[],
     subjectCode: "",
     schoolName: "",
     schoolCode: "",
@@ -82,6 +85,39 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     dutyType: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const subjectById = useMemo(() => {
+    const map: Record<string, Subject> = {};
+    (subjects || []).forEach((subject: Subject) => {
+      map[subject._id] = subject;
+    });
+    return map;
+  }, [subjects]);
+  const getSubjectCodesFromIds = (ids: string[]) => {
+    const codes = Array.from(
+      new Set(
+        ids
+          .map((id) => normalizeSubjectCode(subjectById[id]?.code))
+          .filter(Boolean)
+      )
+    );
+    return codes.join(", ");
+  };
+  const subjectCodeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (subjects || []).forEach((subject: Subject) => {
+      const code = normalizeSubjectCode(subject.code);
+      if (!code) return;
+      counts[code] = (counts[code] || 0) + 1;
+    });
+    return counts;
+  }, [subjects]);
+  const formatSubjectLabel = (subject?: Subject | null) => {
+    if (!subject) return "";
+    const code = normalizeSubjectCode(subject.code);
+    const classLabel = normalizeClassLabel(subject.class);
+    const shouldShowClass = Boolean(code) && (subjectCodeCounts[code] || 0) > 1 && Boolean(classLabel);
+    return `${subject.name} (${subject.code || ""})${shouldShowClass ? ` - Class ${classLabel}` : ""}`.trim();
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -103,17 +139,29 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   useEffect(() => {
     if (mode !== "edit" || !selectedTeacher) return;
     const firstSubject = Array.isArray(selectedTeacher.subjects) ? selectedTeacher.subjects[0] : "";
-    const subjectId = typeof firstSubject === "string" ? firstSubject : firstSubject?._id || "";
-    const subjectCode =
-      selectedTeacher.subjectCode
-      || (typeof firstSubject === "object" ? firstSubject?.code : "")
-      || "";
+    const subjectIds = Array.isArray(selectedTeacher.subjects)
+      ? selectedTeacher.subjects
+        .map((subject) => (typeof subject === "string" ? subject : subject?._id || ""))
+        .filter(Boolean)
+      : [];
+    const selectedSubjectCodes = Array.isArray(selectedTeacher.subjects)
+      ? Array.from(
+        new Set(
+          selectedTeacher.subjects
+            .map((subject) => (typeof subject === "object" ? normalizeSubjectCode(subject?.code) : ""))
+            .filter(Boolean)
+        )
+      )
+      : [];
+    const subjectCode = selectedSubjectCodes.length > 0
+      ? selectedSubjectCodes.join(", ")
+      : selectedTeacher.subjectCode || "";
 
     setFormData({
       name: selectedTeacher.name || "",
       employeeId: selectedTeacher.employeeId || "",
       designation: selectedTeacher.designation || "",
-      subjectId,
+      subjectIds,
       subjectCode,
       schoolName: selectedTeacher.schoolName || "",
       schoolCode: selectedTeacher.schoolCode || "",
@@ -124,11 +172,11 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       dutyType: selectedTeacher.dutyType || "",
     });
     if (typeof firstSubject === "object" && firstSubject?.name) {
-      setSubjectSearch(`${firstSubject.name} (${firstSubject.code || ""})`.trim());
+      setSubjectSearch(formatSubjectLabel(firstSubject as Subject));
     } else {
       setSubjectSearch("");
     }
-  }, [mode, selectedTeacher]);
+  }, [mode, selectedTeacher, subjectCodeCounts]);
 
   const schoolButtonItems = useMemo(() => {
     if (!formData.schoolName || schoolOptions.some((s) => s.schoolName === formData.schoolName)) {
@@ -143,8 +191,9 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     return subjects.filter((subject: Subject) => {
       const name = String(subject.name || "").toLowerCase();
       const code = String(subject.code || "").toLowerCase();
-      const combinedLabel = `${name} (${code})`;
-      return name.includes(term) || code.includes(term) || combinedLabel.includes(term);
+      const classLabel = String(subject.class || "").toLowerCase();
+      const combinedLabel = `${name} (${code}) ${classLabel}`;
+      return name.includes(term) || code.includes(term) || classLabel.includes(term) || combinedLabel.includes(term);
     });
   }, [subjectSearch, subjects]);
 
@@ -171,7 +220,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       name: "",
       employeeId: "",
       designation: "",
-      subjectId: "",
+      subjectIds: [],
       subjectCode: "",
       schoolName: "",
       schoolCode: "",
@@ -199,16 +248,18 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   };
 
   const handleSubjectChange = (subjectId: string) => {
-    const selected = subjects.find((s: Subject) => s._id === subjectId);
-    setFormData((prev) => ({
-      ...prev,
-      subjectId,
-      subjectCode: selected?.code || "",
-    }));
-    if (selected) {
-      setSubjectSearch(`${selected.name} (${selected.code})`);
-    }
-    if (errors.subjectId) setErrors((prev) => ({ ...prev, subjectId: "" }));
+    setFormData((prev) => {
+      const alreadySelected = prev.subjectIds.includes(subjectId);
+      const nextSubjectIds = alreadySelected
+        ? prev.subjectIds.filter((id) => id !== subjectId)
+        : [...prev.subjectIds, subjectId];
+      return {
+        ...prev,
+        subjectIds: nextSubjectIds,
+        subjectCode: getSubjectCodesFromIds(nextSubjectIds),
+      };
+    });
+    if (errors.subjectIds) setErrors((prev) => ({ ...prev, subjectIds: "" }));
   };
 
   const handleSchoolSelect = (school: SchoolOption) => {
@@ -228,7 +279,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     if (!formData.employeeId.trim()) nextErrors.employeeId = "OASIS ID is required";
     else if (!/^\d+$/.test(formData.employeeId.trim())) nextErrors.employeeId = "OASIS ID must contain digits only";
     if (!formData.designation.trim()) nextErrors.designation = "Designation is required";
-    if (!formData.subjectId) nextErrors.subjectId = "Subject is required";
+    if (!formData.subjectIds.length) nextErrors.subjectIds = "At least one subject is required";
     if (!formData.schoolName.trim()) nextErrors.schoolName = "School is required";
     if (!formData.schoolCode.trim()) nextErrors.schoolCode = "School code is required";
     if (!formData.bankName.trim()) nextErrors.bankName = "Bank name is required";
@@ -254,7 +305,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       name: formData.name.trim(),
       employeeId: formData.employeeId.trim().toUpperCase(),
       designation: formData.designation.trim(),
-      subjects: [formData.subjectId],
+      subjects: formData.subjectIds,
       subjectCode: formData.subjectCode,
       schoolName: formData.schoolName.trim(),
       schoolCode: formData.schoolCode.trim(),
@@ -329,24 +380,43 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
           </div>
 
           <div>
-            <label htmlFor={`${fieldIdPrefix}subjectId`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              Subject <span className="text-error-500">*</span>
+            <label htmlFor={`${fieldIdPrefix}subjectSearch`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Subjects <span className="text-error-500">*</span>
             </label>
             <input
               id={`${fieldIdPrefix}subjectSearch`}
               type="text"
               value={subjectSearch}
               onChange={(e) => setSubjectSearch(e.target.value)}
-              placeholder="Search subject by name or code"
+              placeholder="Search subject by name, code, or class"
               className="input w-full mb-2"
             />
-            <div className={`rounded-md border ${errors.subjectId ? "border-error-500" : "border-gray-300 dark:border-gray-600"} p-2`}>
+            {formData.subjectIds.length > 0 && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {formData.subjectIds.map((subjectId) => {
+                  const selectedSubject = subjectById[subjectId];
+                  if (!selectedSubject) return null;
+                  return (
+                    <button
+                      key={`selected-${subjectId}`}
+                      type="button"
+                      onClick={() => handleSubjectChange(subjectId)}
+                      className="px-2.5 py-1 rounded-full text-xs bg-primary-100 text-primary-800 border border-primary-200 dark:bg-primary-900/30 dark:text-primary-300 dark:border-primary-700"
+                      title="Click to remove"
+                    >
+                      {formatSubjectLabel(selectedSubject)} ×
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <div className={`rounded-md border ${errors.subjectIds ? "border-error-500" : "border-gray-300 dark:border-gray-600"} p-2`}>
               <div className="max-h-48 overflow-y-auto space-y-1">
                 {filteredSubjects.length === 0 && (
                   <p className="text-sm text-gray-500 px-2 py-1">No matching subjects found.</p>
                 )}
                 {filteredSubjects.map((subject: Subject) => {
-                  const active = formData.subjectId === subject._id;
+                  const active = formData.subjectIds.includes(subject._id);
                   return (
                     <button
                       key={subject._id}
@@ -358,13 +428,21 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
                         }`}
                     >
                       <span className="font-medium">{subject.name}</span>
-                      <span className={`ml-2 ${active ? "text-primary-100" : "text-gray-500 dark:text-gray-400"}`}>({subject.code})</span>
+                      <span className={`ml-2 ${active ? "text-primary-100" : "text-gray-500 dark:text-gray-400"}`}>
+                        ({subject.code})
+                        {(() => {
+                          const code = normalizeSubjectCode(subject.code);
+                          const classLabel = normalizeClassLabel(subject.class);
+                          if (!code || (subjectCodeCounts[code] || 0) <= 1 || !classLabel) return "";
+                          return ` - Class ${classLabel}`;
+                        })()}
+                      </span>
                     </button>
                   );
                 })}
               </div>
             </div>
-            {errors.subjectId && <p className="text-error-500 text-xs mt-1">{errors.subjectId}</p>}
+            {errors.subjectIds && <p className="text-error-500 text-xs mt-1">{errors.subjectIds}</p>}
           </div>
 
           <div>

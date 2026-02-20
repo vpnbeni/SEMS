@@ -3,9 +3,10 @@ import { useDispatch, useSelector } from 'react-redux'
 import { AppDispatch, RootState } from '../../redux/store'
 import { deleteTeacher, hideDeleteTeacherModal } from '../../redux/slices/teacherSlice'
 import Modal from '../common/Modal'
+import toast from 'react-hot-toast'
 
 interface DeleteTeacherModalProps {
-  onSuccess?: () => void
+  onSuccess?: (deletedTeacherId: string) => void
 }
 
 const DeleteTeacherModal: React.FC<DeleteTeacherModalProps> = ({ onSuccess }) => {
@@ -21,9 +22,12 @@ const DeleteTeacherModal: React.FC<DeleteTeacherModalProps> = ({ onSuccess }) =>
 
     try {
       await dispatch(deleteTeacher(teacherId)).unwrap()
-      onSuccess?.()
+      onSuccess?.(teacherId)
+      toast.success('Functionary deleted successfully')
       handleClose()
-    } catch (error) {
+    } catch (error: any) {
+      const message = error?.message || error || 'Failed to delete functionary'
+      toast.error(String(message))
       console.error('Failed to delete teacher:', error)
     }
   }

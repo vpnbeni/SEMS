@@ -1,18 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppDispatch, RootState } from "../redux/store";
 import {
   showAddTeacherModal,
   showEditTeacherModal,
-  showDeleteTeacherModal,
   clearError,
   Teacher,
 } from "../redux/slices/teacherSlice";
 import AddTeacherModal from "../components/teachers/AddTeacherModal";
 import EditTeacherModal from "../components/teachers/EditTeacherModal";
-import DeleteTeacherModal from "../components/teachers/DeleteTeacherModal";
 import ExportModal, { ExportFilters } from "../components/common/ExportModal";
 import { Dropdown } from "../components/common/Dropdown";
 import { useTeachers, teacherKeys } from "../hooks/useTeachers";
@@ -57,10 +54,10 @@ const DEPARTMENT_OPTIONS = [
 ];
 
 const LIMIT = 50;
+const getTeacherId = (teacher: Teacher) => teacher._id || teacher.id || "";
 
 const Teachers: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
@@ -81,6 +78,9 @@ const Teachers: React.FC = () => {
   const [sortField, setSortField] = useState("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [dutyTypeOverrides, setDutyTypeOverrides] = useState<Record<string, string>>({});
+  const [hiddenDeletedTeacherIds, setHiddenDeletedTeacherIds] = useState<Record<string, true>>({});
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<Record<string, true>>({});
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const [debouncedJoiningDateFrom, setDebouncedJoiningDateFrom] = useState("");
   const [debouncedJoiningDateTo, setDebouncedJoiningDateTo] = useState("");
@@ -161,6 +161,8 @@ const Teachers: React.FC = () => {
       limit: LIMIT,
       search: debouncedSearchTerm || undefined,
       department: selectedDepartment !== "all" ? selectedDepartment : undefined,
+      // Always fetch active functionaries for the main list.
+      isActive: true,
 
       joiningDateFrom: debouncedJoiningDateFrom || undefined,
       joiningDateTo: debouncedJoiningDateTo || undefined,
@@ -228,7 +230,12 @@ const Teachers: React.FC = () => {
 
   const displayTeachers = useMemo(() => {
     if (!teachers) return [];
-    const transformed = teachers.map(transformTeacher);
+    const transformed = teachers
+      .map(transformTeacher)
+      // Hide soft-deleted functionaries even if API returns mixed records.
+      .filter((teacher) => teacher.isActive !== false)
+      // Optimistic UI: hide freshly deleted functionaries immediately.
+      .filter((teacher) => !hiddenDeletedTeacherIds[teacher._id || teacher.id || '']);
 
     // Default sort: Principal first, then Vice Principal, then rest by name
     const designationPriority = (d: string | undefined): number => {
@@ -244,9 +251,27 @@ const Teachers: React.FC = () => {
       if (pa !== pb) return pa - pb;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [teachers]);
+  }, [teachers, hiddenDeletedTeacherIds]);
+  const visibleTeacherIds = useMemo(
+    () => displayTeachers.map((teacher) => getTeacherId(teacher)).filter(Boolean),
+    [displayTeachers]
+  );
+  const selectedTeacherList = useMemo(
+    () => visibleTeacherIds.filter((id) => selectedTeacherIds[id]),
+    [visibleTeacherIds, selectedTeacherIds]
+  );
+  const selectedCount = selectedTeacherList.length;
+  const allVisibleSelected = visibleTeacherIds.length > 0 && selectedCount === visibleTeacherIds.length;
 
   const totalTeachers = pagination.totalItems ?? 0;
+  const hiddenStillPresentCount = (teachers ?? []).reduce((count, teacher) => {
+    const teacherId = teacher._id || teacher.id;
+    if (teacherId && hiddenDeletedTeacherIds[teacherId]) {
+      return count + 1;
+    }
+    return count;
+  }, 0);
+  const visibleTotalTeachers = Math.max(0, totalTeachers - hiddenStillPresentCount);
   const normalizeValue = (value: string | undefined) => String(value || "").trim().toLowerCase();
   const isSelfSchoolTeacher = (teacher: Teacher) => {
     const teacherSchoolCode = normalizeValue(teacher.schoolCode);
@@ -281,13 +306,68 @@ const Teachers: React.FC = () => {
   const handleEditTeacher = (teacher: Teacher) => {
     dispatch(showEditTeacherModal(teacher));
   };
-
-  const handleViewTeacher = (teacher: Teacher) => {
-    navigate(`/exam-functionaries/${teacher._id || teacher.id}`);
+  const toggleTeacherSelection = (teacherId: string, checked: boolean) => {
+    if (!teacherId) return;
+    setSelectedTeacherIds((prev) => {
+      const next = { ...prev };
+      if (checked) next[teacherId] = true;
+      else delete next[teacherId];
+      return next;
+    });
   };
-
-  const handleDeleteTeacher = (teacher: Teacher) => {
-    dispatch(showDeleteTeacherModal(teacher));
+  const toggleSelectAllVisible = (checked: boolean) => {
+    setSelectedTeacherIds((prev) => {
+      const next = { ...prev };
+      visibleTeacherIds.forEach((teacherId) => {
+        if (checked) next[teacherId] = true;
+        else delete next[teacherId];
+      });
+      return next;
+    });
+  };
+  const handleBulkDelete = async () => {
+    if (selectedCount === 0 || isBulkDeleting) return;
+    const confirmed = window.confirm(
+      `Delete ${selectedCount} selected functionar${selectedCount === 1 ? "y" : "ies"}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+    setIsBulkDeleting(true);
+    try {
+      const results = await Promise.allSettled(
+        selectedTeacherList.map((teacherId) => teacherService.deleteById(teacherId))
+      );
+      const deletedIds: string[] = [];
+      let failedCount = 0;
+      results.forEach((result, index) => {
+        if (result.status === "fulfilled") deletedIds.push(selectedTeacherList[index]);
+        else failedCount += 1;
+      });
+      if (deletedIds.length > 0) {
+        setHiddenDeletedTeacherIds((prev) => {
+          const next = { ...prev };
+          deletedIds.forEach((teacherId) => {
+            next[teacherId] = true;
+          });
+          return next;
+        });
+        setSelectedTeacherIds((prev) => {
+          const next = { ...prev };
+          deletedIds.forEach((teacherId) => {
+            delete next[teacherId];
+          });
+          return next;
+        });
+        toast.success(
+          `${deletedIds.length} functionar${deletedIds.length === 1 ? "y" : "ies"} deleted successfully`
+        );
+        invalidateTeachers();
+      }
+      if (failedCount > 0) {
+        toast.error(`Failed to delete ${failedCount} selected functionar${failedCount === 1 ? "y" : "ies"}`);
+      }
+    } finally {
+      setIsBulkDeleting(false);
+    }
   };
 
   const handleExport = () => {
@@ -456,8 +536,9 @@ const Teachers: React.FC = () => {
       )}
 
       {/* Stat cards (display only, like Datesheets – not clickable, small number animation) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+      <div className="mb-6 overflow-x-auto">
+        <div className="flex flex-nowrap gap-6 min-w-max">
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm min-w-[240px]">
           <div className="flex items-center space-x-4">
             <div className="p-3 rounded-lg flex-shrink-0 bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -466,11 +547,11 @@ const Teachers: React.FC = () => {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Functionaries</p>
-              <span key={totalTeachers} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{totalTeachers}</span>
+              <span key={visibleTotalTeachers} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{visibleTotalTeachers}</span>
             </div>
           </div>
         </div>
-        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm min-w-[240px]">
           <div className="flex items-center space-x-4">
             <div className="p-3 rounded-lg flex-shrink-0 bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -484,7 +565,7 @@ const Teachers: React.FC = () => {
             </div>
           </div>
         </div>
-        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm min-w-[240px]">
           <div className="flex items-center space-x-4">
             <div className="p-3 rounded-lg flex-shrink-0 bg-amber-50 text-amber-500 dark:bg-amber-900/20 dark:text-amber-400">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -497,6 +578,7 @@ const Teachers: React.FC = () => {
               <span className="text-xs text-gray-400 font-medium ml-1">on this page</span>
             </div>
           </div>
+        </div>
         </div>
       </div>
 
@@ -698,6 +780,14 @@ const Teachers: React.FC = () => {
                 </svg>
                 Add Teacher
               </button>
+              <button
+                onClick={handleBulkDelete}
+                className="btn btn-error"
+                disabled={loading || isBulkDeleting || selectedCount === 0}
+                title={selectedCount > 0 ? `Delete ${selectedCount} selected functionaries` : "Select functionaries first"}
+              >
+                {isBulkDeleting ? "Deleting..." : `Delete Selected${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
+              </button>
             </div>
           </div>
         </div>
@@ -706,6 +796,16 @@ const Teachers: React.FC = () => {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <input
+                    type="checkbox"
+                    title="Select all functionaries on this page"
+                    aria-label="Select all functionaries on this page"
+                    checked={allVisibleSelected}
+                    onChange={(e) => toggleSelectAllVisible(e.target.checked)}
+                    className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Sr No
                 </th>
@@ -741,9 +841,6 @@ const Teachers: React.FC = () => {
                     </span>
                   </th>
                 ))}
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Actions
-                </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -780,7 +877,24 @@ const Teachers: React.FC = () => {
                 </tr>
               ) : (
                 displayTeachers.map((teacher: Teacher, index: number) => (
-                  <tr key={teacher.id || teacher._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                  <tr
+                    key={teacher.id || teacher._id}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                    onClick={() => handleEditTeacher(teacher)}
+                  >
+                    <td
+                      className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <input
+                        type="checkbox"
+                        title={`Select ${teacher.name}`}
+                        aria-label={`Select ${teacher.name}`}
+                        checked={Boolean(selectedTeacherIds[getTeacherId(teacher)])}
+                        onChange={(e) => toggleTeacherSelection(getTeacherId(teacher), e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {(currentPage - 1) * 50 + index + 1}
                     </td>
@@ -793,7 +907,7 @@ const Teachers: React.FC = () => {
                         </div>
                         <div className="ml-3">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {teacher.name}
+                            {String(teacher.name || "").toUpperCase()}
                           </div>
                           <div className="text-sm text-gray-500 dark:text-gray-400">
                             {teacher.mobileNo || teacher.phone || "N/A"}
@@ -804,7 +918,10 @@ const Teachers: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {teacher.employeeId}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td
+                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {(() => {
                         const currentDuty = dutyTypeOverrides[teacher._id || teacher.id!] ?? teacher.dutyType ?? '';
                         if (currentDuty) {
@@ -816,6 +933,8 @@ const Teachers: React.FC = () => {
                         }
                         return (
                           <select
+                            title={`Duty type for ${teacher.name}`}
+                            aria-label={`Duty type for ${teacher.name}`}
                             value=""
                             onChange={async (e) => {
                               const teacherId = teacher._id || teacher.id!;
@@ -853,40 +972,8 @@ const Teachers: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {teacher.schoolCode || "N/A"}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {teacher.schoolName || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <button
-                          onClick={() => handleEditTeacher(teacher)}
-                          className="text-primary-600 hover:text-primary-900 dark:text-primary-400 dark:hover:text-primary-300"
-                          title="Edit"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleViewTeacher(teacher)}
-                          className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                          title="View"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTeacher(teacher)}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                          title="Delete"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
                     </td>
                   </tr>
                 ))
@@ -1028,7 +1115,6 @@ const Teachers: React.FC = () => {
       {/* Modals */}
       <AddTeacherModal onSuccess={invalidateTeachers} />
       <EditTeacherModal onSuccess={invalidateTeachers} />
-      <DeleteTeacherModal onSuccess={invalidateTeachers} />
       <ExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}

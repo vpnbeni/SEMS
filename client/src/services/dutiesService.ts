@@ -28,6 +28,7 @@ export interface DailyDutiesResponse {
   duties: DutyRecord[]
   totalAssigned: number
   totalRooms?: number
+  roomCandidateSchoolCodes?: Record<string, string[]>
 }
 
 const getDailyDuties = async (examDate: string): Promise<DailyDutiesResponse> => {

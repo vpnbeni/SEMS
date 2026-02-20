@@ -28,6 +28,14 @@ const normalizeDateKey = (value: string | Date) => {
   return date.toISOString().slice(0, 10)
 }
 
+const normalizeSubjectCode = (value: string | undefined | null) => {
+  return String(value || '').trim().toUpperCase()
+}
+
+const normalizeSchoolCode = (value: string | undefined | null) => {
+  return String(value || '').trim().toUpperCase()
+}
+
 const formatDateLabel = (dateKey: string) => {
   const [year, month, day] = dateKey.split('-')
   if (!year || !month || !day) return dateKey
@@ -133,6 +141,7 @@ const Duties: React.FC = () => {
   const [examDates, setExamDates] = useState<string[]>([])
   const [requiredRoomsByDate, setRequiredRoomsByDate] = useState<Record<string, number>>({})
   const [candidatesByDate, setCandidatesByDate] = useState<Record<string, number>>({})
+  const [examSubjectCodesByDate, setExamSubjectCodesByDate] = useState<Record<string, string[]>>({})
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('ASI')
   const [isSaving, setIsSaving] = useState(false)
@@ -142,6 +151,9 @@ const Duties: React.FC = () => {
   const [checkedDuties, setCheckedDuties] = useState<Record<string, boolean>>({})
   const [selectedRoomDate, setSelectedRoomDate] = useState('')
   const [roomAssignmentsByDate, setRoomAssignmentsByDate] = useState<Record<string, Record<string, string>>>({})
+  const [roomCandidateSchoolCodesByDate, setRoomCandidateSchoolCodesByDate] = useState<
+    Record<string, Record<string, string[]>>
+  >({})
   const [loadingRoomAssignments, setLoadingRoomAssignments] = useState(false)
   const [savingRoomAssignments, setSavingRoomAssignments] = useState(false)
 
@@ -237,8 +249,84 @@ const Duties: React.FC = () => {
     return counts
   }, [checkedDuties])
 
+  const getFunctionarySubjectCodes = useCallback((functionary?: Teacher) => {
+    if (!functionary) return []
+    const codes = new Set<string>()
+
+    if (functionary.subjectCode) {
+      String(functionary.subjectCode)
+        .split(',')
+        .map((part) => normalizeSubjectCode(part))
+        .filter(Boolean)
+        .forEach((code) => codes.add(code))
+    }
+
+    if (Array.isArray(functionary.subjects)) {
+      functionary.subjects.forEach((subject) => {
+        if (typeof subject === 'object' && subject && 'code' in subject) {
+          const subjectCode = normalizeSubjectCode(String(subject.code || ''))
+          if (subjectCode) codes.add(subjectCode)
+        }
+      })
+    }
+
+    return Array.from(codes)
+  }, [])
+
+  const getInvigilatorConflict = useCallback((functionaryId: string, dateKey: string) => {
+    const examCodes = (examSubjectCodesByDate[dateKey] || []).map((code) => normalizeSubjectCode(code))
+    if (examCodes.length === 0) return null
+    const functionary = functionaryById[functionaryId]
+    const teacherCodes = getFunctionarySubjectCodes(functionary)
+    if (teacherCodes.length === 0) return null
+
+    const examCodeSet = new Set(examCodes)
+    const conflictingCodes = teacherCodes.filter((code) => examCodeSet.has(code))
+    if (conflictingCodes.length === 0) return null
+
+    return {
+      functionaryName: functionary?.name || 'Selected functionary',
+      conflictingCodes,
+    }
+  }, [examSubjectCodesByDate, functionaryById, getFunctionarySubjectCodes])
+
+  const getRoomSchoolConflict = useCallback((roomId: string, functionaryId: string, dateKey: string) => {
+    const functionary = functionaryById[functionaryId]
+    const invigilatorSchoolCode = normalizeSchoolCode(functionary?.schoolCode)
+    if (!invigilatorSchoolCode) return null
+
+    const candidateSchoolCodes = (roomCandidateSchoolCodesByDate[dateKey]?.[roomId] || [])
+      .map((code) => normalizeSchoolCode(code))
+      .filter(Boolean)
+    if (candidateSchoolCodes.length === 0) return null
+
+    if (!candidateSchoolCodes.includes(invigilatorSchoolCode)) return null
+
+    return {
+      functionaryName: functionary?.name || 'Selected functionary',
+      schoolCode: invigilatorSchoolCode,
+    }
+  }, [functionaryById, roomCandidateSchoolCodesByDate])
+
+  const isInvigilatorAllowedForRoom = useCallback((roomId: string, functionaryId: string, dateKey: string) => {
+    if (!functionaryId || !dateKey) return true
+    if (getInvigilatorConflict(functionaryId, dateKey)) return false
+    if (getRoomSchoolConflict(roomId, functionaryId, dateKey)) return false
+    return true
+  }, [getInvigilatorConflict, getRoomSchoolConflict])
+
   const toggleDuty = (funcId: string, dateKey: string) => {
     const key = `${funcId}::${dateKey}`
+    const isSelecting = !checkedDuties[key]
+    if (activeTab === 'ASI' && isSelecting) {
+      const conflict = getInvigilatorConflict(funcId, dateKey)
+      if (conflict) {
+        const message = `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches exam subject code(s): ${conflict.conflictingCodes.join(', ')} on ${formatDateLabel(dateKey)}.`
+        window.alert(message)
+        toast.error('Subject teacher cannot be on invigilation duty')
+        return
+      }
+    }
     setCheckedDuties((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
@@ -256,6 +344,7 @@ const Duties: React.FC = () => {
         const entries = Array.isArray(datesheetRes?.data) ? datesheetRes.data : []
         const nextRequired: Record<string, number> = {}
         const nextCandidates: Record<string, number> = {}
+        const nextExamSubjectCodesByDate: Record<string, Set<string>> = {}
         const uniqueDates = Array.from(
           new Set(
             entries
@@ -264,6 +353,11 @@ const Duties: React.FC = () => {
                 if (dateKey) {
                   nextRequired[dateKey] = (nextRequired[dateKey] || 0) + Number(entry.roomsNeeded || 0)
                   nextCandidates[dateKey] = (nextCandidates[dateKey] || 0) + Number(entry.candidateCount || 0)
+                  if (!nextExamSubjectCodesByDate[dateKey]) {
+                    nextExamSubjectCodesByDate[dateKey] = new Set<string>()
+                  }
+                  const subjectCode = normalizeSubjectCode(entry.subjectCode)
+                  if (subjectCode) nextExamSubjectCodesByDate[dateKey].add(subjectCode)
                 }
                 return dateKey
               })
@@ -274,6 +368,11 @@ const Duties: React.FC = () => {
         setExamDates(uniqueDates)
         setRequiredRoomsByDate(nextRequired)
         setCandidatesByDate(nextCandidates)
+        setExamSubjectCodesByDate(
+          Object.fromEntries(
+            Object.entries(nextExamSubjectCodesByDate).map(([dateKey, codes]) => [dateKey, Array.from(codes)])
+          )
+        )
       } catch (error: any) {
         console.error('Failed to load support data:', error)
         toast.error('Failed to load exam dates or rooms')
@@ -339,6 +438,10 @@ const Duties: React.FC = () => {
           ...prev,
           [selectedRoomDate]: nextAssignments,
         }))
+        setRoomCandidateSchoolCodesByDate((prev) => ({
+          ...prev,
+          [selectedRoomDate]: response?.roomCandidateSchoolCodes || {},
+        }))
       } catch (error) {
         console.error('Failed to load room assignments:', error)
       } finally {
@@ -348,6 +451,30 @@ const Duties: React.FC = () => {
 
     loadRoomAssignmentsForDate()
   }, [activeTab, selectedRoomDate])
+
+  useEffect(() => {
+    if (activeTab !== 'ASI' || !selectedRoomDate) return
+    const assignmentsForDate = roomAssignmentsByDate[selectedRoomDate] || {}
+    let changed = false
+    const nextAssignments = { ...assignmentsForDate }
+
+    for (const room of allocatedRoomsForSelectedDate) {
+      const roomId = String(room?._id || '')
+      const assignedFunctionaryId = String(assignmentsForDate[roomId] || '').trim()
+      if (!roomId || !assignedFunctionaryId) continue
+      if (!isInvigilatorAllowedForRoom(roomId, assignedFunctionaryId, selectedRoomDate)) {
+        delete nextAssignments[roomId]
+        changed = true
+      }
+    }
+
+    if (changed) {
+      setRoomAssignmentsByDate((prev) => ({
+        ...prev,
+        [selectedRoomDate]: nextAssignments,
+      }))
+    }
+  }, [activeTab, selectedRoomDate, roomAssignmentsByDate, allocatedRoomsForSelectedDate, isInvigilatorAllowedForRoom])
 
   /* ── Save handler ── */
   const handleSaveFunctionaries = async () => {
@@ -377,8 +504,24 @@ const Duties: React.FC = () => {
     }
   }
 
-  const handleRoomAssignmentChange = (roomId: string, functionaryId: string) => {
+  const handleRoomAssignmentChange = useCallback((roomId: string, functionaryId: string) => {
     if (!selectedRoomDate) return
+    if (functionaryId) {
+      const conflict = getInvigilatorConflict(functionaryId, selectedRoomDate)
+      if (conflict) {
+        const message = `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches exam subject code(s): ${conflict.conflictingCodes.join(', ')} on ${formatDateLabel(selectedRoomDate)}.`
+        window.alert(message)
+        toast.error('Subject teacher cannot be on invigilation duty')
+        return
+      }
+      const roomSchoolConflict = getRoomSchoolConflict(roomId, functionaryId, selectedRoomDate)
+      if (roomSchoolConflict) {
+        const message = `Invigilator cannot be of the candidate school. ${roomSchoolConflict.functionaryName} has school code ${roomSchoolConflict.schoolCode}, which matches candidate school code for this room on ${formatDateLabel(selectedRoomDate)}.`
+        window.alert(message)
+        toast.error('Invigilator cannot be of the candidate school')
+        return
+      }
+    }
     setRoomAssignmentsByDate((prev) => ({
       ...prev,
       [selectedRoomDate]: {
@@ -386,7 +529,7 @@ const Duties: React.FC = () => {
         [roomId]: functionaryId,
       },
     }))
-  }
+  }, [selectedRoomDate, getInvigilatorConflict, getRoomSchoolConflict])
 
   const selectedRoomDateIndex = useMemo(() => {
     if (!selectedRoomDate) return -1
@@ -430,6 +573,19 @@ const Duties: React.FC = () => {
       return
     }
 
+    for (let index = 0; index < allocatedRoomsForSelectedDate.length; index += 1) {
+      const room = allocatedRoomsForSelectedDate[index]
+      const functionaryId = orderedFunctionaryIds[index]
+      const roomSchoolConflict = getRoomSchoolConflict(room._id, functionaryId, selectedRoomDate)
+      if (roomSchoolConflict) {
+        const roomLabel = `${room.roomNo}${room.roomName ? ` - ${room.roomName}` : ''}`
+        const message = `Invigilator cannot be of the candidate school. ${roomSchoolConflict.functionaryName} (${roomSchoolConflict.schoolCode}) conflicts with room ${roomLabel} on ${formatDateLabel(selectedRoomDate)}.`
+        window.alert(message)
+        toast.error('Invigilator cannot be of the candidate school')
+        return
+      }
+    }
+
     setSavingRoomAssignments(true)
     try {
       const response = await dutiesService.assignDailyDuties({
@@ -446,6 +602,10 @@ const Duties: React.FC = () => {
       setRoomAssignmentsByDate((prev) => ({
         ...prev,
         [selectedRoomDate]: nextAssignments,
+      }))
+      setRoomCandidateSchoolCodesByDate((prev) => ({
+        ...prev,
+        [selectedRoomDate]: response?.roomCandidateSchoolCodes || prev[selectedRoomDate] || {},
       }))
 
       toast.success(`Room assignments saved for ${formatDateLabel(selectedRoomDate)}`)
@@ -765,8 +925,15 @@ const Duties: React.FC = () => {
                   {allocatedRoomsForSelectedDate.map((room) => {
                     const selectedFunctionaryId = roomAssignmentsByDate[selectedRoomDate]?.[room._id] || ''
                     const selectedFunctionary = functionaryById[selectedFunctionaryId]
-                    const options = [...roomDropdownInvigilators]
-                    if (selectedFunctionaryId && selectedFunctionary && !options.some((func) => func._id === selectedFunctionaryId)) {
+                    const options = [...roomDropdownInvigilators].filter((func) =>
+                      isInvigilatorAllowedForRoom(room._id, func._id, selectedRoomDate)
+                    )
+                    if (
+                      selectedFunctionaryId &&
+                      selectedFunctionary &&
+                      isInvigilatorAllowedForRoom(room._id, selectedFunctionaryId, selectedRoomDate) &&
+                      !options.some((func) => func._id === selectedFunctionaryId)
+                    ) {
                       options.push(selectedFunctionary)
                     }
 

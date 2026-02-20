@@ -197,8 +197,11 @@ const getTeachers = asyncHandler(async (req, res) => {
   }
 
   if (isActive !== undefined) {
-    // Handle both boolean and string values
+    // Handle both boolean and string values when explicitly requested.
     filter.isActive = isActive === true || isActive === 'true';
+  } else {
+    // Default to active functionaries so soft-deleted records stay hidden.
+    filter.isActive = true;
   }
 
   if (minExperience !== undefined || maxExperience !== undefined) {
