@@ -26,7 +26,7 @@ interface PersistedState {
   messages: ChatMessage[]
 }
 
-const CHAT_STORAGE_KEY = 'tenant-signup-chat-v1'
+const CHAT_STORAGE_KEY = 'centre-signup-chat-v2'
 const slugRegex = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*]).{8,128}$/
@@ -39,7 +39,7 @@ const STEPS: Array<{
 }> = [
   {
     id: 'name',
-    prompt: 'What should we call your tenant or institution?',
+    prompt: 'Please enter centre name.',
     placeholder: 'Example: Sunrise Public School',
     inputType: 'text',
   },
@@ -51,7 +51,7 @@ const STEPS: Array<{
   },
   {
     id: 'adminEmail',
-    prompt: 'What is the admin email for this tenant?',
+    prompt: 'What is the admin email for this centre?',
     placeholder: 'admin@institution.com',
     inputType: 'email',
   },
@@ -92,10 +92,10 @@ const masked = (value: string) => '•'.repeat(Math.max(value.length, 8))
 const buildReviewMessage = (draft: DraftState) => {
   return [
     'Perfect, here is what I captured:',
-    `Tenant name: ${draft.name}`,
-    `Tenant slug: ${draft.slug}`,
+    `Centre name: ${draft.name}`,
+    `Centre slug: ${draft.slug}`,
     `Admin email: ${draft.adminEmail}`,
-    'Reply with edits or tap "Create Tenant" to finish.',
+    'Reply with edits or tap "Create Centre" to finish.',
   ].join('\n')
 }
 
@@ -103,7 +103,7 @@ const validateStepValue = (stepId: StepId, value: string, draft: DraftState) => 
   if (stepId === 'name') {
     const normalized = value.trim()
     if (normalized.length < 2) {
-      return { error: 'Tenant name must be at least 2 characters.' }
+      return { error: 'Centre name must be at least 2 characters.' }
     }
     return { value: normalized }
   }
@@ -153,7 +153,7 @@ const TenantSignupChat: React.FC = () => {
             {
               id: messageId(),
               role: 'assistant',
-              text: 'Hi, I am your BECMS onboarding assistant. I will create your tenant in a few quick steps.',
+              text: 'Hi, I am your BECMS onboarding assistant. I will create your centre in a few quick steps.',
             },
             {
               id: messageId(),
@@ -173,7 +173,7 @@ const TenantSignupChat: React.FC = () => {
           {
             id: messageId(),
             role: 'assistant',
-            text: 'Hi, I am your BECMS onboarding assistant. I will create your tenant in a few quick steps.',
+            text: 'Hi, I am your BECMS onboarding assistant. I will create your centre in a few quick steps.',
           },
           {
             id: messageId(),
@@ -277,7 +277,7 @@ const TenantSignupChat: React.FC = () => {
     }
 
     setIsSubmitting(true)
-    pushAssistantMessage('Creating your tenant now...')
+    pushAssistantMessage('Creating your centre now...')
 
     try {
       const result = await tenantSignupService.startSignup({
@@ -290,9 +290,9 @@ const TenantSignupChat: React.FC = () => {
 
       sessionStorage.removeItem(CHAT_STORAGE_KEY)
       if (result.otpDeliveryStatus === 'sent') {
-        pushAssistantMessage('Tenant ready. We sent a verification code to your admin email. Redirecting you now...')
+        pushAssistantMessage('Centre ready. We sent a verification code to your admin email. Redirecting you now...')
       } else {
-        pushAssistantMessage('Tenant ready, but OTP email delivery failed. Redirecting now so you can resend the code from the verification page.')
+        pushAssistantMessage('Centre ready, but OTP email delivery failed. Redirecting now so you can resend the code from the verification page.')
       }
 
       const redirectUrl = buildTenantAppRedirectUrl(result.tenantSlug, result.ticket)
@@ -331,9 +331,9 @@ const TenantSignupChat: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-6">
         <div className="max-w-xl w-full rounded-3xl border border-white/10 bg-white/5 p-8">
-          <h1 className="text-2xl font-semibold mb-3">You are already on a tenant subdomain</h1>
+          <h1 className="text-2xl font-semibold mb-3">You are already on a centre subdomain</h1>
           <p className="text-slate-300 mb-6">
-            New tenant signup is usually started from the root host. You can still continue here if needed.
+            New centre signup is usually started from the root host. You can still continue here if needed.
           </p>
           <div className="flex flex-wrap gap-3">
             <button
@@ -360,7 +360,7 @@ const TenantSignupChat: React.FC = () => {
             <Sparkles className="w-4 h-4" />
             Guided AI-Style Signup
           </div>
-          <h1 className="text-4xl mt-6 font-semibold leading-tight">Launch your tenant in one chat.</h1>
+          <h1 className="text-4xl mt-6 font-semibold leading-tight">Launch your Centre in one chat.</h1>
           <p className="text-slate-300 mt-4">
             Fast provisioning, secure onboarding ticket, and automatic dashboard sign-in.
           </p>
@@ -368,7 +368,7 @@ const TenantSignupChat: React.FC = () => {
           <div className="mt-8 space-y-4 text-sm">
             <div className="flex items-center gap-3 text-slate-200">
               <Building2 className="w-5 h-5 text-cyan-300" />
-              Tenant database provisioned in real time
+              Centre database provisioned in real time
             </div>
             <div className="flex items-center gap-3 text-slate-200">
               <UserRoundPlus className="w-5 h-5 text-cyan-300" />
@@ -381,7 +381,7 @@ const TenantSignupChat: React.FC = () => {
           </div>
 
           <p className="text-xs text-slate-400 mt-10">
-            Already registered? <Link to="/login" className="text-cyan-300 hover:text-cyan-200">Sign in to tenant portal</Link>
+            Already registered? <Link to="/login" className="text-cyan-300 hover:text-cyan-200">Sign in to Centre portal</Link>
           </p>
         </section>
 
@@ -392,7 +392,7 @@ const TenantSignupChat: React.FC = () => {
             </div>
             <div>
               <h2 className="text-xl font-semibold">BECMS Onboarding Assistant</h2>
-              <p className="text-xs text-slate-400">Interactive tenant registration</p>
+              <p className="text-xs text-slate-400">Interactive centre registration</p>
             </div>
           </div>
 
@@ -418,7 +418,7 @@ const TenantSignupChat: React.FC = () => {
 
           {!isReviewStep && (
             <form onSubmit={handleStepSubmit} className="mt-5">
-              <label className="block text-xs text-slate-400 mb-2">{activeStep.prompt}</label>
+              <label className="block text-xs text-slate-400 mb-2">{activeStep.id === 'name' ? 'Centre Name:' : activeStep.prompt}</label>
               <div className="flex gap-3">
                 <input
                   type={activeStep.inputType}
@@ -431,6 +431,8 @@ const TenantSignupChat: React.FC = () => {
                 />
                 <button
                   type="submit"
+                  title="Submit"
+                  aria-label="Submit"
                   className="px-4 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold transition-colors disabled:opacity-60"
                   disabled={isSubmitting}
                 >
@@ -464,7 +466,7 @@ const TenantSignupChat: React.FC = () => {
                   disabled={isSubmitting}
                   className="rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-4 py-3 disabled:opacity-60"
                 >
-                  {isSubmitting ? 'Creating...' : 'Create Tenant'}
+                  {isSubmitting ? 'Creating...' : 'Create Centre'}
                 </button>
                 <button
                   type="button"

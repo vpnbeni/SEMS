@@ -62,6 +62,33 @@ const roomDoorSlipSchema = new mongoose.Schema({
   rowHeight: { type: Number, default: 30 },
 }, { _id: false });
 
+const functionaryDutyListSchema = new mongoose.Schema({
+  pageSize: {
+    type: String,
+    enum: ['A4'],
+    default: 'A4',
+  },
+  orientation: {
+    type: String,
+    enum: ['landscape', 'portrait'],
+    default: 'landscape',
+  },
+  columnWidths: {
+    srNo: { type: Number, default: 50 },
+    roomNo: { type: Number, default: 70 },
+    roomName: { type: Number, default: 120 },
+    floor: { type: Number, default: 70 },
+    inv1School: { type: Number, default: 90 },
+    inv1Teacher: { type: Number, default: 130 },
+    inv1TeacherId: { type: Number, default: 100 },
+    inv1Signature: { type: Number, default: 130 },
+    inv2School: { type: Number, default: 90 },
+    inv2Teacher: { type: Number, default: 130 },
+    inv2TeacherId: { type: Number, default: 100 },
+    inv2Signature: { type: Number, default: 130 },
+  },
+}, { _id: false });
+
 const seatingPlanTemplateSettingSchema = new mongoose.Schema({
   roomAllocationMode: {
     type: String,
@@ -82,6 +109,10 @@ const seatingPlanTemplateSettingSchema = new mongoose.Schema({
   },
   roomDoorSlip: {
     type: roomDoorSlipSchema,
+    default: () => ({}),
+  },
+  functionaryDutyList: {
+    type: functionaryDutyListSchema,
     default: () => ({}),
   },
 }, {

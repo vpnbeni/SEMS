@@ -62,6 +62,14 @@ const updateDutyAllocationMode = async (mode: 'auto' | 'manual'): Promise<'auto'
   return response.data?.data?.mode === 'auto' ? 'auto' : 'manual'
 }
 
+const downloadFunctionaryDutyRecord = async (examDate: string): Promise<Blob> => {
+  const response = await api.get('/duties/functionary-duty-record', {
+    params: { examDate },
+    responseType: 'blob',
+  })
+  return response.data
+}
+
 const dutiesService = {
   getDailyDuties,
   assignDailyDuties,
@@ -69,6 +77,7 @@ const dutiesService = {
   saveDutySelections,
   getDutyAllocationMode,
   updateDutyAllocationMode,
+  downloadFunctionaryDutyRecord,
 }
 
 export default dutiesService

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Exam Functionaries Duties Record</title>
+  <style>
+    @page {
+      size: {{pageSize}} {{orientation}};
+      margin: 10mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #111827;
+      font-size: 10px;
+    }
+
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 700;
+      margin-bottom: 4px;
+      gap: 8px;
+    }
+
+    .title {
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      font-weight: 700;
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      border: 1px solid #111827;
+    }
+
+    th, td {
+      border: 1px solid #111827;
+      padding: 3px 4px;
+      vertical-align: middle;
+      word-break: break-word;
+    }
+
+    th {
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .sections {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px;
+      margin-top: 10px;
+      font-size: 10px;
+    }
+
+    .section-title {
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .line {
+      margin-top: 8px;
+    }
+
+    .signature {
+      margin-top: 18px;
+      text-align: right;
+      font-weight: 700;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header-row">
+    <span>Centre No: {{centreNo}}</span>
+    <span>Centre Name: {{centreName}}</span>
+    <span>Date: {{examDateLabel}}</span>
+  </div>
+
+  <div class="title">Exam Functionaries Duties Record (2025-26)</div>
+
+  <div class="meta-row">
+    <span>Centre Superintendent: {{centreSuperintendent}}</span>
+    <span>Deputy Centre Superintendent: {{deputyCentreSuperintendent}}</span>
+  </div>
+
+  <table>
+    <colgroup>
+      <col style="width: {{columnPercentages.srNo}}%" />
+      <col style="width: {{columnPercentages.roomNo}}%" />
+      <col style="width: {{columnPercentages.roomName}}%" />
+      <col style="width: {{columnPercentages.floor}}%" />
+      <col style="width: {{columnPercentages.inv1School}}%" />
+      <col style="width: {{columnPercentages.inv1Teacher}}%" />
+      <col style="width: {{columnPercentages.inv1TeacherId}}%" />
+      <col style="width: {{columnPercentages.inv1Signature}}%" />
+      <col style="width: {{columnPercentages.inv2School}}%" />
+      <col style="width: {{columnPercentages.inv2Teacher}}%" />
+      <col style="width: {{columnPercentages.inv2TeacherId}}%" />
+      <col style="width: {{columnPercentages.inv2Signature}}%" />
+    </colgroup>
+    <thead>
+      <tr>
+        <th rowspan="2">Sr No</th>
+        <th rowspan="2">Room No</th>
+        <th rowspan="2">Room Name</th>
+        <th rowspan="2">Floor</th>
+        <th colspan="4">Invigilator 1</th>
+        <th colspan="4">Invigilator 2</th>
+      </tr>
+      <tr>
+        <th>School</th>
+        <th>Invigilator Name</th>
+        <th>OASIS ID</th>
+        <th>Signature</th>
+        <th>School</th>
+        <th>Invigilator Name</th>
+        <th>OASIS ID</th>
+        <th>Signature</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#if rows.length}}
+        {{#each rows}}
+          <tr>
+            <td class="center">{{srNo}}</td>
+            <td class="center">{{roomNo}}</td>
+            <td>{{roomName}}</td>
+            <td>{{floor}}</td>
+            <td>{{inv1School}}</td>
+            <td>{{inv1Name}}</td>
+            <td>{{inv1EmployeeId}}</td>
+            <td></td>
+            <td>{{inv2School}}</td>
+            <td>{{inv2Name}}</td>
+            <td>{{inv2EmployeeId}}</td>
+            <td></td>
+          </tr>
+        {{/each}}
+      {{else}}
+        <tr>
+          <td colspan="12" class="center">No allocated rooms found for selected date.</td>
+        </tr>
+      {{/if}}
+    </tbody>
+  </table>
+
+  <div class="sections">
+    <div>
+      <div class="section-title">Frisking Duty</div>
+      <div>1 {{frisking.[0]}}</div>
+      <div class="line">2 {{frisking.[1]}}</div>
+    </div>
+    <div>
+      <div class="section-title">CCTV Invigilation</div>
+      <div>1 {{cctv.[0]}}</div>
+      <div class="line">2 {{cctv.[1]}}</div>
+    </div>
+    <div>
+      <div class="section-title">Class IV Duty</div>
+      <div>1 {{classIv.[0]}}</div>
+      <div class="line">2 {{classIv.[1]}}</div>
+      <div class="line">3 {{classIv.[2]}}</div>
+    </div>
+  </div>
+
+  <div class="signature">Centre Superintendent</div>
+</body>
+</html>

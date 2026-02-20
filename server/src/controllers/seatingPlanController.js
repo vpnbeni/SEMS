@@ -4,6 +4,24 @@ const Room = require('../models/Room');
 
 const DEFAULT_TEMPLATE_SETTINGS = Object.freeze({
   roomAllocationMode: 'auto',
+  functionaryDutyList: {
+    pageSize: 'A4',
+    orientation: 'landscape',
+    columnWidths: {
+      srNo: 50,
+      roomNo: 70,
+      roomName: 120,
+      floor: 70,
+      inv1School: 90,
+      inv1Teacher: 130,
+      inv1TeacherId: 100,
+      inv1Signature: 130,
+      inv2School: 90,
+      inv2Teacher: 130,
+      inv2TeacherId: 100,
+      inv2Signature: 130,
+    },
+  },
   mainGate: {
     col1Width: 16,
     col2Width: 28,
@@ -272,10 +290,41 @@ const normalizeRoomDoorSlipSettings = (input = {}) => {
   };
 };
 
+const normalizeFunctionaryDutyListSettings = (input = {}) => {
+  const source = input || {};
+  const fallback = DEFAULT_TEMPLATE_SETTINGS.functionaryDutyList;
+  const orientation = String(source.orientation || fallback.orientation).toLowerCase() === 'portrait'
+    ? 'portrait'
+    : 'landscape';
+  const pageSize = String(source.pageSize || fallback.pageSize).toUpperCase() === 'A4'
+    ? 'A4'
+    : fallback.pageSize;
+
+  return {
+    pageSize,
+    orientation,
+    columnWidths: {
+      srNo: clampNumber(source?.columnWidths?.srNo, 40, 220, fallback.columnWidths.srNo),
+      roomNo: clampNumber(source?.columnWidths?.roomNo, 50, 220, fallback.columnWidths.roomNo),
+      roomName: clampNumber(source?.columnWidths?.roomName, 80, 300, fallback.columnWidths.roomName),
+      floor: clampNumber(source?.columnWidths?.floor, 50, 220, fallback.columnWidths.floor),
+      inv1School: clampNumber(source?.columnWidths?.inv1School, 70, 260, fallback.columnWidths.inv1School),
+      inv1Teacher: clampNumber(source?.columnWidths?.inv1Teacher, 80, 300, fallback.columnWidths.inv1Teacher),
+      inv1TeacherId: clampNumber(source?.columnWidths?.inv1TeacherId, 80, 260, fallback.columnWidths.inv1TeacherId),
+      inv1Signature: clampNumber(source?.columnWidths?.inv1Signature, 90, 320, fallback.columnWidths.inv1Signature),
+      inv2School: clampNumber(source?.columnWidths?.inv2School, 70, 260, fallback.columnWidths.inv2School),
+      inv2Teacher: clampNumber(source?.columnWidths?.inv2Teacher, 80, 300, fallback.columnWidths.inv2Teacher),
+      inv2TeacherId: clampNumber(source?.columnWidths?.inv2TeacherId, 80, 260, fallback.columnWidths.inv2TeacherId),
+      inv2Signature: clampNumber(source?.columnWidths?.inv2Signature, 90, 320, fallback.columnWidths.inv2Signature),
+    },
+  };
+};
+
 const normalizeTemplateSettings = (input = {}) => ({
   roomAllocationMode: String(input?.roomAllocationMode || DEFAULT_TEMPLATE_SETTINGS.roomAllocationMode).toLowerCase() === 'manual'
     ? 'manual'
     : 'auto',
+  functionaryDutyList: normalizeFunctionaryDutyListSettings(input?.functionaryDutyList),
   mainGate: normalizeMainGateSettings(input?.mainGate),
   cbseCopy: normalizeCbseCopySettings(input?.cbseCopy),
   roomFolderSlip: normalizeRoomFolderSlipSettings(input?.roomFolderSlip),
@@ -333,6 +382,7 @@ exports.getTemplateSettings = async (req, res) => {
       data,
       meta: {
         hasSavedSettings: Boolean(settingsDoc),
+        functionaryDutyListFormat: data.functionaryDutyList,
       },
     });
   } catch (error) {
@@ -360,6 +410,7 @@ exports.upsertTemplateSettings = async (req, res) => {
       existing.cbseCopy = payload.cbseCopy;
       existing.roomFolderSlip = payload.roomFolderSlip;
       existing.roomDoorSlip = payload.roomDoorSlip;
+      existing.functionaryDutyList = payload.functionaryDutyList;
       await existing.save();
       return res.json({
         success: true,

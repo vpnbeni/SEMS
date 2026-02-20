@@ -95,6 +95,10 @@ class PDFGenerator {
   async generateAnswerSheetDispatchRecord(data) {
     return this.generatePDF('answer-sheet-dispatch-record', data);
   }
+
+  async generateFunctionaryDutyRecord(data, options = {}) {
+    return this.generatePDF('functionary-duty-record', data, options);
+  }
 }
 
 module.exports = new PDFGenerator();

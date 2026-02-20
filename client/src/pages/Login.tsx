@@ -88,7 +88,7 @@ const Login: React.FC = () => {
       setShowPassword(false)
       setStep('password')
     } catch (error) {
-      const message = (error as any)?.response?.data?.message || 'Unable to find tenant for this email'
+      const message = (error as any)?.response?.data?.message || 'Unable to find user for this email'
       localStorage.removeItem('tenantSlug')
       syncTenantInUrl(null)
       setResolvedTenant(null)
@@ -244,7 +244,7 @@ const Login: React.FC = () => {
             <h2 className="text-3xl font-bold mb-2">Welcome to BECMS</h2>
             <p className="text-gray-400">
               {isPasswordStep
-                ? 'Tenant identified. Enter your password to continue.'
+                ? 'User identified. Enter your password to continue.'
                 : 'Enter your email to locate your account.'}
             </p>
           </div>
@@ -290,7 +290,7 @@ const Login: React.FC = () => {
 
               {isPasswordStep && resolvedTenant && (
                 <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                  Tenant: <span className="font-semibold">{resolvedTenant.name}</span> ({resolvedTenant.slug})
+                  User: <span className="font-semibold">{resolvedTenant.name}</span> ({resolvedTenant.slug})
                 </div>
               )}
 
@@ -342,7 +342,7 @@ const Login: React.FC = () => {
               >
                 {isPasswordStep
                   ? (loading ? 'Signing In...' : 'Sign In to Portal')
-                  : (resolvingTenant ? 'Finding Tenant...' : 'Continue')}
+                  : (resolvingTenant ? 'Finding User...' : 'Continue')}
                 <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
               </motion.button>
 

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { useTeachers } from '../hooks/useTeachers'
 import type { Teacher } from '../services/teacherService'
-import { seatingPlanService, type Room } from '../services/seatingPlanService'
+import { seatingPlanService, type Room, type SeatingPlanTemplateSettings } from '../services/seatingPlanService'
 import centreDatesheetService from '../services/centreDatesheetService'
 import dutiesService from '../services/dutiesService'
 
@@ -134,6 +134,41 @@ const getMaxRowLabel = (tabKey: string): string => {
   }
 }
 
+const DEFAULT_DUTY_LIST_COLUMN_WIDTHS = {
+  srNo: 50,
+  roomNo: 70,
+  roomName: 120,
+  floor: 70,
+  inv1School: 90,
+  inv1Teacher: 130,
+  inv1TeacherId: 100,
+  inv1Signature: 130,
+  inv2School: 90,
+  inv2Teacher: 130,
+  inv2TeacherId: 100,
+  inv2Signature: 130,
+}
+
+const DUTY_LIST_COLUMN_CONTROLS: Array<{
+  key: keyof typeof DEFAULT_DUTY_LIST_COLUMN_WIDTHS
+  label: string
+  min: number
+  max: number
+}> = [
+  { key: 'srNo', label: 'Sr No', min: 40, max: 220 },
+  { key: 'roomNo', label: 'Room No', min: 50, max: 220 },
+  { key: 'roomName', label: 'Room Name', min: 80, max: 300 },
+  { key: 'floor', label: 'Floor', min: 50, max: 220 },
+  { key: 'inv1School', label: 'Inv 1 School', min: 70, max: 260 },
+  { key: 'inv1Teacher', label: 'Inv 1 Teacher', min: 80, max: 300 },
+  { key: 'inv1TeacherId', label: 'Inv 1 OASIS ID', min: 80, max: 260 },
+  { key: 'inv1Signature', label: 'Inv 1 Signature', min: 90, max: 320 },
+  { key: 'inv2School', label: 'Inv 2 School', min: 70, max: 260 },
+  { key: 'inv2Teacher', label: 'Inv 2 Teacher', min: 80, max: 300 },
+  { key: 'inv2TeacherId', label: 'Inv 2 OASIS ID', min: 80, max: 260 },
+  { key: 'inv2Signature', label: 'Inv 2 Signature', min: 90, max: 320 },
+]
+
 /* ────────── component ────────── */
 
 const Duties: React.FC = () => {
@@ -156,6 +191,96 @@ const Duties: React.FC = () => {
   >({})
   const [loadingRoomAssignments, setLoadingRoomAssignments] = useState(false)
   const [savingRoomAssignments, setSavingRoomAssignments] = useState(false)
+  const [functionaryDutyListFormat, setFunctionaryDutyListFormat] = useState<{
+    pageSize: string
+    orientation: 'landscape' | 'portrait'
+  }>({
+    pageSize: 'A4',
+    orientation: 'landscape',
+  })
+  const [dutyListColumnWidths, setDutyListColumnWidths] = useState(DEFAULT_DUTY_LIST_COLUMN_WIDTHS)
+  const [templateSettingsSnapshot, setTemplateSettingsSnapshot] = useState<SeatingPlanTemplateSettings | null>(null)
+  const [dutyListLayoutReady, setDutyListLayoutReady] = useState(false)
+
+  const dutyListControlByKey = useMemo(() => {
+    const map = new Map<string, { min: number; max: number }>()
+    DUTY_LIST_COLUMN_CONTROLS.forEach((control) => {
+      map.set(control.key, { min: control.min, max: control.max })
+    })
+    return map
+  }, [])
+  const dutyListColumnKeys = useMemo(
+    () => DUTY_LIST_COLUMN_CONTROLS.map((control) => control.key),
+    []
+  )
+  const dutyListPreviewTotalWidth = useMemo(
+    () => dutyListColumnKeys.reduce((sum, key) => sum + dutyListColumnWidths[key], 0),
+    [dutyListColumnKeys, dutyListColumnWidths]
+  )
+
+  const dutyListPreviewColumnPercentages = useMemo(() => {
+    const total = dutyListPreviewTotalWidth || 1
+    return dutyListColumnKeys.reduce((acc, key) => {
+      acc[key] = Number(((dutyListColumnWidths[key] / total) * 100).toFixed(4))
+      return acc
+    }, {} as Record<keyof typeof DEFAULT_DUTY_LIST_COLUMN_WIDTHS, number>)
+  }, [dutyListColumnKeys, dutyListColumnWidths, dutyListPreviewTotalWidth])
+
+  const getSchoolInitials = useCallback((functionary?: Teacher) => {
+    const schoolName = String(functionary?.schoolName || '').trim()
+    if (schoolName) {
+      const initials = schoolName
+        .split(/\s+/)
+        .map((part) => part.slice(0, 1))
+        .join('')
+        .toUpperCase()
+      return initials.slice(0, 6)
+    }
+    return normalizeSchoolCode(functionary?.schoolCode)
+  }, [])
+
+  const startDutyListColumnResize = (boundaryIndex: number, event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault()
+
+    const leftKey = dutyListColumnKeys[boundaryIndex]
+    const rightKey = dutyListColumnKeys[boundaryIndex + 1]
+    if (!leftKey || !rightKey) return
+
+    const leftConfig = dutyListControlByKey.get(leftKey)
+    const rightConfig = dutyListControlByKey.get(rightKey)
+    if (!leftConfig || !rightConfig) return
+
+    const initialX = event.clientX
+    const initialLeft = dutyListColumnWidths[leftKey]
+    const initialRight = dutyListColumnWidths[rightKey]
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const delta = moveEvent.clientX - initialX
+
+      const minDeltaByLeft = -(initialLeft - leftConfig.min)
+      const maxDeltaByRight = initialRight - rightConfig.min
+      const maxDeltaByLeftMax = leftConfig.max - initialLeft
+      const minDeltaByRightMax = initialRight - rightConfig.max
+
+      const minDelta = Math.max(minDeltaByLeft, minDeltaByRightMax)
+      const maxDelta = Math.min(maxDeltaByRight, maxDeltaByLeftMax)
+      const boundedDelta = Math.max(minDelta, Math.min(maxDelta, delta))
+
+      setDutyListColumnWidths((prev) => ({
+        ...prev,
+        [leftKey]: Math.round(initialLeft + boundedDelta),
+        [rightKey]: Math.round(initialRight - boundedDelta),
+      }))
+    }
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', onMouseUp)
+    }
+
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', onMouseUp)
+  }
 
   /* ── Fetch teachers ── */
   const { data: teachersData, isLoading: loadingTeachers } = useTeachers({
@@ -217,6 +342,10 @@ const Duties: React.FC = () => {
     const source = allocationMode === 'manual' ? selectedInvigilatorsForDate : invigilatorsForTab
     return [...source].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }))
   }, [allocationMode, selectedInvigilatorsForDate, invigilatorsForTab])
+  const canEnableAutoModeForDate = useMemo(
+    () => Boolean(selectedRoomDate) && selectedInvigilatorsForDate.length > 0,
+    [selectedRoomDate, selectedInvigilatorsForDate]
+  )
 
   /* ── Count per tab ── */
   const tabCounts = useMemo(() => {
@@ -399,6 +528,53 @@ const Duties: React.FC = () => {
     fetchAllocationMode()
   }, [])
 
+  useEffect(() => {
+    const fetchFunctionaryDutyListFormat = async () => {
+      try {
+        const settings = await seatingPlanService.getTemplateSettings()
+        setTemplateSettingsSnapshot(settings)
+        const pageSize = String(settings?.functionaryDutyList?.pageSize || 'A4').toUpperCase()
+        const orientation = String(settings?.functionaryDutyList?.orientation || 'landscape').toLowerCase() === 'portrait'
+          ? 'portrait'
+          : 'landscape'
+        setFunctionaryDutyListFormat({
+          pageSize: pageSize || 'A4',
+          orientation,
+        })
+        setDutyListColumnWidths({
+          ...DEFAULT_DUTY_LIST_COLUMN_WIDTHS,
+          ...(settings?.functionaryDutyList?.columnWidths || {}),
+        })
+        setDutyListLayoutReady(true)
+      } catch (error) {
+        console.error('Failed to load functionary duty list format:', error)
+      }
+    }
+
+    fetchFunctionaryDutyListFormat()
+  }, [])
+
+  useEffect(() => {
+    if (!dutyListLayoutReady || !templateSettingsSnapshot) return
+    const timer = window.setTimeout(async () => {
+      try {
+        await seatingPlanService.updateTemplateSettings({
+          ...templateSettingsSnapshot,
+          functionaryDutyList: {
+            ...(templateSettingsSnapshot.functionaryDutyList || { pageSize: 'A4', orientation: 'landscape' }),
+            pageSize: 'A4',
+            orientation: functionaryDutyListFormat.orientation,
+            columnWidths: dutyListColumnWidths,
+          },
+        })
+      } catch (error) {
+        console.error('Failed to save duty list column widths:', error)
+      }
+    }, 500)
+
+    return () => window.clearTimeout(timer)
+  }, [dutyListColumnWidths, functionaryDutyListFormat.orientation, dutyListLayoutReady, templateSettingsSnapshot])
+
   /* ── Load saved selections when tab changes ── */
   const loadSelections = useCallback(async () => {
     try {
@@ -491,6 +667,18 @@ const Duties: React.FC = () => {
 
   const handleModeChange = async (mode: 'auto' | 'manual') => {
     if (mode === allocationMode) return
+    if (mode === 'auto' && activeTab === 'ASI') {
+      if (!selectedRoomDate) {
+        toast.error('Select exam date first')
+        return
+      }
+      if (!canEnableAutoModeForDate) {
+        const message = `Select invigilators to assign automatically for ${formatDateLabel(selectedRoomDate)}.`
+        window.alert(message)
+        toast.error('Select invigilators to assign automatically')
+        return
+      }
+    }
     try {
       setLoadingAllocationMode(true)
       const savedMode = await dutiesService.updateDutyAllocationMode(mode)
@@ -613,6 +801,19 @@ const Duties: React.FC = () => {
       toast.error(error?.response?.data?.message || 'Failed to save room assignments')
     } finally {
       setSavingRoomAssignments(false)
+    }
+  }
+
+  const handleDownloadRoomAssignments = async () => {
+    if (!selectedRoomDate) {
+      toast.error('Select exam date first')
+      return
+    }
+    try {
+      const blob = await dutiesService.downloadFunctionaryDutyRecord(selectedRoomDate)
+      seatingPlanService.downloadPDF(blob, `exam-functionary-duty-record-${selectedRoomDate}.pdf`)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to download duty record')
     }
   }
 
@@ -853,11 +1054,12 @@ const Duties: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleModeChange('auto')}
-                    disabled={loadingAllocationMode}
+                    disabled={loadingAllocationMode || !canEnableAutoModeForDate}
                     className={`px-3 py-1.5 text-xs font-semibold ${allocationMode === 'auto'
                       ? 'bg-blue-600 text-white'
                       : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
                       }`}
+                    title={!canEnableAutoModeForDate ? 'Select invigilators for this date to enable auto mode' : 'Switch to auto mode'}
                   >
                     Auto
                   </button>
@@ -901,7 +1103,19 @@ const Duties: React.FC = () => {
                   onClick={handleSaveRoomAssignments}
                   disabled={!selectedRoomDate || savingRoomAssignments || loadingRoomAssignments}
                 >
-                  {savingRoomAssignments ? 'Saving Rooms...' : 'Save Room Assignments'}
+                  {savingRoomAssignments ? 'Saving...' : 'Save'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadRoomAssignments}
+                  disabled={!selectedRoomDate || loadingRoomAssignments}
+                  className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Download Exam Functionary Duty Record"
+                  aria-label="Download Exam Functionary Duty Record"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v1a3 3 0 003 3h10a3 3 0 003-3v-1" />
+                  </svg>
                 </button>
               </div>
             </div>
@@ -980,6 +1194,214 @@ const Duties: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <h5 className="text-sm font-semibold text-gray-900 dark:text-white">Functionary Duty List Preview</h5>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Stored format metadata for print/export.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    Page Size: {functionaryDutyListFormat.pageSize}
+                  </span>
+                  <span className="px-2 py-1 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                    Orientation: {functionaryDutyListFormat.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <div className="min-w-[1180px] rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 p-3">
+                  <div className="text-[11px] font-medium text-gray-700 dark:text-gray-200 mb-2">
+                    A4 / {functionaryDutyListFormat.orientation === 'landscape' ? 'Landscape' : 'Portrait'} preview
+                  </div>
+                  <div className="rounded border border-gray-600 dark:border-gray-400 bg-white dark:bg-gray-900 p-3 overflow-hidden text-[11px]">
+                    <div className="flex items-center justify-between font-semibold text-gray-800 dark:text-gray-100 mb-1">
+                      <span>Centre No:&nbsp; ________</span>
+                      <span>Centre Name:&nbsp; ______________________________</span>
+                      <span>Date:&nbsp; __.__.__</span>
+                    </div>
+                    <div className="text-center text-[12px] font-semibold text-gray-800 dark:text-gray-100 mb-2">
+                      Exam Functionaries Duties Record (2025-26)
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-[11px] font-semibold text-gray-800 dark:text-gray-100 mb-1">
+                      <div>Centre Superintendent: _______________________</div>
+                      <div className="text-right">Deputy Centre Superintendent: _______________________</div>
+                    </div>
+
+                    <div className="relative inline-block align-top">
+                    <table className="w-full table-fixed border-collapse border border-gray-600 dark:border-gray-400 text-[10px]">
+                      <colgroup>
+                        <col width={`${dutyListPreviewColumnPercentages.srNo}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.roomNo}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.roomName}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.floor}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.inv1School}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.inv1Teacher}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.inv1TeacherId}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.inv1Signature}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.inv2School}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.inv2Teacher}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.inv2TeacherId}%`} />
+                        <col width={`${dutyListPreviewColumnPercentages.inv2Signature}%`} />
+                      </colgroup>
+                      <thead>
+                        <tr className="text-[10px] font-semibold text-gray-800 dark:text-gray-100">
+                          <th rowSpan={2} className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            Sr No
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(0, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th rowSpan={2} className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            Room No
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(1, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th rowSpan={2} className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            Room Name
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(2, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th rowSpan={2} className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            Floor
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(3, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th colSpan={4} className="border border-gray-600 dark:border-gray-400 px-1 py-1">Invigilator 1</th>
+                          <th colSpan={4} className="border border-gray-600 dark:border-gray-400 px-1 py-1">Invigilator 2</th>
+                        </tr>
+                        <tr className="text-[10px] font-semibold text-gray-800 dark:text-gray-100">
+                          <th className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            School
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(4, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            Invigilator Name
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(5, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            OASIS ID
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(6, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            Signature
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(7, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            School
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(8, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            Invigilator Name
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(9, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th className="relative border border-gray-600 dark:border-gray-400 px-1 py-1">
+                            OASIS ID
+                            <div
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize z-30 bg-blue-500/10 hover:bg-blue-500/25"
+                              onMouseDown={(event) => startDutyListColumnResize(10, event)}
+                              title="Drag to resize column"
+                            />
+                          </th>
+                          <th className="border border-gray-600 dark:border-gray-400 px-1 py-1">Signature</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(allocatedRoomsForSelectedDate.length > 0 ? allocatedRoomsForSelectedDate : Array.from({ length: 10 }).map((_, i) => ({
+                          _id: `preview-${i}`,
+                          roomNo: `${i + 1}`,
+                          roomName: '',
+                          floor: '',
+                        } as Room))).slice(0, 14).map((room, idx) => {
+                          const assignedFunctionaryId = String(roomAssignmentsByDate[selectedRoomDate]?.[room._id] || '')
+                          const invigilator = functionaryById[assignedFunctionaryId]
+                          return (
+                          <tr key={room._id || `row-${idx}`}>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1 text-center">{idx + 1}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1 text-center">{room.roomNo || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{room.roomName || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{room.floor || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{getSchoolInitials(invigilator)}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.name || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.employeeId || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1" />
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{getSchoolInitials(invigilator)}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.name || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.employeeId || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1" />
+                          </tr>
+                        )})}
+                      </tbody>
+                    </table>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-6 mt-4 text-[10px] text-gray-800 dark:text-gray-100">
+                      <div>
+                        <div className="font-semibold mb-2">Frisking Duty</div>
+                        <div>1 ___________________________</div>
+                        <div className="mt-2">2 ___________________________</div>
+                      </div>
+                      <div>
+                        <div className="font-semibold mb-2">CCTV Invigilation</div>
+                        <div>1 ___________________________</div>
+                        <div className="mt-2">2 ___________________________</div>
+                      </div>
+                      <div>
+                        <div className="font-semibold mb-2">Class IV Duty</div>
+                        <div className="flex gap-4">
+                          <span>1 ___________________</span>
+                          <span>2 ___________________</span>
+                        </div>
+                        <div className="mt-2">3 ___________________</div>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 text-right text-[11px] font-semibold text-gray-800 dark:text-gray-100">
+                      Centre Superintendent
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

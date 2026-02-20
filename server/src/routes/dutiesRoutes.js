@@ -1,6 +1,10 @@
 const express = require('express');
 const { protect, authorize } = require('../middleware/auth');
-const { getDailyDuties, assignDailyDuties } = require('../controllers/dutiesController');
+const {
+  getDailyDuties,
+  assignDailyDuties,
+  downloadFunctionaryDutyRecord,
+} = require('../controllers/dutiesController');
 const {
   getDutySelections,
   saveDutySelections,
@@ -14,6 +18,7 @@ router.use(protect);
 
 router.get('/', getDailyDuties);
 router.post('/assign', authorize('admin', 'staff'), assignDailyDuties);
+router.get('/functionary-duty-record', downloadFunctionaryDutyRecord);
 
 // Duty selections (pre-assignment)
 router.get('/selections', getDutySelections);

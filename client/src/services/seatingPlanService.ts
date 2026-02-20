@@ -72,8 +72,28 @@ export interface RoomDoorSlipTemplateSettings {
   rowHeight: number;
 }
 
+export interface FunctionaryDutyListFormatSettings {
+  pageSize: 'A4';
+  orientation: 'landscape' | 'portrait';
+  columnWidths?: {
+    srNo: number;
+    roomNo: number;
+    roomName: number;
+    floor: number;
+    inv1School: number;
+    inv1Teacher: number;
+    inv1TeacherId: number;
+    inv1Signature: number;
+    inv2School: number;
+    inv2Teacher: number;
+    inv2TeacherId: number;
+    inv2Signature: number;
+  };
+}
+
 export interface SeatingPlanTemplateSettings {
   roomAllocationMode?: 'auto' | 'manual';
+  functionaryDutyList?: FunctionaryDutyListFormatSettings;
   mainGate: MainGateTemplateSettings;
   cbseCopy: CBSECopyTemplateSettings;
   roomFolderSlip: RoomFolderSlipTemplateSettings;
