@@ -175,7 +175,7 @@ const Login: React.FC = () => {
               <h1 className="text-5xl font-bold leading-tight mb-4">
                 The Future of <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-secondary-400">
-                  Board & Corporate Exams
+                  Online Exam Centre Management System
                 </span>
               </h1>
               <p className="text-gray-400 text-lg max-w-md">
@@ -245,7 +245,7 @@ const Login: React.FC = () => {
             <p className="text-gray-400">
               {isPasswordStep
                 ? 'Tenant identified. Enter your password to continue.'
-                : 'Enter your email to locate your tenant account.'}
+                : 'Enter your email to locate your account.'}
             </p>
           </div>
 
@@ -359,16 +359,16 @@ const Login: React.FC = () => {
 
             <div className="mt-6 rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-4">
               <p className="text-sm text-cyan-100">
-                New tenant?{' '}
+                New user?{' '}
                 <Link to="/signup" className="font-semibold text-cyan-300 hover:text-cyan-200 underline underline-offset-2">
-                  Create your tenant with AI signup
+                  Create your account with AI signup.
                 </Link>
               </p>
             </div>
           </div>
 
           <p className="text-center mt-10 text-sm text-gray-500">
-            © 2024 Bharat Examination Core Management System
+            © 2026 Bharat Examination Core Management System
           </p>
         </motion.div>
       </div>
