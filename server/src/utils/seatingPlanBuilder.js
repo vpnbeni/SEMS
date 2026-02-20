@@ -1,6 +1,7 @@
 const Candidate = require('../models/Candidate');
 const Room = require('../models/Room');
 const CBSEDatesheet = require('../models/CBSEDatesheet');
+const SeatingPlanAllocation = require('../models/SeatingPlanAllocation');
 const { compareRoomNo } = require('./roomSort');
 
 const ACTIVE_CANDIDATE_FILTER = {
@@ -124,15 +125,52 @@ class SeatingPlanBuilder {
       console.log(`Total datesheet entries: ${cbseDatesheet.entries.length}`);
       console.log(`Entries with candidates at this centre: ${entriesWithCandidates.length}`);
 
-      // Calculate room allocation with class-based rotation
-      const { startRoomIndex, startSeatOffset, allowWrap } = await this.calculateStartingPositionClassBased(
-        entry,
-        entriesWithCandidates, // Use filtered entries instead of all entries
-        null, // scheduleMap no longer used
-        rooms,
-        candidates.length,
-        { manualMode: allocationMode === 'manual' }
-      );
+      // Validate centre capacity for auto mode using the peak room requirement across exam days.
+      if (allocationMode === 'auto') {
+        const maxRoomsRequired = await this.getMaxRoomsRequiredAcrossExamDays(entriesWithCandidates);
+        if (maxRoomsRequired > rooms.length) {
+          throw new Error(
+            `Maximum number of rooms required at the centre is ${maxRoomsRequired}. Add more rooms to switch to Auto mode.`
+          );
+        }
+      }
+
+      let startRoomIndex = 0;
+      let startSeatOffset = 0;
+      let allowWrap = true;
+
+      if (allocationMode === 'manual') {
+        const manualStart = await this.calculateStartingPositionClassBased(
+          entry,
+          entriesWithCandidates, // Use filtered entries instead of all entries
+          null, // scheduleMap no longer used
+          rooms,
+          candidates.length,
+          { manualMode: true }
+        );
+        startRoomIndex = manualStart.startRoomIndex;
+        startSeatOffset = manualStart.startSeatOffset;
+        allowWrap = manualStart.allowWrap ?? false;
+      } else {
+        const preferredStartIndex = this.getAutoStartRoomIndexForDateByClassChange(
+          entry,
+          entriesWithCandidates,
+          rooms.length
+        );
+        const roomHistoryByRollNo = await this.buildCandidateRoomHistoryBeforeEntry(
+          entry,
+          entriesWithCandidates,
+          rooms
+        );
+        startRoomIndex = this.resolveAutoStartRoomIndexWithoutRepeats(
+          candidates,
+          rooms,
+          preferredStartIndex,
+          roomHistoryByRollNo
+        );
+        startSeatOffset = 0;
+        allowWrap = true;
+      }
 
       console.log(`Exam ${entry.subject.code} (${entry.subject.class}): Starting from Room ${rooms[startRoomIndex]?.roomNo || 'N/A'}, Seat offset: ${startSeatOffset}`);
 
@@ -150,6 +188,10 @@ class SeatingPlanBuilder {
       if (allocatedCount < candidates.length) {
         throw new Error('Insufficient rooms for this exam date. Please allocate more rooms in Exam Room/Hall or switch to Auto mode.');
       }
+
+      // Persist generated rollNo -> room mapping for both modes.
+      // This keeps cross-day continuity when users switch between manual/auto.
+      await this.persistRoomAllocationSnapshot(entry, roomAllocations);
 
       return {
         datesheet: {
@@ -451,6 +493,201 @@ class SeatingPlanBuilder {
 
     this._normalizedDateCache.set(dateKey, normalized);
     return normalized;
+  }
+
+  getEntrySortKey(entry) {
+    const dateNorm = this.normalizeDate(entry.examDate);
+    const classValue = parseInt(String(entry?.subject?.class || '').replace(/th$/i, ''), 10) || 0;
+    const subjectCode = String(entry?.subject?.code || '');
+    return `${dateNorm}::${String(classValue).padStart(2, '0')}::${subjectCode}`;
+  }
+
+  getEntriesSortedChronologically(allEntries) {
+    return [...allEntries].sort((a, b) => {
+      const dateA = this.normalizeDate(a.examDate);
+      const dateB = this.normalizeDate(b.examDate);
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+
+      const classA = parseInt(String(a?.subject?.class || '').replace(/th$/i, ''), 10) || 0;
+      const classB = parseInt(String(b?.subject?.class || '').replace(/th$/i, ''), 10) || 0;
+      if (classA !== classB) return classA - classB;
+
+      return String(a?.subject?.code || '').localeCompare(String(b?.subject?.code || ''), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    });
+  }
+
+  getAutoStartRoomIndexForDateByClassChange(currentEntry, allEntries, totalRooms) {
+    if (!totalRooms || totalRooms <= 0) return 0;
+
+    const sorted = this.getEntriesSortedChronologically(allEntries);
+    const dateKeys = [...new Set(sorted.map((entry) => this.normalizeDate(entry.examDate)))];
+    const firstClassByDate = {};
+
+    dateKeys.forEach((dateKey) => {
+      const firstEntryForDate = sorted.find((entry) => this.normalizeDate(entry.examDate) === dateKey);
+      firstClassByDate[dateKey] = String(firstEntryForDate?.subject?.class || '');
+    });
+
+    const currentDate = this.normalizeDate(currentEntry.examDate);
+    const dayIndex = dateKeys.indexOf(currentDate);
+    if (dayIndex <= 0) return 0;
+
+    const previousDate = dateKeys[dayIndex - 1];
+    const currentClass = firstClassByDate[currentDate];
+    const previousClass = firstClassByDate[previousDate];
+
+    // Rule: if class changes on next day, start from first room; else start from second room.
+    const startIndex = currentClass !== previousClass ? 0 : 1;
+    return Math.min(startIndex, totalRooms - 1);
+  }
+
+  getAllocationMapByRollNo(roomAllocations) {
+    const map = new Map();
+    roomAllocations.forEach((allocation) => {
+      const roomNo = String(allocation.roomNo || '').trim();
+      (allocation.candidates || []).forEach((candidate) => {
+        const rollNo = String(candidate?.rollNo || '').trim();
+        if (!rollNo) return;
+        map.set(rollNo, roomNo);
+      });
+    });
+    return map;
+  }
+
+  async buildCandidateRoomHistoryBeforeEntry(currentEntry, allEntries, rooms) {
+    const history = new Map();
+    const currentCandidates = await this.getCandidatesForExam(currentEntry);
+    const candidateRollNos = currentCandidates
+      .map((candidate) => String(candidate?.rollNo || '').trim())
+      .filter(Boolean);
+    if (candidateRollNos.length === 0) return history;
+
+    // Rule: only verify against already generated seating plans from previous days.
+    const currentDateKey = this.normalizeDate(currentEntry.examDate);
+    const persistedRows = await SeatingPlanAllocation.find({
+      rollNo: { $in: candidateRollNos },
+      examDate: { $lt: currentDateKey },
+    })
+      .select('rollNo roomNo')
+      .lean();
+
+    persistedRows.forEach((row) => {
+      const rollNo = String(row?.rollNo || '').trim();
+      const roomNo = String(row?.roomNo || '').trim();
+      if (!rollNo || !roomNo) return;
+      if (!history.has(rollNo)) history.set(rollNo, new Set());
+      history.get(rollNo).add(roomNo);
+    });
+
+    return history;
+  }
+
+  async persistRoomAllocationSnapshot(entry, roomAllocations) {
+    const examDate = this.normalizeDateKey(entry.examDate);
+    const subjectCode = String(entry?.subject?.code || '').trim();
+    const className = String(entry?.subject?.class || '').trim();
+    const entrySortKey = this.getEntrySortKey(entry);
+
+    if (!examDate || !subjectCode || !className || !entry?._id) {
+      return;
+    }
+
+    const docs = [];
+    (roomAllocations || []).forEach((allocation) => {
+      const roomNo = String(allocation?.roomNo || '').trim();
+      if (!roomNo) return;
+
+      (allocation.candidates || []).forEach((candidate) => {
+        const rollNo = String(candidate?.rollNo || '').trim();
+        if (!rollNo) return;
+
+        docs.push({
+          datesheetEntryId: entry._id,
+          examDate,
+          subjectCode,
+          className,
+          entrySortKey,
+          rollNo,
+          roomNo,
+        });
+      });
+    });
+
+    await SeatingPlanAllocation.deleteMany({ datesheetEntryId: entry._id });
+    if (docs.length === 0) return;
+    await SeatingPlanAllocation.insertMany(docs, { ordered: false });
+  }
+
+  countRoomRepeatConflicts(candidates, rooms, startRoomIndex, historyByRollNo) {
+    const allocations = this.allocateCandidatesToRoomsWithOffset(
+      candidates,
+      rooms,
+      startRoomIndex,
+      0,
+      null,
+      true
+    );
+    const mapped = this.getAllocationMapByRollNo(allocations);
+    let conflicts = 0;
+
+    mapped.forEach((roomNo, rollNo) => {
+      if (historyByRollNo.get(rollNo)?.has(roomNo)) {
+        conflicts += 1;
+      }
+    });
+
+    return conflicts;
+  }
+
+  resolveAutoStartRoomIndexWithoutRepeats(candidates, rooms, preferredStartIndex, historyByRollNo) {
+    const totalRooms = rooms.length;
+    if (!totalRooms) return 0;
+
+    const candidateStarts = [preferredStartIndex];
+    for (let idx = 0; idx < totalRooms; idx += 1) {
+      if (!candidateStarts.includes(idx)) candidateStarts.push(idx);
+    }
+
+    let bestStart = candidateStarts[0];
+    let bestConflicts = Number.POSITIVE_INFINITY;
+
+    for (const startIndex of candidateStarts) {
+      const conflicts = this.countRoomRepeatConflicts(candidates, rooms, startIndex, historyByRollNo);
+      if (conflicts < bestConflicts) {
+        bestConflicts = conflicts;
+        bestStart = startIndex;
+      }
+      if (conflicts === 0) return startIndex;
+    }
+
+    throw new Error(
+      `CBSE room-repeat rule could not be satisfied for all candidates with current room setup (minimum repeats: ${bestConflicts}). Add more rooms and try again.`
+    );
+  }
+
+  async getMaxRoomsRequiredAcrossExamDays(entriesWithCandidates) {
+    const candidatesPerRoom = 24;
+    const roomsRequiredByDate = new Map();
+
+    for (const entry of entriesWithCandidates) {
+      const dateKey = this.normalizeDate(entry.examDate);
+      if (!dateKey) continue;
+      const candidates = await this.getCandidatesForExam(entry);
+      if (!candidates.length) continue;
+
+      const requiredForEntry = Math.ceil(candidates.length / candidatesPerRoom);
+      const current = roomsRequiredByDate.get(dateKey) || 0;
+      roomsRequiredByDate.set(dateKey, current + requiredForEntry);
+    }
+
+    let maxRequired = 0;
+    roomsRequiredByDate.forEach((count) => {
+      if (count > maxRequired) maxRequired = count;
+    });
+    return maxRequired;
   }
 
   /**

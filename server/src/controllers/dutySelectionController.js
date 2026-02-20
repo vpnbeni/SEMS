@@ -1,6 +1,8 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const DutySelection = require('../models/DutySelection');
-const { generateResponse, HTTP_STATUS } = require('../utils/constants');
+const DutyAllocationSetting = require('../models/DutyAllocationSetting');
+const { generateResponse } = require('../utils/helpers');
+const { HTTP_STATUS } = require('../utils/constants');
 
 /**
  * @desc    Get all duty selections for a given dutyType
@@ -77,7 +79,45 @@ const saveDutySelections = asyncHandler(async (req, res) => {
     );
 });
 
+/**
+ * @desc    Get duty allocation mode
+ * @route   GET /api/duties/allocation-mode
+ * @access  Private
+ */
+const getDutyAllocationMode = asyncHandler(async (_req, res) => {
+    const setting = await DutyAllocationSetting.findOne({}).sort({ updatedAt: -1 }).lean();
+    const mode = String(setting?.mode || '').toLowerCase() === 'auto' ? 'auto' : 'manual';
+
+    return res.status(HTTP_STATUS.OK).json(
+        generateResponse(true, 'Duty allocation mode fetched', { mode })
+    );
+});
+
+/**
+ * @desc    Update duty allocation mode
+ * @route   PUT /api/duties/allocation-mode
+ * @body    { mode: 'auto' | 'manual' }
+ * @access  Private (admin/staff)
+ */
+const updateDutyAllocationMode = asyncHandler(async (req, res) => {
+    const mode = String(req.body?.mode || '').toLowerCase() === 'auto' ? 'auto' : 'manual';
+    const existing = await DutyAllocationSetting.findOne({}).sort({ updatedAt: -1 });
+
+    if (existing) {
+        existing.mode = mode;
+        await existing.save();
+    } else {
+        await DutyAllocationSetting.create({ mode });
+    }
+
+    return res.status(HTTP_STATUS.OK).json(
+        generateResponse(true, 'Duty allocation mode updated', { mode })
+    );
+});
+
 module.exports = {
     getDutySelections,
     saveDutySelections,
+    getDutyAllocationMode,
+    updateDutyAllocationMode,
 };

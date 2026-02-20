@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const dutySelectionSchema = new mongoose.Schema(
     {
@@ -42,4 +43,4 @@ dutySelectionSchema.index(
     { unique: true }
 );
 
-module.exports = mongoose.model('DutySelection', dutySelectionSchema);
+module.exports = createContextModelProxy('DutySelection', dutySelectionSchema);

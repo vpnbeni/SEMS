@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import toast from 'react-hot-toast'
 import { seatingPlanService, Room } from '../services/seatingPlanService'
 import centreDatesheetService from '../services/centreDatesheetService'
 
@@ -151,18 +152,13 @@ const RoomAllocation: React.FC = () => {
       const current = [...(prev[dateKey] || [])]
       const currentIndex = current.indexOf(roomId)
 
-      // On first selection, keep existing convenience behavior: pick rooms in sequence.
       if (currentIndex < 0) {
-        if (current.length === 0 && requiredRooms > 0) {
-          const series = roomIdsInOrder.slice(clickedIndex, clickedIndex + maxSelectable)
-          return {
-            ...prev,
-            [dateKey]: series,
-          }
+        if (requiredRooms > 0 && current.length >= maxSelectable) {
+          return prev
         }
 
-        // For subsequent selections, preserve existing order and append as next selection.
-        if (requiredRooms > 0 && current.length >= maxSelectable) {
+        // Manual selection is strictly sequential by room order.
+        if (clickedIndex !== current.length) {
           return prev
         }
 
@@ -172,14 +168,39 @@ const RoomAllocation: React.FC = () => {
         }
       }
 
-      // On deselect, only remove the clicked room and preserve the rest of the order.
-      current.splice(currentIndex, 1)
+      // Allow deselect only from the tail to preserve sequence integrity.
+      if (currentIndex !== current.length - 1) {
+        return prev
+      }
 
       return {
         ...prev,
-        [dateKey]: current.slice(0, maxSelectable),
+        [dateKey]: current.slice(0, -1),
       }
     })
+  }
+
+  const canToggleRoomDateAllocation = (roomId: string, dateKey: string) => {
+    if (allocationMode !== 'manual') return false
+
+    const roomIdsInOrder = rooms.map((room) => room._id)
+    const clickedIndex = roomIdsInOrder.indexOf(roomId)
+    if (clickedIndex < 0) return false
+
+    const requiredRooms = Number(requiredRoomsByDate[dateKey] || 0)
+    const maxSelectable = requiredRooms > 0 ? requiredRooms : roomIdsInOrder.length
+    const current = dateRoomOrderDraft[dateKey] || []
+    const currentIndex = current.indexOf(roomId)
+
+    if (currentIndex >= 0) {
+      return currentIndex === current.length - 1
+    }
+
+    if (current.length >= maxSelectable) {
+      return false
+    }
+
+    return clickedIndex === current.length
   }
 
   const isRoomSelectedForDate = (roomId: string, dateKey: string) =>
@@ -192,13 +213,27 @@ const RoomAllocation: React.FC = () => {
 
   const handleModeChange = async (mode: 'auto' | 'manual') => {
     if (mode === allocationMode) return
+    if (mode === 'auto') {
+      const maxRoomsRequired = examDates.reduce((max, dateKey) => {
+        return Math.max(max, Number(requiredRoomsByDate[dateKey] || 0))
+      }, 0)
+
+      if (maxRoomsRequired > 0 && rooms.length < maxRoomsRequired) {
+        alert(
+          `Maximum number of rooms required at the centre is ${maxRoomsRequired}. You currently have ${rooms.length} room(s). Add more rooms to switch to Auto mode.`
+        )
+        return
+      }
+    }
+
     try {
       setLoadingAllocationMode(true)
       const savedMode = await seatingPlanService.updateRoomAllocationMode(mode)
       setAllocationMode(savedMode)
+      toast.success(`Room allocation mode changed to ${savedMode === 'auto' ? 'Auto' : 'Manual'}`)
     } catch (error) {
       console.error('Failed to update room allocation mode:', error)
-      alert('Failed to update allocation mode')
+      toast.error('Failed to update allocation mode')
     } finally {
       setLoadingAllocationMode(false)
     }
@@ -660,7 +695,7 @@ const RoomAllocation: React.FC = () => {
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               {allocationMode === 'auto'
                 ? 'Auto mode active: system will allocate rooms automatically by allocation guidelines.'
-                : 'Manual mode active: select rooms in checkbox order for each date.'}
+                : 'Manual mode active: select one room at a time in checkbox order for each date.'}
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -688,24 +723,30 @@ const RoomAllocation: React.FC = () => {
                 Manual
               </button>
             </div>
-            <button
-              onClick={handleSaveRoomAllocations}
-              disabled={allocationMode !== 'manual' || isSavingAllocation || rooms.length === 0 || examDates.length === 0}
-              className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSavingAllocation ? 'Saving...' : 'Save Allocation'}
-            </button>
+            {allocationMode === 'manual' && (
+              <button
+                onClick={handleSaveRoomAllocations}
+                disabled={isSavingAllocation || rooms.length === 0 || examDates.length === 0}
+                className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSavingAllocation ? 'Saving...' : 'Save Allocation'}
+              </button>
+            )}
           </div>
         </div>
 
         {loadingExamDates ? (
           <div className="px-6 py-8 text-sm text-gray-500 dark:text-gray-400">Loading exam dates...</div>
+        ) : allocationMode === 'auto' ? (
+          <div className="px-6 py-8 text-sm text-gray-500 dark:text-gray-400">
+            Auto mode is enabled. Room allocation table is hidden.
+          </div>
         ) : examDates.length === 0 ? (
           <div className="px-6 py-8 text-sm text-gray-500 dark:text-gray-400">
             No centre datesheet dates found. Import/generate centre datesheet to enable allocation columns.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto transition-opacity">
             <table className="min-w-full border-collapse border-2 border-gray-400 dark:border-gray-500">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
@@ -756,7 +797,7 @@ const RoomAllocation: React.FC = () => {
                             type="checkbox"
                             checked={isRoomSelectedForDate(room._id, dateKey)}
                             onChange={() => toggleRoomDateAllocation(room._id, dateKey)}
-                            disabled={allocationMode !== 'manual'}
+                            disabled={!canToggleRoomDateAllocation(room._id, dateKey)}
                             className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
                             title={`${room.roomNo} - ${formatDateLabel(dateKey)}${allocationMode === 'manual' ? '' : ' (disabled in auto mode)'}`}
                           />

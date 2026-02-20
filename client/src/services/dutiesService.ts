@@ -51,11 +51,23 @@ const saveDutySelections = async (dutyType: string, selections: Record<string, b
   await api.post('/duties/selections', { dutyType, selections })
 }
 
+const getDutyAllocationMode = async (): Promise<'auto' | 'manual'> => {
+  const response = await api.get('/duties/allocation-mode')
+  return response.data?.data?.mode === 'auto' ? 'auto' : 'manual'
+}
+
+const updateDutyAllocationMode = async (mode: 'auto' | 'manual'): Promise<'auto' | 'manual'> => {
+  const response = await api.put('/duties/allocation-mode', { mode })
+  return response.data?.data?.mode === 'auto' ? 'auto' : 'manual'
+}
+
 const dutiesService = {
   getDailyDuties,
   assignDailyDuties,
   getDutySelections,
   saveDutySelections,
+  getDutyAllocationMode,
+  updateDutyAllocationMode,
 }
 
 export default dutiesService

@@ -534,7 +534,9 @@ const sendGenerationError = (res, error, fallbackLabel) => {
   const message = String(error?.message || '').trim();
   const userFacing =
     message.includes('No rooms are allocated for this exam date in Manual mode')
-    || message.includes('No rooms available for allocation');
+    || message.includes('No rooms available for allocation')
+    || message.includes('Maximum number of rooms required at the centre')
+    || message.includes('CBSE room-repeat rule could not be satisfied');
 
   const status = userFacing ? 400 : 500;
   return res.status(status).json({

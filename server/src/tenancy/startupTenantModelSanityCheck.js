@@ -23,7 +23,10 @@ const REQUIRED_TENANT_MODEL_KEYS = [
   'Undertaking',
   'CentreDetail',
   'SeatingPlanTemplateSetting',
+  'SeatingPlanAllocation',
+  'DutyAllocationSetting',
   'DutyAssignment',
+  'DutySelection',
 ];
 
 const runTenantModelStartupSanityCheck = async () => {

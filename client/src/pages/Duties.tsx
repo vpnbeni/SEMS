@@ -111,8 +111,9 @@ const Duties: React.FC = () => {
   const [candidatesByDate, setCandidatesByDate] = useState<Record<string, number>>({})
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('CS')
-  const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [allocationMode, setAllocationMode] = useState<'auto' | 'manual'>('manual')
+  const [loadingAllocationMode, setLoadingAllocationMode] = useState(false)
   // Track checked duties: key = "funcId::dateKey", value = true/false
   const [checkedDuties, setCheckedDuties] = useState<Record<string, boolean>>({})
 
@@ -157,6 +158,17 @@ const Duties: React.FC = () => {
       if (!checkedDuties[key]) continue
       const dateKey = key.split('::')[1]
       if (dateKey) counts[dateKey] = (counts[dateKey] || 0) + 1
+    }
+    return counts
+  }, [checkedDuties])
+
+  /* ── Count checked duties per functionary ── */
+  const checkedCountByFunctionary = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const key of Object.keys(checkedDuties)) {
+      if (!checkedDuties[key]) continue
+      const functionaryId = key.split('::')[0]
+      if (functionaryId) counts[functionaryId] = (counts[functionaryId] || 0) + 1
     }
     return counts
   }, [checkedDuties])
@@ -207,6 +219,23 @@ const Duties: React.FC = () => {
     fetchSupportData()
   }, [])
 
+  useEffect(() => {
+    const fetchAllocationMode = async () => {
+      try {
+        setLoadingAllocationMode(true)
+        const mode = await dutiesService.getDutyAllocationMode()
+        setAllocationMode(mode)
+      } catch (error) {
+        console.error('Failed to fetch duty allocation mode:', error)
+        setAllocationMode('manual')
+      } finally {
+        setLoadingAllocationMode(false)
+      }
+    }
+
+    fetchAllocationMode()
+  }, [])
+
   /* ── Load saved selections when tab changes ── */
   const loadSelections = useCallback(async () => {
     try {
@@ -221,17 +250,37 @@ const Duties: React.FC = () => {
     if (activeDutyType) loadSelections()
   }, [activeDutyType, loadSelections])
 
-  /* ── Save (Assign) handler ── */
-  const handleAssign = async () => {
+  /* ── Save handler ── */
+  const handleSaveFunctionaries = async () => {
+    if (allocationMode !== 'manual') return
     setIsSaving(true)
     try {
       await dutiesService.saveDutySelections(activeDutyType, checkedDuties)
       toast.success(`Selections saved for ${activeDutyType}`)
-      setIsEditing(false)
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Failed to save selections')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleModeChange = async (mode: 'auto' | 'manual') => {
+    if (mode === allocationMode) return
+    try {
+      // Persist current manual selections before switching modes.
+      if (allocationMode === 'manual' && activeDutyType) {
+        await dutiesService.saveDutySelections(activeDutyType, checkedDuties)
+      }
+
+      setLoadingAllocationMode(true)
+      const savedMode = await dutiesService.updateDutyAllocationMode(mode)
+      setAllocationMode(savedMode)
+      toast.success(`Duty allocation mode updated to ${savedMode === 'auto' ? 'Auto' : 'Manual'}`)
+    } catch (error) {
+      console.error('Failed to update duty allocation mode:', error)
+      toast.error('Failed to update duty allocation mode')
+    } finally {
+      setLoadingAllocationMode(false)
     }
   }
 
@@ -245,10 +294,36 @@ const Duties: React.FC = () => {
           <div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Duty Assignment by Date</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Assign exam functionaries to rooms for each exam date.
+              {allocationMode === 'auto'
+                ? 'Auto mode active: duty allocation rules will be applied automatically.'
+                : 'Manual mode active: select functionaries date-wise and save.'}
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <div className="inline-flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => handleModeChange('auto')}
+                disabled={loadingAllocationMode}
+                className={`px-3 py-1.5 text-xs font-semibold ${allocationMode === 'auto'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                  }`}
+              >
+                Auto
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeChange('manual')}
+                disabled={loadingAllocationMode}
+                className={`px-3 py-1.5 text-xs font-semibold border-l border-gray-300 dark:border-gray-600 ${allocationMode === 'manual'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+                  }`}
+              >
+                Manual
+              </button>
+            </div>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -264,18 +339,11 @@ const Duties: React.FC = () => {
               />
             </div>
             <button
-              onClick={() => setIsEditing((prev) => !prev)}
-              className={`btn ${isEditing ? 'btn-primary' : 'btn-outline'} disabled:opacity-50 disabled:cursor-not-allowed`}
-              disabled={filteredFunctionaries.length === 0 || examDates.length === 0}
-            >
-              {isEditing ? 'Done Selecting' : 'Select Functionaries'}
-            </button>
-            <button
               className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={filteredFunctionaries.length === 0 || examDates.length === 0 || isSaving}
-              onClick={handleAssign}
+              disabled={allocationMode !== 'manual' || filteredFunctionaries.length === 0 || examDates.length === 0 || isSaving}
+              onClick={handleSaveFunctionaries}
             >
-              {isSaving ? 'Saving...' : 'Assign'}
+              {isSaving ? 'Saving...' : 'Save Functionaries'}
             </button>
           </div>
         </div>
@@ -292,7 +360,6 @@ const Duties: React.FC = () => {
                   onClick={() => {
                     setActiveTab(tab.key)
                     setSearch('')
-                    setIsEditing(false)
                   }}
                   className={`
                     relative px-4 py-3 text-sm font-medium whitespace-nowrap border-b-2 transition-colors
@@ -383,7 +450,15 @@ const Duties: React.FC = () => {
                       {index + 1}
                     </td>
                     <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {func.name}
+                      <div className="inline-flex items-center gap-2">
+                        <span>{func.name}</span>
+                        <span
+                          className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                          title={`Assigned on ${checkedCountByFunctionary[func._id] || 0} date(s)`}
+                        >
+                          {checkedCountByFunctionary[func._id] || 0}
+                        </span>
+                      </div>
                     </td>
                     <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {func.employeeId || '-'}
@@ -396,7 +471,7 @@ const Duties: React.FC = () => {
                       const maxDuties = computeMaxDuties(activeTab, roomsForDate, candidatesForDate)
                       const dateCheckedCount = checkedCountByDate[dateKey] || 0
                       const maxReached = dateCheckedCount >= maxDuties && maxDuties > 0
-                      const isDisabled = !isEditing || (maxReached && !isChecked)
+                      const isDisabled = allocationMode !== 'manual' || (maxReached && !isChecked)
                       return (
                         <td key={key} className="border border-gray-400 dark:border-gray-500 px-4 py-4 text-center">
                           <input
