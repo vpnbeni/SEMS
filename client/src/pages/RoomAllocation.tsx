@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import { seatingPlanService, Room } from '../services/seatingPlanService'
 import centreDatesheetService from '../services/centreDatesheetService'
+import './RoomAllocation.css'
 
 const RoomAllocation: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>([])
@@ -253,7 +254,7 @@ const RoomAllocation: React.FC = () => {
       .filter(Boolean) as Array<Promise<Room>>
 
     if (updates.length === 0) {
-      alert('No allocation changes to save')
+      toast('No allocation changes to save')
       return
     }
 
@@ -261,10 +262,10 @@ const RoomAllocation: React.FC = () => {
     try {
       await Promise.all(updates)
       await fetchRooms()
-      alert(`Saved room allocation for ${updates.length} room(s)`)
+      toast.success(`Saved room allocation for ${updates.length} room(s)`)
     } catch (error) {
       console.error('Failed to save room allocation:', error)
-      alert('Failed to save room allocation')
+      toast.error('Failed to save room allocation')
     } finally {
       setIsSavingAllocation(false)
     }
@@ -991,7 +992,7 @@ const RoomAllocation: React.FC = () => {
         <div className="ra-card-header">
           <div>
             <h3>
-              <span className="ra-header-icon" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+              <span className="ra-header-icon ra-bg-indigo-grad">
                 <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
                 </svg>
@@ -1000,8 +1001,8 @@ const RoomAllocation: React.FC = () => {
             </h3>
           </div>
           <div className="ra-header-stats">
-            <div className="ra-stat-card ra-stat-card-inline" style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%)' }}>
-              <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+            <div className="ra-stat-card ra-stat-card-inline ra-bg-indigo-soft">
+              <div className="ra-stat-icon ra-bg-indigo-grad">
                 <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
                 </svg>
@@ -1011,8 +1012,8 @@ const RoomAllocation: React.FC = () => {
                 <div className="ra-stat-label">Total Rooms</div>
               </div>
             </div>
-            <div className="ra-stat-card ra-stat-card-inline" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' }}>
-              <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+            <div className="ra-stat-card ra-stat-card-inline ra-bg-green-soft">
+              <div className="ra-stat-icon ra-bg-green-grad">
                 <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                 </svg>
@@ -1022,14 +1023,14 @@ const RoomAllocation: React.FC = () => {
                 <div className="ra-stat-label">Exam Dates</div>
               </div>
             </div>
-            <div className="ra-stat-card ra-stat-card-inline" style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' }}>
-              <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+            <div className="ra-stat-card ra-stat-card-inline ra-bg-amber-soft">
+              <div className="ra-stat-icon ra-bg-amber-grad">
                 <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
                 </svg>
               </div>
               <div>
-                <div className="ra-stat-value" style={{ textTransform: 'capitalize' }}>{allocationMode}</div>
+                <div className="ra-stat-value ra-text-capitalize">{allocationMode}</div>
                 <div className="ra-stat-label">Mode</div>
               </div>
             </div>
@@ -1066,7 +1067,7 @@ const RoomAllocation: React.FC = () => {
             <thead>
               <tr>
                 <th>
-                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <label className="ra-checkbox-label">
                     <input
                       type="checkbox"
                       checked={allOnPageSelected}
@@ -1074,7 +1075,7 @@ const RoomAllocation: React.FC = () => {
                         if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected
                       }}
                       onChange={selectAllOnPage}
-                      style={{ width: 16, height: 16, borderRadius: 4, accentColor: '#6366f1' }}
+                      className="ra-checkbox"
                       aria-label="Select all on page"
                     />
                   </label>
@@ -1126,7 +1127,7 @@ const RoomAllocation: React.FC = () => {
                       <option value="Third Floor">Third Floor</option>
                     </select>
                   </td>
-                  <td style={{ display: 'flex', gap: 8 }}>
+                  <td className="ra-action-group">
                     <button onClick={handleAddRoom} className="ra-action-link ra-action-save">Save</button>
                     <button onClick={handleCancelEdit} className="ra-action-link ra-action-cancel">Cancel</button>
                   </td>
@@ -1146,12 +1147,12 @@ const RoomAllocation: React.FC = () => {
                 return (
                   <tr key={room._id}>
                     <td>
-                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                      <label className="ra-checkbox-label">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(room._id)}
                           onChange={() => toggleSelection(room._id)}
-                          style={{ width: 16, height: 16, borderRadius: 4, accentColor: '#6366f1' }}
+                          className="ra-checkbox"
                           aria-label={`Select room ${room.roomNo}`}
                         />
                       </label>
@@ -1204,13 +1205,13 @@ const RoomAllocation: React.FC = () => {
                     </td>
                     <td>
                       {isEditing ? (
-                        <div style={{ display: 'flex', gap: 8 }}>
+                        <div className="ra-action-group">
                           <button onClick={() => handleSaveRoom(room._id)} className="ra-action-link ra-action-save">Save</button>
                           <button onClick={handleCancelEdit} className="ra-action-link ra-action-cancel">Cancel</button>
                         </div>
                       ) : (
                         <button onClick={() => handleEditRoom(room)} className="ra-action-link ra-action-edit">
-                          <svg style={{ width: 14, height: 14, display: 'inline', marginRight: 4, verticalAlign: -2 }} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <svg className="ra-edit-icon" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
                           </svg>
                           Edit
@@ -1253,7 +1254,7 @@ const RoomAllocation: React.FC = () => {
         <div className="ra-card-header">
           <div>
             <h3>
-              <span className="ra-header-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+              <span className="ra-header-icon ra-bg-green-grad">
                 <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
                 </svg>
@@ -1302,7 +1303,7 @@ const RoomAllocation: React.FC = () => {
 
         {loadingExamDates ? (
           <div className="ra-msg">
-            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }}>
+            <svg className="ra-spin" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             Loading exam dates...
@@ -1326,15 +1327,15 @@ const RoomAllocation: React.FC = () => {
             <table className="ra-alloc-table">
               <thead>
                 <tr>
-                  <th style={{ textAlign: 'left' }}>Sr No</th>
-                  <th style={{ textAlign: 'left' }}>Room No</th>
-                  <th style={{ textAlign: 'left' }}>Name</th>
+                  <th className="ra-text-left">Sr No</th>
+                  <th className="ra-text-left">Room No</th>
+                  <th className="ra-text-left">Name</th>
                   {examDates.map((dateKey) => (
                     <th key={dateKey}>{formatDateLabel(dateKey)}</th>
                   ))}
                 </tr>
                 <tr className="ra-required-row">
-                  <th colSpan={3} style={{ textAlign: 'left' }}>Rooms Required</th>
+                  <th colSpan={3} className="ra-text-left">Rooms Required</th>
                   {examDates.map((dateKey) => {
                     const required = Number(requiredRoomsByDate[dateKey] || 0)
                     return <th key={`required-${dateKey}`}>{required}</th>

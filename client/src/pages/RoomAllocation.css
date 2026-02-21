@@ -1,0 +1,70 @@
+.ra-bg-indigo-grad {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+}
+
+.ra-bg-indigo-soft {
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+}
+
+.ra-bg-green-soft {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+
+.ra-bg-amber-soft {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+}
+
+.ra-bg-green-grad {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.ra-bg-amber-grad {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.ra-text-capitalize {
+  text-transform: capitalize;
+}
+
+.ra-checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.ra-checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  accent-color: #6366f1;
+}
+
+.ra-action-group {
+  display: flex;
+  gap: 8px;
+}
+
+.ra-edit-icon {
+  width: 14px;
+  height: 14px;
+  display: inline;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
+.ra-spin {
+  animation: ra-spin 1s linear infinite;
+}
+
+.ra-text-left {
+  text-align: left;
+}
+
+@keyframes ra-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

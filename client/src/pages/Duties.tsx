@@ -1,10 +1,14 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
+import { Document, Page, pdfjs } from 'react-pdf'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { useTeachers } from '../hooks/useTeachers'
 import type { Teacher } from '../services/teacherService'
 import { seatingPlanService, type Room, type SeatingPlanTemplateSettings } from '../services/seatingPlanService'
 import centreDatesheetService from '../services/centreDatesheetService'
 import dutiesService from '../services/dutiesService'
+
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 /* ────────── constants ────────── */
 
@@ -202,6 +206,11 @@ const Duties: React.FC = () => {
   const [dutyListColumnWidths, setDutyListColumnWidths] = useState(DEFAULT_DUTY_LIST_COLUMN_WIDTHS)
   const [templateSettingsSnapshot, setTemplateSettingsSnapshot] = useState<SeatingPlanTemplateSettings | null>(null)
   const [dutyListLayoutReady, setDutyListLayoutReady] = useState(false)
+  const [dutyPdfPreviewUrl, setDutyPdfPreviewUrl] = useState<string | null>(null)
+  const [showDutyPdfPreview, setShowDutyPdfPreview] = useState(false)
+  const [loadingDutyPdfPreview, setLoadingDutyPdfPreview] = useState(false)
+  const [dutyPdfPageCount, setDutyPdfPageCount] = useState(0)
+  const [dutyPdfRenderError, setDutyPdfRenderError] = useState<string | null>(null)
 
   const dutyListControlByKey = useMemo(() => {
     const map = new Map<string, { min: number; max: number }>()
@@ -226,6 +235,22 @@ const Duties: React.FC = () => {
       return acc
     }, {} as Record<keyof typeof DEFAULT_DUTY_LIST_COLUMN_WIDTHS, number>)
   }, [dutyListColumnKeys, dutyListColumnWidths, dutyListPreviewTotalWidth])
+
+  useEffect(() => {
+    return () => {
+      if (dutyPdfPreviewUrl) URL.revokeObjectURL(dutyPdfPreviewUrl)
+    }
+  }, [dutyPdfPreviewUrl])
+
+  const closeDutyPdfPreview = useCallback(() => {
+    setShowDutyPdfPreview(false)
+    setDutyPdfPageCount(0)
+    setDutyPdfRenderError(null)
+    setDutyPdfPreviewUrl((previousUrl) => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl)
+      return null
+    })
+  }, [])
 
   const getSchoolInitials = useCallback((functionary?: Teacher) => {
     const schoolName = String(functionary?.schoolName || '').trim()
@@ -1043,11 +1068,43 @@ const Duties: React.FC = () => {
       toast.error('Select exam date first')
       return
     }
+    setLoadingDutyPdfPreview(true)
     try {
-      const blob = await dutiesService.downloadFunctionaryDutyRecord(selectedRoomDate)
-      seatingPlanService.downloadPDF(blob, `exam-functionary-duty-record-${selectedRoomDate}.pdf`)
+      const rawBlob = await dutiesService.downloadFunctionaryDutyRecord(selectedRoomDate)
+      if (!rawBlob || rawBlob.size === 0) {
+        toast.error('Generated file is empty. Please try again.')
+        return
+      }
+
+      const blobType = String(rawBlob.type || '').toLowerCase()
+      if (blobType.includes('application/json') || blobType.includes('text/plain') || blobType.includes('text/html')) {
+        const rawText = await rawBlob.text()
+        let message = 'Unable to generate PDF preview.'
+        try {
+          const parsed = JSON.parse(rawText)
+          message = parsed?.message || parsed?.error || message
+        } catch {
+          if (rawText?.trim()) message = rawText
+        }
+        toast.error(message)
+        return
+      }
+
+      const pdfBlob = rawBlob.type === 'application/pdf'
+        ? rawBlob
+        : new Blob([rawBlob], { type: 'application/pdf' })
+      const objectUrl = URL.createObjectURL(pdfBlob)
+      setDutyPdfPageCount(0)
+      setDutyPdfRenderError(null)
+      setDutyPdfPreviewUrl((previousUrl) => {
+        if (previousUrl) URL.revokeObjectURL(previousUrl)
+        return objectUrl
+      })
+      setShowDutyPdfPreview(true)
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to download duty record')
+      toast.error(error?.response?.data?.message || 'Failed to generate duty record preview')
+    } finally {
+      setLoadingDutyPdfPreview(false)
     }
   }
 
@@ -1342,24 +1399,32 @@ const Duties: React.FC = () => {
                     &rarr;
                   </button>
                 </div>
-                <button
-                  className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={handleSaveRoomAssignments}
-                  disabled={!selectedRoomDate || savingRoomAssignments || loadingRoomAssignments}
-                >
-                  {savingRoomAssignments ? 'Saving...' : 'Save'}
-                </button>
+                {allocationMode !== 'auto' && (
+                  <button
+                    className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleSaveRoomAssignments}
+                    disabled={!selectedRoomDate || savingRoomAssignments || loadingRoomAssignments}
+                  >
+                    {savingRoomAssignments ? 'Saving...' : 'Save'}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleDownloadRoomAssignments}
-                  disabled={!selectedRoomDate || loadingRoomAssignments}
+                  disabled={!selectedRoomDate || loadingRoomAssignments || loadingDutyPdfPreview}
                   className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Download Exam Functionary Duty Record"
-                  aria-label="Download Exam Functionary Duty Record"
+                  title="Preview Exam Functionary Duty Record"
+                  aria-label="Preview Exam Functionary Duty Record"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v1a3 3 0 003 3h10a3 3 0 003-3v-1" />
-                  </svg>
+                  {loadingDutyPdfPreview ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v12m0 0l4-4m-4 4l-4-4M4 17v1a3 3 0 003 3h10a3 3 0 003-3v-1" />
+                    </svg>
+                  )}
                 </button>
               </div>
             </div>
@@ -1718,6 +1783,78 @@ const Duties: React.FC = () => {
           </div>
         )}
       </div>
+
+      {showDutyPdfPreview && dutyPdfPreviewUrl && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-6xl h-[88vh] bg-white dark:bg-gray-900 rounded-xl shadow-xl overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                Exam Functionary Duty Record Preview
+              </h4>
+              <div className="flex items-center gap-2">
+                <a
+                  href={dutyPdfPreviewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Open in New Tab
+                </a>
+                <a
+                  href={dutyPdfPreviewUrl}
+                  download={`exam-functionary-duty-record-${selectedRoomDate}.pdf`}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Download PDF
+                </a>
+                <button
+                  type="button"
+                  onClick={closeDutyPdfPreview}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="w-full flex-1 overflow-auto bg-gray-100 dark:bg-gray-800 p-4">
+              {dutyPdfRenderError ? (
+                <div className="h-full w-full flex items-center justify-center p-6 text-center text-sm text-gray-600 dark:text-gray-300">
+                  {dutyPdfRenderError}
+                </div>
+              ) : (
+                <Document
+                  file={dutyPdfPreviewUrl}
+                  loading={
+                    <div className="h-full w-full flex items-center justify-center text-sm text-gray-600 dark:text-gray-300">
+                      Loading PDF preview...
+                    </div>
+                  }
+                  onLoadSuccess={({ numPages }) => {
+                    setDutyPdfPageCount(numPages)
+                    setDutyPdfRenderError(null)
+                  }}
+                  onLoadError={(error) => {
+                    console.error('Failed to render duty PDF preview:', error)
+                    const message = (error as Error)?.message || 'Unknown PDF render error'
+                    setDutyPdfRenderError(`Failed to render preview in dialog (${message}). Use "Open in New Tab" or "Download PDF".`)
+                  }}
+                  className="flex flex-col items-center gap-4"
+                >
+                  {Array.from({ length: dutyPdfPageCount }).map((_, index) => (
+                    <Page
+                      key={`duty-preview-page-${index + 1}`}
+                      pageNumber={index + 1}
+                      width={980}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                    />
+                  ))}
+                </Document>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -5,6 +5,7 @@ describe('resolveTenantFromRequest', () => {
 
   beforeEach(() => {
     process.env.ROOT_API_DOMAIN = 'api.vpnbeni.com';
+    process.env.ROOT_APP_DOMAIN = 'vpnbeni.com';
   });
 
   afterAll(() => {
@@ -34,6 +35,35 @@ describe('resolveTenantFromRequest', () => {
 
     expect(result.tenantSlug).toBeNull();
     expect(result.isPlatformHost).toBe(true);
+  });
+
+  it('resolves tenant slug from query on root api host', () => {
+    const req = {
+      headers: { host: 'api.vpnbeni.com' },
+      query: { tenant: 'ib' },
+    };
+
+    const result = resolveTenantFromRequest(req);
+
+    expect(result.tenantSlug).toBe('ib');
+    expect(result.source).toBe('query');
+    expect(result.isPlatformHost).toBe(false);
+  });
+
+  it('resolves tenant slug from referer on root api host when header/query missing', () => {
+    const req = {
+      headers: {
+        host: 'api.vpnbeni.com',
+        referer: 'https://ib.vpnbeni.com/#/form66',
+      },
+      query: {},
+    };
+
+    const result = resolveTenantFromRequest(req);
+
+    expect(result.tenantSlug).toBe('ib');
+    expect(result.source).toBe('referer');
+    expect(result.isPlatformHost).toBe(false);
   });
 
   it('supports localhost tenant resolution from header', () => {

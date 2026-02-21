@@ -1,0 +1,196 @@
+.portal-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  padding: 8px;
+}
+
+.portal-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  padding: 28px 24px 24px;
+  color: #fff;
+  text-decoration: none;
+  overflow: hidden;
+  transition:
+    transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    box-shadow 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  cursor: pointer;
+  min-height: 180px;
+}
+
+.portal-card:hover {
+  transform: translateY(-6px) scale(1.02);
+}
+
+.portal-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0) 50%,
+    rgba(0, 0, 0, 0.08) 100%
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+.portal-card::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(255, 255, 255, 0.18) 0%,
+    transparent 60%
+  );
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity 0.3s ease;
+  opacity: 0.5;
+}
+
+.portal-card:hover::after {
+  opacity: 1;
+}
+
+.portal-card-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.portal-card-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 16px;
+  opacity: 0.9;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+}
+
+.portal-card-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  letter-spacing: -0.01em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.portal-card-desc {
+  font-size: 0.875rem;
+  font-weight: 400;
+  opacity: 0.88;
+  line-height: 1.5;
+  margin: 0;
+  flex: 1;
+}
+
+.portal-card-arrow {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transition: background 0.25s ease, transform 0.25s ease;
+}
+
+.portal-card:hover .portal-card-arrow {
+  background: rgba(255, 255, 255, 0.35);
+  transform: translate(2px, -2px);
+}
+
+.portal-card-arrow svg {
+  width: 14px;
+  height: 14px;
+  color: #fff;
+}
+
+.portal-section-subtitle {
+  font-size: 0.9rem;
+  color: #718096;
+  margin: 0 0 18px 0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .portal-section-subtitle {
+    color: #a0aec0;
+  }
+}
+
+.dark .portal-section-subtitle {
+  color: #a0aec0;
+}
+
+.portal-card--cbse-main {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
+}
+
+.portal-card--cbse-main:hover {
+  box-shadow: 0 16px 48px rgba(102, 126, 234, 0.4);
+}
+
+.portal-card--cbse-academics {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  box-shadow: 0 8px 32px rgba(245, 87, 108, 0.4);
+}
+
+.portal-card--cbse-academics:hover {
+  box-shadow: 0 16px 48px rgba(245, 87, 108, 0.4);
+}
+
+.portal-card--pariksha-sangam {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  box-shadow: 0 8px 32px rgba(79, 172, 254, 0.4);
+}
+
+.portal-card--pariksha-sangam:hover {
+  box-shadow: 0 16px 48px rgba(79, 172, 254, 0.4);
+}
+
+.portal-card--cbse-results {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  box-shadow: 0 8px 32px rgba(67, 233, 123, 0.4);
+}
+
+.portal-card--cbse-results:hover {
+  box-shadow: 0 16px 48px rgba(67, 233, 123, 0.4);
+}
+
+.portal-card--oecms {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  box-shadow: 0 8px 32px rgba(250, 112, 154, 0.4);
+}
+
+.portal-card--oecms:hover {
+  box-shadow: 0 16px 48px rgba(250, 112, 154, 0.4);
+}
+
+.portal-card--loc-admit-card {
+  background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);
+  box-shadow: 0 8px 32px rgba(161, 140, 209, 0.4);
+}
+
+.portal-card--loc-admit-card:hover {
+  box-shadow: 0 16px 48px rgba(161, 140, 209, 0.4);
+}

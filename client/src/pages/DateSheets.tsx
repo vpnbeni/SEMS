@@ -4,6 +4,7 @@ import { Tabs } from '../components/common/Tabs'
 import DatesheetImportModal from '../components/datesheets/ImportModal'
 import CreateDatesheetModal, { DatesheetFormData } from '../components/datesheets/CreateModal'
 import ScheduleModal, { ScheduleRow } from '../components/datesheets/ScheduleModal'
+import './DateSheets.css'
 import calendarService from '../services/calendarService'
 import datesheetService from '../services/datesheetService'
 import {
@@ -641,133 +642,124 @@ const DateSheets: React.FC = () => {
 
   // Helper function to format answer sheet with colored dot
   const formatAnswerSheet = (answerSheet: string) => {
-    const answerSheetConfig: Record<string, { color: string; label: string }> = {
-      '32_pages': { color: '#3B82F6', label: '32 Pages' },
-      '20_pages': { color: '#10B981', label: '20 Pages' },
-      '40_graph': { color: '#F59E0B', label: '40 Pages (Graph)' },
-      'none': { color: '#9CA3AF', label: 'Not specified' }
+    const answerSheetConfig: Record<string, { colorClass: string; label: string }> = {
+      '32_pages': { colorClass: 'answer-sheet-dot--32-pages', label: '32 Pages' },
+      '20_pages': { colorClass: 'answer-sheet-dot--20-pages', label: '20 Pages' },
+      '40_graph': { colorClass: 'answer-sheet-dot--40-graph', label: '40 Pages (Graph)' },
+      'none': { colorClass: 'answer-sheet-dot--none', label: 'Not specified' }
     }
 
     const config = answerSheetConfig[answerSheet] || answerSheetConfig['none']
 
     return (
       <div className="flex items-center gap-2">
-        <div
-          className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ backgroundColor: config.color }}
-        />
+        <div className={`w-2 h-2 rounded-full flex-shrink-0 answer-sheet-dot ${config.colorClass}`} />
         <span>{config.label}</span>
       </div>
     )
   }
 
-  const statsTabs = useMemo(
+  const tabConfigs = useMemo(
     () => [
       {
         id: 'all' as DateSheetTabId,
-        title: 'Full Datesheet',
-        primaryValue: stats.fullDatesheetDays,
-        primaryUnit: 'days',
-        secondaryValue: stats.fullDatesheet,
-        secondaryUnit: 'sub',
-        iconWrapClass: 'bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400',
-        icon: (
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-        ),
+        label: 'Full Datesheet',
+        color: 'blue' as const,
       },
       {
         id: 'centre' as DateSheetTabId,
-        title: 'Centre Datesheet',
-        primaryValue: stats.centreDays,
-        primaryUnit: 'days',
-        secondaryValue: stats.centre,
-        secondaryUnit: 'sub',
-        iconWrapClass: 'bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400',
-        icon: (
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-          </svg>
-        ),
+        label: 'Centre Datesheet',
+        color: 'emerald' as const,
       },
       {
         id: 'centre10th' as DateSheetTabId,
-        title: 'Class 10th',
-        primaryValue: stats.centre10thDays,
-        primaryUnit: 'days',
-        secondaryValue: stats.centre10thCandidates,
-        secondaryUnit: 'std',
-        iconWrapClass: 'bg-indigo-50 text-indigo-500 dark:bg-indigo-900/20 dark:text-indigo-400',
-        icon: (
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-          </svg>
-        ),
+        label: 'Class 10th',
+        color: 'indigo' as const,
       },
       {
         id: 'centre12th' as DateSheetTabId,
-        title: 'Class 12th',
-        primaryValue: stats.centre12thDays,
-        primaryUnit: 'days',
-        secondaryValue: stats.centre12thCandidates,
-        secondaryUnit: 'std',
-        iconWrapClass: 'bg-violet-50 text-violet-500 dark:bg-violet-900/20 dark:text-violet-400',
-        icon: (
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-          </svg>
-        ),
+        label: 'Class 12th',
+        color: 'purple' as const,
       },
     ],
-    [
-      stats.fullDatesheetDays,
-      stats.fullDatesheet,
-      stats.centreDays,
-      stats.centre,
-      stats.centre10thDays,
-      stats.centre10thCandidates,
-      stats.centre12thDays,
-      stats.centre12thCandidates,
-    ]
+    []
   )
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-gray-50/50 dark:bg-gray-900">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {statsTabs.map((tab) => {
-          const isActive = activeTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => handleTabChange(tab.id)}
-              className={`p-5 rounded-xl border text-left shadow-sm transition ${
-                isActive
-                  ? 'border-blue-500 ring-2 ring-blue-200 bg-blue-50/40 dark:bg-blue-900/20 dark:border-blue-400'
-                  : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-300'
-              }`}
-            >
-              <div className="flex items-center space-x-4">
-                <div className={`p-3 rounded-lg flex-shrink-0 ${tab.iconWrapClass}`}>
-                  <span className="w-6 h-6 block">{tab.icon}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">{tab.title}</p>
-                  <div className="flex items-baseline gap-3">
-                    <span className="text-xl font-bold text-gray-900 dark:text-white">{tab.primaryValue}</span>
-                    <span className="text-xs text-gray-400 font-medium">{tab.primaryUnit}</span>
-                    <span className="text-xl font-bold text-gray-900 dark:text-white">{tab.secondaryValue}</span>
-                    <span className="text-xs text-gray-400 font-medium">{tab.secondaryUnit}</span>
-                  </div>
-                </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Full Datesheet</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.fullDatesheetDays}</span>
+                <span className="text-xs text-gray-400 font-medium">days</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.fullDatesheet}</span>
+                <span className="text-xs text-gray-400 font-medium">sub</span>
               </div>
-            </button>
-          )
-  return (
-    <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-gray-50/50 dark:bg-gray-900">
-
-        })}
+            </div>
+          </div>
+        </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Centre Datesheet</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centreDays}</span>
+                <span className="text-xs text-gray-400 font-medium">days</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centre}</span>
+                <span className="text-xs text-gray-400 font-medium">sub</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-indigo-50 text-indigo-500 dark:bg-indigo-900/20 dark:text-indigo-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Class 10th</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centre10thDays}</span>
+                <span className="text-xs text-gray-400 font-medium">days</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centre10thCandidates}</span>
+                <span className="text-xs text-gray-400 font-medium">std</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <div className="flex items-center space-x-4">
+            <div className="p-3 rounded-lg flex-shrink-0 bg-violet-50 text-violet-500 dark:bg-violet-900/20 dark:text-violet-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Class 12th</p>
+              <div className="flex items-baseline gap-3">
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centre12thDays}</span>
+                <span className="text-xs text-gray-400 font-medium">days</span>
+                <span className="text-xl font-bold text-gray-900 dark:text-white">{stats.centre12thCandidates}</span>
+                <span className="text-xs text-gray-400 font-medium">std</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Info Banner for Full Datesheet without CBSE data */}
@@ -796,9 +788,16 @@ const DateSheets: React.FC = () => {
       }
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        {/* Ribbon: actions */}
+        {/* Ribbon: Tabs + actions */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 py-3 bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
-          <div />
+          <Tabs<DateSheetTabId>
+            tabs={tabConfigs}
+            activeTab={activeTab}
+            onChange={handleTabChange}
+            variant="pill"
+            size="sm"
+            ariaLabel="Date sheet views"
+          />
           <div className="flex gap-3 shrink-0">
             {activeTab === 'centre' && (
               <button

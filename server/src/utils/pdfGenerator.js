@@ -48,7 +48,7 @@ class PDFGenerator {
       await page.setContent(html, { waitUntil: 'networkidle0' });
       
       // Generate PDF
-      const pdfBuffer = await page.pdf({
+      const pdfBytes = await page.pdf({
         format: 'A4',
         printBackground: true,
         // Use template-defined @page margins to keep PDF output aligned with preview.
@@ -61,6 +61,7 @@ class PDFGenerator {
         preferCSSPageSize: true,
         ...options
       });
+      const pdfBuffer = Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes);
       
       await browser.close();
       browser = null;

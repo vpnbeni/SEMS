@@ -579,7 +579,11 @@ const Form66: React.FC = () => {
         </div>
       </div>
 
+      <label htmlFor="form66-file-upload" className="sr-only">
+        Upload Form 66 text file
+      </label>
       <input
+        id="form66-file-upload"
         ref={fileInputRef}
         type="file"
         accept=".txt,text/plain"

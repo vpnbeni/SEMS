@@ -8,6 +8,24 @@ const sanitizeSlug = (value = '') => value.trim().toLowerCase();
 
 const isValidSlug = (slug) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(slug);
 
+const extractHostnameFromUrlLikeValue = (value = '') => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return '';
+  try {
+    const parsed = new URL(normalized);
+    return normalizeHost(parsed.hostname);
+  } catch {
+    return '';
+  }
+};
+
+const extractSlugFromOriginHost = (originHost, rootAppDomain) => {
+  if (!originHost) return '';
+  if (originHost === rootAppDomain || originHost === `www.${rootAppDomain}`) return '';
+  if (!originHost.endsWith(`.${rootAppDomain}`)) return '';
+  return sanitizeSlug(originHost.replace(`.${rootAppDomain}`, ''));
+};
+
 const buildHostCandidates = (req) => {
   const forwardedHost = req.headers['x-forwarded-host'];
   const normalizedForwardedHost = Array.isArray(forwardedHost)
@@ -36,10 +54,26 @@ const resolveTenantFromHostname = (hostname, req, rootApiDomain) => {
   if (hostname === rootApiDomain) {
     // Single API host: tenant comes from x-tenant-slug header.
     const headerSlug = sanitizeSlug(req.headers['x-tenant-slug'] || '');
-    const tenantSlug = headerSlug && isValidSlug(headerSlug) ? headerSlug : null;
+    const querySlug = sanitizeSlug(req.query?.tenant || '');
+    const rootAppDomain = (process.env.ROOT_APP_DOMAIN || '').toLowerCase();
+    const originHost = extractHostnameFromUrlLikeValue(req.headers.origin || '');
+    const refererHost = extractHostnameFromUrlLikeValue(req.headers.referer || '');
+    const originSlug = extractSlugFromOriginHost(originHost, rootAppDomain);
+    const refererSlug = extractSlugFromOriginHost(refererHost, rootAppDomain);
+
+    const candidateSlug = headerSlug || querySlug || originSlug || refererSlug;
+    const tenantSlug = candidateSlug && isValidSlug(candidateSlug) ? candidateSlug : null;
     return {
       tenantSlug,
-      source: tenantSlug ? 'header' : 'host',
+      source: headerSlug
+        ? 'header'
+        : querySlug
+          ? 'query'
+          : originSlug
+            ? 'origin'
+            : refererSlug
+              ? 'referer'
+              : 'host',
       isPlatformHost: !tenantSlug,
       host: hostname,
     };
