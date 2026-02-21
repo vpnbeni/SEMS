@@ -144,8 +144,7 @@ const RoomAllocation: React.FC = () => {
 
     setDateRoomOrderDraft((prev) => {
       const roomIdsInOrder = rooms.map((room) => room._id)
-      const clickedIndex = roomIdsInOrder.indexOf(roomId)
-      if (clickedIndex < 0) return prev
+      if (!roomIdsInOrder.includes(roomId)) return prev
 
       const requiredRooms = Number(requiredRoomsByDate[dateKey] || 0)
       const maxSelectable = requiredRooms > 0 ? requiredRooms : roomIdsInOrder.length
@@ -153,29 +152,22 @@ const RoomAllocation: React.FC = () => {
       const currentIndex = current.indexOf(roomId)
 
       if (currentIndex < 0) {
+        // Adding a room – respect the max-selectable limit
         if (requiredRooms > 0 && current.length >= maxSelectable) {
           return prev
         }
 
-        // Manual selection is strictly sequential by room order.
-        if (clickedIndex !== current.length) {
-          return prev
-        }
-
+        // Allow selecting any room; append to end so order = click sequence
         return {
           ...prev,
           [dateKey]: [...current, roomId],
         }
       }
 
-      // Allow deselect only from the tail to preserve sequence integrity.
-      if (currentIndex !== current.length - 1) {
-        return prev
-      }
-
+      // Deselect: remove from wherever it is; order numbers adjust automatically
       return {
         ...prev,
-        [dateKey]: current.slice(0, -1),
+        [dateKey]: current.filter((id) => id !== roomId),
       }
     })
   }
@@ -184,23 +176,17 @@ const RoomAllocation: React.FC = () => {
     if (allocationMode !== 'manual') return false
 
     const roomIdsInOrder = rooms.map((room) => room._id)
-    const clickedIndex = roomIdsInOrder.indexOf(roomId)
-    if (clickedIndex < 0) return false
+    if (!roomIdsInOrder.includes(roomId)) return false
 
     const requiredRooms = Number(requiredRoomsByDate[dateKey] || 0)
     const maxSelectable = requiredRooms > 0 ? requiredRooms : roomIdsInOrder.length
     const current = dateRoomOrderDraft[dateKey] || []
-    const currentIndex = current.indexOf(roomId)
 
-    if (currentIndex >= 0) {
-      return currentIndex === current.length - 1
-    }
+    // Already selected → always allow deselect
+    if (current.includes(roomId)) return true
 
-    if (current.length >= maxSelectable) {
-      return false
-    }
-
-    return clickedIndex === current.length
+    // Not yet selected → allow if below the limit
+    return current.length < maxSelectable
   }
 
   const isRoomSelectedForDate = (roomId: string, dateKey: string) =>
@@ -429,52 +415,649 @@ const RoomAllocation: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
-      {/* Rooms Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-8">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Examination Rooms
-          </h3>
-          <div className="flex space-x-3">
+    <div className="ra-page">
+      <style>{`
+        /* ───────── Page ───────── */
+        .ra-page {
+          padding: 32px;
+          max-width: 1600px;
+          margin: 0 auto;
+        }
+
+        /* ───────── Section cards ───────── */
+        .ra-card {
+          background: #fff;
+          border-radius: 16px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 6px 24px rgba(0,0,0,0.04);
+          overflow: hidden;
+          margin-bottom: 32px;
+          border: 1px solid #e8ecf1;
+          transition: box-shadow 0.3s ease;
+        }
+        .ra-card:hover {
+          box-shadow: 0 2px 6px rgba(0,0,0,0.08), 0 10px 36px rgba(0,0,0,0.06);
+        }
+        .dark .ra-card {
+          background: #1e293b;
+          border-color: #334155;
+        }
+
+        /* ───────── Section headers ───────── */
+        .ra-card-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 20px 28px;
+          background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .dark .ra-card-header {
+          background: linear-gradient(135deg, #1e2a3e 0%, #2a1e3e 100%);
+          border-color: #334155;
+        }
+        .ra-card-header h3 {
+          font-size: 1.15rem;
+          font-weight: 700;
+          color: #1e293b;
+          margin: 0;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .dark .ra-card-header h3 {
+          color: #f1f5f9;
+        }
+        .ra-card-header h3 .ra-header-icon {
+          width: 28px;
+          height: 28px;
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .ra-card-header h3 .ra-header-icon svg {
+          width: 18px;
+          height: 18px;
+          color: #fff;
+        }
+
+        .ra-card-subtitle {
+          font-size: 0.82rem;
+          color: #64748b;
+          margin-top: 4px;
+          font-weight: 400;
+        }
+        .dark .ra-card-subtitle {
+          color: #94a3b8;
+        }
+
+        /* ───────── Buttons ───────── */
+        .ra-btn-group {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        .ra-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 8px 18px;
+          border-radius: 10px;
+          font-size: 0.82rem;
+          font-weight: 600;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+        }
+        .ra-btn svg { width: 16px; height: 16px; }
+        .ra-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .ra-btn-primary {
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          color: #fff;
+          box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
+        }
+        .ra-btn-primary:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 16px rgba(99, 102, 241, 0.45);
+        }
+        .ra-btn-secondary {
+          background: #fff;
+          color: #475569;
+          border: 1.5px solid #e2e8f0;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .dark .ra-btn-secondary {
+          background: #334155;
+          color: #e2e8f0;
+          border-color: #475569;
+        }
+        .ra-btn-secondary:hover:not(:disabled) {
+          background: #f8fafc;
+          border-color: #cbd5e1;
+          transform: translateY(-1px);
+        }
+        .dark .ra-btn-secondary:hover:not(:disabled) {
+          background: #3b4f6b;
+        }
+        .ra-btn-danger {
+          background: #fff;
+          color: #ef4444;
+          border: 1.5px solid #fecaca;
+          box-shadow: 0 1px 3px rgba(239, 68, 68, 0.1);
+        }
+        .ra-btn-danger:hover:not(:disabled) {
+          background: #fef2f2;
+          border-color: #fca5a5;
+          transform: translateY(-1px);
+        }
+        .ra-btn-save {
+          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+          color: #fff;
+          box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
+        }
+        .ra-btn-save:hover:not(:disabled) {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 16px rgba(16, 185, 129, 0.45);
+        }
+
+        /* ───────── Table ───────── */
+        .ra-table-wrap {
+          overflow-x: auto;
+        }
+        .ra-table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+        .ra-table thead th {
+          padding: 14px 20px;
+          font-size: 0.72rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          color: #64748b;
+          background: #f8fafc;
+          border-bottom: 2px solid #e2e8f0;
+          text-align: left;
+          white-space: nowrap;
+        }
+        .dark .ra-table thead th {
+          background: #1e293b;
+          color: #94a3b8;
+          border-color: #334155;
+        }
+        .ra-table tbody tr {
+          transition: background 0.15s ease;
+        }
+        .ra-table tbody tr:hover {
+          background: #f1f5f9;
+        }
+        .dark .ra-table tbody tr:hover {
+          background: #283548;
+        }
+        .ra-table tbody tr:nth-child(even) {
+          background: #fafbfd;
+        }
+        .dark .ra-table tbody tr:nth-child(even) {
+          background: #1a2536;
+        }
+        .ra-table tbody tr:nth-child(even):hover {
+          background: #f1f5f9;
+        }
+        .dark .ra-table tbody tr:nth-child(even):hover {
+          background: #283548;
+        }
+        .ra-table tbody td {
+          padding: 14px 20px;
+          font-size: 0.88rem;
+          color: #334155;
+          border-bottom: 1px solid #f1f5f9;
+          white-space: nowrap;
+        }
+        .dark .ra-table tbody td {
+          color: #e2e8f0;
+          border-color: #1e293b;
+        }
+
+        /* Serial numbers */
+        .ra-sr {
+          font-weight: 600;
+          color: #94a3b8;
+          font-size: 0.82rem;
+          min-width: 32px;
+          display: inline-block;
+        }
+        /* Room number */
+        .ra-room-no {
+          font-weight: 700;
+          color: #1e293b;
+          font-size: 0.9rem;
+        }
+        .dark .ra-room-no { color: #f1f5f9; }
+        /* Room name */
+        .ra-room-name {
+          color: #475569;
+          font-weight: 500;
+        }
+        .dark .ra-room-name { color: #cbd5e1; }
+
+        /* Floor badges */
+        .ra-floor-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 4px 12px;
+          border-radius: 20px;
+          font-size: 0.75rem;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+        }
+        .ra-floor-ground { background: #ecfdf5; color: #059669; }
+        .ra-floor-first { background: #eff6ff; color: #2563eb; }
+        .ra-floor-second { background: #fef3c7; color: #d97706; }
+        .ra-floor-third { background: #f3e8ff; color: #7c3aed; }
+        .ra-floor-default { background: #f1f5f9; color: #475569; }
+        .dark .ra-floor-ground { background: #064e3b33; color: #34d399; }
+        .dark .ra-floor-first { background: #1e3a5f33; color: #60a5fa; }
+        .dark .ra-floor-second { background: #78350f33; color: #fbbf24; }
+        .dark .ra-floor-third { background: #4c1d9533; color: #a78bfa; }
+        .dark .ra-floor-default { background: #33415533; color: #94a3b8; }
+
+        /* Action links */
+        .ra-action-link {
+          font-size: 0.82rem;
+          font-weight: 600;
+          padding: 4px 12px;
+          border-radius: 6px;
+          border: none;
+          background: none;
+          cursor: pointer;
+          transition: all 0.15s ease;
+        }
+        .ra-action-edit {
+          color: #6366f1;
+        }
+        .ra-action-edit:hover {
+          background: #eef2ff;
+          color: #4f46e5;
+        }
+        .dark .ra-action-edit { color: #818cf8; }
+        .dark .ra-action-edit:hover { background: #312e8133; }
+        .ra-action-save {
+          color: #10b981;
+        }
+        .ra-action-save:hover {
+          background: #ecfdf5;
+          color: #059669;
+        }
+        .ra-action-cancel {
+          color: #94a3b8;
+        }
+        .ra-action-cancel:hover {
+          background: #f1f5f9;
+          color: #64748b;
+        }
+
+        /* Checkbox in header */
+        .ra-table thead th:first-child,
+        .ra-table tbody td:first-child {
+          width: 48px;
+          padding-left: 20px;
+          padding-right: 8px;
+        }
+
+        /* New room row */
+        .ra-new-row {
+          background: linear-gradient(90deg, #eef2ff 0%, #f5f3ff 100%) !important;
+        }
+        .dark .ra-new-row {
+          background: linear-gradient(90deg, #1e2a4a 0%, #2a1e4a 100%) !important;
+        }
+
+        /* ───────── Allocation matrix ───────── */
+        .ra-alloc-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .ra-alloc-table thead th {
+          padding: 12px 14px;
+          font-size: 0.72rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: #475569;
+          background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+          border: 1px solid #e2e8f0;
+          text-align: center;
+          white-space: nowrap;
+        }
+        .dark .ra-alloc-table thead th {
+          background: linear-gradient(180deg, #1e293b 0%, #1a2536 100%);
+          color: #94a3b8;
+          border-color: #334155;
+        }
+        .ra-alloc-table thead th:nth-child(1),
+        .ra-alloc-table thead th:nth-child(2),
+        .ra-alloc-table thead th:nth-child(3) {
+          text-align: left;
+        }
+        .ra-alloc-table tbody td {
+          padding: 10px 14px;
+          font-size: 0.85rem;
+          color: #334155;
+          border: 1px solid #e2e8f0;
+          text-align: center;
+          transition: background 0.15s ease;
+        }
+        .dark .ra-alloc-table tbody td {
+          color: #e2e8f0;
+          border-color: #334155;
+        }
+        .ra-alloc-table tbody td:nth-child(1),
+        .ra-alloc-table tbody td:nth-child(2),
+        .ra-alloc-table tbody td:nth-child(3) {
+          text-align: left;
+        }
+        .ra-alloc-table tbody tr:hover td {
+          background: #f0f4ff;
+        }
+        .dark .ra-alloc-table tbody tr:hover td {
+          background: #283548;
+        }
+
+        /* Required rooms row */
+        .ra-required-row th {
+          background: linear-gradient(90deg, #fef3c7 0%, #fef9c3 100%) !important;
+          color: #92400e !important;
+          font-size: 0.72rem !important;
+          padding: 8px 14px !important;
+          font-weight: 700 !important;
+        }
+        .dark .ra-required-row th {
+          background: linear-gradient(90deg, #78350f33 0%, #713f1233 100%) !important;
+          color: #fbbf24 !important;
+        }
+
+        /* Allocation checkbox cell */
+        .ra-alloc-cell {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 3px;
+        }
+        .ra-alloc-cell input[type="checkbox"] {
+          width: 18px;
+          height: 18px;
+          border-radius: 4px;
+          cursor: pointer;
+          accent-color: #6366f1;
+        }
+        .ra-alloc-cell input[type="checkbox"]:disabled {
+          cursor: not-allowed;
+          opacity: 0.35;
+        }
+        .ra-alloc-order {
+          font-size: 10px;
+          font-weight: 800;
+          color: #fff;
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          border-radius: 10px;
+          padding: 1px 7px;
+          min-width: 22px;
+          text-align: center;
+          line-height: 1.5;
+          box-shadow: 0 1px 4px rgba(99, 102, 241, 0.35);
+        }
+
+        /* ───────── Mode toggle ───────── */
+        .ra-mode-toggle {
+          display: inline-flex;
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+          border: 1.5px solid #e2e8f0;
+        }
+        .dark .ra-mode-toggle {
+          border-color: #475569;
+        }
+        .ra-mode-btn {
+          padding: 7px 16px;
+          font-size: 0.78rem;
+          font-weight: 700;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          letter-spacing: 0.02em;
+        }
+        .ra-mode-btn:disabled { cursor: wait; }
+        .ra-mode-active {
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          color: #fff;
+          box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .ra-mode-inactive {
+          background: #fff;
+          color: #64748b;
+        }
+        .dark .ra-mode-inactive {
+          background: #1e293b;
+          color: #94a3b8;
+        }
+        .ra-mode-inactive:hover {
+          background: #f1f5f9;
+          color: #334155;
+        }
+        .dark .ra-mode-inactive:hover {
+          background: #283548;
+          color: #e2e8f0;
+        }
+
+        /* ───────── Room stat cards ───────── */
+        .ra-stats {
+          display: flex;
+          gap: 16px;
+          padding: 20px 28px;
+          border-bottom: 1px solid #e8ecf1;
+          flex-wrap: wrap;
+        }
+        .dark .ra-stats { border-color: #334155; }
+        .ra-stat-card {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 14px 20px;
+          border-radius: 12px;
+          min-width: 160px;
+          flex: 1;
+        }
+        .ra-stat-icon {
+          width: 40px;
+          height: 40px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .ra-stat-icon svg { width: 20px; height: 20px; color: #fff; }
+        .ra-stat-value {
+          font-size: 1.4rem;
+          font-weight: 800;
+          line-height: 1.2;
+          color: #1e293b;
+        }
+        .dark .ra-stat-value { color: #f1f5f9; }
+        .ra-stat-label {
+          font-size: 0.72rem;
+          font-weight: 600;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+
+        /* ───────── Empty state ───────── */
+        .ra-empty {
+          padding: 48px 24px;
+          text-align: center;
+        }
+        .ra-empty-icon {
+          width: 64px;
+          height: 64px;
+          margin: 0 auto 16px;
+          border-radius: 16px;
+          background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .ra-empty-icon svg {
+          width: 32px;
+          height: 32px;
+          color: #94a3b8;
+        }
+        .ra-empty h3 {
+          font-size: 1.05rem;
+          font-weight: 700;
+          color: #334155;
+          margin: 0 0 6px;
+        }
+        .ra-empty p {
+          color: #94a3b8;
+          font-size: 0.88rem;
+          margin: 0 0 20px;
+        }
+
+        /* ───────── Inputs ───────── */
+        .ra-input {
+          width: 100%;
+          padding: 6px 12px;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 8px;
+          font-size: 0.85rem;
+          transition: all 0.2s ease;
+          outline: none;
+          background: #fff;
+          color: #334155;
+        }
+        .dark .ra-input {
+          background: #1e293b;
+          border-color: #475569;
+          color: #e2e8f0;
+        }
+        .ra-input:focus {
+          border-color: #6366f1;
+          box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+        }
+
+        /* ───────── Message bar ───────── */
+        .ra-msg {
+          padding: 24px 28px;
+          font-size: 0.88rem;
+          color: #64748b;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .ra-msg svg { width: 18px; height: 18px; flex-shrink: 0; }
+      `}</style>
+
+      {/* ═══════ Rooms Table Card ═══════ */}
+      <div className="ra-card">
+        <div className="ra-card-header">
+          <div>
+            <h3>
+              <span className="ra-header-icon" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                </svg>
+              </span>
+              Examination Rooms
+            </h3>
+          </div>
+          <div className="ra-btn-group">
             {selectedIds.size > 0 && (
               <button
                 onClick={handleDeleteSelected}
                 disabled={isDeleting}
-                className="inline-flex items-center px-4 py-2 border border-red-300 dark:border-red-700 shadow-sm text-sm font-medium rounded-lg text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors disabled:opacity-50"
+                className="ra-btn ra-btn-danger"
               >
-                Delete {selectedIds.size} selected
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                </svg>
+                Delete {selectedIds.size}
               </button>
             )}
             <button
               onClick={handleAllocate}
               disabled={isAllocating}
-              className="btn btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="ra-btn ra-btn-secondary"
             >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
               {isAllocating ? 'Allocating...' : 'Allocate'}
             </button>
             <button
               onClick={() => setIsAddingNew(true)}
               disabled={isAddingNew}
-              className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              className="ra-btn ra-btn-primary"
             >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
               </svg>
               Add Room
             </button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+        {/* Stats strip */}
+        <div className="ra-stats">
+          <div className="ra-stat-card" style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%)' }}>
+            <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+              </svg>
+            </div>
+            <div>
+              <div className="ra-stat-value">{rooms.length}</div>
+              <div className="ra-stat-label">Total Rooms</div>
+            </div>
+          </div>
+          <div className="ra-stat-card" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' }}>
+            <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+              </svg>
+            </div>
+            <div>
+              <div className="ra-stat-value">{examDates.length}</div>
+              <div className="ra-stat-label">Exam Dates</div>
+            </div>
+          </div>
+          <div className="ra-stat-card" style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' }}>
+            <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
+              </svg>
+            </div>
+            <div>
+              <div className="ra-stat-value" style={{ textTransform: 'capitalize' }}>{allocationMode}</div>
+              <div className="ra-stat-label">Mode</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Rooms list table */}
+        <div className="ra-table-wrap">
+          <table className="ra-table">
+            <thead>
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider w-12">
-                  <label className="flex items-center cursor-pointer">
+                <th>
+                  <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
                     <input
                       type="checkbox"
                       checked={allOnPageSelected}
@@ -482,62 +1065,50 @@ const RoomAllocation: React.FC = () => {
                         if (el) el.indeterminate = someOnPageSelected && !allOnPageSelected
                       }}
                       onChange={selectAllOnPage}
-                      className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+                      style={{ width: 16, height: 16, borderRadius: 4, accentColor: '#6366f1' }}
                       aria-label="Select all on page"
                     />
                   </label>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Sr No
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Room No
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Room Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Floor
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th>Sr No</th>
+                <th>Room No</th>
+                <th>Room Name</th>
+                <th>Floor</th>
+                <th>Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody>
               {/* Add New Room Row */}
               {isAddingNew && (
-                <tr className="bg-blue-50 dark:bg-blue-900/20">
-                  <td className="px-4 py-4 w-12" />
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    -
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                <tr className="ra-new-row">
+                  <td />
+                  <td><span className="ra-sr">—</span></td>
+                  <td>
                     <input
                       type="text"
                       title="Room number"
                       value={newRoom.roomNo}
                       onChange={(e) => setNewRoom({ ...newRoom, roomNo: e.target.value })}
                       placeholder="Room No"
-                      className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                      className="ra-input"
                     />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td>
                     <input
                       type="text"
                       title="Room name"
                       value={newRoom.roomName}
                       onChange={(e) => setNewRoom({ ...newRoom, roomName: e.target.value })}
                       placeholder="Room Name"
-                      className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                      className="ra-input"
                     />
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td>
                     <select
                       title="Room floor"
                       value={newRoom.floor}
                       onChange={(e) => setNewRoom({ ...newRoom, floor: e.target.value })}
-                      className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                      className="ra-input"
                     >
                       <option value="">Select Floor</option>
                       <option value="Ground Floor">Ground Floor</option>
@@ -546,19 +1117,9 @@ const RoomAllocation: React.FC = () => {
                       <option value="Third Floor">Third Floor</option>
                     </select>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                    <button
-                      onClick={handleAddRoom}
-                      className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 font-medium"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={handleCancelEdit}
-                      className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                    >
-                      Cancel
-                    </button>
+                  <td style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={handleAddRoom} className="ra-action-link ra-action-save">Save</button>
+                    <button onClick={handleCancelEdit} className="ra-action-link ra-action-cancel">Cancel</button>
                   </td>
                 </tr>
               )}
@@ -566,24 +1127,28 @@ const RoomAllocation: React.FC = () => {
               {/* Existing Rooms */}
               {rooms.map((room, index) => {
                 const isEditing = editingId === room._id
+                const floorClass =
+                  room.floor === 'Ground Floor' ? 'ra-floor-ground' :
+                    room.floor === 'First Floor' ? 'ra-floor-first' :
+                      room.floor === 'Second Floor' ? 'ra-floor-second' :
+                        room.floor === 'Third Floor' ? 'ra-floor-third' :
+                          'ra-floor-default'
 
                 return (
-                  <tr key={room._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="px-4 py-4 w-12">
-                      <label className="flex items-center cursor-pointer">
+                  <tr key={room._id}>
+                    <td>
+                      <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
                           checked={selectedIds.has(room._id)}
                           onChange={() => toggleSelection(room._id)}
-                          className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
+                          style={{ width: 16, height: 16, borderRadius: 4, accentColor: '#6366f1' }}
                           aria-label={`Select room ${room.roomNo}`}
                         />
                       </label>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <td><span className="ra-sr">{index + 1}</span></td>
+                    <td>
                       {isEditing ? (
                         <input
                           type="text"
@@ -591,13 +1156,13 @@ const RoomAllocation: React.FC = () => {
                           placeholder="Room No"
                           value={editingData.roomNo || ''}
                           onChange={(e) => setEditingData({ ...editingData, roomNo: e.target.value })}
-                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                          className="ra-input"
                         />
                       ) : (
-                        <span className="text-gray-900 dark:text-white">{room.roomNo}</span>
+                        <span className="ra-room-no">{room.roomNo}</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td>
                       {isEditing ? (
                         <input
                           type="text"
@@ -605,19 +1170,19 @@ const RoomAllocation: React.FC = () => {
                           placeholder="Room Name"
                           value={editingData.roomName || ''}
                           onChange={(e) => setEditingData({ ...editingData, roomName: e.target.value })}
-                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                          className="ra-input"
                         />
                       ) : (
-                        <span className="text-gray-900 dark:text-white">{room.roomName}</span>
+                        <span className="ra-room-name">{room.roomName}</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <td>
                       {isEditing ? (
                         <select
                           title="Edit room floor"
                           value={editingData.floor || ''}
                           onChange={(e) => setEditingData({ ...editingData, floor: e.target.value })}
-                          className="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+                          className="ra-input"
                         >
                           <option value="Ground Floor">Ground Floor</option>
                           <option value="First Floor">First Floor</option>
@@ -625,30 +1190,20 @@ const RoomAllocation: React.FC = () => {
                           <option value="Third Floor">Third Floor</option>
                         </select>
                       ) : (
-                        <span className="text-gray-900 dark:text-white">{room.floor}</span>
+                        <span className={`ra-floor-badge ${floorClass}`}>{room.floor}</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                    <td>
                       {isEditing ? (
-                        <>
-                          <button
-                            onClick={() => handleSaveRoom(room._id)}
-                            className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300 font-medium"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={handleCancelEdit}
-                            className="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-300"
-                          >
-                            Cancel
-                          </button>
-                        </>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => handleSaveRoom(room._id)} className="ra-action-link ra-action-save">Save</button>
+                          <button onClick={handleCancelEdit} className="ra-action-link ra-action-cancel">Cancel</button>
+                        </div>
                       ) : (
-                        <button
-                          onClick={() => handleEditRoom(room)}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                        >
+                        <button onClick={() => handleEditRoom(room)} className="ra-action-link ra-action-edit">
+                          <svg style={{ width: 14, height: 14, display: 'inline', marginRight: 4, verticalAlign: -2 }} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                          </svg>
                           Edit
                         </button>
                       )}
@@ -660,25 +1215,22 @@ const RoomAllocation: React.FC = () => {
               {/* Empty State */}
               {rooms.length === 0 && !isAddingNew && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                    </svg>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                      No Rooms Available
-                    </h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-6">
-                      Add examination rooms and configure seating arrangements for your exams.
-                    </p>
-                    <button
-                      onClick={() => setIsAddingNew(true)}
-                      className="btn btn-primary"
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      Add Room
-                    </button>
+                  <td colSpan={6}>
+                    <div className="ra-empty">
+                      <div className="ra-empty-icon">
+                        <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                        </svg>
+                      </div>
+                      <h3>No Rooms Available</h3>
+                      <p>Add examination rooms and configure seating arrangements for your exams.</p>
+                      <button onClick={() => setIsAddingNew(true)} className="ra-btn ra-btn-primary">
+                        <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
+                        </svg>
+                        Add Room
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -687,27 +1239,31 @@ const RoomAllocation: React.FC = () => {
         </div>
       </div>
 
-      {/* Room Allocation Matrix */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+      {/* ═══════ Room Allocation Matrix Card ═══════ */}
+      <div className="ra-card">
+        <div className="ra-card-header">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Room Allocation by Date</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <h3>
+              <span className="ra-header-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                </svg>
+              </span>
+              Room Allocation by Date
+            </h3>
+            <div className="ra-card-subtitle">
               {allocationMode === 'auto'
                 ? 'Auto mode active: system will allocate rooms automatically by allocation guidelines.'
-                : 'Manual mode active: select one room at a time in checkbox order for each date.'}
-            </p>
+                : 'Manual mode active: select rooms in any order for each date. Selection order determines usage priority.'}
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="inline-flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+          <div className="ra-btn-group">
+            <div className="ra-mode-toggle">
               <button
                 type="button"
                 onClick={() => handleModeChange('auto')}
                 disabled={loadingAllocationMode}
-                className={`px-3 py-1.5 text-xs font-semibold ${allocationMode === 'auto'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                  }`}
+                className={`ra-mode-btn ${allocationMode === 'auto' ? 'ra-mode-active' : 'ra-mode-inactive'}`}
               >
                 Auto
               </button>
@@ -715,10 +1271,7 @@ const RoomAllocation: React.FC = () => {
                 type="button"
                 onClick={() => handleModeChange('manual')}
                 disabled={loadingAllocationMode}
-                className={`px-3 py-1.5 text-xs font-semibold border-l border-gray-300 dark:border-gray-600 ${allocationMode === 'manual'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                  }`}
+                className={`ra-mode-btn ${allocationMode === 'manual' ? 'ra-mode-active' : 'ra-mode-inactive'}`}
               >
                 Manual
               </button>
@@ -727,8 +1280,11 @@ const RoomAllocation: React.FC = () => {
               <button
                 onClick={handleSaveRoomAllocations}
                 disabled={isSavingAllocation || rooms.length === 0 || examDates.length === 0}
-                className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="ra-btn ra-btn-save"
               >
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
                 {isSavingAllocation ? 'Saving...' : 'Save Allocation'}
               </button>
             )}
@@ -736,81 +1292,72 @@ const RoomAllocation: React.FC = () => {
         </div>
 
         {loadingExamDates ? (
-          <div className="px-6 py-8 text-sm text-gray-500 dark:text-gray-400">Loading exam dates...</div>
+          <div className="ra-msg">
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Loading exam dates...
+          </div>
         ) : allocationMode === 'auto' ? (
-          <div className="px-6 py-8 text-sm text-gray-500 dark:text-gray-400">
-            Auto mode is enabled. Room allocation table is hidden.
+          <div className="ra-msg">
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+            </svg>
+            Auto mode is enabled. Switch to Manual mode to configure room allocation per date.
           </div>
         ) : examDates.length === 0 ? (
-          <div className="px-6 py-8 text-sm text-gray-500 dark:text-gray-400">
+          <div className="ra-msg">
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
             No centre datesheet dates found. Import/generate centre datesheet to enable allocation columns.
           </div>
         ) : (
-          <div className="overflow-x-auto transition-opacity">
-            <table className="min-w-full border-collapse border-2 border-gray-400 dark:border-gray-500">
-              <thead className="bg-gray-50 dark:bg-gray-700">
+          <div className="ra-table-wrap">
+            <table className="ra-alloc-table">
+              <thead>
                 <tr>
-                  <th className="border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider">Sr No</th>
-                  <th className="border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider">Room No</th>
-                  <th className="border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider">Name</th>
+                  <th style={{ textAlign: 'left' }}>Sr No</th>
+                  <th style={{ textAlign: 'left' }}>Room No</th>
+                  <th style={{ textAlign: 'left' }}>Name</th>
                   {examDates.map((dateKey) => (
-                    <th
-                      key={dateKey}
-                      className="border border-gray-400 dark:border-gray-500 px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider whitespace-nowrap"
-                    >
-                      {formatDateLabel(dateKey)}
-                    </th>
+                    <th key={dateKey}>{formatDateLabel(dateKey)}</th>
                   ))}
                 </tr>
-                <tr>
-                  <th
-                    colSpan={3}
-                    className="border border-gray-400 dark:border-gray-500 px-4 py-2 text-left text-[11px] font-semibold text-gray-700 dark:text-gray-100 uppercase tracking-wide"
-                  >
-                    Rooms Required
-                  </th>
+                <tr className="ra-required-row">
+                  <th colSpan={3} style={{ textAlign: 'left' }}>Rooms Required</th>
                   {examDates.map((dateKey) => {
                     const required = Number(requiredRoomsByDate[dateKey] || 0)
-                    return (
-                      <th
-                        key={`required-${dateKey}`}
-                        className="border border-gray-400 dark:border-gray-500 px-4 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-100 whitespace-nowrap"
-                      >
-                        {required}
-                      </th>
-                    )
+                    return <th key={`required-${dateKey}`}>{required}</th>
                   })}
                 </tr>
               </thead>
-              <tbody className="bg-white dark:bg-gray-800">
-                {rooms.map((room, index) => {
-                  return (
-                    <tr key={`allocation-${room._id}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{index + 1}</td>
-                      <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{room.roomNo}</td>
-                      <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {room.roomName || `Room ${room.roomNo}`}
-                      </td>
-                      {examDates.map((dateKey) => (
-                        <td key={`${room._id}-${dateKey}`} className="border border-gray-400 dark:border-gray-500 px-4 py-4 text-center">
+              <tbody>
+                {rooms.map((room, index) => (
+                  <tr key={`allocation-${room._id}`}>
+                    <td><span className="ra-sr">{index + 1}</span></td>
+                    <td><span className="ra-room-no">{room.roomNo}</span></td>
+                    <td><span className="ra-room-name">{room.roomName || `Room ${room.roomNo}`}</span></td>
+                    {examDates.map((dateKey) => (
+                      <td key={`${room._id}-${dateKey}`}>
+                        <div className="ra-alloc-cell">
                           <input
                             type="checkbox"
                             checked={isRoomSelectedForDate(room._id, dateKey)}
                             onChange={() => toggleRoomDateAllocation(room._id, dateKey)}
                             disabled={!canToggleRoomDateAllocation(room._id, dateKey)}
-                            className="rounded border-gray-300 dark:border-gray-600 text-primary-600 focus:ring-primary-500"
                             title={`${room.roomNo} - ${formatDateLabel(dateKey)}${allocationMode === 'manual' ? '' : ' (disabled in auto mode)'}`}
                           />
                           {allocationMode === 'manual' && getSelectionOrder(room._id, dateKey) !== null && (
-                            <div className="text-[10px] mt-1 text-blue-700 dark:text-blue-300 font-semibold">
+                            <span className="ra-alloc-order">
                               #{getSelectionOrder(room._id, dateKey)}
-                            </div>
+                            </span>
                           )}
-                        </td>
-                      ))}
-                    </tr>
-                  )
-                })}
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

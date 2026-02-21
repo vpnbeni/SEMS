@@ -28,6 +28,7 @@ const PAGE_SIZE_OPTIONS = [
   { value: 20, label: '20' },
   { value: 50, label: '50' },
   { value: 100, label: '100' },
+  { value: 9999, label: 'All' },
 ]
 
 const SEARCH_DEBOUNCE_MS = 300
@@ -196,83 +197,607 @@ const Subjects: React.FC = () => {
   }
 
   return (
-    <div className="pt-4 px-8 pb-8 max-w-[1600px] mx-auto min-h-screen bg-gray-50/50 dark:bg-gray-900">
+    <div className="subj-page">
+      <style>{`
+        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        .subj-page {
+          padding: 20px 32px 32px;
+          max-width: 1600px;
+          margin: 0 auto;
+        }
+
+        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Success toast â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        .subj-toast {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 14px 20px;
+          border-radius: 12px;
+          margin-bottom: 20px;
+          font-size: 0.88rem;
+          font-weight: 600;
+          background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+          color: #065f46;
+          border: 1px solid #a7f3d0;
+          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.15);
+          animation: subj-slideDown 0.3s ease;
+        }
+        @keyframes subj-slideDown {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .subj-toast svg { width: 20px; height: 20px; flex-shrink: 0; color: #10b981; }
+
+        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Stat cards â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        .subj-stats {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+        @media (max-width: 768px) {
+          .subj-stats { grid-template-columns: 1fr; }
+        }
+        .subj-stat {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 20px 24px;
+          border-radius: 16px;
+          border: 1px solid #e8ecf1;
+          transition: all 0.25s ease;
+          background: #fff;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .dark .subj-stat {
+          background: #1e293b;
+          border-color: #334155;
+        }
+        .subj-stat:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+        }
+        .subj-stat-icon {
+          width: 48px;
+          height: 48px;
+          border-radius: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .subj-stat-icon svg { width: 24px; height: 24px; color: #fff; }
+        .subj-stat-value {
+          font-size: 1.6rem;
+          font-weight: 800;
+          line-height: 1.2;
+          color: #1e293b;
+        }
+        .dark .subj-stat-value { color: #f1f5f9; }
+        .subj-stat-label {
+          font-size: 0.78rem;
+          font-weight: 600;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          margin-top: 2px;
+        }
+
+        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Search â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        .subj-search-wrap {
+          margin-bottom: 20px;
+          position: relative;
+          max-width: 420px;
+        }
+        .subj-search {
+          width: 100%;
+          padding: 10px 16px 10px 42px;
+          border: 1.5px solid #e2e8f0;
+          border-radius: 12px;
+          font-size: 0.88rem;
+          background: #fff;
+          color: #334155;
+          outline: none;
+          transition: all 0.2s ease;
+        }
+        .dark .subj-search {
+          background: #1e293b;
+          border-color: #475569;
+          color: #e2e8f0;
+        }
+        .subj-search:focus {
+          border-color: #6366f1;
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+        }
+        .subj-search-icon {
+          position: absolute;
+          left: 14px;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 18px;
+          height: 18px;
+          color: #94a3b8;
+          pointer-events: none;
+        }
+
+        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Card â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        .subj-card {
+          background: #fff;
+          border-radius: 16px;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 6px 24px rgba(0,0,0,0.04);
+          overflow: hidden;
+          border: 1px solid #e8ecf1;
+          transition: box-shadow 0.3s ease;
+        }
+        .dark .subj-card {
+          background: #1e293b;
+          border-color: #334155;
+        }
+        .subj-card:hover {
+          box-shadow: 0 2px 6px rgba(0,0,0,0.08), 0 10px 36px rgba(0,0,0,0.06);
+        }
+
+        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Toolbar (tabs + buttons) â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        .subj-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 16px 24px;
+          background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
+          border-bottom: 1px solid #e2e8f0;
+          flex-wrap: wrap;
+        }
+        .dark .subj-toolbar {
+          background: linear-gradient(135deg, #1e2a3e 0%, #2a1e3e 100%);
+          border-color: #334155;
+        }
+
+        /* Action buttons */
+        .subj-actions {
+          display: flex;
+          gap: 10px;
+          flex-shrink: 0;
+          flex-wrap: wrap;
+        }
+        .subj-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 9px 18px;
+          border-radius: 10px;
+          font-size: 0.82rem;
+          font-weight: 600;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          white-space: nowrap;
+        }
+        .subj-btn svg { width: 16px; height: 16px; }
+        .subj-btn-outline {
+          background: #fff;
+          color: #6366f1;
+          border: 1.5px solid #c7d2fe;
+          box-shadow: 0 1px 3px rgba(99, 102, 241, 0.08);
+        }
+        .dark .subj-btn-outline {
+          background: #334155;
+          color: #a5b4fc;
+          border-color: #4f46e5;
+        }
+        .subj-btn-outline:hover {
+          background: #eef2ff;
+          border-color: #a5b4fc;
+          transform: translateY(-1px);
+          box-shadow: 0 3px 10px rgba(99, 102, 241, 0.15);
+        }
+        .subj-btn-primary {
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+          color: #fff;
+          box-shadow: 0 2px 10px rgba(99, 102, 241, 0.35);
+        }
+        .subj-btn-primary:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 16px rgba(99, 102, 241, 0.45);
+        }
+
+        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Table â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        .subj-table-wrap { overflow-x: auto; }
+        .subj-table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+        }
+        .subj-table thead th {
+          padding: 14px 24px;
+          font-size: 0.72rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          color: #64748b;
+          background: #f8fafc;
+          border-bottom: 2px solid #e2e8f0;
+          text-align: left;
+          white-space: nowrap;
+        }
+        .dark .subj-table thead th {
+          background: #1e293b;
+          color: #94a3b8;
+          border-color: #334155;
+        }
+        .subj-table thead th .subj-sort-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          background: none;
+          border: none;
+          color: inherit;
+          font: inherit;
+          text-transform: inherit;
+          letter-spacing: inherit;
+          cursor: pointer;
+          padding: 0;
+          transition: color 0.15s;
+        }
+        .subj-table thead th .subj-sort-btn:hover {
+          color: #334155;
+        }
+        .dark .subj-table thead th .subj-sort-btn:hover {
+          color: #e2e8f0;
+        }
+        .subj-sort-arrows {
+          display: flex;
+          flex-direction: column;
+          gap: 0;
+        }
+        .subj-sort-arrows svg { width: 10px; height: 10px; }
+        .subj-sort-arrows svg.active-sort { color: #6366f1; }
+        .subj-sort-arrows svg.inactive-sort { color: #cbd5e1; }
+        .dark .subj-sort-arrows svg.inactive-sort { color: #475569; }
+
+        /* Table body */
+        .subj-table tbody tr {
+          transition: background 0.15s ease;
+        }
+        .subj-table tbody td {
+          padding: 14px 24px;
+          font-size: 0.88rem;
+          color: #334155;
+          border-bottom: 1px solid #f1f5f9;
+          white-space: nowrap;
+        }
+        .dark .subj-table tbody td {
+          color: #e2e8f0;
+          border-color: #1e293b;
+        }
+
+        /* Class-based row colors */
+        .subj-row-10th {
+          background: linear-gradient(90deg, #ecfdf5 0%, #f0fdf4 100%);
+        }
+        .subj-row-10th:hover {
+          background: linear-gradient(90deg, #dcfce7 0%, #d1fae5 100%) !important;
+        }
+        .subj-row-12th {
+          background: linear-gradient(90deg, #faf5ff 0%, #f5f3ff 100%);
+        }
+        .subj-row-12th:hover {
+          background: linear-gradient(90deg, #f3e8ff 0%, #ede9fe 100%) !important;
+        }
+        .dark .subj-row-10th {
+          background: linear-gradient(90deg, #064e3b15 0%, #065f4615 100%);
+        }
+        .dark .subj-row-10th:hover {
+          background: linear-gradient(90deg, #064e3b30 0%, #065f4630 100%) !important;
+        }
+        .dark .subj-row-12th {
+          background: linear-gradient(90deg, #4c1d9515 0%, #5b21b615 100%);
+        }
+        .dark .subj-row-12th:hover {
+          background: linear-gradient(90deg, #4c1d9530 0%, #5b21b630 100%) !important;
+        }
+        .subj-table tbody tr:not(.subj-row-10th):not(.subj-row-12th):hover {
+          background: #f1f5f9;
+        }
+        .dark .subj-table tbody tr:not(.subj-row-10th):not(.subj-row-12th):hover {
+          background: #283548;
+        }
+
+        /* Code badge */
+        .subj-code {
+          display: inline-flex;
+          align-items: center;
+          padding: 3px 10px;
+          border-radius: 6px;
+          font-size: 0.82rem;
+          font-weight: 700;
+          font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+          letter-spacing: 0.02em;
+        }
+        .subj-code-10th { background: #d1fae5; color: #065f46; }
+        .subj-code-12th { background: #ede9fe; color: #5b21b6; }
+        .subj-code-default { background: #f1f5f9; color: #475569; }
+        .dark .subj-code-10th { background: #065f4640; color: #6ee7b7; }
+        .dark .subj-code-12th { background: #5b21b640; color: #c4b5fd; }
+        .dark .subj-code-default { background: #33415540; color: #94a3b8; }
+
+        /* Subject name */
+        .subj-name {
+          font-weight: 600;
+          font-size: 0.88rem;
+        }
+        .subj-name-10th { color: #065f46; }
+        .subj-name-12th { color: #5b21b6; }
+        .subj-name-default { color: #1e293b; }
+        .dark .subj-name-10th { color: #6ee7b7; }
+        .dark .subj-name-12th { color: #c4b5fd; }
+        .dark .subj-name-default { color: #f1f5f9; }
+
+        /* Class badge */
+        .subj-class-badge {
+          display: inline-flex;
+          align-items: center;
+          padding: 3px 12px;
+          border-radius: 20px;
+          font-size: 0.75rem;
+          font-weight: 700;
+        }
+        .subj-class-10th { background: #d1fae5; color: #059669; }
+        .subj-class-12th { background: #ede9fe; color: #7c3aed; }
+        .dark .subj-class-10th { background: #065f4640; color: #34d399; }
+        .dark .subj-class-12th { background: #5b21b640; color: #a78bfa; }
+
+        /* Duration & answer sheet */
+        .subj-meta {
+          font-size: 0.85rem;
+          color: #475569;
+          font-weight: 500;
+        }
+        .subj-meta-10th { color: #047857; }
+        .subj-meta-12th { color: #6d28d9; }
+        .dark .subj-meta { color: #94a3b8; }
+        .dark .subj-meta-10th { color: #34d399; }
+        .dark .subj-meta-12th { color: #a78bfa; }
+
+        /* Answer sheet pill */
+        .subj-answer {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 3px 10px;
+          border-radius: 8px;
+          font-size: 0.78rem;
+          font-weight: 600;
+        }
+        .subj-answer-10th { background: #ecfdf580; color: #047857; }
+        .subj-answer-12th { background: #f5f3ff80; color: #6d28d9; }
+        .subj-answer-default { background: #f1f5f9; color: #64748b; }
+        .dark .subj-answer-10th { background: #065f4630; color: #34d399; }
+        .dark .subj-answer-12th { background: #5b21b630; color: #a78bfa; }
+        .dark .subj-answer-default { background: #33415540; color: #94a3b8; }
+
+        /* Edit button */
+        .subj-edit-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 32px;
+          height: 32px;
+          border-radius: 8px;
+          border: none;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          background: transparent;
+        }
+        .subj-edit-10th { color: #059669; }
+        .subj-edit-10th:hover { background: #d1fae580; color: #047857; }
+        .subj-edit-12th { color: #7c3aed; }
+        .subj-edit-12th:hover { background: #ede9fe80; color: #6d28d9; }
+        .subj-edit-default { color: #6366f1; }
+        .subj-edit-default:hover { background: #eef2ff; color: #4f46e5; }
+        .dark .subj-edit-10th { color: #34d399; }
+        .dark .subj-edit-10th:hover { background: #065f4630; }
+        .dark .subj-edit-12th { color: #a78bfa; }
+        .dark .subj-edit-12th:hover { background: #5b21b630; }
+        .dark .subj-edit-default { color: #818cf8; }
+        .dark .subj-edit-default:hover { background: #312e8130; }
+
+        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Loading / Empty â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        .subj-empty {
+          padding: 48px 24px;
+          text-align: center;
+        }
+        .subj-empty-icon {
+          width: 64px;
+          height: 64px;
+          margin: 0 auto 16px;
+          border-radius: 16px;
+          background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .subj-empty-icon svg { width: 32px; height: 32px; color: #94a3b8; }
+        .subj-empty h3 {
+          font-size: 1.05rem;
+          font-weight: 700;
+          color: #334155;
+          margin: 0 0 6px;
+        }
+        .subj-empty p {
+          color: #94a3b8;
+          font-size: 0.88rem;
+          margin: 0 0 20px;
+        }
+        .subj-spinner {
+          width: 32px;
+          height: 32px;
+          border: 3px solid #e2e8f0;
+          border-top-color: #6366f1;
+          border-radius: 50%;
+          animation: subj-spin 0.7s linear infinite;
+          margin: 0 auto 12px;
+        }
+        @keyframes subj-spin {
+          to { transform: rotate(360deg); }
+        }
+
+        /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+        .subj-pagination {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          padding: 16px 24px;
+          border-top: 1px solid #e8ecf1;
+          flex-wrap: wrap;
+          background: #fafbfd;
+        }
+        .dark .subj-pagination {
+          border-color: #334155;
+          background: #1a2536;
+        }
+        .subj-pagination-info {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          flex-wrap: wrap;
+        }
+        .subj-pagination-text {
+          font-size: 0.82rem;
+          color: #64748b;
+        }
+        .subj-pagination-text strong {
+          color: #334155;
+          font-weight: 700;
+        }
+        .dark .subj-pagination-text { color: #94a3b8; }
+        .dark .subj-pagination-text strong { color: #e2e8f0; }
+
+        .subj-page-nav {
+          display: flex;
+          align-items: center;
+          gap: 0;
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+          border: 1px solid #e2e8f0;
+        }
+        .dark .subj-page-nav { border-color: #475569; }
+        .subj-page-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 6px 14px;
+          font-size: 0.82rem;
+          font-weight: 600;
+          border: none;
+          cursor: pointer;
+          transition: all 0.15s ease;
+          background: #fff;
+          color: #475569;
+          min-width: 38px;
+          border-right: 1px solid #e2e8f0;
+        }
+        .dark .subj-page-btn {
+          background: #1e293b;
+          color: #94a3b8;
+          border-color: #334155;
+        }
+        .subj-page-btn:last-child { border-right: none; }
+        .subj-page-btn:hover:not(:disabled):not(.subj-page-active) {
+          background: #f1f5f9;
+          color: #334155;
+        }
+        .dark .subj-page-btn:hover:not(:disabled):not(.subj-page-active) {
+          background: #283548;
+          color: #e2e8f0;
+        }
+        .subj-page-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+        .subj-page-btn svg { width: 16px; height: 16px; }
+        .subj-page-active {
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+          color: #fff !important;
+          font-weight: 700;
+        }
+
+        .subj-per-page {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.82rem;
+          color: #64748b;
+        }
+        .dark .subj-per-page { color: #94a3b8; }
+      `}</style>
+
       {successMessage && (
-        <div className="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-md">
-          <div className="flex">
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-            {successMessage}
-          </div>
+        <div className="subj-toast">
+          <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {successMessage}
         </div>
       )}
 
-      {/* Stat cards (display only) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-          <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-lg flex-shrink-0 bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Subjects</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
-            </div>
-          </div>
-        </div>
-        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-          <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-lg flex-shrink-0 bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Class 10th</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.class10th}</p>
-            </div>
-          </div>
-        </div>
-        <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-          <div className="flex items-center space-x-4">
-            <div className="p-3 rounded-lg flex-shrink-0 bg-violet-50 text-violet-500 dark:bg-violet-900/20 dark:text-violet-400">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Class 12th</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white">{stats.class12th}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Search (above table card) */}
-      <div className="mb-4">
-        <div className="relative max-w-md">
-          <input
-            type="text"
-            placeholder="Search subjects..."
-            value={searchInput}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          />
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+      {/* â•â•â•â•â•â•â• Stat Cards â•â•â•â•â•â•â• */}
+      <div className="subj-stats">
+        <div className="subj-stat" style={{ borderLeft: '4px solid #6366f1' }}>
+          <div className="subj-stat-icon" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
             </svg>
           </div>
+          <div>
+            <div className="subj-stat-value">{stats.total}</div>
+            <div className="subj-stat-label">Total Subjects</div>
+          </div>
+        </div>
+        <div className="subj-stat" style={{ borderLeft: '4px solid #10b981' }}>
+          <div className="subj-stat-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+            </svg>
+          </div>
+          <div>
+            <div className="subj-stat-value">{stats.class10th}</div>
+            <div className="subj-stat-label">Class 10th</div>
+          </div>
+        </div>
+        <div className="subj-stat" style={{ borderLeft: '4px solid #8b5cf6' }}>
+          <div className="subj-stat-icon" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}>
+            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+            </svg>
+          </div>
+          <div>
+            <div className="subj-stat-value">{stats.class12th}</div>
+            <div className="subj-stat-label">Class 12th</div>
+          </div>
         </div>
       </div>
 
-      {/* Table card: tabs + buttons bar, then table */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        {/* Ribbon: Tabs + action buttons */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-4 py-3 bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+      {/* â•â•â•â•â•â•â• Search â•â•â•â•â•â•â• */}
+      <div className="subj-search-wrap">
+        <svg className="subj-search-icon" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        </svg>
+        <input
+          type="text"
+          placeholder="Search subjects..."
+          value={searchInput}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          className="subj-search"
+        />
+      </div>
+
+      {/* â•â•â•â•â•â•â• Table Card â•â•â•â•â•â•â• */}
+      <div className="subj-card">
+        {/* Toolbar */}
+        <div className="subj-toolbar">
           <Tabs<SubjectTabId>
             tabs={[
               { id: 'all', label: 'Total Subjects', color: 'blue' },
@@ -285,199 +810,152 @@ const Subjects: React.FC = () => {
             size="sm"
             ariaLabel="Subject views"
           />
-          <div className="flex gap-3 shrink-0">
-            <button
-              onClick={() => setShowImportModal(true)}
-              className="inline-flex items-center px-4 py-2 border border-blue-600 shadow-sm text-sm font-medium rounded-lg text-blue-600 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-            >
-              <svg className="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          <div className="subj-actions">
+            <button onClick={() => setShowImportModal(true)} className="subj-btn subj-btn-outline">
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
               Import PDF
             </button>
-            <button
-              onClick={handleAddClick}
-              className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-            >
-              <svg className="w-5 h-5 mr-2 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            <button onClick={handleAddClick} className="subj-btn subj-btn-primary">
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
               </svg>
-              Add Subject
+              + Add Subject
             </button>
           </div>
         </div>
-        {/* Subjects Table */}
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
+
+        {/* Table */}
+        <div className="subj-table-wrap">
+          <table className="subj-table">
+            <thead>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  <button onClick={() => handleSort('code')} className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none">
+                <th>
+                  <button onClick={() => handleSort('code')} className="subj-sort-btn">
                     <span>Sub Code</span>
-                    <div className="flex flex-col">
-                      <svg className={`w-3 h-3 ${sortField === 'code' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
-                      <svg className={`w-3 h-3 -mt-1 ${sortField === 'code' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                    <div className="subj-sort-arrows">
+                      <svg className={sortField === 'code' && sortOrder === 'asc' ? 'active-sort' : 'inactive-sort'} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                      <svg className={sortField === 'code' && sortOrder === 'desc' ? 'active-sort' : 'inactive-sort'} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                     </div>
                   </button>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  <button onClick={() => handleSort('name')} className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none">
+                <th>
+                  <button onClick={() => handleSort('name')} className="subj-sort-btn">
                     <span>Subject Name</span>
-                    <div className="flex flex-col">
-                      <svg className={`w-3 h-3 ${sortField === 'name' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
-                      <svg className={`w-3 h-3 -mt-1 ${sortField === 'name' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                    <div className="subj-sort-arrows">
+                      <svg className={sortField === 'name' && sortOrder === 'asc' ? 'active-sort' : 'inactive-sort'} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                      <svg className={sortField === 'name' && sortOrder === 'desc' ? 'active-sort' : 'inactive-sort'} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                     </div>
                   </button>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Class
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  <button onClick={() => handleSort('duration')} className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none">
+                <th>Class</th>
+                <th>
+                  <button onClick={() => handleSort('duration')} className="subj-sort-btn">
                     <span>Duration (Hours)</span>
-                    <div className="flex flex-col">
-                      <svg className={`w-3 h-3 ${sortField === 'duration' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
-                      <svg className={`w-3 h-3 -mt-1 ${sortField === 'duration' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                    <div className="subj-sort-arrows">
+                      <svg className={sortField === 'duration' && sortOrder === 'asc' ? 'active-sort' : 'inactive-sort'} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                      <svg className={sortField === 'duration' && sortOrder === 'desc' ? 'active-sort' : 'inactive-sort'} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                     </div>
                   </button>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  <button onClick={() => handleSort('answerSheet')} className="flex items-center space-x-1 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none">
+                <th>
+                  <button onClick={() => handleSort('answerSheet')} className="subj-sort-btn">
                     <span>Answer Sheet</span>
-                    <div className="flex flex-col">
-                      <svg className={`w-3 h-3 ${sortField === 'answerSheet' && sortOrder === 'asc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
-                      <svg className={`w-3 h-3 -mt-1 ${sortField === 'answerSheet' && sortOrder === 'desc' ? 'text-blue-600' : 'text-gray-400'}`} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                    <div className="subj-sort-arrows">
+                      <svg className={sortField === 'answerSheet' && sortOrder === 'asc' ? 'active-sort' : 'inactive-sort'} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+                      <svg className={sortField === 'answerSheet' && sortOrder === 'desc' ? 'active-sort' : 'inactive-sort'} fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
                     </div>
                   </button>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                <th>Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <div className="flex justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <td colSpan={6}>
+                    <div className="subj-empty">
+                      <div className="subj-spinner" />
+                      <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0 }}>Loading subjects...</p>
                     </div>
-                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading subjects...</p>
                   </td>
                 </tr>
               ) : error ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      <svg className="mx-auto h-12 w-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <p className="mt-2 text-sm text-red-500">{error}</p>
-                      <button
-                        onClick={() => refetch()}
-                        className="mt-4 btn btn-primary"
-                      >
-                        Retry
-                      </button>
+                  <td colSpan={6}>
+                    <div className="subj-empty">
+                      <div className="subj-empty-icon" style={{ background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' }}>
+                        <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{ color: '#ef4444' }}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                        </svg>
+                      </div>
+                      <p style={{ color: '#ef4444', fontWeight: 600 }}>{error}</p>
+                      <button onClick={() => refetch()} className="subj-btn subj-btn-primary" style={{ margin: '0 auto' }}>Retry</button>
                     </div>
                   </td>
                 </tr>
               ) : sortedSubjects.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center">
-                      <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                      </svg>
-                      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                        {debouncedSearchTerm ? 'No subjects match your search.' : 'No subjects found. Add your first subject to get started.'}
-                      </p>
-                      <button onClick={handleAddClick} className="mt-4 btn btn-primary">
+                  <td colSpan={6}>
+                    <div className="subj-empty">
+                      <div className="subj-empty-icon">
+                        <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                        </svg>
+                      </div>
+                      <h3>No Subjects Found</h3>
+                      <p>{debouncedSearchTerm ? 'No subjects match your search.' : 'No subjects found. Add your first subject to get started.'}</p>
+                      <button onClick={handleAddClick} className="subj-btn subj-btn-primary" style={{ margin: '0 auto' }}>
+                        <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
+                        </svg>
                         Add Subject
                       </button>
                     </div>
                   </td>
                 </tr>
               ) : (
-                sortedSubjects.map((subject) => (
-                  <tr key={subject._id} className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${subject.class === '10th'
-                      ? 'bg-green-50 dark:bg-green-900/20'
-                      : subject.class === '12th'
-                        ? 'bg-purple-50 dark:bg-purple-900/20'
-                        : ''
-                    }`}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-medium ${subject.class === '10th'
-                          ? 'text-green-800 dark:text-green-300'
-                          : subject.class === '12th'
-                            ? 'text-purple-800 dark:text-purple-300'
-                            : 'text-gray-900 dark:text-white'
-                        }`}>
-                        {subject.code}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-medium ${subject.class === '10th'
-                          ? 'text-green-800 dark:text-green-300'
-                          : subject.class === '12th'
-                            ? 'text-purple-800 dark:text-purple-300'
-                            : 'text-gray-900 dark:text-white'
-                        }`}>
-                        {subject.name}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm font-semibold ${subject.class === '10th'
-                          ? 'text-green-700 dark:text-green-400'
-                          : subject.class === '12th'
-                            ? 'text-purple-700 dark:text-purple-400'
-                            : 'text-gray-900 dark:text-white'
-                        }`}>
-                        {subject.class}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm ${subject.class === '10th'
-                          ? 'text-green-700 dark:text-green-400'
-                          : subject.class === '12th'
-                            ? 'text-purple-700 dark:text-purple-400'
-                            : 'text-gray-900 dark:text-white'
-                        }`}>
-                        {subject.duration ? `${subject.duration} ${subject.duration === 1 ? 'Hour' : 'Hours'}` : 'N/A'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className={`text-sm ${subject.class === '10th'
-                          ? 'text-green-700 dark:text-green-400'
-                          : subject.class === '12th'
-                            ? 'text-purple-700 dark:text-purple-400'
-                            : 'text-gray-900 dark:text-white'
-                        }`}>{
+                sortedSubjects.map((subject) => {
+                  const cls = subject.class === '10th' ? '10th' : subject.class === '12th' ? '12th' : 'default'
+                  return (
+                    <tr key={subject._id} className={cls === '10th' ? 'subj-row-10th' : cls === '12th' ? 'subj-row-12th' : ''}>
+                      <td>
+                        <span className={`subj-code subj-code-${cls}`}>{subject.code}</span>
+                      </td>
+                      <td>
+                        <span className={`subj-name subj-name-${cls}`}>{subject.name}</span>
+                      </td>
+                      <td>
+                        <span className={`subj-class-badge subj-class-${cls}`}>{subject.class}</span>
+                      </td>
+                      <td>
+                        <span className={`subj-meta subj-meta-${cls}`}>
+                          {subject.duration ? `${subject.duration} ${subject.duration === 1 ? 'Hour' : 'Hours'}` : 'N/A'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`subj-answer subj-answer-${cls}`}>{
                           subject.answerSheet === '32_pages' ? '32 Pages' :
                             subject.answerSheet === '20_pages' ? '20 Pages' :
                               subject.answerSheet === '40_graph' ? '40 Graph' :
-                                subject.answerSheet === 'none' ? 'None' : '—'
-                        }</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium align-middle">
-                      <button
-                        type="button"
-                        onClick={() => handleEditClick(subject)}
-                        title="Edit"
-                        aria-label={`Edit ${subject.name}`}
-                        className={`
-                          inline-flex items-center justify-center p-1 rounded-md transition-colors leading-none
-                          ${subject.class === '10th'
-                            ? 'text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200/70 dark:hover:bg-emerald-800/40 hover:text-emerald-800 dark:hover:text-emerald-300'
-                            : subject.class === '12th'
-                              ? 'text-violet-600 dark:text-violet-400 hover:bg-violet-200/70 dark:hover:bg-violet-800/40 hover:text-violet-800 dark:hover:text-violet-300'
-                              : 'text-blue-600 dark:text-blue-400 hover:bg-gray-200 dark:hover:bg-gray-600 hover:text-blue-800 dark:hover:text-blue-300'
-                          }
-                        `}
-                      >
-                        <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                                subject.answerSheet === 'none' ? 'None' : 'â€”'
+                        }</span>
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={() => handleEditClick(subject)}
+                          title="Edit"
+                          aria-label={`Edit ${subject.name}`}
+                          className={`subj-edit-btn subj-edit-${cls}`}
+                        >
+                          <Pencil className="w-3.5 h-3.5" strokeWidth={2} />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -485,92 +963,55 @@ const Subjects: React.FC = () => {
 
         {/* Pagination */}
         {!loading && (
-          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 sm:px-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-3">
-                <p className="text-sm text-gray-700 dark:text-gray-300">
-                  Showing{' '}
-                  <span className="font-medium">
-                    {pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1}
-                  </span>{' '}
-                  to{' '}
-                  <span className="font-medium">
-                    {Math.min(pagination.page * pagination.limit, pagination.total)}
-                  </span>{' '}
-                  of{' '}
-                  <span className="font-medium">{pagination.total}</span> results
-                </p>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">Per page</span>
-                  <Dropdown
-                    options={PAGE_SIZE_OPTIONS}
-                    value={pageSize}
-                    onChange={handlePageSizeChange}
-                    size="sm"
-                    clearable={false}
-                    searchable={false}
-                    placeholder=""
-                    className="w-20"
-                  />
-                </div>
+          <div className="subj-pagination">
+            <div className="subj-pagination-info">
+              <span className="subj-pagination-text">
+                Showing <strong>{pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1}</strong>
+                {' '}to{' '}
+                <strong>{Math.min(pagination.page * pagination.limit, pagination.total)}</strong>
+                {' '}of <strong>{pagination.total}</strong> results
+              </span>
+              <div className="subj-per-page">
+                <span>Per page</span>
+                <Dropdown
+                  options={PAGE_SIZE_OPTIONS}
+                  value={pageSize}
+                  onChange={handlePageSizeChange}
+                  size="sm"
+                  clearable={false}
+                  searchable={false}
+                  placeholder=""
+                  className="w-20"
+                />
               </div>
-              {pagination.pages > 1 && (
-                <>
-                  <div className="flex justify-between sm:hidden">
-                    <button
-                      onClick={() => handlePageChange(pagination.page - 1)}
-                      disabled={pagination.page === 1}
-                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      onClick={() => handlePageChange(pagination.page + 1)}
-                      disabled={pagination.page === pagination.pages}
-                      className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  </div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                    <button
-                      onClick={() => handlePageChange(pagination.page - 1)}
-                      disabled={pagination.page === 1}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="sr-only">Previous</span>
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-
-                    {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${page === pagination.page
-                            ? 'z-10 bg-blue-50 dark:bg-blue-900 border-blue-500 text-blue-600 dark:text-blue-400'
-                            : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                          }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-
-                    <button
-                      onClick={() => handlePageChange(pagination.page + 1)}
-                      disabled={pagination.page === pagination.pages}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="sr-only">Next</span>
-                      <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </nav>
-                </>
-              )}
             </div>
+            {pagination.pages > 1 && (
+              <nav className="subj-page-nav">
+                <button
+                  onClick={() => handlePageChange(pagination.page - 1)}
+                  disabled={pagination.page === 1}
+                  className="subj-page-btn"
+                >
+                  <svg fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                </button>
+                {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((pg) => (
+                  <button
+                    key={pg}
+                    onClick={() => handlePageChange(pg)}
+                    className={`subj-page-btn ${pg === pagination.page ? 'subj-page-active' : ''}`}
+                  >
+                    {pg}
+                  </button>
+                ))}
+                <button
+                  onClick={() => handlePageChange(pagination.page + 1)}
+                  disabled={pagination.page === pagination.pages}
+                  className="subj-page-btn"
+                >
+                  <svg fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+                </button>
+              </nav>
+            )}
           </div>
         )}
       </div>
@@ -608,6 +1049,7 @@ const Subjects: React.FC = () => {
     </div>
   )
 }
+
 
 // Reusable segment button group for modal
 const segmentBtnBase =
