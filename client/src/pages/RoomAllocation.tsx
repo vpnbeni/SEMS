@@ -16,7 +16,6 @@ const RoomAllocation: React.FC = () => {
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [isDeleting, setIsDeleting] = useState(false)
-  const [isAllocating, setIsAllocating] = useState(false)
   const [examDates, setExamDates] = useState<string[]>([])
   const [loadingExamDates, setLoadingExamDates] = useState(false)
   const [allocationMode, setAllocationMode] = useState<'auto' | 'manual'>('auto')
@@ -350,52 +349,6 @@ const RoomAllocation: React.FC = () => {
     }
   }
 
-  const handleAllocate = async () => {
-    if (rooms.length === 0) {
-      alert('No rooms available to allocate')
-      return
-    }
-
-    const getDefaultFloor = (roomNo: string, fallbackIndex: number) => {
-      const leading = String(roomNo || '').trim().match(/^(\d+)/)
-      const number = leading ? parseInt(leading[1], 10) : fallbackIndex + 1
-      if (number <= 20) return 'Ground Floor'
-      if (number <= 40) return 'First Floor'
-      if (number <= 60) return 'Second Floor'
-      return 'Third Floor'
-    }
-
-    setIsAllocating(true)
-    try {
-      const updates = rooms
-        .map((room, index) => {
-          const nextRoomName = String(room.roomName || '').trim() || `Room ${room.roomNo || index + 1}`
-          const nextFloor = String(room.floor || '').trim() || getDefaultFloor(room.roomNo, index)
-          const currentRoomName = String(room.roomName || '').trim()
-          const currentFloor = String(room.floor || '').trim()
-          const shouldUpdate = nextRoomName !== currentRoomName || nextFloor !== currentFloor
-          if (!shouldUpdate) return null
-          return seatingPlanService.updateRoom(room._id, {
-            roomName: nextRoomName,
-            floor: nextFloor,
-          })
-        })
-        .filter(Boolean) as Array<Promise<Room>>
-
-      if (updates.length > 0) {
-        await Promise.all(updates)
-        await fetchRooms()
-      }
-
-      alert(updates.length > 0 ? `Allocated ${updates.length} room(s) successfully` : 'All rooms are already allocated')
-    } catch (error) {
-      console.error('Failed to allocate rooms:', error)
-      alert('Failed to allocate rooms')
-    } finally {
-      setIsAllocating(false)
-    }
-  }
-
   const allOnPageSelected = rooms.length > 0 && rooms.every((r) => selectedIds.has(r._id))
   const someOnPageSelected = rooms.some((r) => selectedIds.has(r._id))
 
@@ -499,6 +452,40 @@ const RoomAllocation: React.FC = () => {
           align-items: center;
           flex-wrap: wrap;
         }
+        .ra-header-stats {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex: 1;
+          justify-content: center;
+          min-width: 0;
+          overflow-x: auto;
+          padding: 2px 8px;
+        }
+        .ra-stat-card-inline {
+          min-width: 82px;
+          flex: 0 0 auto;
+          padding: 6px 7px;
+          border-radius: 8px;
+          gap: 6px;
+        }
+        .ra-stat-card-inline .ra-stat-icon {
+          width: 22px;
+          height: 22px;
+          border-radius: 6px;
+        }
+        .ra-stat-card-inline .ra-stat-icon svg {
+          width: 12px;
+          height: 12px;
+        }
+        .ra-stat-card-inline .ra-stat-value {
+          font-size: 0.95rem;
+          line-height: 1.05;
+        }
+        .ra-stat-card-inline .ra-stat-label {
+          font-size: 0.5rem;
+          letter-spacing: 0.04em;
+        }
         .ra-btn {
           display: inline-flex;
           align-items: center;
@@ -567,6 +554,15 @@ const RoomAllocation: React.FC = () => {
         /* ───────── Table ───────── */
         .ra-table-wrap {
           overflow-x: auto;
+        }
+        .ra-room-table-wrap {
+          max-height: 320px;
+          overflow-y: auto;
+        }
+        .ra-room-table-wrap .ra-table thead th {
+          position: sticky;
+          top: 0;
+          z-index: 2;
         }
         .ra-table {
           width: 100%;
@@ -898,6 +894,31 @@ const RoomAllocation: React.FC = () => {
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
+        /* Force compact cards in Examination Rooms header */
+        .ra-header-stats .ra-stat-card {
+          min-width: 82px;
+          flex: 0 0 auto;
+          padding: 6px 7px;
+          border-radius: 8px;
+          gap: 6px;
+        }
+        .ra-header-stats .ra-stat-icon {
+          width: 22px;
+          height: 22px;
+          border-radius: 6px;
+        }
+        .ra-header-stats .ra-stat-icon svg {
+          width: 12px;
+          height: 12px;
+        }
+        .ra-header-stats .ra-stat-value {
+          font-size: 0.95rem;
+          line-height: 1.05;
+        }
+        .ra-header-stats .ra-stat-label {
+          font-size: 0.5rem;
+          letter-spacing: 0.04em;
+        }
 
         /* ───────── Empty state ───────── */
         .ra-empty {
@@ -978,6 +999,41 @@ const RoomAllocation: React.FC = () => {
               Examination Rooms
             </h3>
           </div>
+          <div className="ra-header-stats">
+            <div className="ra-stat-card ra-stat-card-inline" style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%)' }}>
+              <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
+                </svg>
+              </div>
+              <div>
+                <div className="ra-stat-value">{rooms.length}</div>
+                <div className="ra-stat-label">Total Rooms</div>
+              </div>
+            </div>
+            <div className="ra-stat-card ra-stat-card-inline" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' }}>
+              <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                </svg>
+              </div>
+              <div>
+                <div className="ra-stat-value">{examDates.length}</div>
+                <div className="ra-stat-label">Exam Dates</div>
+              </div>
+            </div>
+            <div className="ra-stat-card ra-stat-card-inline" style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' }}>
+              <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
+                </svg>
+              </div>
+              <div>
+                <div className="ra-stat-value" style={{ textTransform: 'capitalize' }}>{allocationMode}</div>
+                <div className="ra-stat-label">Mode</div>
+              </div>
+            </div>
+          </div>
           <div className="ra-btn-group">
             {selectedIds.size > 0 && (
               <button
@@ -992,16 +1048,6 @@ const RoomAllocation: React.FC = () => {
               </button>
             )}
             <button
-              onClick={handleAllocate}
-              disabled={isAllocating}
-              className="ra-btn ra-btn-secondary"
-            >
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              {isAllocating ? 'Allocating...' : 'Allocate'}
-            </button>
-            <button
               onClick={() => setIsAddingNew(true)}
               disabled={isAddingNew}
               className="ra-btn ra-btn-primary"
@@ -1014,45 +1060,8 @@ const RoomAllocation: React.FC = () => {
           </div>
         </div>
 
-        {/* Stats strip */}
-        <div className="ra-stats">
-          <div className="ra-stat-card" style={{ background: 'linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%)' }}>
-            <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-              </svg>
-            </div>
-            <div>
-              <div className="ra-stat-value">{rooms.length}</div>
-              <div className="ra-stat-label">Total Rooms</div>
-            </div>
-          </div>
-          <div className="ra-stat-card" style={{ background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)' }}>
-            <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
-              </svg>
-            </div>
-            <div>
-              <div className="ra-stat-value">{examDates.length}</div>
-              <div className="ra-stat-label">Exam Dates</div>
-            </div>
-          </div>
-          <div className="ra-stat-card" style={{ background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)' }}>
-            <div className="ra-stat-icon" style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}>
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
-              </svg>
-            </div>
-            <div>
-              <div className="ra-stat-value" style={{ textTransform: 'capitalize' }}>{allocationMode}</div>
-              <div className="ra-stat-label">Mode</div>
-            </div>
-          </div>
-        </div>
-
         {/* Rooms list table */}
-        <div className="ra-table-wrap">
+        <div className="ra-table-wrap ra-room-table-wrap">
           <table className="ra-table">
             <thead>
               <tr>

@@ -85,6 +85,11 @@ const clampText = (value, maxLength) => {
   return normalized.slice(0, maxLength);
 };
 
+const digitsOnly = (value, fallback = '') => {
+  const numeric = normalizeString(value).replace(/\D/g, '');
+  return numeric || fallback;
+};
+
 const escapeCsvCell = (value) => {
   const stringValue = normalizeString(value);
   const escaped = stringValue.replace(/"/g, '""');
@@ -296,6 +301,7 @@ const createTeacher = asyncHandler(async (req, res) => {
     ...req.body,
     email: req.body.email || `${String(req.body.employeeId || '').toLowerCase()}@sems.local`,
     subjectCode: resolvedSubjectCode || req.body.subjectCode || '',
+    accountNumber: digitsOnly(req.body.accountNumber),
     phone: req.body.mobileNo || req.body.phone || ''
   };
 
@@ -340,6 +346,9 @@ const updateTeacher = asyncHandler(async (req, res) => {
 
   // Validate subjects if provided
   const updatePayload = { ...req.body };
+  if (Object.prototype.hasOwnProperty.call(req.body, 'accountNumber')) {
+    updatePayload.accountNumber = digitsOnly(req.body.accountNumber);
+  }
   if (req.body.subjects && req.body.subjects.length > 0) {
     const validSubjects = await Subject.find({
       _id: { $in: req.body.subjects },
@@ -927,7 +936,7 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
       schoolName: clampText(existingTeacher?.schoolName || `School ${entry.schoolCode || 'Unknown'}`, 200),
       schoolCode: clampText(existingTeacher?.schoolCode || entry.schoolCode || 'NA', 20),
       bankName: clampText(existingTeacher?.bankName || 'N/A Bank', 120),
-      accountNumber: clampText(existingTeacher?.accountNumber || `AC${entry.employeeId}`, 40),
+      accountNumber: digitsOnly(existingTeacher?.accountNumber || entry.employeeId || '0', '0').slice(0, 40),
       ifscCode: clampText((existingTeacher?.ifscCode || 'ABCD0000001').toUpperCase(), 20),
       experience: existingTeacher?.experience ?? 0,
       qualification: clampText(existingTeacher?.qualification || 'N/A', 200),

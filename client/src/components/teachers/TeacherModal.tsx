@@ -28,6 +28,14 @@ interface TeacherModalProps {
   onSuccess?: () => void;
 }
 
+const DEFAULT_SCHOOL_NAME = "International Bharti School";
+const DEFAULT_HIDDEN_VALUES = {
+  bankName: "N/A Bank",
+  accountNumber: "0",
+  ifscCode: "ABCD0000001",
+  mobileNo: "9000000000",
+};
+
 const DESIGNATION_OPTIONS = [
   "Principal",
   "Vice Principal",
@@ -56,6 +64,12 @@ const getDutyOptionsForDesignation = (designation: string): string[] => {
 };
 const normalizeSubjectCode = (value: string | undefined) => String(value || "").trim().toUpperCase();
 const normalizeClassLabel = (value: string | undefined) => String(value || "").trim();
+const resolveDefaultSchoolOption = (options: SchoolOption[]): SchoolOption | null => {
+  const match = (options || []).find((option) =>
+    String(option.schoolName || "").toLowerCase().includes(DEFAULT_SCHOOL_NAME.toLowerCase())
+  );
+  return match || null;
+};
 
 const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const dispatch = useDispatch<AppDispatch>();
@@ -78,10 +92,10 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     subjectCode: "",
     schoolName: "",
     schoolCode: "",
-    bankName: "",
-    accountNumber: "",
-    ifscCode: "",
-    mobileNo: "",
+    bankName: DEFAULT_HIDDEN_VALUES.bankName,
+    accountNumber: DEFAULT_HIDDEN_VALUES.accountNumber,
+    ifscCode: DEFAULT_HIDDEN_VALUES.ifscCode,
+    mobileNo: DEFAULT_HIDDEN_VALUES.mobileNo,
     dutyType: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -135,6 +149,20 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       })
       .finally(() => setSchoolsLoading(false));
   }, [dispatch, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || mode !== "add") return;
+    const defaultSchool = resolveDefaultSchoolOption(schoolOptions);
+    if (!defaultSchool) return;
+    setFormData((prev) => {
+      if (prev.schoolName) return prev;
+      return {
+        ...prev,
+        schoolName: defaultSchool.schoolName,
+        schoolCode: defaultSchool.schoolCode,
+      };
+    });
+  }, [isOpen, mode, schoolOptions]);
 
   useEffect(() => {
     if (mode !== "edit" || !selectedTeacher) return;
@@ -224,10 +252,10 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       subjectCode: "",
       schoolName: "",
       schoolCode: "",
-      bankName: "",
-      accountNumber: "",
-      ifscCode: "",
-      mobileNo: "",
+      bankName: DEFAULT_HIDDEN_VALUES.bankName,
+      accountNumber: DEFAULT_HIDDEN_VALUES.accountNumber,
+      ifscCode: DEFAULT_HIDDEN_VALUES.ifscCode,
+      mobileNo: DEFAULT_HIDDEN_VALUES.mobileNo,
       dutyType: "",
     });
     setErrors({});
@@ -282,17 +310,6 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     if (!formData.subjectIds.length) nextErrors.subjectIds = "At least one subject is required";
     if (!formData.schoolName.trim()) nextErrors.schoolName = "School is required";
     if (!formData.schoolCode.trim()) nextErrors.schoolCode = "School code is required";
-    if (!formData.bankName.trim()) nextErrors.bankName = "Bank name is required";
-    if (!formData.accountNumber.trim()) nextErrors.accountNumber = "Account number is required";
-    else if (!/^\d+$/.test(formData.accountNumber.trim())) nextErrors.accountNumber = "Account number must contain digits only";
-    if (!formData.ifscCode.trim()) nextErrors.ifscCode = "IFSC code is required";
-    else if (!/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(formData.ifscCode.trim())) {
-      nextErrors.ifscCode = "Invalid IFSC code format";
-    }
-    if (!formData.mobileNo.trim()) nextErrors.mobileNo = "Mobile number is required";
-    else if (!/^\d{10}$/.test(formData.mobileNo.trim())) {
-      nextErrors.mobileNo = "Mobile number must be 10 digits";
-    }
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -309,10 +326,10 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       subjectCode: formData.subjectCode,
       schoolName: formData.schoolName.trim(),
       schoolCode: formData.schoolCode.trim(),
-      bankName: formData.bankName.trim(),
-      accountNumber: formData.accountNumber.trim(),
-      ifscCode: formData.ifscCode.trim().toUpperCase(),
-      mobileNo: formData.mobileNo.trim(),
+      bankName: formData.bankName.trim() || DEFAULT_HIDDEN_VALUES.bankName,
+      accountNumber: formData.accountNumber.trim() || DEFAULT_HIDDEN_VALUES.accountNumber,
+      ifscCode: (formData.ifscCode.trim() || DEFAULT_HIDDEN_VALUES.ifscCode).toUpperCase(),
+      mobileNo: formData.mobileNo.trim() || DEFAULT_HIDDEN_VALUES.mobileNo,
       isActive: selectedTeacher?.isActive ?? true,
       dutyType: formData.dutyType,
     };
@@ -485,38 +502,6 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
             </label>
             <input id={`${fieldIdPrefix}schoolCode`} name="schoolCode" value={formData.schoolCode} readOnly className={`input w-full bg-gray-100 dark:bg-gray-800 cursor-not-allowed ${errors.schoolCode ? "input-error" : ""}`} />
             {errors.schoolCode && <p className="text-error-500 text-xs mt-1">{errors.schoolCode}</p>}
-          </div>
-
-          <div>
-            <label htmlFor={`${fieldIdPrefix}bankName`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              Bank Name <span className="text-error-500">*</span>
-            </label>
-            <input id={`${fieldIdPrefix}bankName`} name="bankName" value={formData.bankName} onChange={handleInputChange} className={`input w-full ${errors.bankName ? "input-error" : ""}`} />
-            {errors.bankName && <p className="text-error-500 text-xs mt-1">{errors.bankName}</p>}
-          </div>
-
-          <div>
-            <label htmlFor={`${fieldIdPrefix}accountNumber`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              Account Number <span className="text-error-500">*</span>
-            </label>
-            <input id={`${fieldIdPrefix}accountNumber`} name="accountNumber" type="text" inputMode="numeric" pattern="[0-9]*" value={formData.accountNumber} onChange={handleInputChange} className={`input w-full ${errors.accountNumber ? "input-error" : ""}`} />
-            {errors.accountNumber && <p className="text-error-500 text-xs mt-1">{errors.accountNumber}</p>}
-          </div>
-
-          <div>
-            <label htmlFor={`${fieldIdPrefix}ifscCode`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              IFSC Code <span className="text-error-500">*</span>
-            </label>
-            <input id={`${fieldIdPrefix}ifscCode`} name="ifscCode" value={formData.ifscCode} onChange={handleInputChange} className={`input w-full ${errors.ifscCode ? "input-error" : ""}`} />
-            {errors.ifscCode && <p className="text-error-500 text-xs mt-1">{errors.ifscCode}</p>}
-          </div>
-
-          <div>
-            <label htmlFor={`${fieldIdPrefix}mobileNo`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              Mobile No. <span className="text-error-500">*</span>
-            </label>
-            <input id={`${fieldIdPrefix}mobileNo`} name="mobileNo" type="text" inputMode="numeric" pattern="[0-9]*" value={formData.mobileNo} onChange={handleInputChange} className={`input w-full ${errors.mobileNo ? "input-error" : ""}`} />
-            {errors.mobileNo && <p className="text-error-500 text-xs mt-1">{errors.mobileNo}</p>}
           </div>
 
           {mode === "edit" && (
