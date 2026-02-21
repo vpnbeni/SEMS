@@ -9,7 +9,7 @@ const money = (minor: number, currency = 'INR') => {
     currency,
   }).format((minor || 0) / 100)
 }
-
+  
 const Billing: React.FC = () => {
   const user = useSelector(selectUser)
   const [loading, setLoading] = useState(true)
