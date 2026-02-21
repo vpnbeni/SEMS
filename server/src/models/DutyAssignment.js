@@ -20,6 +20,12 @@ const dutyAssignmentSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    functionary2: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Teacher',
+      default: null,
+      index: true,
+    },
     assignedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

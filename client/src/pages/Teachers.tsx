@@ -778,7 +778,7 @@ const Teachers: React.FC = () => {
                     d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                   />
                 </svg>
-                Add Teacher
+                Add Functionary
               </button>
               <button
                 onClick={handleBulkDelete}
@@ -1028,7 +1028,7 @@ const Teachers: React.FC = () => {
                   d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                 />
               </svg>
-              Add Teacher
+              Add Functionary
             </button>
           </div>
         </div>

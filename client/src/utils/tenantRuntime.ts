@@ -64,19 +64,19 @@ export const isLocalRuntime = () => {
 
 export const resolveTenantSlug = (): string | null => {
   const hostname = getHostname();
+  const params = getSearchParams();
+  const fromQuery = sanitizeTenantSlug(params.get('tenant'));
+
+  if (fromQuery) {
+    localStorage.setItem('tenantSlug', fromQuery);
+    return fromQuery;
+  }
 
   if (!hostname) {
     return null;
   }
 
   if (isLocalRuntime()) {
-    const params = getSearchParams();
-    const fromQuery = sanitizeTenantSlug(params.get('tenant'));
-    if (fromQuery) {
-      localStorage.setItem('tenantSlug', fromQuery);
-      return fromQuery;
-    }
-
     const fromStorage = sanitizeTenantSlug(localStorage.getItem('tenantSlug'));
     if (fromStorage) {
       return fromStorage;

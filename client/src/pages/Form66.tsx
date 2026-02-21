@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { ChevronRight, ChevronDown, Download, Upload, RefreshCw, FileText, Calendar, Users, BookOpen, Eye, X } from 'lucide-react'
-import { getTenantHeader, isLocalRuntime, resolveApiBaseUrl, resolveTenantSlug } from '../utils/tenantRuntime'
+import { getTenantHeader, resolveApiBaseUrl, resolveTenantSlug } from '../utils/tenantRuntime'
 import { Dialog } from '@/components/common/Dialog'
 
 interface Form66Record {
@@ -108,7 +108,7 @@ const Form66: React.FC = () => {
   }
 
   const buildLocalTenantQuery = () => {
-    if (!isLocalRuntime() || !tenantSlug) {
+    if (!tenantSlug) {
       return ''
     }
 
@@ -384,6 +384,35 @@ const Form66: React.FC = () => {
   const collapseAllDates = () => {
     setExpandedDates(new Set())
     setExpandedSubjects(new Set())
+  }
+
+  const handleDownloadDatePdf = async (date: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/form66/dates/${date}/pdf${buildLocalTenantQuery()}`, withAuthAndTenantHeaders())
+      if (!response.ok) {
+        const data = await parseJsonSafely(response)
+        const message =
+          (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string' && data.message) ||
+          `Failed to download PDF (${response.status})`
+        throw new Error(message)
+      }
+
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = `Form66_${date.replace(/\./g, '-')}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (error: any) {
+      console.error('Failed to download Form 66 PDF:', error)
+      setUploadStatus({
+        type: 'error',
+        message: error?.message || 'Failed to download Form 66 PDF',
+      })
+    }
   }
 
   const openDownloadDialog = (classKey: FormClassKey) => {
@@ -847,7 +876,7 @@ const Form66: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              window.open(`${API_BASE_URL}/form66/dates/${dateGroup.date}/pdf${buildLocalTenantQuery()}`, '_blank')
+                              handleDownloadDatePdf(dateGroup.date)
                             }}
                             className="inline-flex items-center justify-center p-1.5 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors"
                             title="Download PDF"

@@ -20,6 +20,7 @@ export interface DutyRecord {
   examDate: string
   room: DutyRoom
   functionary: DutyFunctionary
+  functionary2?: DutyFunctionary
   assignedAt?: string
 }
 
@@ -36,7 +37,11 @@ const getDailyDuties = async (examDate: string): Promise<DailyDutiesResponse> =>
   return response.data?.data ?? { examDate, duties: [], totalAssigned: 0 }
 }
 
-const assignDailyDuties = async (payload: { examDate: string; functionaryIds: string[] }): Promise<DailyDutiesResponse> => {
+const assignDailyDuties = async (payload: {
+  examDate: string
+  functionaryIds: string[]
+  secondFunctionaryIds?: string[]
+}): Promise<DailyDutiesResponse> => {
   const response = await api.post('/duties/assign', payload)
   return response.data?.data ?? { examDate: payload.examDate, duties: [], totalAssigned: 0 }
 }

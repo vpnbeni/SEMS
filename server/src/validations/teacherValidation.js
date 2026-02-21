@@ -35,21 +35,36 @@ const createTeacherSchema = Joi.object({
       'string.max': 'Designation cannot exceed 50 characters',
       'any.required': 'Designation is required'
     }),
-  subjects: Joi.array()
-    .items(
-      Joi.string()
-        .pattern(/^[0-9a-fA-F]{24}$/)
-        .messages({
-          'string.pattern.base': 'Invalid subject ID format'
-        })
-    )
-    .min(1)
-    .required()
-    .messages({
-      'array.base': 'Subjects must be an array',
-      'array.min': 'At least one subject is required',
-      'any.required': 'Subject is required'
-    }),
+  subjects: Joi.alternatives().conditional('dutyType', {
+    is: 'Class IV',
+    then: Joi.array()
+      .items(
+        Joi.string()
+          .pattern(/^[0-9a-fA-F]{24}$/)
+          .messages({
+            'string.pattern.base': 'Invalid subject ID format'
+          })
+      )
+      .default([])
+      .messages({
+        'array.base': 'Subjects must be an array'
+      }),
+    otherwise: Joi.array()
+      .items(
+        Joi.string()
+          .pattern(/^[0-9a-fA-F]{24}$/)
+          .messages({
+            'string.pattern.base': 'Invalid subject ID format'
+          })
+      )
+      .min(1)
+      .required()
+      .messages({
+        'array.base': 'Subjects must be an array',
+        'array.min': 'At least one subject is required',
+        'any.required': 'Subject is required'
+      }),
+  }),
   subjectCode: Joi.string()
     .trim()
     .max(20)

@@ -31,7 +31,7 @@ interface TeacherModalProps {
 const DEFAULT_SCHOOL_NAME = "International Bharti School";
 const DEFAULT_HIDDEN_VALUES = {
   bankName: "N/A Bank",
-  accountNumber: "0",
+  accountNumber: "000000",
   ifscCode: "ABCD0000001",
   mobileNo: "9000000000",
 };
@@ -62,8 +62,23 @@ const getDutyOptionsForDesignation = (designation: string): string[] => {
   if (d === 'vice principal') return ['Centre Superintendent', 'Deputy Centre Superintendent'];
   return [...DUTY_TYPE_OPTIONS];
 };
+const isSubjectOptionalDuty = (dutyType: string) => {
+  const normalized = String(dutyType || "").trim().toLowerCase();
+  return normalized === "clerk" || normalized === "class iv";
+};
 const normalizeSubjectCode = (value: string | undefined) => String(value || "").trim().toUpperCase();
 const normalizeClassLabel = (value: string | undefined) => String(value || "").trim();
+const normalizeAccountNumber = (value: string) => {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return DEFAULT_HIDDEN_VALUES.accountNumber;
+  if (digits.length >= 6) return digits.slice(0, 40);
+  return digits.padStart(6, "0");
+};
+const generateClassIvEmployeeId = () => {
+  // Keep numeric-only unique ID for backend validation while UI can show N/A.
+  const suffix = String(Date.now()).slice(-9);
+  return `9${suffix}`;
+};
 const resolveDefaultSchoolOption = (options: SchoolOption[]): SchoolOption | null => {
   const match = (options || []).find((option) =>
     String(option.schoolName || "").toLowerCase().includes(DEFAULT_SCHOOL_NAME.toLowerCase())
@@ -79,7 +94,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const { subjects } = useSelector((state: RootState) => state.subjects);
 
   const isOpen = mode === "add" ? showAddModal : showEditModal;
-  const modalTitle = mode === "add" ? "Add New Teacher" : "Edit Teacher";
+  const modalTitle = mode === "add" ? "Add New Functionary" : "Edit Functionary";
 
   const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
   const [schoolsLoading, setSchoolsLoading] = useState(false);
@@ -235,6 +250,14 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const allowedDutyOptions = useMemo(() => {
     return getDutyOptionsForDesignation(formData.designation);
   }, [formData.designation]);
+  const isClassIvFunctionary = useMemo(
+    () => String(formData.dutyType || "").trim().toLowerCase() === "class iv",
+    [formData.dutyType]
+  );
+  const subjectsDisabled = useMemo(
+    () => isSubjectOptionalDuty(formData.dutyType),
+    [formData.dutyType]
+  );
 
   // Auto-clear dutyType if it becomes invalid for the current designation
   useEffect(() => {
@@ -242,6 +265,30 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       setFormData((prev) => ({ ...prev, dutyType: '' }));
     }
   }, [allowedDutyOptions, formData.dutyType]);
+
+  useEffect(() => {
+    if (!isClassIvFunctionary) return;
+    setFormData((prev) => {
+      return {
+        ...prev,
+        designation: "Class IV",
+        subjectIds: [],
+        subjectCode: "N/A",
+      };
+    });
+    setSubjectSearch("");
+  }, [isClassIvFunctionary]);
+
+  useEffect(() => {
+    if (isClassIvFunctionary) return;
+    setFormData((prev) => {
+      if (prev.subjectCode !== "N/A") return prev;
+      return {
+        ...prev,
+        subjectCode: getSubjectCodesFromIds(prev.subjectIds),
+      };
+    });
+  }, [isClassIvFunctionary, getSubjectCodesFromIds]);
 
   const resetForm = () => {
     setFormData({
@@ -304,10 +351,12 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const validateForm = () => {
     const nextErrors: Record<string, string> = {};
     if (!formData.name.trim()) nextErrors.name = "Teacher name is required";
-    if (!formData.employeeId.trim()) nextErrors.employeeId = "OASIS ID is required";
-    else if (!/^\d+$/.test(formData.employeeId.trim())) nextErrors.employeeId = "OASIS ID must contain digits only";
+    if (!isClassIvFunctionary) {
+      if (!formData.employeeId.trim()) nextErrors.employeeId = "OASIS ID is required";
+      else if (!/^\d+$/.test(formData.employeeId.trim())) nextErrors.employeeId = "OASIS ID must contain digits only";
+    }
     if (!formData.designation.trim()) nextErrors.designation = "Designation is required";
-    if (!formData.subjectIds.length) nextErrors.subjectIds = "At least one subject is required";
+    if (!subjectsDisabled && !formData.subjectIds.length) nextErrors.subjectIds = "At least one subject is required";
     if (!formData.schoolName.trim()) nextErrors.schoolName = "School is required";
     if (!formData.schoolCode.trim()) nextErrors.schoolCode = "School code is required";
     setErrors(nextErrors);
@@ -318,16 +367,20 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     e.preventDefault();
     if (!validateForm()) return;
 
+    const resolvedEmployeeId = isClassIvFunctionary
+      ? (selectedTeacher?.employeeId || generateClassIvEmployeeId())
+      : formData.employeeId.trim().toUpperCase();
+
     const payload = {
       name: formData.name.trim(),
-      employeeId: formData.employeeId.trim().toUpperCase(),
-      designation: formData.designation.trim(),
-      subjects: formData.subjectIds,
-      subjectCode: formData.subjectCode,
+      employeeId: resolvedEmployeeId,
+      designation: isClassIvFunctionary ? "Class IV" : formData.designation.trim(),
+      subjects: isClassIvFunctionary ? [] : formData.subjectIds,
+      subjectCode: isClassIvFunctionary ? "N/A" : formData.subjectCode,
       schoolName: formData.schoolName.trim(),
       schoolCode: formData.schoolCode.trim(),
       bankName: formData.bankName.trim() || DEFAULT_HIDDEN_VALUES.bankName,
-      accountNumber: formData.accountNumber.trim() || DEFAULT_HIDDEN_VALUES.accountNumber,
+      accountNumber: normalizeAccountNumber(formData.accountNumber.trim()),
       ifscCode: (formData.ifscCode.trim() || DEFAULT_HIDDEN_VALUES.ifscCode).toUpperCase(),
       mobileNo: formData.mobileNo.trim() || DEFAULT_HIDDEN_VALUES.mobileNo,
       isActive: selectedTeacher?.isActive ?? true,
@@ -360,8 +413,26 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
+            <label htmlFor={`${fieldIdPrefix}dutyType`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Functionary Type
+            </label>
+            <select
+              id={`${fieldIdPrefix}dutyType`}
+              name="dutyType"
+              value={formData.dutyType}
+              onChange={handleInputChange}
+              className="input w-full"
+            >
+              <option value="">Select Functionary Type</option>
+              {allowedDutyOptions.map((duty) => (
+                <option key={duty} value={duty}>{duty}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label htmlFor={`${fieldIdPrefix}name`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              Teacher Name <span className="text-error-500">*</span>
+              Functionary Name <span className="text-error-500">*</span>
             </label>
             <input id={`${fieldIdPrefix}name`} name="name" value={formData.name} onChange={handleInputChange} className={`input w-full ${errors.name ? "input-error" : ""}`} />
             {errors.name && <p className="text-error-500 text-xs mt-1">{errors.name}</p>}
@@ -369,9 +440,19 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
 
           <div>
             <label htmlFor={`${fieldIdPrefix}employeeId`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              OASIS ID <span className="text-error-500">*</span>
+              OASIS ID {!isClassIvFunctionary && <span className="text-error-500">*</span>}
             </label>
-            <input id={`${fieldIdPrefix}employeeId`} name="employeeId" type="text" inputMode="numeric" pattern="[0-9]*" value={formData.employeeId} onChange={handleInputChange} className={`input w-full ${errors.employeeId ? "input-error" : ""}`} />
+            <input
+              id={`${fieldIdPrefix}employeeId`}
+              name="employeeId"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={isClassIvFunctionary ? "N/A" : formData.employeeId}
+              onChange={handleInputChange}
+              disabled={isClassIvFunctionary}
+              className={`input w-full ${errors.employeeId ? "input-error" : ""} ${isClassIvFunctionary ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed" : ""}`}
+            />
             {errors.employeeId && <p className="text-error-500 text-xs mt-1">{errors.employeeId}</p>}
           </div>
 
@@ -384,6 +465,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
               name="designation"
               value={formData.designation}
               onChange={handleInputChange}
+              disabled={isClassIvFunctionary}
               className={`input w-full ${errors.designation ? "input-error" : ""}`}
             >
               <option value="">Select Designation</option>
@@ -407,6 +489,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
               onChange={(e) => setSubjectSearch(e.target.value)}
               placeholder="Search subject by name, code, or class"
               className="input w-full mb-2"
+              disabled={subjectsDisabled}
             />
             {formData.subjectIds.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-2">
@@ -418,6 +501,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
                       key={`selected-${subjectId}`}
                       type="button"
                       onClick={() => handleSubjectChange(subjectId)}
+                      disabled={subjectsDisabled}
                       className="px-2.5 py-1 rounded-full text-xs bg-primary-100 text-primary-800 border border-primary-200 dark:bg-primary-900/30 dark:text-primary-300 dark:border-primary-700"
                       title="Click to remove"
                     >
@@ -439,6 +523,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
                       key={subject._id}
                       type="button"
                       onClick={() => handleSubjectChange(subject._id)}
+                      disabled={subjectsDisabled}
                       className={`w-full text-left px-3 py-2 rounded-md text-sm border transition-colors ${active
                         ? "bg-primary-600 text-white border-primary-600"
                         : "bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100 border-gray-200 dark:border-gray-700 hover:border-primary-500"
@@ -480,6 +565,10 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
                 {!schoolsLoading &&
                   schoolButtonItems.map((school) => {
                     const active = formData.schoolName === school.schoolName;
+                    const schoolLabel = String(school.schoolName || "");
+                    const displaySchoolLabel = schoolLabel.toLowerCase().includes(DEFAULT_SCHOOL_NAME.toLowerCase())
+                      ? schoolLabel.toUpperCase()
+                      : schoolLabel;
                     return (
                       <button
                         key={`${school.schoolName}-${school.schoolCode}`}
@@ -487,7 +576,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
                         onClick={() => handleSchoolSelect(school)}
                         className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${active ? "bg-primary-600 text-white border-primary-600" : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:border-primary-500"}`}
                       >
-                        {school.schoolName}
+                        {displaySchoolLabel}
                       </button>
                     );
                   })}
@@ -504,25 +593,6 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
             {errors.schoolCode && <p className="text-error-500 text-xs mt-1">{errors.schoolCode}</p>}
           </div>
 
-          {mode === "edit" && (
-            <div>
-              <label htmlFor={`${fieldIdPrefix}dutyType`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                Duty Type
-              </label>
-              <select
-                id={`${fieldIdPrefix}dutyType`}
-                name="dutyType"
-                value={formData.dutyType}
-                onChange={handleInputChange}
-                className="input w-full"
-              >
-                <option value="">Select Duty</option>
-                {allowedDutyOptions.map((duty) => (
-                  <option key={duty} value={duty}>{duty}</option>
-                ))}
-              </select>
-            </div>
-          )}
         </div>
 
         <div className="flex justify-end gap-3 pt-6 border-t border-gray-200 dark:border-gray-700">
@@ -530,7 +600,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? (mode === "add" ? "Creating..." : "Updating...") : (mode === "add" ? "Create Teacher" : "Update Teacher")}
+            {loading ? (mode === "add" ? "Creating..." : "Updating...") : (mode === "add" ? "Create Functionary" : "Update Functionary")}
           </button>
         </div>
       </form>

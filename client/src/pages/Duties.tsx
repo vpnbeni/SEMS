@@ -186,6 +186,7 @@ const Duties: React.FC = () => {
   const [checkedDuties, setCheckedDuties] = useState<Record<string, boolean>>({})
   const [selectedRoomDate, setSelectedRoomDate] = useState('')
   const [roomAssignmentsByDate, setRoomAssignmentsByDate] = useState<Record<string, Record<string, string>>>({})
+  const [roomAssignmentsByDateSecond, setRoomAssignmentsByDateSecond] = useState<Record<string, Record<string, string>>>({})
   const [roomCandidateSchoolCodesByDate, setRoomCandidateSchoolCodesByDate] = useState<
     Record<string, Record<string, string[]>>
   >({})
@@ -289,7 +290,9 @@ const Duties: React.FC = () => {
   })
 
   const allFunctionaries = useMemo(() => {
-    return teachersData?.items || []
+    return [...(teachersData?.items || [])].sort((a, b) =>
+      String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' })
+    )
   }, [teachersData])
 
   /* ── Filter by active tab + search ── */
@@ -342,9 +345,85 @@ const Duties: React.FC = () => {
     const source = allocationMode === 'manual' ? selectedInvigilatorsForDate : invigilatorsForTab
     return [...source].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }))
   }, [allocationMode, selectedInvigilatorsForDate, invigilatorsForTab])
+
+  const selectedInvigilatorCountForRoomDate = useMemo(() => {
+    if (!selectedRoomDate) return 0
+    let count = 0
+    const suffix = `::${selectedRoomDate}`
+    for (const [key, value] of Object.entries(checkedDuties)) {
+      if (value && key.endsWith(suffix)) count += 1
+    }
+    return count
+  }, [selectedRoomDate, checkedDuties])
+
   const canEnableAutoModeForDate = useMemo(
-    () => Boolean(selectedRoomDate) && selectedInvigilatorsForDate.length > 0,
-    [selectedRoomDate, selectedInvigilatorsForDate]
+    () => Boolean(selectedRoomDate) && selectedInvigilatorCountForRoomDate >= allocatedRoomsForSelectedDate.length * 2,
+    [selectedRoomDate, selectedInvigilatorCountForRoomDate, allocatedRoomsForSelectedDate.length]
+  )
+
+  const isFunctionaryAssignedElsewhere = useCallback(
+    (dateKey: string, functionaryId: string, currentRoomId: string, slot: 'first' | 'second') => {
+      const normalizedFunctionaryId = String(functionaryId || '').trim()
+      const normalizedCurrentRoomId = String(currentRoomId || '').trim()
+      if (!dateKey || !normalizedFunctionaryId || !normalizedCurrentRoomId) return false
+
+      const firstMap = roomAssignmentsByDate[dateKey] || {}
+      const secondMap = roomAssignmentsByDateSecond[dateKey] || {}
+
+      for (const [roomIdRaw, assignedIdRaw] of Object.entries(firstMap)) {
+        const roomId = String(roomIdRaw || '').trim()
+        const assignedId = String(assignedIdRaw || '').trim()
+        if (!roomId || !assignedId) continue
+        const isSameSlot = slot === 'first' && roomId === normalizedCurrentRoomId
+        if (isSameSlot) continue
+        if (assignedId === normalizedFunctionaryId) return true
+      }
+
+      for (const [roomIdRaw, assignedIdRaw] of Object.entries(secondMap)) {
+        const roomId = String(roomIdRaw || '').trim()
+        const assignedId = String(assignedIdRaw || '').trim()
+        if (!roomId || !assignedId) continue
+        const isSameSlot = slot === 'second' && roomId === normalizedCurrentRoomId
+        if (isSameSlot) continue
+        if (assignedId === normalizedFunctionaryId) return true
+      }
+
+      return false
+    },
+    [roomAssignmentsByDate, roomAssignmentsByDateSecond]
+  )
+
+  const getRemainingInvigilatorIdsForSlot = useCallback(
+    (dateKey: string, roomId: string, slot: 'first' | 'second') => {
+      const selectedIds = new Set(
+        selectedInvigilatorsForDate
+          .map((func) => String(func?._id || '').trim())
+          .filter(Boolean)
+      )
+      if (!dateKey || !roomId) return selectedIds
+
+      const firstMap = roomAssignmentsByDate[dateKey] || {}
+      const secondMap = roomAssignmentsByDateSecond[dateKey] || {}
+      const normalizedRoomId = String(roomId || '').trim()
+
+      for (const [mappedRoomIdRaw, assignedIdRaw] of Object.entries(firstMap)) {
+        const mappedRoomId = String(mappedRoomIdRaw || '').trim()
+        const assignedId = String(assignedIdRaw || '').trim()
+        if (!assignedId) continue
+        const keepCurrentSlot = slot === 'first' && mappedRoomId === normalizedRoomId
+        if (!keepCurrentSlot) selectedIds.delete(assignedId)
+      }
+      for (const [mappedRoomIdRaw, assignedIdRaw] of Object.entries(secondMap)) {
+        const mappedRoomId = String(mappedRoomIdRaw || '').trim()
+        const assignedId = String(assignedIdRaw || '').trim()
+        if (!assignedId) continue
+        const keepCurrentSlot = slot === 'second' && mappedRoomId === normalizedRoomId
+        if (!keepCurrentSlot) selectedIds.delete(assignedId)
+      }
+
+      return selectedIds
+    },
+    [selectedInvigilatorsForDate, roomAssignmentsByDate, roomAssignmentsByDateSecond]
   )
 
   /* ── Count per tab ── */
@@ -450,9 +529,9 @@ const Duties: React.FC = () => {
     if (activeTab === 'ASI' && isSelecting) {
       const conflict = getInvigilatorConflict(funcId, dateKey)
       if (conflict) {
-        const message = `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches exam subject code(s): ${conflict.conflictingCodes.join(', ')} on ${formatDateLabel(dateKey)}.`
-        window.alert(message)
-        toast.error('Subject teacher cannot be on invigilation duty')
+        toast.error(
+          `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches ${conflict.conflictingCodes.join(', ')}`
+        )
         return
       }
     }
@@ -516,7 +595,13 @@ const Duties: React.FC = () => {
       try {
         setLoadingAllocationMode(true)
         const mode = await dutiesService.getDutyAllocationMode()
-        setAllocationMode(mode)
+        if (mode === 'auto') {
+          // Keep manual as default landing mode for Duties page.
+          await dutiesService.updateDutyAllocationMode('manual')
+          setAllocationMode('manual')
+        } else {
+          setAllocationMode('manual')
+        }
       } catch (error) {
         console.error('Failed to fetch duty allocation mode:', error)
         setAllocationMode('manual')
@@ -605,14 +690,21 @@ const Duties: React.FC = () => {
         setLoadingRoomAssignments(true)
         const response = await dutiesService.getDailyDuties(selectedRoomDate)
         const nextAssignments: Record<string, string> = {}
+        const nextAssignmentsSecond: Record<string, string> = {}
         for (const duty of response?.duties || []) {
           const roomId = String(duty?.room?._id || '')
           const functionaryId = String(duty?.functionary?._id || '')
+          const functionary2Id = String(duty?.functionary2?._id || '')
           if (roomId && functionaryId) nextAssignments[roomId] = functionaryId
+          if (roomId && functionary2Id) nextAssignmentsSecond[roomId] = functionary2Id
         }
         setRoomAssignmentsByDate((prev) => ({
           ...prev,
           [selectedRoomDate]: nextAssignments,
+        }))
+        setRoomAssignmentsByDateSecond((prev) => ({
+          ...prev,
+          [selectedRoomDate]: nextAssignmentsSecond,
         }))
         setRoomCandidateSchoolCodesByDate((prev) => ({
           ...prev,
@@ -631,15 +723,26 @@ const Duties: React.FC = () => {
   useEffect(() => {
     if (activeTab !== 'ASI' || !selectedRoomDate) return
     const assignmentsForDate = roomAssignmentsByDate[selectedRoomDate] || {}
+    const secondAssignmentsForDate = roomAssignmentsByDateSecond[selectedRoomDate] || {}
     let changed = false
     const nextAssignments = { ...assignmentsForDate }
+    const nextSecondAssignments = { ...secondAssignmentsForDate }
 
     for (const room of allocatedRoomsForSelectedDate) {
       const roomId = String(room?._id || '')
       const assignedFunctionaryId = String(assignmentsForDate[roomId] || '').trim()
-      if (!roomId || !assignedFunctionaryId) continue
-      if (!isInvigilatorAllowedForRoom(roomId, assignedFunctionaryId, selectedRoomDate)) {
+      const assignedFunctionary2Id = String(secondAssignmentsForDate[roomId] || '').trim()
+      if (!roomId) continue
+      if (assignedFunctionaryId && !isInvigilatorAllowedForRoom(roomId, assignedFunctionaryId, selectedRoomDate)) {
         delete nextAssignments[roomId]
+        changed = true
+      }
+      if (assignedFunctionary2Id && !isInvigilatorAllowedForRoom(roomId, assignedFunctionary2Id, selectedRoomDate)) {
+        delete nextSecondAssignments[roomId]
+        changed = true
+      }
+      if (assignedFunctionaryId && assignedFunctionary2Id && assignedFunctionaryId === assignedFunctionary2Id) {
+        delete nextSecondAssignments[roomId]
         changed = true
       }
     }
@@ -649,8 +752,19 @@ const Duties: React.FC = () => {
         ...prev,
         [selectedRoomDate]: nextAssignments,
       }))
+      setRoomAssignmentsByDateSecond((prev) => ({
+        ...prev,
+        [selectedRoomDate]: nextSecondAssignments,
+      }))
     }
-  }, [activeTab, selectedRoomDate, roomAssignmentsByDate, allocatedRoomsForSelectedDate, isInvigilatorAllowedForRoom])
+  }, [
+    activeTab,
+    selectedRoomDate,
+    roomAssignmentsByDate,
+    roomAssignmentsByDateSecond,
+    allocatedRoomsForSelectedDate,
+    isInvigilatorAllowedForRoom,
+  ])
 
   /* ── Save handler ── */
   const handleSaveFunctionaries = async () => {
@@ -665,6 +779,61 @@ const Duties: React.FC = () => {
     }
   }
 
+  const runAutoAssignmentForSelectedDate = useCallback(async (showSuccessToast = true) => {
+    if (!selectedRoomDate) return false
+    if (allocatedRoomsForSelectedDate.length === 0) return false
+
+    const orderedFunctionaryIds = selectedInvigilatorsForDate
+      .map((func) => String(func._id || '').trim())
+      .filter(Boolean)
+
+    const requiredForAuto = allocatedRoomsForSelectedDate.length * 2
+    if (orderedFunctionaryIds.length < requiredForAuto) {
+      toast.error(`Select at least ${requiredForAuto} invigilators for auto assignment`)
+      return false
+    }
+
+    try {
+      setSavingRoomAssignments(true)
+      const response = await dutiesService.assignDailyDuties({
+        examDate: selectedRoomDate,
+        functionaryIds: orderedFunctionaryIds,
+      })
+
+      const nextAssignments: Record<string, string> = {}
+      const nextAssignmentsSecond: Record<string, string> = {}
+      for (const duty of response?.duties || []) {
+        const roomId = String(duty?.room?._id || '')
+        const functionaryId = String(duty?.functionary?._id || '')
+        const functionary2Id = String(duty?.functionary2?._id || '')
+        if (roomId && functionaryId) nextAssignments[roomId] = functionaryId
+        if (roomId && functionary2Id) nextAssignmentsSecond[roomId] = functionary2Id
+      }
+      setRoomAssignmentsByDate((prev) => ({
+        ...prev,
+        [selectedRoomDate]: nextAssignments,
+      }))
+      setRoomAssignmentsByDateSecond((prev) => ({
+        ...prev,
+        [selectedRoomDate]: nextAssignmentsSecond,
+      }))
+      setRoomCandidateSchoolCodesByDate((prev) => ({
+        ...prev,
+        [selectedRoomDate]: response?.roomCandidateSchoolCodes || prev[selectedRoomDate] || {},
+      }))
+
+      if (showSuccessToast) {
+        toast.success(`Auto-assigned invigilators for ${formatDateLabel(selectedRoomDate)}`)
+      }
+      return true
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || 'Failed to auto-assign invigilators')
+      return false
+    } finally {
+      setSavingRoomAssignments(false)
+    }
+  }, [selectedRoomDate, allocatedRoomsForSelectedDate, selectedInvigilatorsForDate])
+
   const handleModeChange = async (mode: 'auto' | 'manual') => {
     if (mode === allocationMode) return
     if (mode === 'auto' && activeTab === 'ASI') {
@@ -672,10 +841,12 @@ const Duties: React.FC = () => {
         toast.error('Select exam date first')
         return
       }
+      if (selectedInvigilatorCountForRoomDate === 0) {
+        toast.error('No functionaries selected for the date.')
+        return
+      }
       if (!canEnableAutoModeForDate) {
-        const message = `Select invigilators to assign automatically for ${formatDateLabel(selectedRoomDate)}.`
-        window.alert(message)
-        toast.error('Select invigilators to assign automatically')
+        toast.error(`Select invigilators to assign automatically for ${formatDateLabel(selectedRoomDate)}`)
         return
       }
     }
@@ -684,6 +855,9 @@ const Duties: React.FC = () => {
       const savedMode = await dutiesService.updateDutyAllocationMode(mode)
       setAllocationMode(savedMode)
       toast.success(`Duty allocation mode updated to ${savedMode === 'auto' ? 'Auto' : 'Manual'}`)
+      if (savedMode === 'auto' && activeTab === 'ASI') {
+        await runAutoAssignmentForSelectedDate(false)
+      }
     } catch (error) {
       console.error('Failed to update duty allocation mode:', error)
       toast.error('Failed to update duty allocation mode')
@@ -697,16 +871,16 @@ const Duties: React.FC = () => {
     if (functionaryId) {
       const conflict = getInvigilatorConflict(functionaryId, selectedRoomDate)
       if (conflict) {
-        const message = `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches exam subject code(s): ${conflict.conflictingCodes.join(', ')} on ${formatDateLabel(selectedRoomDate)}.`
-        window.alert(message)
-        toast.error('Subject teacher cannot be on invigilation duty')
+        toast.error(
+          `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches ${conflict.conflictingCodes.join(', ')}`
+        )
         return
       }
       const roomSchoolConflict = getRoomSchoolConflict(roomId, functionaryId, selectedRoomDate)
       if (roomSchoolConflict) {
-        const message = `Invigilator cannot be of the candidate school. ${roomSchoolConflict.functionaryName} has school code ${roomSchoolConflict.schoolCode}, which matches candidate school code for this room on ${formatDateLabel(selectedRoomDate)}.`
-        window.alert(message)
-        toast.error('Invigilator cannot be of the candidate school')
+        toast.error(
+          `Invigilator cannot be of candidate school. ${roomSchoolConflict.functionaryName} (${roomSchoolConflict.schoolCode})`
+        )
         return
       }
     }
@@ -718,6 +892,38 @@ const Duties: React.FC = () => {
       },
     }))
   }, [selectedRoomDate, getInvigilatorConflict, getRoomSchoolConflict])
+
+  const handleRoomAssignmentSecondChange = useCallback((roomId: string, functionaryId: string) => {
+    if (!selectedRoomDate) return
+    const assignedFirst = String(roomAssignmentsByDate[selectedRoomDate]?.[roomId] || '').trim()
+    if (functionaryId && assignedFirst && functionaryId === assignedFirst) {
+      toast.error('Invigilator 1 and Invigilator 2 cannot be same for a room')
+      return
+    }
+    if (functionaryId) {
+      const conflict = getInvigilatorConflict(functionaryId, selectedRoomDate)
+      if (conflict) {
+        toast.error(
+          `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches ${conflict.conflictingCodes.join(', ')}`
+        )
+        return
+      }
+      const roomSchoolConflict = getRoomSchoolConflict(roomId, functionaryId, selectedRoomDate)
+      if (roomSchoolConflict) {
+        toast.error(
+          `Invigilator cannot be of candidate school. ${roomSchoolConflict.functionaryName} (${roomSchoolConflict.schoolCode})`
+        )
+        return
+      }
+    }
+    setRoomAssignmentsByDateSecond((prev) => ({
+      ...prev,
+      [selectedRoomDate]: {
+        ...(prev[selectedRoomDate] || {}),
+        [roomId]: functionaryId,
+      },
+    }))
+  }, [selectedRoomDate, roomAssignmentsByDate, getInvigilatorConflict, getRoomSchoolConflict])
 
   const selectedRoomDateIndex = useMemo(() => {
     if (!selectedRoomDate) return -1
@@ -747,30 +953,50 @@ const Duties: React.FC = () => {
       return
     }
 
-    const assignmentsForDate = roomAssignmentsByDate[selectedRoomDate] || {}
-    const orderedFunctionaryIds = allocatedRoomsForSelectedDate.map((room) => String(assignmentsForDate[room._id] || '').trim())
-
-    if (orderedFunctionaryIds.some((value) => !value)) {
-      toast.error('Assign an invigilator for each room')
+    let orderedFunctionaryIds: string[] = []
+    let orderedSecondFunctionaryIds: string[] = []
+    if (allocationMode === 'auto') {
+      await runAutoAssignmentForSelectedDate(true)
       return
-    }
+    } else {
+      const assignmentsForDate = roomAssignmentsByDate[selectedRoomDate] || {}
+      const secondAssignmentsForDate = roomAssignmentsByDateSecond[selectedRoomDate] || {}
+      orderedFunctionaryIds = allocatedRoomsForSelectedDate.map((room) => String(assignmentsForDate[room._id] || '').trim())
+      orderedSecondFunctionaryIds = allocatedRoomsForSelectedDate.map((room) =>
+        String(secondAssignmentsForDate[room._id] || '').trim()
+      )
 
-    const uniqueFunctionaryIds = new Set(orderedFunctionaryIds)
-    if (uniqueFunctionaryIds.size !== orderedFunctionaryIds.length) {
-      toast.error('One invigilator cannot be assigned to multiple rooms on same date')
-      return
-    }
-
-    for (let index = 0; index < allocatedRoomsForSelectedDate.length; index += 1) {
-      const room = allocatedRoomsForSelectedDate[index]
-      const functionaryId = orderedFunctionaryIds[index]
-      const roomSchoolConflict = getRoomSchoolConflict(room._id, functionaryId, selectedRoomDate)
-      if (roomSchoolConflict) {
-        const roomLabel = `${room.roomNo}${room.roomName ? ` - ${room.roomName}` : ''}`
-        const message = `Invigilator cannot be of the candidate school. ${roomSchoolConflict.functionaryName} (${roomSchoolConflict.schoolCode}) conflicts with room ${roomLabel} on ${formatDateLabel(selectedRoomDate)}.`
-        window.alert(message)
-        toast.error('Invigilator cannot be of the candidate school')
+      if (orderedFunctionaryIds.some((value) => !value) || orderedSecondFunctionaryIds.some((value) => !value)) {
+        toast.error('Assign both invigilators for each room')
         return
+      }
+
+      const hasSameInRoom = orderedFunctionaryIds.some((firstId, index) => firstId === orderedSecondFunctionaryIds[index])
+      if (hasSameInRoom) {
+        toast.error('Invigilator 1 and Invigilator 2 cannot be same for any room')
+        return
+      }
+
+      const uniqueFunctionaryIds = new Set([...orderedFunctionaryIds, ...orderedSecondFunctionaryIds])
+      if (uniqueFunctionaryIds.size !== orderedFunctionaryIds.length + orderedSecondFunctionaryIds.length) {
+        toast.error('One invigilator cannot be assigned to multiple rooms on same date')
+        return
+      }
+
+      for (let index = 0; index < allocatedRoomsForSelectedDate.length; index += 1) {
+        const room = allocatedRoomsForSelectedDate[index]
+        const firstFunctionaryId = orderedFunctionaryIds[index]
+        const secondFunctionaryId = orderedSecondFunctionaryIds[index]
+        const roomSchoolConflictFirst = getRoomSchoolConflict(room._id, firstFunctionaryId, selectedRoomDate)
+        const roomSchoolConflictSecond = getRoomSchoolConflict(room._id, secondFunctionaryId, selectedRoomDate)
+        if (roomSchoolConflictFirst || roomSchoolConflictSecond) {
+          const roomLabel = `${room.roomNo}${room.roomName ? ` - ${room.roomName}` : ''}`
+          const conflict = roomSchoolConflictFirst || roomSchoolConflictSecond
+          toast.error(
+            `Invigilator cannot be of candidate school. ${conflict?.functionaryName} conflicts with ${roomLabel}`
+          )
+          return
+        }
       }
     }
 
@@ -779,17 +1005,25 @@ const Duties: React.FC = () => {
       const response = await dutiesService.assignDailyDuties({
         examDate: selectedRoomDate,
         functionaryIds: orderedFunctionaryIds,
+        secondFunctionaryIds: orderedSecondFunctionaryIds,
       })
 
       const nextAssignments: Record<string, string> = {}
+      const nextAssignmentsSecond: Record<string, string> = {}
       for (const duty of response?.duties || []) {
         const roomId = String(duty?.room?._id || '')
         const functionaryId = String(duty?.functionary?._id || '')
+        const functionary2Id = String(duty?.functionary2?._id || '')
         if (roomId && functionaryId) nextAssignments[roomId] = functionaryId
+        if (roomId && functionary2Id) nextAssignmentsSecond[roomId] = functionary2Id
       }
       setRoomAssignmentsByDate((prev) => ({
         ...prev,
         [selectedRoomDate]: nextAssignments,
+      }))
+      setRoomAssignmentsByDateSecond((prev) => ({
+        ...prev,
+        [selectedRoomDate]: nextAssignmentsSecond,
       }))
       setRoomCandidateSchoolCodesByDate((prev) => ({
         ...prev,
@@ -970,7 +1204,15 @@ const Duties: React.FC = () => {
                         key={`max-${dateKey}`}
                         className="border border-gray-400 dark:border-gray-500 px-4 py-2 text-center text-[11px] font-semibold whitespace-nowrap"
                       >
-                        <span className={checked >= maxDuties && maxDuties > 0 ? 'text-green-600 dark:text-green-400' : 'text-gray-700 dark:text-gray-100'}>
+                        <span
+                          className={
+                            maxDuties <= 0
+                              ? 'text-gray-700 dark:text-gray-100'
+                              : checked >= maxDuties
+                                ? 'text-green-600 dark:text-green-400'
+                                : 'text-red-600 dark:text-red-400'
+                          }
+                        >
                           {checked}/{maxDuties}
                         </span>
                       </th>
@@ -986,7 +1228,7 @@ const Duties: React.FC = () => {
                     </td>
                     <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       <div className="inline-flex items-center gap-2">
-                        <span>{func.name}</span>
+                        <span>{String(func.name || '').toUpperCase()}</span>
                         <span
                           className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
                           title={`Assigned on ${checkedCountByFunctionary[func._id] || 0} date(s)`}
@@ -1050,30 +1292,32 @@ const Duties: React.FC = () => {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <div className="inline-flex rounded-lg border border-gray-300 dark:border-gray-600 overflow-hidden">
+                <div className="inline-flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Manual</span>
                   <button
                     type="button"
-                    onClick={() => handleModeChange('auto')}
-                    disabled={loadingAllocationMode || !canEnableAutoModeForDate}
-                    className={`px-3 py-1.5 text-xs font-semibold ${allocationMode === 'auto'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                      }`}
-                    title={!canEnableAutoModeForDate ? 'Select invigilators for this date to enable auto mode' : 'Switch to auto mode'}
-                  >
-                    Auto
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleModeChange('manual')}
+                    onClick={() => handleModeChange(allocationMode === 'auto' ? 'manual' : 'auto')}
                     disabled={loadingAllocationMode}
-                    className={`px-3 py-1.5 text-xs font-semibold border-l border-gray-300 dark:border-gray-600 ${allocationMode === 'manual'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                      }`}
+                    className={`relative inline-flex h-7 w-14 items-center rounded-full border transition-colors ${
+                      allocationMode === 'auto'
+                        ? 'bg-blue-600 border-blue-600'
+                        : 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+                    } ${loadingAllocationMode ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    title={
+                      allocationMode === 'auto'
+                        ? 'Switch to manual mode'
+                        : canEnableAutoModeForDate
+                          ? 'Switch to auto mode'
+                          : 'Switch to auto mode (requires selected functionaries for date)'
+                    }
                   >
-                    Manual
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                        allocationMode === 'auto' ? 'translate-x-8' : 'translate-x-1'
+                      }`}
+                    />
                   </button>
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">Auto</span>
                 </div>
                 <div className="inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden">
                   <button
@@ -1128,7 +1372,13 @@ const Duties: React.FC = () => {
                       Room
                     </th>
                     <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">
-                      Invigilator
+                      Invigilator 1
+                    </th>
+                    <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">
+                      OASIS ID
+                    </th>
+                    <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">
+                      Invigilator 2
                     </th>
                     <th className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">
                       OASIS ID
@@ -1138,17 +1388,45 @@ const Duties: React.FC = () => {
                 <tbody className="bg-white dark:bg-gray-800">
                   {allocatedRoomsForSelectedDate.map((room) => {
                     const selectedFunctionaryId = roomAssignmentsByDate[selectedRoomDate]?.[room._id] || ''
+                    const selectedFunctionarySecondId = roomAssignmentsByDateSecond[selectedRoomDate]?.[room._id] || ''
                     const selectedFunctionary = functionaryById[selectedFunctionaryId]
-                    const options = [...roomDropdownInvigilators].filter((func) =>
-                      isInvigilatorAllowedForRoom(room._id, func._id, selectedRoomDate)
-                    )
+                    const selectedFunctionarySecond = functionaryById[selectedFunctionarySecondId]
+                    const remainingForFirst = getRemainingInvigilatorIdsForSlot(selectedRoomDate, room._id, 'first')
+                    const remainingForSecond = getRemainingInvigilatorIdsForSlot(selectedRoomDate, room._id, 'second')
+
+                    const options = [...roomDropdownInvigilators].filter((func) => {
+                      const candidateId = String(func._id || '').trim()
+                      if (!candidateId) return false
+                      if (!remainingForFirst.has(candidateId)) return false
+                      if (candidateId === String(selectedFunctionarySecondId || '').trim()) return false
+                      if (isFunctionaryAssignedElsewhere(selectedRoomDate, candidateId, room._id, 'first')) return false
+                      return true
+                    })
+
+                    const secondOptions = [...roomDropdownInvigilators].filter((func) => {
+                      const candidateId = String(func._id || '').trim()
+                      if (!candidateId) return false
+                      if (!remainingForSecond.has(candidateId)) return false
+                      if (candidateId === String(selectedFunctionaryId || '').trim()) return false
+                      if (isFunctionaryAssignedElsewhere(selectedRoomDate, candidateId, room._id, 'second')) return false
+                      return true
+                    })
                     if (
                       selectedFunctionaryId &&
                       selectedFunctionary &&
-                      isInvigilatorAllowedForRoom(room._id, selectedFunctionaryId, selectedRoomDate) &&
+                      !isFunctionaryAssignedElsewhere(selectedRoomDate, selectedFunctionaryId, room._id, 'first') &&
                       !options.some((func) => func._id === selectedFunctionaryId)
                     ) {
                       options.push(selectedFunctionary)
+                    }
+                    if (
+                      selectedFunctionarySecondId &&
+                      selectedFunctionarySecond &&
+                      String(selectedFunctionarySecondId) !== String(selectedFunctionaryId) &&
+                      !isFunctionaryAssignedElsewhere(selectedRoomDate, selectedFunctionarySecondId, room._id, 'second') &&
+                      !secondOptions.some((func) => func._id === selectedFunctionarySecondId)
+                    ) {
+                      secondOptions.push(selectedFunctionarySecond)
                     }
 
                     return (
@@ -1161,13 +1439,17 @@ const Duties: React.FC = () => {
                             value={selectedFunctionaryId}
                             onChange={(e) => handleRoomAssignmentChange(room._id, e.target.value)}
                             className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white px-2 py-1.5"
-                            disabled={loadingRoomAssignments}
-                            title={`Assign invigilator for room ${room.roomNo}`}
+                            disabled={loadingRoomAssignments || allocationMode === 'auto'}
+                            title={
+                              allocationMode === 'auto'
+                                ? `Auto mode: invigilator is assigned by system for room ${room.roomNo}`
+                                : `Assign invigilator for room ${room.roomNo}`
+                            }
                           >
                             <option value="">Select invigilator</option>
                             {options.map((func) => (
                               <option key={func._id} value={func._id}>
-                                {func.name}
+                                {String(func.name || '').toUpperCase()}
                               </option>
                             ))}
                           </select>
@@ -1175,20 +1457,50 @@ const Duties: React.FC = () => {
                         <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-900 dark:text-white whitespace-nowrap">
                           {selectedFunctionary?.employeeId || '-'}
                         </td>
+                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
+                          <select
+                            value={selectedFunctionarySecondId}
+                            onChange={(e) => handleRoomAssignmentSecondChange(room._id, e.target.value)}
+                            disabled={loadingRoomAssignments || allocationMode === 'auto'}
+                            className={`w-full rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-900 dark:text-white px-2 py-1.5 ${
+                              allocationMode === 'auto'
+                                ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed'
+                                : 'bg-white dark:bg-gray-800'
+                            }`}
+                            title={`Invigilator 2 for room ${room.roomNo}`}
+                          >
+                            <option value="">Select invigilator</option>
+                            {secondOptions.map((func) => (
+                              <option key={func._id} value={func._id}>
+                                {String(func.name || '').toUpperCase()}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-900 dark:text-white whitespace-nowrap">
+                          {selectedFunctionarySecond?.employeeId || '-'}
+                        </td>
                       </tr>
                     )
                   })}
                   {allocatedRoomsForSelectedDate.length === 0 && (
                     <tr>
-                      <td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                      <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                         No rooms are allotted for this date.
                       </td>
                     </tr>
                   )}
                   {allocatedRoomsForSelectedDate.length > 0 && allocationMode === 'manual' && roomDropdownInvigilators.length === 0 && (
                     <tr>
-                      <td colSpan={3} className="px-4 py-4 text-center text-xs text-amber-700 dark:text-amber-300">
+                      <td colSpan={5} className="px-4 py-4 text-center text-xs text-amber-700 dark:text-amber-300">
                         No invigilators selected for this date. Select invigilators in the upper table first.
+                      </td>
+                    </tr>
+                  )}
+                  {allocatedRoomsForSelectedDate.length > 0 && allocationMode === 'auto' && (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-3 text-center text-xs text-blue-700 dark:text-blue-300">
+                        Auto mode is active. Invigilators shown here are assigned by backend on Save.
                       </td>
                     </tr>
                   )}
@@ -1362,11 +1674,11 @@ const Duties: React.FC = () => {
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{room.roomName || ''}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{room.floor || ''}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{getSchoolInitials(invigilator)}</td>
-                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.name || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{String(invigilator?.name || '').toUpperCase()}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.employeeId || ''}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1" />
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{getSchoolInitials(invigilator)}</td>
-                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.name || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{String(invigilator?.name || '').toUpperCase()}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.employeeId || ''}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1" />
                           </tr>
