@@ -115,6 +115,20 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
+      case 'cbse-portals':
+        return {
+          pageTitle: 'CBSE Portals',
+          pageSubtitle: 'Management',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'cbse-circulars':
+        return {
+          pageTitle: 'CBSE Circulars',
+          pageSubtitle: 'Management',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
       default:
         return {
           pageTitle: seg

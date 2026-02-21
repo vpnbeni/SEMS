@@ -93,7 +93,7 @@ const portals: PortalItem[] = [
 
 const CBSEPortals: React.FC = () => {
   return (
-    <div className="p-8 max-w-[1600px] mx-auto min-h-screen">
+    <div className="px-8 pb-8 pt-3 max-w-[1600px] mx-auto min-h-screen">
       <style>{`
         .portal-cards-grid {
           display: grid;
@@ -220,45 +220,25 @@ const CBSEPortals: React.FC = () => {
           color: #fff;
         }
 
-        .portal-section-header {
-          margin-bottom: 28px;
-        }
-
-        .portal-section-title {
-          font-size: 1.5rem;
-          font-weight: 700;
-          color: #1a202c;
-          margin: 0 0 6px 0;
-        }
-
         .portal-section-subtitle {
           font-size: 0.9rem;
           color: #718096;
-          margin: 0;
+          margin: 0 0 18px 0;
         }
 
         @media (prefers-color-scheme: dark) {
-          .portal-section-title {
-            color: #f7fafc;
-          }
           .portal-section-subtitle {
             color: #a0aec0;
           }
         }
 
         /* Dark mode support via class */
-        .dark .portal-section-title {
-          color: #f7fafc;
-        }
         .dark .portal-section-subtitle {
           color: #a0aec0;
         }
       `}</style>
 
-      <div className="portal-section-header">
-        <h2 className="portal-section-title">CBSE Portals</h2>
-        <p className="portal-section-subtitle">Quick access to official CBSE examination portals and management systems</p>
-      </div>
+      <p className="portal-section-subtitle">Quick access to official CBSE examination portals and management systems</p>
 
       <div className="portal-cards-grid">
         {portals.map((portal) => (
