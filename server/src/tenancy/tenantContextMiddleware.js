@@ -28,9 +28,13 @@ const buildTenantResolutionDebugContext = (req, resolution) => {
 const platformContextMiddleware = async (req, res, next) => {
   try {
     const resolution = resolveTenantFromRequest(req);
+    const rootApiDomain = (process.env.ROOT_API_DOMAIN || 'api.vpnbeni.com').toLowerCase();
+    const isRequestToRootApiHost = resolution.host === rootApiDomain;
 
-    // Platform admin routes must be served only from root API host (or localhost).
-    if (!resolution.isPlatformHost && !resolution.isLocalHost) {
+    // Platform admin routes must be served when request is to root API host (or localhost).
+    // Allow when: request host is root API (e.g. api.capabble.cloud) even if origin/referer
+    // imply a tenant (e.g. ib.capabble.cloud), so resolve-tenant and admin auth work from tenant app.
+    if (!resolution.isPlatformHost && !resolution.isLocalHost && !isRequestToRootApiHost) {
       return res.status(404).json({
         success: false,
         message: 'Platform admin routes are not available on tenant API hosts',

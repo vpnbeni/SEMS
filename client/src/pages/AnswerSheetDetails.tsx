@@ -790,6 +790,9 @@ const AnswerSheetDetails: React.FC = () => {
                         <div className="mb-4 flex items-center justify-between">
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Add Discarded Sheets</h3>
                             <button
+                                type="button"
+                                title="Close"
+                                aria-label="Close"
                                 onClick={() => {
                                     setShowDiscardedModal(false)
                                     setDiscardInput({ serial: '', fromSerial: '', toSerial: '', reason: 'Damaged/Misprinted' })
@@ -867,10 +870,11 @@ const AnswerSheetDetails: React.FC = () => {
                         )}
 
                         <div className="mb-6">
-                            <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <label htmlFor="discard-reason" className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
                                 Reason
                             </label>
                             <select
+                                id="discard-reason"
                                 value={discardInput.reason}
                                 onChange={(e) => setDiscardInput({ ...discardInput, reason: e.target.value })}
                                 className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
