@@ -136,11 +136,6 @@ const Subjects: React.FC = () => {
     setError(null) // Clear errors when closing modal
   }
 
-  const handleAddClick = () => {
-    setError(null) // Clear any previous errors
-    setIsAddModalOpen(true)
-  }
-
   const showSuccess = (msg: string) => {
     setSuccessMessage(msg)
     setTimeout(() => setSuccessMessage(null), 3000)

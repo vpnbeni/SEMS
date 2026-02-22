@@ -24,8 +24,6 @@ const formatDayNum = (dateStr: string): string => {
 }
 
 const ExamTimeline: React.FC<ExamTimelineProps> = ({ exams }) => {
-  const today = todayIso()
-
   if (!exams.length) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-3 flex items-center justify-center min-h-[72px] text-gray-500 dark:text-gray-400 text-sm">

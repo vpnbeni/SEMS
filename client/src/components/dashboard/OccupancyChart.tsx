@@ -35,7 +35,7 @@ const OccupancyChart: React.FC<OccupancyChartProps> = ({ used, remaining }) => {
               dataKey="value"
               stroke="none"
             >
-              {data.map((entry, index) => (
+              {data.map((entry) => (
                 <Cell key={entry.name} fill={entry.color} />
               ))}
             </Pie>

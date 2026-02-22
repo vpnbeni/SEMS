@@ -1,12 +1,4 @@
 import React from 'react'
-import {
-  Users,
-  UserCheck,
-  UserX,
-  DoorOpen,
-  ClipboardList,
-  FileStack,
-} from 'lucide-react'
 
 export type KPICard = {
   label: string

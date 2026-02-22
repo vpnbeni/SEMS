@@ -26,12 +26,6 @@ const Dashboard: React.FC = () => {
     month: 'short',
     year: 'numeric',
   })
-  const timeStr = currentTime.toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-
   const totalCandidates = 210
   const presentToday = 206
   const absentToday = 4
