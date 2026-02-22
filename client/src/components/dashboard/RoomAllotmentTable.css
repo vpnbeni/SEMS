@@ -1,0 +1,12 @@
+.room-allotment-bar {
+  --room-allotment-used: 0%;
+  --room-allotment-remaining: 0%;
+}
+
+.room-allotment-bar-used {
+  width: var(--room-allotment-used);
+}
+
+.room-allotment-bar-remaining {
+  width: var(--room-allotment-remaining);
+}

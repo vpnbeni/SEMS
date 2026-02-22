@@ -354,8 +354,20 @@ export const downloadFile = async (
     link.click()
     link.remove()
     window.URL.revokeObjectURL(url)
-  } catch (error) {
-    toast.error('Failed to download file')
+  } catch (error: any) {
+    // When responseType is 'blob', error response body is a Blob; parse it to get server error message
+    if (error?.response?.data instanceof Blob) {
+      try {
+        const text = await error.response.data.text()
+        const json = JSON.parse(text)
+        if (typeof json?.error === 'string') {
+          error.serverMessage = json.error
+        }
+      } catch (_) {
+        // ignore parse errors
+      }
+    }
+    // Do not toast here so the caller can show a single toast with server message or fallback
     throw error
   }
 }

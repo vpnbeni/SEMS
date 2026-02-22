@@ -24,12 +24,22 @@
         
         .slip-container {
             height: 50vh;
+            display: flex;
+            flex-direction: column;
             page-break-inside: avoid;
             padding: 10px 0;
+            overflow: hidden;
         }
         
-        .slip-container:first-child {
+        .slip-container:nth-of-type(odd) {
             border-bottom: 1px dashed #000;
+        }
+        .slip-container:nth-of-type(even) {
+            page-break-after: always;
+        }
+        .slip-container:last-child {
+            page-break-after: auto;
+            border-bottom: none;
         }
         
         .slip-title {
@@ -82,6 +92,7 @@
             border-collapse: collapse;
             table-layout: fixed;
             margin-bottom: 0;
+            flex: 1 1 auto;
         }
 
         .seating-table col.col1 { width: {{templateSettings.col1Width}}%; }
@@ -100,7 +111,7 @@
             padding: 3px 4px;
             text-align: center;
             font-size: 8pt;
-            height: {{templateSettings.rowHeight}}px;
+            min-height: {{templateSettings.rowHeight}}px;
             vertical-align: middle;
         }
         
@@ -157,9 +168,9 @@
                 <td class="label-cell">Class: {{className}}</td>
             </tr>
             <tr>
-                <td>Name Of<br>Examination</td>
+                <td>Name Of Examination</td>
                 <td colspan="3" class="value-cell">
-                    {{examName}}<br>{{examYear}}
+                    {{examName}} {{examYear}}
                 </td>
                 <td class="label-cell">Subject</td>
                 <td colspan="2" class="value-cell">{{subjectCode}} ; {{subjectName}}</td>

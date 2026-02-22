@@ -1,4 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { Document, Page, pdfjs } from 'react-pdf'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import toast from 'react-hot-toast'
 import {
   useCentreDatesheetEntries,
   useGenerateSeatingPlanPDFMutation,
@@ -14,6 +17,24 @@ import type {
   SeatingPlanTemplateSettings,
 } from '../services/seatingPlanService'
 import Loader from '../components/common/Loader'
+import './SeatingPlan.css'
+
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+
+/**
+ * Toggle button wrapper that uses literal aria-pressed="true"|"false" so
+ * static analysis (e.g. Microsoft Edge Tools) accepts the ARIA value.
+ */
+function ToggleButton({
+  pressed,
+  ...props
+}: React.ComponentProps<'button'> & { pressed: boolean }) {
+  return pressed ? (
+    <button aria-pressed="true" {...props} />
+  ) : (
+    <button aria-pressed="false" {...props} />
+  )
+}
 
 const DEFAULT_CBSE_LAYOUT_SETTINGS: CBSECopyTemplateSettings = {
   infoCol1Width: 20,
@@ -104,6 +125,11 @@ const SeatingPlan: React.FC = () => {
   const [roomFolderLayoutDraft, setRoomFolderLayoutDraft] = useState<RoomFolderSlipTemplateSettings>(DEFAULT_ROOM_FOLDER_LAYOUT_SETTINGS)
   const [roomDoorLayoutDraft, setRoomDoorLayoutDraft] = useState<RoomDoorSlipTemplateSettings>(DEFAULT_ROOM_DOOR_LAYOUT_SETTINGS)
   const [templateDraftReady, setTemplateDraftReady] = useState(false)
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null)
+  const [previewFilename, setPreviewFilename] = useState('')
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false)
+  const [previewPageCount, setPreviewPageCount] = useState(0)
+  const [previewRenderError, setPreviewRenderError] = useState<string | null>(null)
   const mainGateTableWrapperRef = useRef<HTMLDivElement | null>(null)
   const cbseInfoTableWrapperRef = useRef<HTMLDivElement | null>(null)
   const cbseTableWrapperRef = useRef<HTMLDivElement | null>(null)
@@ -117,19 +143,48 @@ const SeatingPlan: React.FC = () => {
   const updateTemplateSettingsMutation = useUpdateSeatingPlanTemplateSettingsMutation()
   const saveTemplateSettings = updateTemplateSettingsMutation.mutate
   const pdfMutation = useGenerateSeatingPlanPDFMutation({
+    autoDownload: false,
+    onSuccess: (blob, variables) => {
+      const blobUrl = URL.createObjectURL(blob)
+      setPreviewPdfUrl((previousUrl) => {
+        if (previousUrl) URL.revokeObjectURL(previousUrl)
+        return blobUrl
+      })
+      setPreviewFilename(variables.filename || 'seating-plan.pdf')
+      setPreviewPageCount(0)
+      setPreviewRenderError(null)
+      setShowPreviewDialog(true)
+    },
     onError: (err) => {
       const text = String(err?.message || '')
       if (text.includes('status code 400')) {
-        alert('Rooms are not allocated for this exam date. Please allocate rooms first in Exam Room/Hall or switch room allocation mode to Auto.')
+        toast.error('Rooms are not allocated for this exam date. Please allocate rooms first in Exam Room/Hall or switch room allocation mode to Auto.')
         return
       }
-      alert(text || 'Failed to generate PDF. Please try again.')
+      toast.error(text || 'Failed to generate PDF. Please try again.')
     },
   })
 
   const error = queryError?.message ?? null
   const downloadingId = pdfMutation.isPending ? pdfMutation.variables?.datesheetId ?? null : null
   const isSavingTemplateSettings = updateTemplateSettingsMutation.isPending
+
+  useEffect(() => {
+    return () => {
+      if (previewPdfUrl) URL.revokeObjectURL(previewPdfUrl)
+    }
+  }, [previewPdfUrl])
+
+  const closePreviewDialog = () => {
+    setShowPreviewDialog(false)
+    setPreviewPageCount(0)
+    setPreviewRenderError(null)
+    setPreviewFilename('')
+    setPreviewPdfUrl((previousUrl) => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl)
+      return null
+    })
+  }
 
   useEffect(() => {
     if (!templateSettings?.cbseCopy) return
@@ -756,12 +811,12 @@ const SeatingPlan: React.FC = () => {
     <div className="p-6">
       {/* Status Overview - Clickable Tabs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <button
+        <ToggleButton
+          pressed={activeTab === 'mainGate'}
           onClick={() => setActiveTab('mainGate')}
           disabled={pdfMutation.isPending && activeTab !== 'mainGate'}
           className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'mainGate' ? 'ring-2 ring-blue-500 border-blue-400 dark:border-blue-500 bg-blue-100 dark:bg-blue-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800'
             } ${pdfMutation.isPending && activeTab !== 'mainGate' ? 'opacity-50 cursor-not-allowed' : ''}`}
-          aria-pressed={activeTab === 'mainGate'}
         >
           <div className="flex items-center">
             <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
@@ -774,14 +829,14 @@ const SeatingPlan: React.FC = () => {
               <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'mainGate' ? 'Selected format' : 'Click to switch format'}</p>
             </div>
           </div>
-        </button>
+        </ToggleButton>
 
-        <button
+        <ToggleButton
+          pressed={activeTab === 'roomFolderSlip'}
           onClick={() => setActiveTab('roomFolderSlip')}
           disabled={pdfMutation.isPending && activeTab !== 'roomFolderSlip'}
           className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'roomFolderSlip' ? 'ring-2 ring-green-500 border-green-400 dark:border-green-500 bg-green-100 dark:bg-green-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-green-200 dark:hover:border-green-800'
             } ${pdfMutation.isPending && activeTab !== 'roomFolderSlip' ? 'opacity-50 cursor-not-allowed' : ''}`}
-          aria-pressed={activeTab === 'roomFolderSlip'}
         >
           <div className="flex items-center">
             <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
@@ -794,14 +849,14 @@ const SeatingPlan: React.FC = () => {
               <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'roomFolderSlip' ? 'Selected format' : 'Click to switch format'}</p>
             </div>
           </div>
-        </button>
+        </ToggleButton>
 
-        <button
+        <ToggleButton
+          pressed={activeTab === 'roomDoorSlip'}
           onClick={() => setActiveTab('roomDoorSlip')}
           disabled={pdfMutation.isPending && activeTab !== 'roomDoorSlip'}
           className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'roomDoorSlip' ? 'ring-2 ring-yellow-500 border-yellow-400 dark:border-yellow-500 bg-yellow-100 dark:bg-yellow-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-yellow-200 dark:hover:border-yellow-800'
             } ${pdfMutation.isPending && activeTab !== 'roomDoorSlip' ? 'opacity-50 cursor-not-allowed' : ''}`}
-          aria-pressed={activeTab === 'roomDoorSlip'}
         >
           <div className="flex items-center">
             <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
@@ -814,14 +869,14 @@ const SeatingPlan: React.FC = () => {
               <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'roomDoorSlip' ? 'Selected format' : 'Click to switch format'}</p>
             </div>
           </div>
-        </button>
+        </ToggleButton>
 
-        <button
+        <ToggleButton
+          pressed={activeTab === 'cbseCopy'}
           onClick={() => setActiveTab('cbseCopy')}
           disabled={pdfMutation.isPending && activeTab !== 'cbseCopy'}
           className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'cbseCopy' ? 'ring-2 ring-purple-500 border-purple-400 dark:border-purple-500 bg-purple-100 dark:bg-purple-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-purple-200 dark:hover:border-purple-800'
             } ${pdfMutation.isPending && activeTab !== 'cbseCopy' ? 'opacity-50 cursor-not-allowed' : ''}`}
-          aria-pressed={activeTab === 'cbseCopy'}
         >
           <div className="flex items-center">
             <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
@@ -834,7 +889,7 @@ const SeatingPlan: React.FC = () => {
               <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'cbseCopy' ? 'Selected format' : 'Click to switch format'}</p>
             </div>
           </div>
-        </button>
+        </ToggleButton>
       </div>
 
       {/* Datesheet Table */}
@@ -845,33 +900,8 @@ const SeatingPlan: React.FC = () => {
           </h3>
         </div>
 
-        <div
-          className="overflow-x-auto overflow-y-visible"
-          style={{
-            scrollbarGutter: 'stable',
-            overscrollBehaviorX: 'contain'
-          }}
-        >
-          <style>{`
-            .seating-table-wrapper {
-              position: relative;
-            }
-            .seating-table-wrapper::-webkit-scrollbar {
-              height: 12px;
-            }
-            .seating-table-wrapper::-webkit-scrollbar-track {
-              background: #f1f1f1;
-              border-radius: 6px;
-            }
-            .seating-table-wrapper::-webkit-scrollbar-thumb {
-              background: #888;
-              border-radius: 6px;
-            }
-            .seating-table-wrapper::-webkit-scrollbar-thumb:hover {
-              background: #555;
-            }
-          `}</style>
-          <div className="seating-table-wrapper overflow-x-auto pb-4" style={{ maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}>
+        <div className="overflow-x-auto overflow-y-visible sp-datesheet-scroll-container">
+          <div className="seating-table-wrapper overflow-x-auto pb-4">
             {loading ? (
               <div className="flex justify-center items-center py-12">
                 <Loader size="lg" />
@@ -1041,10 +1071,7 @@ const SeatingPlan: React.FC = () => {
 
               {/* Main Gate Preview */}
               <div className="overflow-x-auto py-2">
-                <div
-                  className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto"
-                  style={{ width: '210mm', minHeight: '297mm' }}
-                >
+                <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto seating-plan-preview-page">
                   {/* Header */}
                   <div className="text-center mb-4">
                     <h2 className="text-lg font-bold text-gray-900 dark:text-white">INTERNATIONAL BHARTI SCHOOL, ROHTAK</h2>
@@ -1065,13 +1092,14 @@ const SeatingPlan: React.FC = () => {
                   </div>
 
                   {/* Room Table 1 */}
+                  <style>{`.sp-main-gate-layout { --sp-col1-width: ${mainGateLayoutDraft.col1Width}%; --sp-col2-width: ${mainGateLayoutDraft.col2Width}%; --sp-col3-width: ${mainGateLayoutDraft.col3Width}%; --sp-col4-width: ${mainGateLayoutDraft.col4Width}%; --sp-row-height: ${mainGateLayoutDraft.rowHeight}px; }${mainGateColumnBoundaries.map((b, i) => `.sp-main-gate-boundary-${i} { left: ${b}%; }`).join(' ')}`}</style>
                   <div className="relative mb-5" ref={mainGateTableWrapperRef}>
-                    <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+                    <table className="w-full border-collapse seating-plan-table-layout-fixed sp-main-gate-layout">
                       <colgroup>
-                        <col style={{ width: `${mainGateLayoutDraft.col1Width}%` }} />
-                        <col style={{ width: `${mainGateLayoutDraft.col2Width}%` }} />
-                        <col style={{ width: `${mainGateLayoutDraft.col3Width}%` }} />
-                        <col style={{ width: `${mainGateLayoutDraft.col4Width}%` }} />
+                        <col className="sp-col-1" />
+                        <col className="sp-col-2" />
+                        <col className="sp-col-3" />
+                        <col className="sp-col-4" />
                       </colgroup>
                       <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
                         Room No. 01 - X Rose (First Floor)
@@ -1087,19 +1115,18 @@ const SeatingPlan: React.FC = () => {
                       <tbody>
                         {[...Array(8)].map((_, i) => (
                           <tr key={i}>
-                            <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>Roll No</td>
-                            <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248737 + i}</td>
-                            <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248745 + i}</td>
-                            <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248753 + i}</td>
+                            <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm">Roll No</td>
+                            <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248737 + i}</td>
+                            <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248745 + i}</td>
+                            <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248753 + i}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    {mainGateColumnBoundaries.map((boundary, index) => (
+                    {mainGateColumnBoundaries.map((_, index) => (
                       <div
                         key={`main-gate-boundary-${index}`}
-                        className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
-                        style={{ left: `${boundary}%` }}
+                        className={`sp-main-gate-boundary-${index} absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20`}
                         onMouseDown={(event) => startMainGateColumnResize(index, event)}
                         title="Drag to resize column"
                       />
@@ -1107,12 +1134,12 @@ const SeatingPlan: React.FC = () => {
                   </div>
 
                   {/* Room Table 2 */}
-                  <table className="w-full border-collapse mb-5" style={{ tableLayout: 'fixed' }}>
+                  <table className="w-full border-collapse mb-5 seating-plan-table-layout-fixed sp-main-gate-layout">
                     <colgroup>
-                      <col style={{ width: `${mainGateLayoutDraft.col1Width}%` }} />
-                      <col style={{ width: `${mainGateLayoutDraft.col2Width}%` }} />
-                      <col style={{ width: `${mainGateLayoutDraft.col3Width}%` }} />
-                      <col style={{ width: `${mainGateLayoutDraft.col4Width}%` }} />
+                      <col className="sp-col-1" />
+                      <col className="sp-col-2" />
+                      <col className="sp-col-3" />
+                      <col className="sp-col-4" />
                     </colgroup>
                     <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
                       Room No. 02 - X Tulip (First Floor)
@@ -1128,22 +1155,22 @@ const SeatingPlan: React.FC = () => {
                     <tbody>
                       {[...Array(8)].map((_, i) => (
                         <tr key={i}>
-                          <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>Roll No</td>
-                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248761 + i}</td>
-                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248769 + i}</td>
-                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248777 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm">Roll No</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248761 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248769 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248777 + i}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
 
                   {/* Room Table 3 */}
-                  <table className="w-full border-collapse mb-5" style={{ tableLayout: 'fixed' }}>
+                  <table className="w-full border-collapse mb-5 seating-plan-table-layout-fixed sp-main-gate-layout">
                     <colgroup>
-                      <col style={{ width: `${mainGateLayoutDraft.col1Width}%` }} />
-                      <col style={{ width: `${mainGateLayoutDraft.col2Width}%` }} />
-                      <col style={{ width: `${mainGateLayoutDraft.col3Width}%` }} />
-                      <col style={{ width: `${mainGateLayoutDraft.col4Width}%` }} />
+                      <col className="sp-col-1" />
+                      <col className="sp-col-2" />
+                      <col className="sp-col-3" />
+                      <col className="sp-col-4" />
                     </colgroup>
                     <caption className="text-sm font-bold text-gray-900 dark:text-white p-2 border border-black dark:border-gray-400 border-b-0 bg-white dark:bg-gray-900">
                       Room No. 03 - X Lotus (First Floor)
@@ -1159,10 +1186,10 @@ const SeatingPlan: React.FC = () => {
                     <tbody>
                       {[...Array(8)].map((_, i) => (
                         <tr key={i}>
-                          <td className="border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>Roll No</td>
-                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248785 + i}</td>
-                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248793 + i}</td>
-                          <td className="border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm" style={{ height: `${mainGateLayoutDraft.rowHeight}px` }}>{17248801 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm">Roll No</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248785 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248793 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248801 + i}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1217,22 +1244,20 @@ const SeatingPlan: React.FC = () => {
               </div>
 
               <div className="overflow-x-auto py-2">
-                <div
-                  className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto"
-                  style={{ width: '210mm', minHeight: '297mm' }}
-                >
+                <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto seating-plan-preview-page">
                   <h2 className="text-lg font-bold text-center mb-4 text-gray-900 dark:text-white">SEATING PLAN</h2>
 
+                  <style>{`.sp-room-folder-info-cols { --sp-info-col-1: ${roomFolderLayoutDraft.infoCol1Width}%; --sp-info-col-2: ${roomFolderLayoutDraft.infoCol2Width}%; --sp-info-col-3: ${roomFolderLayoutDraft.infoCol3Width}%; --sp-info-col-4: ${roomFolderLayoutDraft.infoCol4Width}%; --sp-info-col-5: ${roomFolderLayoutDraft.infoCol5Width}%; --sp-info-col-6: ${roomFolderLayoutDraft.infoCol6Width}%; --sp-info-col-7: ${roomFolderLayoutDraft.infoCol7Width}%; } .sp-room-folder-data-cols { --sp-data-col-1: ${roomFolderLayoutDraft.col1Width}%; --sp-data-col-2: ${roomFolderLayoutDraft.col2Width}%; --sp-data-col-3: ${roomFolderLayoutDraft.col3Width}%; --sp-data-col-4: ${roomFolderLayoutDraft.col4Width}%; --sp-data-col-5: ${roomFolderLayoutDraft.col5Width}%; --sp-data-col-6: ${roomFolderLayoutDraft.col6Width}%; --sp-data-col-7: ${roomFolderLayoutDraft.col7Width}%; --sp-data-col-8: ${roomFolderLayoutDraft.col8Width}%; --sp-data-col-9: ${roomFolderLayoutDraft.col9Width}%; --sp-row-height: ${roomFolderLayoutDraft.rowHeight}px; } ${roomFolderInfoColumnBoundaries.map((b, i) => `.sp-rf-info-b-${i} { left: ${b}%; }`).join(' ')} ${roomFolderColumnBoundaries.map((b, i) => `.sp-rf-data-b-${i} { left: ${b}%; }`).join(' ')}`}</style>
                   <div className="relative mb-4" ref={roomFolderInfoTableWrapperRef}>
-                    <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
+                    <table className="w-full border-collapse text-sm seating-plan-table-layout-fixed sp-room-folder-info-cols">
                       <colgroup>
-                        <col style={{ width: `${roomFolderLayoutDraft.infoCol1Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.infoCol2Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.infoCol3Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.infoCol4Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.infoCol5Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.infoCol6Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.infoCol7Width}%` }} />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
                       </colgroup>
                       <tbody>
                         <tr>
@@ -1262,11 +1287,10 @@ const SeatingPlan: React.FC = () => {
                         </tr>
                       </tbody>
                     </table>
-                    {roomFolderInfoColumnBoundaries.map((boundary, index) => (
+                    {roomFolderInfoColumnBoundaries.map((_, index) => (
                       <div
                         key={`room-folder-info-boundary-${index}`}
-                        className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
-                        style={{ left: `${boundary}%` }}
+                        className={`absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20 sp-rf-info-b-${index}`}
                         onMouseDown={(event) => startRoomFolderInfoColumnResize(index, event)}
                         title="Drag to resize info table columns"
                       />
@@ -1274,17 +1298,17 @@ const SeatingPlan: React.FC = () => {
                   </div>
 
                   <div className="relative" ref={roomFolderTableWrapperRef}>
-                    <table className="w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
+                    <table className="w-full border-collapse text-xs seating-plan-table-layout-fixed sp-room-folder-data-cols">
                       <colgroup>
-                        <col style={{ width: `${roomFolderLayoutDraft.col1Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.col2Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.col3Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.col4Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.col5Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.col6Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.col7Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.col8Width}%` }} />
-                        <col style={{ width: `${roomFolderLayoutDraft.col9Width}%` }} />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
                       </colgroup>
                       <thead>
                         <tr>
@@ -1307,15 +1331,15 @@ const SeatingPlan: React.FC = () => {
                       <tbody>
                         {[...Array(8)].map((_, i) => (
                           <tr key={i}>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683240 + i}</td>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{(i % 3) + 1}</td>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A00{41 + i}</td>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683263 + i}</td>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{((i + 1) % 3) + 1}</td>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A00{49 + i}</td>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683284 + i}</td>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{((i + 2) % 3) + 1}</td>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A00{57 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683240 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{(i % 3) + 1}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A00{41 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683263 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{((i + 1) % 3) + 1}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A00{49 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683284 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{((i + 2) % 3) + 1}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A00{57 + i}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1330,11 +1354,10 @@ const SeatingPlan: React.FC = () => {
                         </tr>
                       </tfoot>
                     </table>
-                    {roomFolderColumnBoundaries.map((boundary, index) => (
+                    {roomFolderColumnBoundaries.map((_, index) => (
                       <div
                         key={`room-folder-boundary-${index}`}
-                        className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
-                        style={{ left: `${boundary}%` }}
+                        className={`absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20 sp-rf-data-b-${index}`}
                         onMouseDown={(event) => startRoomFolderColumnResize(index, event)}
                         title="Drag to resize column"
                       />
@@ -1350,18 +1373,17 @@ const SeatingPlan: React.FC = () => {
                       Row Height: {roomFolderLayoutDraft.rowHeight}px
                     </span>
                   </div>
-
                   <div className="my-4 border-t border-dashed border-gray-400 dark:border-gray-500" />
 
-                  <table className="w-full border-collapse mb-4 text-sm" style={{ tableLayout: 'fixed' }}>
+                  <table className="w-full border-collapse mb-4 text-sm seating-plan-table-layout-fixed sp-room-folder-info-cols">
                     <colgroup>
-                      <col style={{ width: `${roomFolderLayoutDraft.infoCol1Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.infoCol2Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.infoCol3Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.infoCol4Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.infoCol5Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.infoCol6Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.infoCol7Width}%` }} />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
                     </colgroup>
                     <tbody>
                       <tr>
@@ -1392,17 +1414,17 @@ const SeatingPlan: React.FC = () => {
                     </tbody>
                   </table>
 
-                  <table className="w-full border-collapse text-xs" style={{ tableLayout: 'fixed' }}>
+                  <table className="w-full border-collapse text-xs seating-plan-table-layout-fixed sp-room-folder-data-cols">
                     <colgroup>
-                      <col style={{ width: `${roomFolderLayoutDraft.col1Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.col2Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.col3Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.col4Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.col5Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.col6Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.col7Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.col8Width}%` }} />
-                      <col style={{ width: `${roomFolderLayoutDraft.col9Width}%` }} />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
                     </colgroup>
                     <thead>
                       <tr>
@@ -1425,15 +1447,15 @@ const SeatingPlan: React.FC = () => {
                     <tbody>
                       {[...Array(8)].map((_, i) => (
                         <tr key={`second-slip-row-${i}`}>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683340 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{(i % 3) + 1}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A10{41 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683363 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{((i + 1) % 3) + 1}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A10{49 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{31683384 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>{((i + 2) % 3) + 1}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center" style={{ height: `${roomFolderLayoutDraft.rowHeight}px` }}>A10{57 + i}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683340 + i}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{(i % 3) + 1}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A10{41 + i}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683363 + i}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{((i + 1) % 3) + 1}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A10{49 + i}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683384 + i}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{((i + 2) % 3) + 1}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A10{57 + i}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1470,21 +1492,19 @@ const SeatingPlan: React.FC = () => {
               </div>
 
               <div className="overflow-x-auto py-2">
-                <div
-                  className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto"
-                  style={{ width: '210mm', minHeight: '297mm' }}
-                >
+                <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto seating-plan-preview-page">
                   <h2 className="text-xl font-bold text-center mb-4 text-gray-900 dark:text-white">SEATING PLAN</h2>
 
+                  <style>{`.sp-room-door-info-cols { --sp-door-info-col-1: ${roomDoorLayoutDraft.infoCol1Width}%; --sp-door-info-col-2: ${roomDoorLayoutDraft.infoCol2Width}%; --sp-door-info-col-3: ${roomDoorLayoutDraft.infoCol3Width}%; --sp-door-info-col-4: ${roomDoorLayoutDraft.infoCol4Width}%; --sp-door-info-col-5: ${roomDoorLayoutDraft.infoCol5Width}%; --sp-door-info-col-6: ${roomDoorLayoutDraft.infoCol6Width}%; } .sp-room-door-data-cols { --sp-door-data-col-1: ${roomDoorLayoutDraft.col1Width}%; --sp-door-data-col-2: ${roomDoorLayoutDraft.col2Width}%; --sp-door-data-col-3: ${roomDoorLayoutDraft.col3Width}%; --sp-door-row-height: ${roomDoorLayoutDraft.rowHeight}px; } ${roomDoorInfoColumnBoundaries.map((b, i) => `.sp-rd-info-b-${i} { left: ${b}%; }`).join(' ')} ${roomDoorColumnBoundaries.map((b, i) => `.sp-rd-data-b-${i} { left: ${b}%; }`).join(' ')}`}</style>
                   <div className="relative mb-4" ref={roomDoorInfoTableWrapperRef}>
-                    <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
+                    <table className="w-full border-collapse text-sm seating-plan-table-layout-fixed sp-room-door-info-cols">
                       <colgroup>
-                        <col style={{ width: `${roomDoorLayoutDraft.infoCol1Width}%` }} />
-                        <col style={{ width: `${roomDoorLayoutDraft.infoCol2Width}%` }} />
-                        <col style={{ width: `${roomDoorLayoutDraft.infoCol3Width}%` }} />
-                        <col style={{ width: `${roomDoorLayoutDraft.infoCol4Width}%` }} />
-                        <col style={{ width: `${roomDoorLayoutDraft.infoCol5Width}%` }} />
-                        <col style={{ width: `${roomDoorLayoutDraft.infoCol6Width}%` }} />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
                       </colgroup>
                       <tbody>
                         <tr>
@@ -1514,11 +1534,10 @@ const SeatingPlan: React.FC = () => {
                         </tr>
                       </tbody>
                     </table>
-                    {roomDoorInfoColumnBoundaries.map((boundary, index) => (
+                    {roomDoorInfoColumnBoundaries.map((_, index) => (
                       <div
                         key={`room-door-info-boundary-${index}`}
-                        className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
-                        style={{ left: `${boundary}%` }}
+                        className={`absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20 sp-rd-info-b-${index}`}
                         onMouseDown={(event) => startRoomDoorInfoColumnResize(index, event)}
                         title="Drag to resize info table columns"
                       />
@@ -1526,11 +1545,11 @@ const SeatingPlan: React.FC = () => {
                   </div>
 
                   <div className="relative" ref={roomDoorTableWrapperRef}>
-                    <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
+                    <table className="w-full border-collapse text-sm seating-plan-table-layout-fixed sp-room-door-data-cols">
                       <colgroup>
-                        <col style={{ width: `${roomDoorLayoutDraft.col1Width}%` }} />
-                        <col style={{ width: `${roomDoorLayoutDraft.col2Width}%` }} />
-                        <col style={{ width: `${roomDoorLayoutDraft.col3Width}%` }} />
+                        <col />
+                        <col />
+                        <col />
                       </colgroup>
                       <thead>
                         <tr>
@@ -1547,18 +1566,17 @@ const SeatingPlan: React.FC = () => {
                       <tbody>
                         {[...Array(8)].map((_, i) => (
                           <tr key={i}>
-                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683240 + i}</td>
-                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683263 + i}</td>
-                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683284 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683240 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683263 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683284 + i}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
-                    {roomDoorColumnBoundaries.map((boundary, index) => (
+                    {roomDoorColumnBoundaries.map((_, index) => (
                       <div
                         key={`room-door-boundary-${index}`}
-                        className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
-                        style={{ left: `${boundary}%` }}
+                        className={`absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20 sp-rd-data-b-${index}`}
                         onMouseDown={(event) => startRoomDoorColumnResize(index, event)}
                         title="Drag to resize column"
                       />
@@ -1577,14 +1595,14 @@ const SeatingPlan: React.FC = () => {
 
                   <div className="my-4 border-t border-dashed border-gray-400 dark:border-gray-500" />
 
-                  <table className="w-full border-collapse mb-4 text-sm" style={{ tableLayout: 'fixed' }}>
+                  <table className="w-full border-collapse mb-4 text-sm seating-plan-table-layout-fixed sp-room-door-info-cols">
                     <colgroup>
-                      <col style={{ width: `${roomDoorLayoutDraft.infoCol1Width}%` }} />
-                      <col style={{ width: `${roomDoorLayoutDraft.infoCol2Width}%` }} />
-                      <col style={{ width: `${roomDoorLayoutDraft.infoCol3Width}%` }} />
-                      <col style={{ width: `${roomDoorLayoutDraft.infoCol4Width}%` }} />
-                      <col style={{ width: `${roomDoorLayoutDraft.infoCol5Width}%` }} />
-                      <col style={{ width: `${roomDoorLayoutDraft.infoCol6Width}%` }} />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
+                      <col />
                     </colgroup>
                     <tbody>
                       <tr>
@@ -1609,11 +1627,11 @@ const SeatingPlan: React.FC = () => {
                     </tbody>
                   </table>
 
-                  <table className="w-full border-collapse text-sm" style={{ tableLayout: 'fixed' }}>
+                  <table className="w-full border-collapse text-sm seating-plan-table-layout-fixed sp-room-door-data-cols">
                     <colgroup>
-                      <col style={{ width: `${roomDoorLayoutDraft.col1Width}%` }} />
-                      <col style={{ width: `${roomDoorLayoutDraft.col2Width}%` }} />
-                      <col style={{ width: `${roomDoorLayoutDraft.col3Width}%` }} />
+                      <col />
+                      <col />
+                      <col />
                     </colgroup>
                     <thead>
                       <tr>
@@ -1630,9 +1648,9 @@ const SeatingPlan: React.FC = () => {
                     <tbody>
                       {[...Array(8)].map((_, i) => (
                         <tr key={`second-door-row-${i}`}>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683340 + i}</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683363 + i}</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center" style={{ height: `${roomDoorLayoutDraft.rowHeight}px` }}>{31683384 + i}</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683340 + i}</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683363 + i}</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683384 + i}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1672,22 +1690,20 @@ const SeatingPlan: React.FC = () => {
 
               {/* CBSE Copy Preview */}
               <div className="overflow-x-auto py-2">
-                <div
-                  className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto"
-                  style={{ width: '210mm', minHeight: '297mm' }}
-                >
+                <style>{`.sp-cbse-info-cols { --sp-cbse-info-col-1: ${cbseLayoutDraft.infoCol1Width}%; --sp-cbse-info-col-2: ${cbseLayoutDraft.infoCol2Width}%; --sp-cbse-info-col-3: ${cbseLayoutDraft.infoCol3Width}%; --sp-cbse-info-col-4: ${cbseLayoutDraft.infoCol4Width}%; --sp-cbse-info-col-5: ${cbseLayoutDraft.infoCol5Width}%; } .sp-cbse-data-cols { --sp-cbse-data-col-1: ${cbseLayoutDraft.col1Width}%; --sp-cbse-data-col-2: ${cbseLayoutDraft.col2Width}%; --sp-cbse-data-col-3: ${cbseLayoutDraft.col3Width}%; --sp-cbse-data-col-4: ${cbseLayoutDraft.col4Width}%; --sp-cbse-data-col-5: ${cbseLayoutDraft.col5Width}%; --sp-cbse-data-col-6: ${cbseLayoutDraft.col6Width}%; --sp-cbse-header-font-size: ${cbseLayoutDraft.headerFontSize}pt; --sp-cbse-subheader-font-size: ${cbseLayoutDraft.subHeaderFontSize}pt; --sp-cbse-row-height: ${cbseLayoutDraft.rowHeight}px; --sp-cbse-cell-padding-y: ${cbseLayoutDraft.cellPaddingY}px; --sp-cbse-cell-padding-x: ${cbseLayoutDraft.cellPaddingX}px; --sp-cbse-body-font-size: ${cbseLayoutDraft.bodyFontSize}pt; } ${cbseInfoColumnBoundaries.map((b, i) => `.sp-cbse-info-b-${i} { left: ${b}%; }`).join(' ')} ${cbseColumnBoundaries.map((b, i) => `.sp-cbse-data-b-${i} { left: ${b}%; }`).join(' ')}`}</style>
+                <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto sp-preview-page-size">
                   {/* Header */}
                   <h2 className="text-xl font-bold text-center mb-4 text-gray-900 dark:text-white">SEATING PLAN</h2>
 
                   {/* Info Table */}
                   <div className="relative mb-4" ref={cbseInfoTableWrapperRef}>
-                    <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+                    <table className="w-full border-collapse seating-plan-table-layout-fixed sp-cbse-info-cols">
                       <colgroup>
-                        <col style={{ width: `${cbseLayoutDraft.infoCol1Width}%` }} />
-                        <col style={{ width: `${cbseLayoutDraft.infoCol2Width}%` }} />
-                        <col style={{ width: `${cbseLayoutDraft.infoCol3Width}%` }} />
-                        <col style={{ width: `${cbseLayoutDraft.infoCol4Width}%` }} />
-                        <col style={{ width: `${cbseLayoutDraft.infoCol5Width}%` }} />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
                       </colgroup>
                       <tbody>
                         <tr>
@@ -1715,11 +1731,10 @@ const SeatingPlan: React.FC = () => {
                       </tbody>
                     </table>
 
-                    {cbseInfoColumnBoundaries.map((boundary, index) => (
+                    {cbseInfoColumnBoundaries.map((_, index) => (
                       <div
                         key={`cbse-info-boundary-${index}`}
-                        className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
-                        style={{ left: `${boundary}%` }}
+                        className={`absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20 sp-cbse-info-b-${index}`}
                         onMouseDown={(event) => startInfoColumnResize(index, event)}
                         title="Drag to resize info table columns"
                       />
@@ -1728,115 +1743,48 @@ const SeatingPlan: React.FC = () => {
 
                   {/* Seating Table */}
                   <div className="relative" ref={cbseTableWrapperRef}>
-                    <table className="w-full border-collapse mb-4" style={{ tableLayout: 'fixed' }}>
+                    <table className="w-full border-collapse mb-4 seating-plan-table-layout-fixed sp-cbse-data-cols">
                       <colgroup>
-                        <col style={{ width: `${cbseLayoutDraft.col1Width}%` }} />
-                        <col style={{ width: `${cbseLayoutDraft.col2Width}%` }} />
-                        <col style={{ width: `${cbseLayoutDraft.col3Width}%` }} />
-                        <col style={{ width: `${cbseLayoutDraft.col4Width}%` }} />
-                        <col style={{ width: `${cbseLayoutDraft.col5Width}%` }} />
-                        <col style={{ width: `${cbseLayoutDraft.col6Width}%` }} />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
+                        <col />
                       </colgroup>
                       <thead>
                         <tr>
-                          <th
-                            className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white"
-                            colSpan={2}
-                            style={{ fontSize: `${cbseLayoutDraft.headerFontSize}pt` }}
-                          >
-                            Row 1
-                          </th>
-                          <th
-                            className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white"
-                            colSpan={2}
-                            style={{ fontSize: `${cbseLayoutDraft.headerFontSize}pt` }}
-                          >
-                            Row 2
-                          </th>
-                          <th
-                            className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white"
-                            colSpan={2}
-                            style={{ fontSize: `${cbseLayoutDraft.headerFontSize}pt` }}
-                          >
-                            Row 3
-                          </th>
+                          <th className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white sp-cbse-header-font" colSpan={2}>Row 1</th>
+                          <th className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white sp-cbse-header-font" colSpan={2}>Row 2</th>
+                          <th className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white sp-cbse-header-font" colSpan={2}>Row 3</th>
                         </tr>
                         <tr>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Roll No</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Q.P. Code</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Roll No</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Q.P. Code</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Roll No</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white" style={{ fontSize: `${cbseLayoutDraft.subHeaderFontSize}pt` }}>Q.P. Code</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white sp-cbse-subheader-font">Roll No</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white sp-cbse-subheader-font">Q.P. Code</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white sp-cbse-subheader-font">Roll No</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white sp-cbse-subheader-font">Q.P. Code</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white sp-cbse-subheader-font">Roll No</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white sp-cbse-subheader-font">Q.P. Code</td>
                         </tr>
                       </thead>
                       <tbody>
                         {[...Array(8)].map((_, i) => (
                           <tr key={i}>
-                            <td
-                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300"
-                              style={{
-                                height: `${cbseLayoutDraft.rowHeight}px`,
-                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                              }}
-                            >
-                              {17248737 + i}
-                            </td>
-                            <td
-                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500"
-                              style={{
-                                height: `${cbseLayoutDraft.rowHeight}px`,
-                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                              }}
-                            />
-                            <td
-                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300"
-                              style={{
-                                height: `${cbseLayoutDraft.rowHeight}px`,
-                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                              }}
-                            >
-                              {17248745 + i}
-                            </td>
-                            <td
-                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500"
-                              style={{
-                                height: `${cbseLayoutDraft.rowHeight}px`,
-                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                              }}
-                            />
-                            <td
-                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300"
-                              style={{
-                                height: `${cbseLayoutDraft.rowHeight}px`,
-                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                              }}
-                            >
-                              {17248753 + i}
-                            </td>
-                            <td
-                              className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500"
-                              style={{
-                                height: `${cbseLayoutDraft.rowHeight}px`,
-                                padding: `${cbseLayoutDraft.cellPaddingY}px ${cbseLayoutDraft.cellPaddingX}px`,
-                                fontSize: `${cbseLayoutDraft.bodyFontSize}pt`,
-                              }}
-                            />
+                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300 sp-cbse-body-cell">{17248737 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500 sp-cbse-body-cell" />
+                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300 sp-cbse-body-cell">{17248745 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500 sp-cbse-body-cell" />
+                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300 sp-cbse-body-cell">{17248753 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500 sp-cbse-body-cell" />
                           </tr>
                         ))}
                       </tbody>
                     </table>
 
-                    {cbseColumnBoundaries.map((boundary, index) => (
+                    {cbseColumnBoundaries.map((_, index) => (
                       <div
                         key={`cbse-boundary-${index}`}
-                        className="absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20"
-                        style={{ left: `${boundary}%` }}
+                        className={`absolute top-0 bottom-0 w-2 -ml-1 cursor-col-resize z-20 sp-cbse-data-b-${index}`}
                         onMouseDown={(event) => startColumnResize(index, event)}
                         title="Drag to resize column"
                       />
@@ -1881,6 +1829,78 @@ const SeatingPlan: React.FC = () => {
           )}
         </div>
       </div>
+
+      {showPreviewDialog && previewPdfUrl && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-6xl h-[88vh] bg-white dark:bg-gray-900 rounded-xl shadow-xl overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                Seating Plan PDF Preview
+              </h4>
+              <div className="flex items-center gap-2">
+                <a
+                  href={previewPdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Open in New Tab
+                </a>
+                <a
+                  href={previewPdfUrl}
+                  download={previewFilename || 'seating-plan.pdf'}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                >
+                  Download PDF
+                </a>
+                <button
+                  type="button"
+                  onClick={closePreviewDialog}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="w-full flex-1 overflow-auto bg-gray-100 dark:bg-gray-800 p-4">
+              {previewRenderError ? (
+                <div className="h-full w-full flex items-center justify-center p-6 text-center text-sm text-gray-600 dark:text-gray-300">
+                  {previewRenderError}
+                </div>
+              ) : (
+                <Document
+                  file={previewPdfUrl}
+                  loading={
+                    <div className="h-full w-full flex items-center justify-center text-sm text-gray-600 dark:text-gray-300">
+                      Loading PDF preview...
+                    </div>
+                  }
+                  onLoadSuccess={({ numPages }) => {
+                    setPreviewPageCount(numPages)
+                    setPreviewRenderError(null)
+                  }}
+                  onLoadError={(error) => {
+                    console.error('Failed to render seating plan preview:', error)
+                    const message = (error as Error)?.message || 'Unknown PDF render error'
+                    setPreviewRenderError(`Failed to render preview in dialog (${message}). Use "Open in New Tab" or "Download PDF".`)
+                  }}
+                  className="flex flex-col items-center gap-4"
+                >
+                  {Array.from({ length: previewPageCount }).map((_, index) => (
+                    <Page
+                      key={`seating-preview-page-${index + 1}`}
+                      pageNumber={index + 1}
+                      width={980}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                    />
+                  ))}
+                </Document>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

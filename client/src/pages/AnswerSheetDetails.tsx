@@ -24,6 +24,7 @@ import {
     Download,
     Loader2
 } from 'lucide-react'
+import api from '../services/api'
 import answerSheetService, { AnswerSheetEntry, DiscardedSerial } from '../services/answerSheetService'
 
 interface RelatedExam {
@@ -77,7 +78,12 @@ const AnswerSheetDetails: React.FC = () => {
     const [discardInput, setDiscardInput] = useState({ serial: '', fromSerial: '', toSerial: '', reason: 'Damaged/Misprinted' })
     const [discardMode, setDiscardMode] = useState<'single' | 'range'>('single')
     const [savingDiscard, setSavingDiscard] = useState(false)
-    const [downloadingAllocationId, setDownloadingAllocationId] = useState<string | null>(null)
+    // Dispatch record PDF preview
+    const [dispatchPreviewUrl, setDispatchPreviewUrl] = useState<string | null>(null)
+    const [showDispatchPreview, setShowDispatchPreview] = useState(false)
+    const [dispatchPreviewLoading, setDispatchPreviewLoading] = useState(false)
+    const [dispatchPreviewError, setDispatchPreviewError] = useState<string | null>(null)
+    const [dispatchPreviewAlloc, setDispatchPreviewAlloc] = useState<SerialAllocation | null>(null)
 
     useEffect(() => {
         if (id) {
@@ -197,20 +203,67 @@ const AnswerSheetDetails: React.FC = () => {
         return `answer-sheet-dispatch-record-${subjectCode}-${datePart}.pdf`
     }
 
-    const handleDownloadDispatchRecord = async (alloc: SerialAllocation) => {
-        if (!id) return
+    const closeDispatchPreview = () => {
+        setShowDispatchPreview(false)
+        setDispatchPreviewAlloc(null)
+        setDispatchPreviewError(null)
+        setDispatchPreviewUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev)
+            return null
+        })
+    }
 
+    const openDispatchPreview = async (alloc: SerialAllocation) => {
+        if (!id) return
         const allocationId = String(alloc._id || '')
         if (!allocationId) return
-
+        const hasAllocation = alloc.serialFrom !== 'N/A' && alloc.serialTo !== 'N/A' && alloc.sheetsAllocated > 0
+        if (!hasAllocation) {
+            toast.error('No allocation available for preview')
+            return
+        }
+        setDispatchPreviewAlloc(alloc)
+        setDispatchPreviewError(null)
+        setDispatchPreviewLoading(true)
+        setShowDispatchPreview(true)
+        setDispatchPreviewUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev)
+            return null
+        })
         try {
-            setDownloadingAllocationId(allocationId)
-            await answerSheetService.downloadDispatchRecord(id, allocationId, getDispatchFilename(alloc))
+            const response = await api.get<Blob>(
+                `/answersheets/${id}/dispatch-record/${allocationId}/download`,
+                { responseType: 'blob' }
+            )
+            const blob = response.data
+            const contentType = response.headers['content-type'] || ''
+            if (typeof blob === 'object' && blob !== null && contentType.toLowerCase().includes('application/pdf')) {
+                const objectUrl = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob]))
+                setDispatchPreviewUrl(objectUrl)
+            } else {
+                const text = await (blob instanceof Blob ? blob.text() : Promise.resolve(String(blob)))
+                let message = 'Failed to generate preview'
+                try {
+                    const json = JSON.parse(text)
+                    if (typeof json?.error === 'string') message = json.error
+                } catch (_) { /* ignore */ }
+                setDispatchPreviewError(message)
+            }
         } catch (error: any) {
-            console.error('Error downloading dispatch record:', error)
-            toast.error(error?.response?.data?.error || 'Failed to download dispatch record')
+            console.error('Failed to load dispatch record preview:', error)
+            if (error?.response?.data instanceof Blob) {
+                try {
+                    const text = await error.response.data.text()
+                    const json = JSON.parse(text)
+                    if (typeof json?.error === 'string') {
+                        setDispatchPreviewError(json.error)
+                        return
+                    }
+                } catch (_) { /* ignore */ }
+            }
+            setDispatchPreviewError(error?.serverMessage ?? error?.message ?? 'Failed to load dispatch record preview')
         } finally {
-            setDownloadingAllocationId(null)
+            setDispatchPreviewLoading(false)
         }
     }
 
@@ -575,9 +628,6 @@ const AnswerSheetDetails: React.FC = () => {
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-700 dark:border-gray-700">
                                             {allocation.allocations.map((alloc, index) => {
-                                                const allocationId = String(alloc._id || '')
-                                                const isCurrentRowDownloading = downloadingAllocationId === allocationId
-                                                const isAnyRowDownloading = downloadingAllocationId !== null
                                                 const hasAllocation = alloc.serialFrom !== 'N/A' && alloc.serialTo !== 'N/A' && alloc.sheetsAllocated > 0
 
                                                 return (
@@ -614,18 +664,38 @@ const AnswerSheetDetails: React.FC = () => {
                                                             </span>
                                                         </td>
                                                         <td className="px-6 py-4 text-center">
-                                                            <button
-                                                                onClick={() => handleDownloadDispatchRecord(alloc)}
-                                                                disabled={!hasAllocation || (isAnyRowDownloading && !isCurrentRowDownloading)}
-                                                                className="inline-flex items-center justify-center rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-blue-400 dark:hover:bg-blue-900/20 dark:hover:text-blue-300"
-                                                                title={hasAllocation ? 'Download dispatch record PDF' : 'No allocation available for download'}
-                                                            >
-                                                                {isCurrentRowDownloading ? (
-                                                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                                                ) : (
-                                                                    <Download className="h-4 w-4" />
+                                                            <div className="relative inline-flex group">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => hasAllocation ? openDispatchPreview(alloc) : undefined}
+                                                                    disabled={!hasAllocation || (dispatchPreviewLoading && dispatchPreviewAlloc?._id !== alloc._id)}
+                                                                    className="inline-flex items-center justify-center rounded-lg p-2 text-blue-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-blue-400 dark:hover:bg-blue-900/20 dark:hover:text-blue-300"
+                                                                    title={hasAllocation ? 'Preview and download dispatch record PDF' : 'No allocation available for download'}
+                                                                    aria-label={hasAllocation ? 'Preview and download dispatch record PDF' : 'No allocation available for download'}
+                                                                >
+                                                                    {dispatchPreviewLoading && dispatchPreviewAlloc?._id === alloc._id ? (
+                                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    ) : (
+                                                                        <Download className="h-4 w-4" />
+                                                                    )}
+                                                                </button>
+                                                                {hasAllocation && (
+                                                                    <span
+                                                                        className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1.5 text-xs font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-10"
+                                                                        role="tooltip"
+                                                                    >
+                                                                        Preview and download dispatch record PDF
+                                                                    </span>
                                                                 )}
-                                                            </button>
+                                                                {!hasAllocation && (
+                                                                    <span
+                                                                        className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-10"
+                                                                        role="tooltip"
+                                                                    >
+                                                                        No allocation available for download
+                                                                    </span>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 )
@@ -845,6 +915,72 @@ const AnswerSheetDetails: React.FC = () => {
                             Valid range: {answerSheet?.serialFrom} - {answerSheet?.serialTo}
                         </p>
                     </motion.div>
+                </div>
+            )}
+
+            {/* Dispatch record PDF preview modal */}
+            {showDispatchPreview && (dispatchPreviewUrl || dispatchPreviewLoading || dispatchPreviewError) && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+                    <div className="w-full max-w-6xl h-[88vh] bg-white dark:bg-gray-900 rounded-xl shadow-xl overflow-hidden flex flex-col">
+                        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+                            <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate pr-4">
+                                Dispatch Record PDF Preview
+                                {dispatchPreviewAlloc && (
+                                    <span className="ml-2 text-gray-500 dark:text-gray-400 font-normal">
+                                        {formatDate(dispatchPreviewAlloc.examDate)} — {dispatchPreviewAlloc.subjectName}
+                                    </span>
+                                )}
+                            </h4>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                {dispatchPreviewUrl && (
+                                    <>
+                                        <a
+                                            href={dispatchPreviewUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                        >
+                                            Open in New Tab
+                                        </a>
+                                        <a
+                                            href={dispatchPreviewUrl}
+                                            download={dispatchPreviewAlloc ? getDispatchFilename(dispatchPreviewAlloc) : 'dispatch-record.pdf'}
+                                            className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                                        >
+                                            Download PDF
+                                        </a>
+                                    </>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={closeDispatchPreview}
+                                    className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                >
+                                    Close
+                                </button>
+                            </div>
+                        </div>
+                        <div className="w-full flex-1 overflow-auto bg-gray-100 dark:bg-gray-800 p-4 min-h-0">
+                            {dispatchPreviewLoading ? (
+                                <div className="h-full w-full flex flex-col items-center justify-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+                                    <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                                    <p>Generating preview...</p>
+                                </div>
+                            ) : dispatchPreviewError ? (
+                                <div className="h-full w-full flex flex-col items-center justify-center gap-2 p-6 text-center text-sm text-gray-600 dark:text-gray-300">
+                                    <FileText className="w-12 h-12 text-amber-500" />
+                                    <p>{dispatchPreviewError}</p>
+                                    <p className="text-xs">Use Close and try again, or check allocation and rooms.</p>
+                                </div>
+                            ) : dispatchPreviewUrl ? (
+                                <iframe
+                                    src={`${dispatchPreviewUrl}#toolbar=0`}
+                                    className="w-full h-full min-h-[60vh] border-0 rounded-lg bg-white dark:bg-gray-900"
+                                    title="Dispatch record PDF preview"
+                                />
+                            ) : null}
+                        </div>
+                    </div>
                 </div>
             )}
         </motion.div>

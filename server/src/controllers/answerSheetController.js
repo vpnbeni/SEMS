@@ -1164,7 +1164,8 @@ exports.downloadDispatchRecord = async (req, res) => {
         srNo: roomRows.length + 1,
         roomNo: room.roomNo,
         type: sheetTypeLabel,
-        colour: answerSheet.colour,
+        colour: answerSheet.colour ? String(answerSheet.colour).toUpperCase() : '—',
+        series: answerSheet.series || '—',
         from: formatSerial(roomSerials[0]),
         to: formatSerial(roomSerials[roomSerials.length - 1]),
         total: roomSerials.length
@@ -1209,8 +1210,8 @@ exports.downloadDispatchRecord = async (req, res) => {
     }
 
     const templateData = {
-      schoolName: seatingPlanBuilder.schoolName || 'EXAMINATION CENTRE',
-      centreNo: seatingPlanBuilder.centreNo || '',
+      schoolName: (centreDetails?.centreName && String(centreDetails.centreName).trim()) || seatingPlanBuilder.schoolName || 'EXAMINATION CENTRE',
+      centreNo: (centreDetails?.centreNo && String(centreDetails.centreNo).trim()) || seatingPlanBuilder.centreNo || '',
       examSession,
       examDate: examDateLabel,
       subjectName: String(selectedAllocation.subjectName || seatingData.datesheet?.subjectName || '').toUpperCase(),
@@ -1240,9 +1241,12 @@ exports.downloadDispatchRecord = async (req, res) => {
     res.end(buffer)
   } catch (error) {
     console.error('Error generating dispatch record PDF:', error)
+    const message = error?.message && typeof error.message === 'string'
+      ? error.message
+      : 'Failed to generate dispatch record PDF'
     res.status(500).json({
       success: false,
-      error: 'Failed to generate dispatch record PDF'
+      error: message
     })
   }
 }

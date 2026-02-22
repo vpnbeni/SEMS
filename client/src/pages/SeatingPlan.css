@@ -1,0 +1,100 @@
+/* Datesheet table scroll container: stable scrollbar gutter, contain horizontal overscroll */
+.sp-datesheet-scroll-container {
+  overscroll-behavior-x: contain;
+}
+
+/* Only apply scrollbar-gutter where supported (not Safari/iOS); avoids layout shift in Chrome/Edge/Firefox */
+@supports (scrollbar-gutter: stable) {
+  .sp-datesheet-scroll-container {
+    scrollbar-gutter: stable;
+  }
+}
+
+/* Table wrapper with max height and custom scrollbar */
+.seating-table-wrapper {
+  position: relative;
+  max-height: calc(100vh - 280px);
+  overflow-y: auto;
+}
+
+.seating-table-wrapper::-webkit-scrollbar {
+  height: 12px;
+}
+
+.seating-table-wrapper::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 6px;
+}
+
+.seating-table-wrapper::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 6px;
+}
+
+.seating-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Tables in print preview use fixed layout for column resizing */
+.seating-plan-table-layout-fixed {
+  table-layout: fixed;
+}
+
+/* A4 print preview container (main gate, room folder, room door slips) */
+.seating-plan-preview-page {
+  width: 210mm;
+  min-height: 297mm;
+}
+
+/* Main gate layout: column widths and row height via CSS variables (values set by JS in a <style> block) */
+.sp-main-gate-layout col.sp-col-1 { width: var(--sp-col1-width, 25%); }
+.sp-main-gate-layout col.sp-col-2 { width: var(--sp-col2-width, 25%); }
+.sp-main-gate-layout col.sp-col-3 { width: var(--sp-col3-width, 25%); }
+.sp-main-gate-layout col.sp-col-4 { width: var(--sp-col4-width, 25%); }
+.sp-main-gate-layout .sp-row-height-cell { height: var(--sp-row-height, 24px); }
+
+/* Room folder / room door / CBSE layout: column widths via CSS variables (set in JS <style> blocks) */
+.sp-room-folder-info-cols col:nth-child(1) { width: var(--sp-info-col-1); }
+.sp-room-folder-info-cols col:nth-child(2) { width: var(--sp-info-col-2); }
+.sp-room-folder-info-cols col:nth-child(3) { width: var(--sp-info-col-3); }
+.sp-room-folder-info-cols col:nth-child(4) { width: var(--sp-info-col-4); }
+.sp-room-folder-info-cols col:nth-child(5) { width: var(--sp-info-col-5); }
+.sp-room-folder-info-cols col:nth-child(6) { width: var(--sp-info-col-6); }
+.sp-room-folder-info-cols col:nth-child(7) { width: var(--sp-info-col-7); }
+.sp-room-folder-data-cols col:nth-child(1) { width: var(--sp-data-col-1); }
+.sp-room-folder-data-cols col:nth-child(2) { width: var(--sp-data-col-2); }
+.sp-room-folder-data-cols col:nth-child(3) { width: var(--sp-data-col-3); }
+.sp-room-folder-data-cols col:nth-child(4) { width: var(--sp-data-col-4); }
+.sp-room-folder-data-cols col:nth-child(5) { width: var(--sp-data-col-5); }
+.sp-room-folder-data-cols col:nth-child(6) { width: var(--sp-data-col-6); }
+.sp-room-folder-data-cols col:nth-child(7) { width: var(--sp-data-col-7); }
+.sp-room-folder-data-cols col:nth-child(8) { width: var(--sp-data-col-8); }
+.sp-room-folder-data-cols col:nth-child(9) { width: var(--sp-data-col-9); }
+.sp-room-folder-data-cols .sp-row-height-cell { height: var(--sp-row-height); }
+.sp-room-door-info-cols col:nth-child(1) { width: var(--sp-door-info-col-1); }
+.sp-room-door-info-cols col:nth-child(2) { width: var(--sp-door-info-col-2); }
+.sp-room-door-info-cols col:nth-child(3) { width: var(--sp-door-info-col-3); }
+.sp-room-door-info-cols col:nth-child(4) { width: var(--sp-door-info-col-4); }
+.sp-room-door-info-cols col:nth-child(5) { width: var(--sp-door-info-col-5); }
+.sp-room-door-info-cols col:nth-child(6) { width: var(--sp-door-info-col-6); }
+.sp-room-door-data-cols col:nth-child(1) { width: var(--sp-door-data-col-1); }
+.sp-room-door-data-cols col:nth-child(2) { width: var(--sp-door-data-col-2); }
+.sp-room-door-data-cols col:nth-child(3) { width: var(--sp-door-data-col-3); }
+.sp-room-door-data-cols .sp-row-height-cell { height: var(--sp-door-row-height); }
+.sp-room-folder-data-cols .sp-row-height-cell { height: var(--sp-row-height); }
+.sp-cbse-info-cols col:nth-child(1) { width: var(--sp-cbse-info-col-1); }
+.sp-cbse-info-cols col:nth-child(2) { width: var(--sp-cbse-info-col-2); }
+.sp-cbse-info-cols col:nth-child(3) { width: var(--sp-cbse-info-col-3); }
+.sp-cbse-info-cols col:nth-child(4) { width: var(--sp-cbse-info-col-4); }
+.sp-cbse-info-cols col:nth-child(5) { width: var(--sp-cbse-info-col-5); }
+.sp-cbse-data-cols col:nth-child(1) { width: var(--sp-cbse-data-col-1); }
+.sp-cbse-data-cols col:nth-child(2) { width: var(--sp-cbse-data-col-2); }
+.sp-cbse-data-cols col:nth-child(3) { width: var(--sp-cbse-data-col-3); }
+.sp-cbse-data-cols col:nth-child(4) { width: var(--sp-cbse-data-col-4); }
+.sp-cbse-data-cols col:nth-child(5) { width: var(--sp-cbse-data-col-5); }
+.sp-cbse-data-cols col:nth-child(6) { width: var(--sp-cbse-data-col-6); }
+.sp-cbse-header-font { font-size: var(--sp-cbse-header-font-size); }
+.sp-cbse-subheader-font { font-size: var(--sp-cbse-subheader-font-size); }
+.sp-cbse-body-cell { height: var(--sp-cbse-row-height); padding: var(--sp-cbse-cell-padding-y) var(--sp-cbse-cell-padding-x); font-size: var(--sp-cbse-body-font-size); }
+.sp-boundary-marker { left: var(--sp-boundary-left); }
+.sp-preview-page-size { width: 210mm; min-height: 297mm; }

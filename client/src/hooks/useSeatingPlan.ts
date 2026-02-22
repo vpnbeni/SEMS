@@ -136,15 +136,28 @@ export interface GenerateSeatingPlanPDFVariables {
   filename?: string
 }
 
+type GenerateSeatingPlanPDFMutationOptions = UseMutationOptions<
+  Blob,
+  Error,
+  GenerateSeatingPlanPDFVariables
+> & {
+  autoDownload?: boolean
+}
+
 export function useGenerateSeatingPlanPDFMutation(
-  options?: UseMutationOptions<Blob, Error, GenerateSeatingPlanPDFVariables>
+  options?: GenerateSeatingPlanPDFMutationOptions
 ) {
+  const autoDownload = options?.autoDownload ?? true
+
   return useMutation({
     mutationFn: ({ datesheetId, format }: GenerateSeatingPlanPDFVariables) =>
       generatePDF(datesheetId, format),
-    onSuccess: (blob, variables) => {
-      const filename = variables.filename || FORMAT_FILENAMES[variables.format]
-      seatingPlanService.downloadPDF(blob, filename)
+    onSuccess: (blob, variables, onMutateResult, context) => {
+      if (autoDownload) {
+        const filename = variables.filename || FORMAT_FILENAMES[variables.format]
+        seatingPlanService.downloadPDF(blob, filename)
+      }
+      options?.onSuccess?.(blob, variables, onMutateResult, context)
     },
     ...options,
   })

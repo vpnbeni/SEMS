@@ -16,7 +16,9 @@
       padding: 0;
     }
 
-    body {
+    html, body {
+      width: 210mm;
+      min-height: 297mm;
       color: #111;
       font-family: Arial, sans-serif;
       font-size: 10pt;
@@ -24,33 +26,42 @@
     }
 
     .page {
+      width: 100%;
+      min-height: 0;
+      padding: 0;
       display: flex;
       flex-direction: column;
-      min-height: 270mm;
     }
 
     .header {
-      margin-bottom: 8px;
+      margin-bottom: 10px;
       text-align: center;
     }
 
-    .header h1 {
+    .header .school-name {
       font-size: 14pt;
-      margin-bottom: 2px;
+      font-weight: bold;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+
+    .header .exam-session {
+      font-size: 11pt;
+      font-weight: bold;
+      margin-bottom: 4px;
       text-transform: uppercase;
     }
 
-    .header .sub {
+    .header .record-title {
       font-size: 10pt;
-      font-weight: bold;
-      margin-bottom: 1px;
+      font-weight: normal;
     }
 
     .meta {
-      border: 1px solid #111;
       border-collapse: collapse;
       display: table;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
       width: 100%;
     }
 
@@ -59,24 +70,26 @@
     }
 
     .meta-cell {
-      border-right: 1px solid #111;
       display: table-cell;
-      padding: 5px 8px;
+      padding: 6px 8px;
       width: 50%;
     }
 
-    .meta-cell:last-child {
-      border-right: none;
+    .meta-cell-right {
+      text-align: right;
     }
 
     .meta strong {
       display: inline-block;
-      min-width: 62px;
+      min-width: 58px;
+    }
+
+    .table-wrap {
+      margin-bottom: 10px;
     }
 
     .table {
       border-collapse: collapse;
-      margin-bottom: 8px;
       table-layout: fixed;
       width: 100%;
     }
@@ -84,48 +97,55 @@
     .table th,
     .table td {
       border: 1px solid #111;
-      padding: 4px 6px;
+      padding: 5px 6px;
       text-align: center;
       vertical-align: middle;
+      font-size: 9pt;
       word-wrap: break-word;
     }
 
     .table th {
-      background: #f3f3f3;
-      font-size: 9pt;
+      background: #f5f5f5;
       font-weight: bold;
     }
 
-    .table td {
-      font-size: 9pt;
+    .table tfoot td {
+      border: 1px solid #111;
+      font-weight: bold;
     }
 
-    .table .left {
-      text-align: left;
+    .table tfoot td.total-cell {
+      text-align: center;
+      font-weight: bold;
     }
+
+    .table .col-sr { width: 6%; }
+    .table .col-room { width: 10%; }
+    .table .col-type { width: 14%; }
+    .table .col-colour { width: 12%; }
+    .table .col-series { width: 10%; }
+    .table .col-from { width: 16%; }
+    .table .col-to { width: 16%; }
+    .table .col-total { width: 16%; }
 
     .summary {
-      border: 1px solid #111;
-      margin-bottom: 8px;
-      padding: 6px 8px;
+      margin-bottom: 10px;
+      padding: 8px 10px;
     }
 
-    .summary-row {
-      align-items: center;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 18px;
-      margin-bottom: 4px;
+    .summary-line {
+      margin-bottom: 6px;
     }
 
-    .summary-row:last-child {
+    .summary-line:last-child {
       margin-bottom: 0;
     }
 
     .line {
       border-bottom: 1px solid #111;
       display: inline-block;
-      min-width: 90px;
+      min-width: 120px;
+      margin-left: 4px;
       padding-left: 2px;
     }
 
@@ -152,7 +172,8 @@
     }
 
     .footer {
-      margin-top: auto;
+      margin-top: 32px;
+      padding-top: 24px;
       text-align: right;
     }
 
@@ -160,13 +181,6 @@
       display: inline-block;
       min-width: 220px;
       text-align: center;
-    }
-
-    .signature-line {
-      border-top: 1px solid #111;
-      margin-bottom: 4px;
-      margin-top: 30px;
-      width: 100%;
     }
 
     .signature-label {
@@ -179,58 +193,63 @@
 <body>
   <div class="page">
     <div class="header">
-      <h1>{{schoolName}}</h1>
-      <div class="sub">Answer Sheet Record - Centre No: {{centreNo}}</div>
-      <div class="sub">CBSE BOARD EXAMINATION ({{examSession}})</div>
+      <div class="school-name">{{schoolName}}</div>
+      <div class="exam-session">CBSE BOARD EXAMINATION ({{examSession}})</div>
+      <div class="record-title">Answer Sheet Record - Centre No: {{centreNo}}</div>
     </div>
 
     <div class="meta">
       <div class="meta-row">
         <div class="meta-cell"><strong>Date:</strong> {{examDate}}</div>
-        <div class="meta-cell"><strong>Subject:</strong> {{subjectName}}</div>
+        <div class="meta-cell meta-cell-right"><strong>Subject:</strong> {{subjectName}}</div>
       </div>
       <div class="meta-row">
         <div class="meta-cell"><strong>Class:</strong> {{classLabel}}</div>
-        <div class="meta-cell"><strong>Code:</strong> {{subjectCode}}</div>
+        <div class="meta-cell meta-cell-right"><strong>Code:</strong> {{subjectCode}}</div>
       </div>
     </div>
 
-    <table class="table">
-      <thead>
-        <tr>
-          <th style="width: 8%;">Sr No</th>
-          <th style="width: 13%;">Room No</th>
-          <th style="width: 16%;">Type</th>
-          <th style="width: 14%;">Colour</th>
-          <th style="width: 18%;">From</th>
-          <th style="width: 18%;">To</th>
-          <th style="width: 13%;">Total</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#rows}}
-        <tr>
-          <td>{{srNo}}</td>
-          <td>{{roomNo}}</td>
-          <td>{{type}}</td>
-          <td>{{colour}}</td>
-          <td>{{from}}</td>
-          <td>{{to}}</td>
-          <td>{{total}}</td>
-        </tr>
-        {{/rows}}
-      </tbody>
-    </table>
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th class="col-sr">Sr No</th>
+            <th class="col-room">Room No</th>
+            <th class="col-type">Type</th>
+            <th class="col-colour">Colour</th>
+            <th class="col-series">Series</th>
+            <th class="col-from">From</th>
+            <th class="col-to">To</th>
+            <th class="col-total">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#rows}}
+          <tr>
+            <td>{{srNo}}</td>
+            <td>{{roomNo}}</td>
+            <td>{{type}}</td>
+            <td>{{colour}}</td>
+            <td>{{series}}</td>
+            <td>{{from}}</td>
+            <td>{{to}}</td>
+            <td>{{total}}</td>
+          </tr>
+          {{/rows}}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="7"></td>
+            <td class="col-total total-cell">{{totalAllocated}}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
 
     <div class="summary">
-      <div class="summary-row">
-        <div><strong>Total:</strong> {{totalAllocated}}</div>
-        <div><strong>Registered:</strong> {{registeredTotal}}</div>
-      </div>
-      <div class="summary-row">
-        <div><strong>Used:</strong> <span class="line">&nbsp;</span></div>
-        <div><strong>Returned:</strong> <span class="line">&nbsp;</span></div>
-      </div>
+      <div class="summary-line"><strong>Total:-</strong> Registered: {{registeredTotal}}</div>
+      <div class="summary-line"><strong>Used:</strong> <span class="line">&nbsp;</span></div>
+      <div class="summary-line"><strong>Returned:</strong> <span class="line">&nbsp;</span></div>
     </div>
 
     {{#if notes.length}}
@@ -257,7 +276,6 @@
 
     <div class="footer">
       <div class="signature">
-        <div class="signature-line"></div>
         <div class="signature-label">Centre Superintendent</div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { ChevronRight, ChevronDown, Download, Upload, RefreshCw, FileText, Calendar, Users, BookOpen, Eye, X } from 'lucide-react'
 import { getTenantHeader, resolveApiBaseUrl, resolveTenantSlug } from '../utils/tenantRuntime'
 import { Dialog } from '@/components/common/Dialog'
@@ -83,6 +83,13 @@ const Form66: React.FC = () => {
     XII: null,
   })
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  /* Form 66 by-date PDF preview (same pattern as Duties preview) */
+  const [form66DatePreviewDate, setForm66DatePreviewDate] = useState<string | null>(null)
+  const [form66DatePreviewUrl, setForm66DatePreviewUrl] = useState<string | null>(null)
+  const [showForm66DatePreview, setShowForm66DatePreview] = useState(false)
+  const [form66DatePreviewLoading, setForm66DatePreviewLoading] = useState(false)
+  const [form66DatePreviewError, setForm66DatePreviewError] = useState<string | null>(null)
   const API_BASE_URL = resolveApiBaseUrl()
   const tenantHeader = getTenantHeader()
   const tenantSlug = resolveTenantSlug()
@@ -386,34 +393,55 @@ const Form66: React.FC = () => {
     setExpandedSubjects(new Set())
   }
 
-  const handleDownloadDatePdf = async (date: string) => {
+  const closeForm66DatePreview = useCallback(() => {
+    setShowForm66DatePreview(false)
+    setForm66DatePreviewDate(null)
+    setForm66DatePreviewError(null)
+    setForm66DatePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (form66DatePreviewUrl) URL.revokeObjectURL(form66DatePreviewUrl)
+    }
+  }, [form66DatePreviewUrl])
+
+  const openForm66DatePreview = async (date: string) => {
+    setForm66DatePreviewDate(date)
+    setForm66DatePreviewError(null)
+    setForm66DatePreviewLoading(true)
+    setShowForm66DatePreview(true)
+    setForm66DatePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
     try {
       const response = await fetch(`${API_BASE_URL}/form66/dates/${date}/pdf${buildLocalTenantQuery()}`, withAuthAndTenantHeaders())
       if (!response.ok) {
         const data = await parseJsonSafely(response)
         const message =
           (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string' && data.message) ||
-          `Failed to download PDF (${response.status})`
+          `Failed to load PDF (${response.status})`
         throw new Error(message)
       }
-
       const blob = await response.blob()
       const objectUrl = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = objectUrl
-      link.download = `Form66_${date.replace(/\./g, '-')}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      URL.revokeObjectURL(objectUrl)
+      setForm66DatePreviewUrl(objectUrl)
     } catch (error: any) {
-      console.error('Failed to download Form 66 PDF:', error)
-      setUploadStatus({
-        type: 'error',
-        message: error?.message || 'Failed to download Form 66 PDF',
-      })
+      console.error('Failed to load Form 66 PDF preview:', error)
+      setForm66DatePreviewError(error?.message || 'Failed to load Form 66 PDF')
+      setUploadStatus({ type: 'error', message: error?.message || 'Failed to load Form 66 PDF' })
+    } finally {
+      setForm66DatePreviewLoading(false)
     }
   }
+
+  const form66DatePdfDownloadFilename = form66DatePreviewDate
+    ? `Form66_${form66DatePreviewDate.replace(/\./g, '-')}.pdf`
+    : 'Form66.pdf'
 
   const openDownloadDialog = (classKey: FormClassKey) => {
     const hasPdf = Boolean(processedPdfUrls[classKey])
@@ -880,10 +908,11 @@ const Form66: React.FC = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleDownloadDatePdf(dateGroup.date)
+                              openForm66DatePreview(dateGroup.date)
                             }}
-                            className="inline-flex items-center justify-center p-1.5 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors"
-                            title="Download PDF"
+                            disabled={form66DatePreviewLoading}
+                            className="inline-flex items-center justify-center p-1.5 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors disabled:opacity-60"
+                            title="Preview and download PDF"
                           >
                             <Download className="w-4 h-4" />
                           </button>
@@ -1179,6 +1208,72 @@ const Form66: React.FC = () => {
           </div>
         </Dialog.Footer>
       </Dialog>
+
+      {/* Form 66 by-date PDF preview modal (same pattern as Duties) */}
+      {showForm66DatePreview && (form66DatePreviewUrl || form66DatePreviewLoading || form66DatePreviewError) && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-6xl h-[88vh] bg-white dark:bg-gray-900 rounded-xl shadow-xl overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                Form 66 PDF Preview
+                {form66DatePreviewDate && (
+                  <span className="ml-2 text-gray-500 dark:text-gray-400 font-normal">
+                    ({form66DatePreviewDate})
+                  </span>
+                )}
+              </h4>
+              <div className="flex items-center gap-2">
+                {form66DatePreviewUrl && (
+                  <>
+                    <a
+                      href={form66DatePreviewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    >
+                      Open in New Tab
+                    </a>
+                    <a
+                      href={form66DatePreviewUrl}
+                      download={form66DatePdfDownloadFilename}
+                      className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Download PDF
+                    </a>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={closeForm66DatePreview}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="w-full flex-1 overflow-auto bg-gray-100 dark:bg-gray-800 p-4">
+              {form66DatePreviewLoading ? (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+                  <RefreshCw className="w-10 h-10 text-blue-500 animate-spin" />
+                  <p>Loading PDF preview...</p>
+                </div>
+              ) : form66DatePreviewError ? (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-2 p-6 text-center text-sm text-gray-600 dark:text-gray-300">
+                  <FileText className="w-12 h-12 text-amber-500" />
+                  <p>{form66DatePreviewError}</p>
+                  <p className="text-xs">Use Close and try again, or check that the date has Form 66 data.</p>
+                </div>
+              ) : form66DatePreviewUrl ? (
+                <iframe
+                  src={`${form66DatePreviewUrl}#toolbar=0`}
+                  className="w-full h-full min-h-[60vh] border-0 rounded-lg bg-white dark:bg-gray-900"
+                  title="Form 66 PDF Preview"
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

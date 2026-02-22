@@ -267,6 +267,12 @@ const Subjects: React.FC = () => {
           flex-shrink: 0;
         }
         .subj-stat-icon svg { width: 24px; height: 24px; color: #fff; }
+        .subj-stat-total { border-left: 4px solid #6366f1; }
+        .subj-stat-total .subj-stat-icon { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+        .subj-stat-10th { border-left: 4px solid #10b981; }
+        .subj-stat-10th .subj-stat-icon { background: linear-gradient(135deg, #10b981, #059669); }
+        .subj-stat-12th { border-left: 4px solid #8b5cf6; }
+        .subj-stat-12th .subj-stat-icon { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
         .subj-stat-value {
           font-size: 1.6rem;
           font-weight: 800;
@@ -629,6 +635,11 @@ const Subjects: React.FC = () => {
           font-size: 0.88rem;
           margin: 0 0 20px;
         }
+        .subj-empty-loading-msg { color: #94a3b8; font-size: 0.88rem; margin: 0; }
+        .subj-empty-icon-error { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); }
+        .subj-empty-icon-error svg { color: #ef4444; }
+        .subj-empty-error-msg { color: #ef4444; font-weight: 600; }
+        .subj-empty-retry { margin: 0 auto; }
         .subj-spinner {
           width: 32px;
           height: 32px;
@@ -745,8 +756,8 @@ const Subjects: React.FC = () => {
 
       {/* â•â•â•â•â•â•â• Stat Cards â•â•â•â•â•â•â• */}
       <div className="subj-stats">
-        <div className="subj-stat" style={{ borderLeft: '4px solid #6366f1' }}>
-          <div className="subj-stat-icon" style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+        <div className="subj-stat subj-stat-total">
+          <div className="subj-stat-icon">
             <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
             </svg>
@@ -756,8 +767,8 @@ const Subjects: React.FC = () => {
             <div className="subj-stat-label">Total Subjects</div>
           </div>
         </div>
-        <div className="subj-stat" style={{ borderLeft: '4px solid #10b981' }}>
-          <div className="subj-stat-icon" style={{ background: 'linear-gradient(135deg, #10b981, #059669)' }}>
+        <div className="subj-stat subj-stat-10th">
+          <div className="subj-stat-icon">
             <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
             </svg>
@@ -767,8 +778,8 @@ const Subjects: React.FC = () => {
             <div className="subj-stat-label">Class 10th</div>
           </div>
         </div>
-        <div className="subj-stat" style={{ borderLeft: '4px solid #8b5cf6' }}>
-          <div className="subj-stat-icon" style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}>
+        <div className="subj-stat subj-stat-12th">
+          <div className="subj-stat-icon">
             <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
             </svg>
@@ -810,20 +821,6 @@ const Subjects: React.FC = () => {
             size="sm"
             ariaLabel="Subject views"
           />
-          <div className="subj-actions">
-            <button onClick={() => setShowImportModal(true)} className="subj-btn subj-btn-outline">
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              Import PDF
-            </button>
-            <button onClick={handleAddClick} className="subj-btn subj-btn-primary">
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
-              </svg>
-              + Add Subject
-            </button>
-          </div>
         </div>
 
         {/* Table */}
@@ -877,7 +874,7 @@ const Subjects: React.FC = () => {
                   <td colSpan={6}>
                     <div className="subj-empty">
                       <div className="subj-spinner" />
-                      <p style={{ color: '#94a3b8', fontSize: '0.88rem', margin: 0 }}>Loading subjects...</p>
+                      <p className="subj-empty-loading-msg">Loading subjects...</p>
                     </div>
                   </td>
                 </tr>
@@ -885,13 +882,13 @@ const Subjects: React.FC = () => {
                 <tr>
                   <td colSpan={6}>
                     <div className="subj-empty">
-                      <div className="subj-empty-icon" style={{ background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)' }}>
-                        <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24" style={{ color: '#ef4444' }}>
+                      <div className="subj-empty-icon subj-empty-icon-error">
+                        <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                         </svg>
                       </div>
-                      <p style={{ color: '#ef4444', fontWeight: 600 }}>{error}</p>
-                      <button onClick={() => refetch()} className="subj-btn subj-btn-primary" style={{ margin: '0 auto' }}>Retry</button>
+                      <p className="subj-empty-error-msg">{error}</p>
+                      <button onClick={() => refetch()} className="subj-btn subj-btn-primary subj-empty-retry">Retry</button>
                     </div>
                   </td>
                 </tr>
@@ -905,13 +902,7 @@ const Subjects: React.FC = () => {
                         </svg>
                       </div>
                       <h3>No Subjects Found</h3>
-                      <p>{debouncedSearchTerm ? 'No subjects match your search.' : 'No subjects found. Add your first subject to get started.'}</p>
-                      <button onClick={handleAddClick} className="subj-btn subj-btn-primary" style={{ margin: '0 auto' }}>
-                        <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
-                        </svg>
-                        Add Subject
-                      </button>
+                      <p>{debouncedSearchTerm ? 'No subjects match your search.' : 'No subjects found. Subjects are managed from the admin portal.'}</p>
                     </div>
                   </td>
                 </tr>
@@ -988,11 +979,14 @@ const Subjects: React.FC = () => {
             {pagination.pages > 1 && (
               <nav className="subj-page-nav">
                 <button
+                  type="button"
                   onClick={() => handlePageChange(pagination.page - 1)}
                   disabled={pagination.page === 1}
                   className="subj-page-btn"
+                  aria-label="Previous page"
+                  title="Previous page"
                 >
-                  <svg fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                  <svg fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
                 </button>
                 {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((pg) => (
                   <button
@@ -1004,11 +998,14 @@ const Subjects: React.FC = () => {
                   </button>
                 ))}
                 <button
+                  type="button"
                   onClick={() => handlePageChange(pagination.page + 1)}
                   disabled={pagination.page === pagination.pages}
                   className="subj-page-btn"
+                  aria-label="Next page"
+                  title="Next page"
                 >
-                  <svg fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
+                  <svg fill="currentColor" viewBox="0 0 20 20" aria-hidden="true"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" /></svg>
                 </button>
               </nav>
             )}

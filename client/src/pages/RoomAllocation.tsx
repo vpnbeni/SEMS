@@ -197,6 +197,8 @@ const RoomAllocation: React.FC = () => {
     return index >= 0 ? index + 1 : null
   }
 
+  const getAllocatedRoomsCountForDate = (dateKey: string) => (dateRoomOrderDraft[dateKey] || []).length
+
   const handleModeChange = async (mode: 'auto' | 'manual') => {
     if (mode === allocationMode) return
     if (mode === 'auto') {
@@ -778,6 +780,33 @@ const RoomAllocation: React.FC = () => {
           background: linear-gradient(90deg, #78350f33 0%, #713f1233 100%) !important;
           color: #fbbf24 !important;
         }
+        .ra-required-row .ra-required-cell {
+          font-variant-numeric: tabular-nums;
+        }
+        .ra-required-row .ra-required-pending {
+          background: linear-gradient(90deg, #fee2e2 0%, #fecaca 100%) !important;
+          color: #b91c1c !important;
+        }
+        .ra-required-row .ra-required-complete {
+          background: linear-gradient(90deg, #dcfce7 0%, #bbf7d0 100%) !important;
+          color: #166534 !important;
+        }
+        .ra-required-row .ra-required-none {
+          background: linear-gradient(90deg, #f1f5f9 0%, #e2e8f0 100%) !important;
+          color: #475569 !important;
+        }
+        .dark .ra-required-row .ra-required-pending {
+          background: linear-gradient(90deg, #7f1d1d66 0%, #991b1b66 100%) !important;
+          color: #fca5a5 !important;
+        }
+        .dark .ra-required-row .ra-required-complete {
+          background: linear-gradient(90deg, #14532d66 0%, #16653466 100%) !important;
+          color: #86efac !important;
+        }
+        .dark .ra-required-row .ra-required-none {
+          background: linear-gradient(90deg, #33415566 0%, #1e293b66 100%) !important;
+          color: #cbd5e1 !important;
+        }
 
         /* Allocation checkbox cell */
         .ra-alloc-cell {
@@ -808,49 +837,6 @@ const RoomAllocation: React.FC = () => {
           text-align: center;
           line-height: 1.5;
           box-shadow: 0 1px 4px rgba(99, 102, 241, 0.35);
-        }
-
-        /* ───────── Mode toggle ───────── */
-        .ra-mode-toggle {
-          display: inline-flex;
-          border-radius: 10px;
-          overflow: hidden;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-          border: 1.5px solid #e2e8f0;
-        }
-        .dark .ra-mode-toggle {
-          border-color: #475569;
-        }
-        .ra-mode-btn {
-          padding: 7px 16px;
-          font-size: 0.78rem;
-          font-weight: 700;
-          border: none;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          letter-spacing: 0.02em;
-        }
-        .ra-mode-btn:disabled { cursor: wait; }
-        .ra-mode-active {
-          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-          color: #fff;
-          box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
-        }
-        .ra-mode-inactive {
-          background: #fff;
-          color: #64748b;
-        }
-        .dark .ra-mode-inactive {
-          background: #1e293b;
-          color: #94a3b8;
-        }
-        .ra-mode-inactive:hover {
-          background: #f1f5f9;
-          color: #334155;
-        }
-        .dark .ra-mode-inactive:hover {
-          background: #283548;
-          color: #e2e8f0;
         }
 
         /* ───────── Room stat cards ───────── */
@@ -1268,23 +1254,18 @@ const RoomAllocation: React.FC = () => {
             </div>
           </div>
           <div className="ra-btn-group">
-            <div className="ra-mode-toggle">
+            <div className="ra-mode-switch-wrap">
+              <span className="ra-mode-switch-label">Auto</span>
               <button
                 type="button"
-                onClick={() => handleModeChange('auto')}
+                aria-label={allocationMode === 'auto' ? 'Allocation mode: Auto. Click to switch to Manual.' : 'Allocation mode: Manual. Click to switch to Auto.'}
                 disabled={loadingAllocationMode}
-                className={`ra-mode-btn ${allocationMode === 'auto' ? 'ra-mode-active' : 'ra-mode-inactive'}`}
+                onClick={() => handleModeChange(allocationMode === 'auto' ? 'manual' : 'auto')}
+                className={`ra-mode-switch ${allocationMode === 'manual' ? 'ra-mode-switch-on' : ''}`}
               >
-                Auto
+                <span className={`ra-mode-switch-thumb ${allocationMode === 'manual' ? 'ra-mode-switch-thumb-right' : ''}`} />
               </button>
-              <button
-                type="button"
-                onClick={() => handleModeChange('manual')}
-                disabled={loadingAllocationMode}
-                className={`ra-mode-btn ${allocationMode === 'manual' ? 'ra-mode-active' : 'ra-mode-inactive'}`}
-              >
-                Manual
-              </button>
+              <span className="ra-mode-switch-label">Manual</span>
             </div>
             {allocationMode === 'manual' && (
               <button
@@ -1338,7 +1319,18 @@ const RoomAllocation: React.FC = () => {
                   <th colSpan={3} className="ra-text-left">Rooms Required</th>
                   {examDates.map((dateKey) => {
                     const required = Number(requiredRoomsByDate[dateKey] || 0)
-                    return <th key={`required-${dateKey}`}>{required}</th>
+                    const allocated = getAllocatedRoomsCountForDate(dateKey)
+                    const statusClass = required <= 0
+                      ? 'ra-required-none'
+                      : allocated >= required
+                        ? 'ra-required-complete'
+                        : 'ra-required-pending'
+
+                    return (
+                      <th key={`required-${dateKey}`} className={`ra-required-cell ${statusClass}`}>
+                        {allocated}/{required}
+                      </th>
+                    )
                   })}
                 </tr>
               </thead>

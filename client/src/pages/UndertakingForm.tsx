@@ -52,8 +52,8 @@ const UndertakingForm: React.FC = () => {
     try {
       setDownloading(true)
       await undertakingService.downloadCurrent()
-    } catch {
-      // API layer shows toast
+    } catch (error: any) {
+      toast.error(error?.serverMessage ?? error?.response?.data?.error ?? 'Failed to download file')
     } finally {
       setDownloading(false)
     }
