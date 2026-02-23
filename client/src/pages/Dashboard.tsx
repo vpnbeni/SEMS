@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ExamTimeline,
@@ -14,8 +14,6 @@ import { useCentreDatesheet } from '@/hooks/useDatesheets'
 import dashboardService from '@/services/dashboardService'
 
 const Dashboard: React.FC = () => {
-  const [currentTime, setCurrentTime] = useState(() => new Date())
-
   const { data: centreDatesheet } = useCentreDatesheet({
     limit: 200,
     sortField: 'date',
@@ -37,18 +35,6 @@ const Dashboard: React.FC = () => {
   const { data: todaysExamsData, isLoading: todaysExamsLoading } = useQuery({
     queryKey: ['dashboard', 'todays-exams'],
     queryFn: () => dashboardService.getTodaysExams(),
-  })
-
-  useEffect(() => {
-    const t = setInterval(() => setCurrentTime(new Date()), 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  const dateStr = currentTime.toLocaleDateString('en-IN', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
   })
 
   const roomAllotmentRows = [
