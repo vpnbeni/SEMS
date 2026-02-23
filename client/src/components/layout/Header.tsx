@@ -181,7 +181,7 @@ const Header: React.FC = () => {
   }, [isDashboardRoute, location.pathname])
 
   return (
-    <header className="h-20 flex-shrink-0 sticky top-0 z-40 bg-white dark:bg-secondary-900 border-b border-secondary-100 dark:border-secondary-800 transition-all duration-300">
+    <header className="h-20 flex-shrink-0 sticky top-0 z-40 glass border-b border-gray-100/80 dark:border-gray-800/80 transition-all duration-300">
       <div className="h-full px-4 md:px-8 flex items-center">
         <div className="flex items-center justify-between w-full gap-6">
           {/* Left: Page context + optional back */}
@@ -206,10 +206,11 @@ const Header: React.FC = () => {
               </div>
             ) : (
               <div className="min-w-0">
-                <h1 className="text-xl md:text-2xl font-bold text-secondary-900 dark:text-white truncate tracking-tight">
+                <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white truncate tracking-tight">
                   {pageTitle}
                 </h1>
-                <p className="hidden sm:block text-xs md:text-sm text-secondary-500 dark:text-secondary-400 truncate mt-0.5 font-medium">
+                <p className="hidden sm:flex items-center gap-1.5 text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5 font-medium">
+                  <span className="w-1 h-1 rounded-full bg-primary-400 flex-shrink-0" />
                   {pageSubtitle}
                 </p>
               </div>
@@ -236,7 +237,7 @@ const Header: React.FC = () => {
                 <input
                   type="text"
                   placeholder="Search..."
-                  className="pl-9 pr-4 py-2 w-56 sm:w-64 text-sm bg-secondary-50/50 dark:bg-secondary-800/50 border border-secondary-200 dark:border-secondary-700 rounded-xl focus:ring-0 focus:border-primary-500 focus:bg-white dark:focus:bg-secondary-800 focus:shadow-soft transition-all duration-200 placeholder:text-secondary-400 dark:text-white"
+                  className="pl-9 pr-4 py-2 w-56 sm:w-64 text-sm bg-gray-50/80 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 rounded-xl focus:ring-0 focus:border-primary-400 focus:bg-white dark:focus:bg-gray-800 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)] transition-all duration-200 placeholder:text-gray-400 dark:text-white"
                 />
               </div>
             </div>
@@ -248,8 +249,8 @@ const Header: React.FC = () => {
                 aria-label="Toggle notifications"
                 title="Notifications"
                 className={`relative p-2 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${notificationsOpen
-                    ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                    : 'text-secondary-500 hover:text-secondary-700 dark:text-secondary-400 dark:hover:text-secondary-200 hover:bg-secondary-50 dark:hover:bg-secondary-800'
+                  ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
+                  : 'text-secondary-500 hover:text-secondary-700 dark:text-secondary-400 dark:hover:text-secondary-200 hover:bg-secondary-50 dark:hover:bg-secondary-800'
                   }`}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -275,7 +276,7 @@ const Header: React.FC = () => {
                       <div key={notification.id} className="p-4 border-b border-secondary-100 dark:border-secondary-800 last:border-b-0 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 transition-colors group cursor-pointer">
                         <div className="flex items-start gap-3">
                           <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${notification.type === 'info' ? 'bg-primary-500' :
-                              notification.type === 'warning' ? 'bg-warning-500' : 'bg-success-500'
+                            notification.type === 'warning' ? 'bg-warning-500' : 'bg-success-500'
                             }`} />
                           <div>
                             <p className="text-sm font-medium text-secondary-900 dark:text-gray-100 group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">

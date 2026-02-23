@@ -340,9 +340,9 @@ const Sidebar: React.FC = () => {
   ]
 
   return (
-    <div className={`glass border-r border-secondary-100 dark:border-secondary-800 h-[100vh] min-h-[100vh] transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'} flex flex-col overflow-hidden relative z-50`}>
+    <div className={`glass border-r border-gray-100/80 dark:border-gray-800/80 h-[100vh] min-h-[100vh] transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'} flex flex-col overflow-hidden relative z-50`}>
       {/* Decorative background accent */}
-      <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-primary-50/50 to-transparent dark:from-primary-900/10 pointer-events-none" />
+      <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-primary-50/30 via-primary-50/10 to-transparent dark:from-primary-900/10 dark:via-transparent pointer-events-none" />
 
       {/* Logo and Header */}
       <div className={`flex-shrink-0 h-24 transition-all duration-300 ${isCollapsed ? 'px-0' : 'px-6'} flex items-center justify-center relative z-10`}>

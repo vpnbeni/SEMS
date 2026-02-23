@@ -120,9 +120,11 @@ export default {
         },
       },
       boxShadow: {
-        'soft': '0 2px 15px 0 rgba(0, 0, 0, 0.08)',
-        'medium': '0 4px 25px 0 rgba(0, 0, 0, 0.1)',
-        'hard': '0 10px 40px 0 rgba(0, 0, 0, 0.15)',
+        'soft': '0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06)',
+        'medium': '0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05)',
+        'hard': '0 10px 25px -3px rgba(0, 0, 0, 0.08), 0 4px 10px -4px rgba(0, 0, 0, 0.04)',
+        'glow': '0 0 0 3px rgba(59, 130, 246, 0.1)',
+        'inner-soft': 'inset 0 1px 0 0 rgba(255, 255, 255, 0.05)',
       },
       backdropBlur: {
         xs: '2px',
