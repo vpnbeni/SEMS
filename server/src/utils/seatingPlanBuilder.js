@@ -1181,6 +1181,45 @@ class SeatingPlanBuilder {
     return value.padStart(2, '0');
   }
 
+  /**
+   * Get answer sheet serial number for a candidate in a specific exam entry.
+   * Uses the same logic as the room folder slip (rows with row1SheetNo, row2SheetNo, row3SheetNo).
+   * @param {string} entryId - CBSEDatesheet entry _id
+   * @param {string} rollNo - Candidate roll number (uppercase)
+   * @param {object} [options] - Optional { centreDetails, roomAllocationMode } for consistent allocation
+   * @returns {Promise<{ serialNumber: string } | null>} Serial number or null if not found
+   */
+  async getSerialForCandidateInEntry(entryId, rollNo, options = {}) {
+    if (!entryId || !rollNo) return null;
+    const normalizedRoll = String(rollNo).trim().toUpperCase();
+    if (!normalizedRoll) return null;
+
+    try {
+      const seatingData = await this.buildSeatingData(entryId, options);
+      const { rooms } = seatingData || {};
+      if (!Array.isArray(rooms)) return null;
+
+      for (const room of rooms) {
+        const rows = room.rows || [];
+        for (const row of rows) {
+          if (String(row.row1RollNo || '').trim().toUpperCase() === normalizedRoll && row.row1SheetNo) {
+            return { serialNumber: row.row1SheetNo };
+          }
+          if (String(row.row2RollNo || '').trim().toUpperCase() === normalizedRoll && row.row2SheetNo) {
+            return { serialNumber: row.row2SheetNo };
+          }
+          if (String(row.row3RollNo || '').trim().toUpperCase() === normalizedRoll && row.row3SheetNo) {
+            return { serialNumber: row.row3SheetNo };
+          }
+        }
+      }
+      return null;
+    } catch (err) {
+      console.warn('getSerialForCandidateInEntry:', err.message);
+      return null;
+    }
+  }
+
   buildMainGateData(seatingData) {
     const { datesheet, rooms, centreIdentity } = seatingData;
     const identity = centreIdentity || this.resolveCentreIdentity();

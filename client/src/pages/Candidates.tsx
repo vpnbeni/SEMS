@@ -9,17 +9,12 @@ import {
   useCandidates,
   useCandidateStats,
   useCandidatesWithoutSubjects,
+  useCandidateFilterOptions,
   useImportCandidatesMutation,
   useDeleteCandidateMutation,
 } from '../hooks/useCandidates'
 
 type ClassTabId = 'all' | '10th' | '12th'
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'All Status' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-]
 
 const PAGE_SIZE_OPTIONS = [
   { value: 10, label: '10' },
@@ -40,9 +35,14 @@ const Candidates: React.FC = () => {
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [filters, setFilters] = useState({
     search: '',
-    status: '',
-    class: ''
+    class: '',
+    schoolCode: '',
+    subjectCode: '',
+    category: '',
+    pwd: '',
+    medium: '',
   })
+  const [showFilterPanel, setShowFilterPanel] = useState(false)
 
   const classTabId: ClassTabId = filters.class === '' ? 'all' : (filters.class === '10th' ? '10th' : '12th')
 
@@ -51,15 +51,33 @@ const Candidates: React.FC = () => {
       page,
       limit: pageSize,
       ...(filters.search && { search: filters.search }),
-      ...(filters.status && { status: filters.status }),
       ...(filters.class && { class: filters.class }),
+      ...(filters.schoolCode && { schoolCode: filters.schoolCode }),
+      ...(filters.subjectCode && { subjectCode: filters.subjectCode }),
+      ...(filters.category && { category: filters.category }),
+      ...(filters.pwd && { pwd: filters.pwd }),
+      ...(filters.medium && { medium: filters.medium }),
     }),
     [page, pageSize, filters]
   )
 
+  const statsParams = useMemo(
+    () => ({
+      ...(filters.search && { search: filters.search }),
+      ...(filters.class && { class: filters.class }),
+      ...(filters.schoolCode && { schoolCode: filters.schoolCode }),
+      ...(filters.subjectCode && { subjectCode: filters.subjectCode }),
+      ...(filters.category && { category: filters.category }),
+      ...(filters.pwd && { pwd: filters.pwd }),
+      ...(filters.medium && { medium: filters.medium }),
+    }),
+    [filters]
+  )
+
   const { data, isLoading: loading } = useCandidates(queryParams)
-  const { data: stats } = useCandidateStats()
+  const { data: stats } = useCandidateStats(statsParams)
   const { data: candidatesWithoutSubjects = [] } = useCandidatesWithoutSubjects()
+  const { data: filterOptions } = useCandidateFilterOptions()
 
   const importMutation = useImportCandidatesMutation()
   const deleteMutation = useDeleteCandidateMutation()
@@ -74,6 +92,11 @@ const Candidates: React.FC = () => {
     }),
     [data, pageSize]
   )
+
+  const activeFilterCount = useMemo(() => {
+    const { schoolCode, subjectCode, category, pwd, medium } = filters
+    return [schoolCode, subjectCode, category, pwd, medium].filter(Boolean).length
+  }, [filters])
 
   const handleFilterChange = (newFilters: typeof filters) => {
     setFilters(newFilters)
@@ -323,18 +346,21 @@ const Candidates: React.FC = () => {
                 className="block w-full pl-10 pr-3 py-2 border-2 border-secondary-300 dark:border-secondary-600 rounded-lg bg-white dark:bg-secondary-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-0 focus:border-primary-500 dark:focus:border-primary-400 text-sm"
               />
             </div>
-            <div className="w-36">
-              <Dropdown
-                options={STATUS_OPTIONS}
-                value={filters.status}
-                onChange={(value) => handleFilterChange({ ...filters, status: String(Array.isArray(value) ? value[0] : value ?? '') })}
-                size="sm"
-                clearable={false}
-                searchable={false}
-                placeholder="Status"
-                className="w-full"
-              />
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowFilterPanel((prev) => !prev)}
+              className="inline-flex items-center px-3 py-2 border border-secondary-300 dark:border-secondary-600 rounded-lg bg-white dark:bg-secondary-800 text-sm font-medium text-secondary-700 dark:text-secondary-200 hover:bg-secondary-50 dark:hover:bg-secondary-700 transition-colors"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L15 12.414V19a1 1 0 01-.553.894l-4 2A1 1 0 019 21v-8.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
             <button
               onClick={() => setShowImportModal(true)}
               className="inline-flex items-center px-4 py-2 border border-primary-600 shadow-sm text-sm font-medium rounded-lg text-primary-600 bg-white dark:bg-secondary-800 hover:bg-primary-50 dark:hover:bg-primary-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
@@ -355,6 +381,143 @@ const Candidates: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {showFilterPanel && (
+          <div className="px-4 pb-3 bg-secondary-50/70 dark:bg-secondary-900/70 border-b border-secondary-200 dark:border-secondary-700">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+              <div>
+                <p className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 mb-1">
+                  School
+                </p>
+                <Dropdown
+                  options={[
+                    { value: '', label: 'All Schools' },
+                    ...(filterOptions?.schools ?? []).map((s) => ({
+                      value: s.schoolCode || s.schoolName || '',
+                      label: `${s.schoolCode ? `${s.schoolCode} – ` : ''}${s.schoolName || 'Unknown School'}`,
+                    })),
+                  ]}
+                  value={filters.schoolCode}
+                  onChange={(value) =>
+                    handleFilterChange({
+                      ...filters,
+                      schoolCode: String(Array.isArray(value) ? value[0] : value ?? ''),
+                    })
+                  }
+                  size="sm"
+                  clearable={false}
+                  searchable
+                  placeholder="School"
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 mb-1">
+                  Subject
+                </p>
+                <Dropdown
+                  options={[
+                    { value: '', label: 'All Subjects' },
+                    ...(filterOptions?.subjectCodes ?? []).map((code) => ({
+                      value: code,
+                      label: code,
+                    })),
+                  ]}
+                  value={filters.subjectCode}
+                  onChange={(value) =>
+                    handleFilterChange({
+                      ...filters,
+                      subjectCode: String(Array.isArray(value) ? value[0] : value ?? ''),
+                    })
+                  }
+                  size="sm"
+                  clearable={false}
+                  searchable
+                  placeholder="Subject"
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 mb-1">
+                  Category
+                </p>
+                <Dropdown
+                  options={[
+                    { value: '', label: 'All Categories' },
+                    ...(filterOptions?.categories ?? []).map((cat) => ({
+                      value: cat,
+                      label: cat,
+                    })),
+                  ]}
+                  value={filters.category}
+                  onChange={(value) =>
+                    handleFilterChange({
+                      ...filters,
+                      category: String(Array.isArray(value) ? value[0] : value ?? ''),
+                    })
+                  }
+                  size="sm"
+                  clearable={false}
+                  searchable
+                  placeholder="Category"
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 mb-1">
+                  PwD
+                </p>
+                <Dropdown
+                  options={[
+                    { value: '', label: 'All PwD' },
+                    ...(filterOptions?.pwdValues ?? []).map((pwd) => ({
+                      value: pwd,
+                      label: pwd,
+                    })),
+                  ]}
+                  value={filters.pwd}
+                  onChange={(value) =>
+                    handleFilterChange({
+                      ...filters,
+                      pwd: String(Array.isArray(value) ? value[0] : value ?? ''),
+                    })
+                  }
+                  size="sm"
+                  clearable={false}
+                  searchable
+                  placeholder="PwD"
+                  className="w-full"
+                />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 mb-1">
+                  Medium
+                </p>
+                <Dropdown
+                  options={[
+                    { value: '', label: 'All Mediums' },
+                    ...(filterOptions?.mediums ?? []).map((m) => ({
+                      value: m.value,
+                      label: m.label,
+                    })),
+                  ]}
+                  value={filters.medium}
+                  onChange={(value) =>
+                    handleFilterChange({
+                      ...filters,
+                      medium: String(Array.isArray(value) ? value[0] : value ?? ''),
+                    })
+                  }
+                  size="sm"
+                  clearable={false}
+                  searchable={false}
+                  placeholder="Medium"
+                  className="w-full"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <CandidateTable
           candidates={candidates}

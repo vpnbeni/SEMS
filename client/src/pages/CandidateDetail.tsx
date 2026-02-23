@@ -29,7 +29,19 @@ interface Candidate {
   department?: string
   status: 'active' | 'inactive' | 'graduated' | 'suspended'
   admissionDate?: string
-  subjects?: Array<{ _id: string; name: string; code: string; class?: string; credits?: number; examDate?: string | null }>
+  subjects?: Array<{
+    _id: string
+    name: string
+    code: string
+    class?: string
+    credits?: number
+    examDate?: string | null
+    answerSheetType?: string
+    serialNumber?: string
+    roomNo?: string | null
+    invigilator1?: { name: string; oasisId?: string } | null
+    invigilator2?: { name: string; oasisId?: string } | null
+  }>
   subjectCodes?: Array<{ code: string; medium?: string }> | string[]
   importedFrom?: {
     fileName: string
@@ -47,6 +59,7 @@ const CandidateDetail: React.FC = () => {
   const navigate = useNavigate()
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [loading, setLoading] = useState(true)
+  const [subjectSerials, setSubjectSerials] = useState<Record<string, string>>({})
 
   useEffect(() => {
     if (id) {
@@ -54,9 +67,29 @@ const CandidateDetail: React.FC = () => {
     }
   }, [id])
 
+  useEffect(() => {
+    if (!id || !candidate?.subjects?.length) return
+    let cancelled = false
+    candidateService
+      .getCandidateSubjectSerials(id)
+      .then((serials) => {
+        if (cancelled) return
+        const map: Record<string, string> = {}
+        serials.forEach((s) => {
+          if (s.serialNumber) map[s.subjectId] = s.serialNumber
+        })
+        setSubjectSerials(map)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [id, candidate?._id])
+
   const fetchCandidate = async () => {
     try {
       setLoading(true)
+      setSubjectSerials({})
       const response = await candidateService.getCandidate(id!)
       setCandidate(response.data.data)
     } catch (error: any) {
@@ -144,16 +177,19 @@ const CandidateDetail: React.FC = () => {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => navigate('/candidates')}
-            className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 transition-colors"
-          >
-            <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div>
+      <div className="flex items-center space-x-4">
+      <button
+      type="button"
+      onClick={() => navigate('/candidates')}
+      className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 transition-colors"
+      aria-label="Back to candidates list"
+      title="Back to candidates list"
+      >
+      <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+      </svg>
+      </button>
+      <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {candidate.name}
             </h1>
@@ -416,21 +452,86 @@ const CandidateDetail: React.FC = () => {
             </div>
           )}
 
-          {/* Subjects */}
+          {/* Enrolled Subjects (sorted by exam date) */}
           {candidate.subjects && candidate.subjects.length > 0 && (
             <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Enrolled Subjects
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {sortedSubjects.map((subject) => (
-                  <div key={subject._id} className="p-4 bg-secondary-50 dark:bg-secondary-800 rounded-lg">
-                    <h3 className="font-medium text-gray-900 dark:text-white">{subject.name}</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Code: {subject.code} • Date: {formatExamDate(subject.examDate)}
-                    </p>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-secondary-200 dark:divide-secondary-700">
+                  <thead className="bg-secondary-50 dark:bg-secondary-800">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                        Subject
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                        Exam Date
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                        Answer Sheet Type
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                        Serial No.
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                        Room No.
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                        Invigilator 1
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                        Invigilator 2
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-secondary-900 divide-y divide-secondary-200 dark:divide-secondary-700">
+                    {sortedSubjects.map((subject) => (
+                      <tr key={subject._id} className="hover:bg-secondary-50 dark:hover:bg-secondary-800">
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{subject.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Code: {subject.code}</div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                          {formatExamDate(subject.examDate)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                          {subject.answerSheetType ?? '—'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                          {subjectSerials[subject._id] ?? subject.serialNumber ?? '—'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                          {subject.roomNo ?? '—'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                          {subject.invigilator1 ? (
+                            <div>
+                              <div>{subject.invigilator1.name}</div>
+                              {subject.invigilator1.oasisId && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400">OASIS: {subject.invigilator1.oasisId}</div>
+                              )}
+                            </div>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                          {subject.invigilator2 ? (
+                            <div>
+                              <div>{subject.invigilator2.name}</div>
+                              {subject.invigilator2.oasisId && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400">OASIS: {subject.invigilator2.oasisId}</div>
+                              )}
+                            </div>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

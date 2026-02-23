@@ -2,6 +2,7 @@ const express = require('express');
 const {
   getCandidates,
   getCandidate,
+  getCandidateSubjectSerials,
   createCandidate,
   updateCandidate,
   deleteCandidate,
@@ -36,6 +37,10 @@ router
 router
   .route('/link-subjects')
   .post(authorize('admin', 'staff'), linkCandidateSubjects);
+
+router
+  .route('/:id/subject-serials')
+  .get(getCandidateSubjectSerials);
 
 router
   .route('/:id')

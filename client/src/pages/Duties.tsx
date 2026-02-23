@@ -716,14 +716,23 @@ const Duties: React.FC = () => {
     if (activeDutyType) loadSelections()
   }, [activeDutyType, loadSelections])
 
+  /* Auto-select room date: today if it's an exam date, else next exam date */
+  const getDefaultRoomDate = useCallback((dates: string[]): string => {
+    if (dates.length === 0) return ''
+    const today = normalizeDateKey(new Date())
+    if (dates.includes(today)) return today
+    const next = dates.find((d) => d >= today)
+    return next || dates[dates.length - 1]
+  }, [])
+
   useEffect(() => {
     if (activeTab !== 'ASI') return
     if (examDates.length === 0) {
       setSelectedRoomDate('')
       return
     }
-    setSelectedRoomDate((prev) => (prev && examDates.includes(prev) ? prev : examDates[0]))
-  }, [activeTab, examDates])
+    setSelectedRoomDate((prev) => (prev && examDates.includes(prev) ? prev : getDefaultRoomDate(examDates)))
+  }, [activeTab, examDates, getDefaultRoomDate])
 
   useEffect(() => {
     const loadRoomAssignmentsForDate = async () => {
@@ -1239,7 +1248,7 @@ const Duties: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto duties-table-scroll max-h-[370px]">
-            <table className="min-w-full border-collapse border-2 border-gray-400 dark:border-gray-500">
+            <table className="min-w-full border-separate border-spacing-0 border-2 border-gray-400 dark:border-gray-500">
               <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                 <tr>
                   <th className="sticky left-0 z-20 w-[4.5rem] min-w-[4.5rem] border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]">
@@ -1250,7 +1259,7 @@ const Duties: React.FC = () => {
                   </th>
                   {activeTab === 'ASI' && (
                     <th
-                      className="border border-gray-400 dark:border-gray-500 px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider whitespace-nowrap cursor-pointer select-none"
+                      className="sticky left-[17.5rem] z-20 w-20 min-w-20 border border-gray-400 dark:border-gray-500 px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider whitespace-nowrap cursor-pointer select-none bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]"
                       onClick={() =>
                         setInvigilatorDutySort((prev) =>
                           prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none'
@@ -1265,7 +1274,11 @@ const Duties: React.FC = () => {
                       )}
                     </th>
                   )}
-                  <th className="sticky left-[17.5rem] z-20 w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]">
+                  <th
+                    className={`sticky z-20 w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)] ${
+                      activeTab === 'ASI' ? 'left-[22.5rem]' : 'left-[17.5rem]'
+                    }`}
+                  >
                     OASIS ID
                   </th>
                   {examDates.map((dateKey) => (
@@ -1280,7 +1293,7 @@ const Duties: React.FC = () => {
                 {/* Dynamic Maximum Duties row */}
                 <tr>
                   <th
-                    colSpan={3}
+                    colSpan={3 + (activeTab === 'ASI' ? 1 : 0)}
                     className="sticky left-0 z-20 min-w-[24.5rem] border border-gray-400 dark:border-gray-500 px-4 py-2 text-left text-[11px] font-semibold text-gray-700 dark:text-gray-100 uppercase tracking-wide bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]"
                   >
                     {getMaxRowLabel(activeTab)}
@@ -1321,11 +1334,15 @@ const Duties: React.FC = () => {
                       <span>{String(func.name || '').toUpperCase()}</span>
                     </td>
                     {activeTab === 'ASI' && (
-                      <td className="border border-gray-400 dark:border-gray-500 px-4 py-4 text-center text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700">
+                      <td className="sticky left-[17.5rem] z-[5] w-20 min-w-20 border border-gray-400 dark:border-gray-500 px-4 py-4 text-center text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]">
                         {checkedCountByFunctionary[func._id] || 0}
                       </td>
                     )}
-                    <td className="sticky left-[17.5rem] z-[5] w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]">
+                    <td
+                      className={`sticky z-[5] w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)] ${
+                        activeTab === 'ASI' ? 'left-[22.5rem]' : 'left-[17.5rem]'
+                      }`}
+                    >
                       {func.employeeId || '-'}
                     </td>
                     {examDates.map((dateKey) => {

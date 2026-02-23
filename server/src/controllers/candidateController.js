@@ -45,6 +45,50 @@ const normalizeSubjectClass = (classValue) => {
 const buildSubjectKey = (code, classValue) =>
   `${normalizeSubjectCode(code)}-${normalizeSubjectClass(classValue)}`;
 
+/** Build candidate query from request query params (shared by getCandidates and getCandidateStats) */
+function buildCandidateQuery(queryParams) {
+  const query = {};
+
+  if (queryParams.search) {
+    const searchRegex = new RegExp(queryParams.search, 'i');
+    query.$or = [
+      { name: searchRegex },
+      { rollNumber: searchRegex }
+    ];
+  }
+
+  if (queryParams.status) {
+    query.status = queryParams.status;
+  }
+
+  if (queryParams.class) {
+    query.class = queryParams.class;
+  }
+
+  if (queryParams.schoolCode) {
+    query.schoolCode = queryParams.schoolCode;
+  } else if (queryParams.schoolName) {
+    query.schoolName = queryParams.schoolName;
+  }
+
+  if (queryParams.category) {
+    query.category = queryParams.category;
+  }
+
+  if (queryParams.pwd) {
+    query.pwd = queryParams.pwd;
+  }
+
+  if (queryParams.subjectCode || queryParams.medium) {
+    const subjectMatch = {};
+    if (queryParams.subjectCode) subjectMatch.code = queryParams.subjectCode;
+    if (queryParams.medium) subjectMatch.medium = queryParams.medium;
+    query.subjectCodes = { $elemMatch: subjectMatch };
+  }
+
+  return query;
+}
+
 // @desc    Get all candidates
 // @route   GET /api/candidates
 // @access  Private
@@ -53,27 +97,7 @@ const getCandidates = asyncHandler(async (req, res) => {
   const limit = parseInt(req.query.limit) || 10;
   const skip = (page - 1) * limit;
 
-  // Build query
-  let query = {};
-
-  // Search functionality
-  if (req.query.search) {
-    const searchRegex = new RegExp(req.query.search, 'i');
-    query.$or = [
-      { name: searchRegex },
-      { rollNumber: searchRegex }
-    ];
-  }
-
-  // Filter by status
-  if (req.query.status) {
-    query.status = req.query.status;
-  }
-
-  // Filter by class
-  if (req.query.class) {
-    query.class = req.query.class;
-  }
+  const query = buildCandidateQuery(req.query);
 
   const candidates = await Candidate.find(query)
     .populate('subjects', 'name code')
@@ -97,9 +121,15 @@ const getCandidates = asyncHandler(async (req, res) => {
 // @desc    Get single candidate
 // @route   GET /api/candidates/:id
 // @access  Private
+const mapAnswerSheetToLabel = (answerSheet) => {
+  if (!answerSheet || answerSheet === 'none') return null;
+  const map = { '32_pages': '32 Pages', '20_pages': '20 Pages', '40_graph': '40 Graph', drawing_sheets: 'Drawing Sheets' };
+  return map[answerSheet] || answerSheet;
+};
+
 const getCandidate = asyncHandler(async (req, res) => {
   const candidate = await Candidate.findById(req.params.id)
-    .populate('subjects', 'name code class credits')
+    .populate('subjects', 'name code class credits answerSheet')
     .populate('createdBy', 'name email')
     .populate('updatedBy', 'name email');
 
@@ -114,8 +144,13 @@ const getCandidate = asyncHandler(async (req, res) => {
 
   try {
     const CBSEDatesheet = require('../models/CBSEDatesheet');
+    const SeatingPlanAllocation = require('../models/SeatingPlanAllocation');
+    const Room = require('../models/Room');
+    const DutyAssignment = require('../models/DutyAssignment');
+
     const cbseDatesheet = await CBSEDatesheet.getActive();
     const examDateBySubjectKey = new Map();
+    const answerSheetBySubjectKey = new Map();
 
     if (cbseDatesheet?.entries?.length) {
       cbseDatesheet.entries.forEach((entry) => {
@@ -128,11 +163,15 @@ const getCandidate = asyncHandler(async (req, res) => {
         const existing = examDateBySubjectKey.get(key);
         if (!existing || examDate < existing) {
           examDateBySubjectKey.set(key, examDate);
+          if (entry.answerSheet) answerSheetBySubjectKey.set(key, entry.answerSheet);
         }
       });
     }
 
     if (Array.isArray(candidateData.subjects) && candidateData.subjects.length > 0) {
+      const rollNo = String(candidateData.rollNumber || '').trim().toUpperCase();
+      const dutyCache = new Map();
+
       candidateData.subjects = candidateData.subjects
         .map((subject) => {
           const classValue = subject.class || candidateData.class;
@@ -148,14 +187,146 @@ const getCandidate = asyncHandler(async (req, res) => {
           if (aTime !== bTime) return aTime - bTime;
           return String(a.code || '').localeCompare(String(b.code || ''));
         });
+
+      for (const subject of candidateData.subjects) {
+        const classValue = subject.class || candidateData.class;
+        const entryAnswerSheet = answerSheetBySubjectKey.get(buildSubjectKey(subject.code, classValue));
+        subject.answerSheetType = mapAnswerSheetToLabel(entryAnswerSheet || subject.answerSheet) || '—';
+        subject.serialNumber = '—';
+        subject.roomNo = null;
+        subject.invigilator1 = null;
+        subject.invigilator2 = null;
+
+        if (!subject.examDate || !rollNo) continue;
+
+        const examDate = new Date(subject.examDate);
+        const dateNorm = examDate.toISOString().slice(0, 10);
+        const classNum = String(subject.class || candidateData.class || '').replace(/th$/i, '');
+        const subjectCode = normalizeSubjectCode(subject.code);
+        const entrySortKey = `${dateNorm}::${String(classNum).padStart(2, '0')}::${subjectCode}`;
+
+        const allocation = await SeatingPlanAllocation.findOne({
+          rollNo,
+          entrySortKey,
+        }).lean();
+
+        if (allocation?.roomNo) {
+          subject.roomNo = allocation.roomNo;
+
+          const cacheKey = `${dateNorm}::${allocation.roomNo}`;
+          if (!dutyCache.has(cacheKey)) {
+            const room = await Room.findOne({ roomNo: allocation.roomNo, isActive: true }).lean();
+            let duty = null;
+            if (room) {
+              duty = await DutyAssignment.findOne({
+                examDate: { $gte: new Date(dateNorm), $lt: new Date(dateNorm + 'T23:59:59.999Z') },
+                room: room._id,
+                isActive: true,
+              })
+                .populate('functionary', 'name employeeId')
+                .populate('functionary2', 'name employeeId')
+                .lean();
+            }
+            dutyCache.set(cacheKey, duty);
+          }
+
+          const duty = dutyCache.get(cacheKey);
+          if (duty) {
+            subject.invigilator1 = duty.functionary
+              ? { name: duty.functionary.name, oasisId: duty.functionary.employeeId }
+              : null;
+            subject.invigilator2 = duty.functionary2
+              ? { name: duty.functionary2.name, oasisId: duty.functionary2.employeeId }
+              : null;
+          }
+        }
+      }
     }
   } catch (error) {
-    console.warn('Failed to enrich candidate subjects with exam dates:', error.message);
+    console.warn('Failed to enrich candidate subjects:', error.message);
   }
 
   res.status(200).json({
     success: true,
     data: candidateData
+  });
+});
+
+// @desc    Get answer sheet serial numbers for a candidate's enrolled subjects (slow; call after page load)
+// @route   GET /api/candidates/:id/subject-serials
+// @access  Private
+const getCandidateSubjectSerials = asyncHandler(async (req, res) => {
+  const candidate = await Candidate.findById(req.params.id)
+    .select('rollNumber')
+    .populate('subjects', 'name code class');
+
+  if (!candidate) {
+    return res.status(404).json({ success: false, message: 'Candidate not found' });
+  }
+
+  const rollNo = String(candidate.rollNumber || '').trim().toUpperCase();
+  if (!rollNo) {
+    return res.status(200).json({ success: true, data: { serials: [] } });
+  }
+
+  const CBSEDatesheet = require('../models/CBSEDatesheet');
+  const seatingPlanBuilder = require('../utils/seatingPlanBuilder');
+
+  const cbseDatesheet = await CBSEDatesheet.getActive();
+  const examDateBySubjectKey = new Map();
+  const entryIdBySubjectKey = new Map();
+
+  if (cbseDatesheet?.entries?.length) {
+    cbseDatesheet.entries.forEach((entry) => {
+      const key = buildSubjectKey(entry?.subject?.code, entry?.subject?.class);
+      if (!key || key.endsWith('-')) return;
+      const examDate = entry?.examDate ? new Date(entry.examDate) : null;
+      if (!examDate || Number.isNaN(examDate.getTime())) return;
+      const existing = examDateBySubjectKey.get(key);
+      if (!existing || examDate < existing) {
+        examDateBySubjectKey.set(key, examDate);
+        if (entry._id) entryIdBySubjectKey.set(key, entry._id.toString());
+      }
+    });
+  }
+
+  let seatingOptions = {};
+  try {
+    const CentreDetail = require('../models/CentreDetail');
+    const SeatingPlanTemplateSetting = require('../models/SeatingPlanTemplateSetting');
+    const [centreDetails, templateDoc] = await Promise.all([
+      CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean(),
+      SeatingPlanTemplateSetting.findOne({}).sort({ updatedAt: -1 }).lean(),
+    ]);
+    seatingOptions = {
+      centreDetails: centreDetails || null,
+      roomAllocationMode: templateDoc?.roomAllocationMode || 'auto',
+    };
+  } catch (e) {
+    console.warn('Subject serials: could not load seating options:', e.message);
+  }
+
+  const serials = [];
+  const subjects = candidate.subjects || [];
+  for (const subject of subjects) {
+    const classValue = subject.class || candidate.class;
+    const key = buildSubjectKey(subject.code, classValue);
+    const examDate = examDateBySubjectKey.get(key);
+    const entryId = entryIdBySubjectKey.get(key);
+    if (!entryId || !examDate) {
+      serials.push({ subjectId: subject._id.toString(), serialNumber: null });
+      continue;
+    }
+    const result = await seatingPlanBuilder.getSerialForCandidateInEntry(entryId, rollNo, seatingOptions);
+    serials.push({
+      subjectId: subject._id.toString(),
+      serialNumber: result?.serialNumber || null,
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: { serials },
   });
 });
 
@@ -730,19 +901,23 @@ const extractCandidatesFromText = (text) => {
   return candidates;
 };
 
-// @desc    Get candidates statistics
+// @desc    Get candidates statistics (supports same filter params as getCandidates)
 // @route   GET /api/candidates/stats
 // @access  Private
 const getCandidateStats = asyncHandler(async (req, res) => {
+  const baseQuery = buildCandidateQuery(req.query);
+
   const stats = await Promise.all([
-    Candidate.countDocuments({}),
-    Candidate.countDocuments({ class: '10th' }),
-    Candidate.countDocuments({ class: '12th' }),
+    Candidate.countDocuments(baseQuery),
+    Candidate.countDocuments({ ...baseQuery, class: '10th' }),
+    Candidate.countDocuments({ ...baseQuery, class: '12th' }),
     Candidate.aggregate([
+      { $match: baseQuery },
       { $group: { _id: '$course', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]),
     Candidate.aggregate([
+      { $match: baseQuery },
       { $group: { _id: '$department', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ])
@@ -763,6 +938,7 @@ const getCandidateStats = asyncHandler(async (req, res) => {
 module.exports = {
   getCandidates,
   getCandidate,
+  getCandidateSubjectSerials,
   createCandidate,
   updateCandidate,
   deleteCandidate,

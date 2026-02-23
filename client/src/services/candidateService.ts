@@ -7,6 +7,12 @@ export interface CandidateListParams {
   search?: string
   status?: string
   class?: string
+  schoolCode?: string
+  schoolName?: string
+  subjectCode?: string
+  category?: string
+  pwd?: string
+  medium?: string
 }
 
 export interface CandidateListResponse {
@@ -62,6 +68,13 @@ class CandidateService {
     return api.get(`/candidates/${id}`)
   }
 
+  /** Get answer sheet serial numbers for candidate's subjects (slow; call after page load). */
+  async getCandidateSubjectSerials(id: string): Promise<{ subjectId: string; serialNumber: string | null }[]> {
+    const res = await api.get(`/candidates/${id}/subject-serials`)
+    const data = res.data?.data ?? res.data
+    return data?.serials ?? []
+  }
+
   // Create new candidate
   async createCandidate(data: CandidateData) {
     return api.post('/candidates', data)
@@ -90,9 +103,9 @@ class CandidateService {
     })
   }
 
-  /** Get candidate statistics. Returns CandidateStats. */
-  async getStats(): Promise<CandidateStats> {
-    const res = await api.get('/candidates/stats')
+  /** Get candidate statistics. Returns CandidateStats. Supports same filter params as getCandidates. */
+  async getStats(params?: Partial<CandidateListParams>): Promise<CandidateStats> {
+    const res = await api.get('/candidates/stats', { params })
     const body = res.data ?? res
     return body?.data ?? body
   }
