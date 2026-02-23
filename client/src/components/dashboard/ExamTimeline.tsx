@@ -81,7 +81,6 @@ const ExamTimeline: React.FC<ExamTimelineProps> = ({ exams }) => {
             <div
               key={`${item.date}-${item.subject}`}
               className="relative flex-shrink-0 group"
-              style={{ zIndex: sortedExams.length - index }}
             >
               {isToday && (
                 <div
