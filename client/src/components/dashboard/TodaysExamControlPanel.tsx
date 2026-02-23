@@ -1,7 +1,5 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo } from 'react'
 import {
-  CalendarDays,
-  Clock,
   Users,
   CheckCircle2,
   AlertCircle,
@@ -14,10 +12,6 @@ import type { TodaysExamsResponse, TodaysExam, AnswerSheetUsedDetail, SchoolWise
 export type TodaysExamControlPanelProps = {
   data?: TodaysExamsResponse | null
   isLoading?: boolean
-  onPrevDate?: () => void
-  onNextDate?: () => void
-  canPrevDate?: boolean
-  canNextDate?: boolean
 }
 
 type ClassSummary = {
@@ -35,22 +29,6 @@ type SchoolRow = {
   xCount: number
   xiiCount: number
   total: number
-}
-
-const formatTimeRange = (exam?: TodaysExam | null): string => {
-  if (!exam?.timeSlot) return '—'
-  const { start, end } = exam.timeSlot
-  const toDisplay = (time: string | undefined) => {
-    if (!time) return ''
-    const [h, m] = time.split(':').map(Number)
-    if (!Number.isFinite(h)) return time
-    const period = h >= 12 ? 'PM' : 'AM'
-    const h12 = h % 12 || 12
-    return `${h12}:${String(m ?? 0).padStart(2, '0')} ${period}`
-  }
-  const startLabel = toDisplay(start)
-  const endLabel = toDisplay(end)
-  return [startLabel, endLabel].filter(Boolean).join(' – ')
 }
 
 const normalizeClassKey = (value: string | undefined | null): 'X' | 'XII' | null => {
@@ -134,95 +112,6 @@ const aggregateAnswerSheets = (details: AnswerSheetUsedDetail[]) => {
   }, 0)
 
   return { type, seriesFrom, seriesTo, totalUsed }
-}
-
-const ExamOverviewStrip: React.FC<{
-  exam?: TodaysExam | null
-  examDate: string
-  onPrevDate?: () => void
-  onNextDate?: () => void
-  canPrevDate?: boolean
-  canNextDate?: boolean
-}> = ({ exam, examDate, onPrevDate, onNextDate, canPrevDate, canNextDate }) => {
-  const classKey = normalizeClassKey(exam?.class || '')
-  const classLabel = classKey ? (classKey === 'X' ? 'Class X' : 'Class XII') : 'Class'
-
-  const shortDateLabel = useMemo(() => {
-    if (!examDate) return ''
-    const [year, month, day] = examDate.split('-')
-    if (!year || !month || !day) return examDate
-    return `${day}.${month}.${year.slice(-2)}`
-  }, [examDate])
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex items-center gap-1.5 text-gray-600">
-          <CalendarDays className="w-3.5 h-3.5 text-indigo-600" aria-hidden />
-          <span className="font-semibold text-gray-800">Date:</span>
-          <span>{examDate}</span>
-        </div>
-        <div className="hidden sm:block w-px h-5 bg-gray-200" />
-        <div className="inline-flex items-center gap-1.5 text-gray-600 min-w-0">
-          <FileText className="w-3.5 h-3.5 text-indigo-600" aria-hidden />
-          <span className="font-semibold text-gray-800">Subject:</span>
-          <span className="truncate">
-            {exam?.subjectName || '—'}
-          </span>
-        </div>
-        <div className="hidden sm:block w-px h-5 bg-gray-200" />
-        <div className="inline-flex items-center gap-1.5 text-gray-600">
-          <span className="font-semibold text-gray-800">Code:</span>
-          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-semibold border border-emerald-100">
-            {exam?.subjectCode || '—'}
-          </span>
-        </div>
-        <div className="hidden sm:block w-px h-5 bg-gray-200" />
-        <div className="inline-flex items-center gap-1.5 text-gray-600">
-          <span className="font-semibold text-gray-800">Class:</span>
-          <span>{classLabel}</span>
-        </div>
-        <div className="hidden sm:block w-px h-5 bg-gray-200" />
-        <div className="inline-flex items-center gap-1.5 text-gray-600">
-          <Clock className="w-3.5 h-3.5 text-indigo-600" aria-hidden />
-          <span className="font-semibold text-gray-800">Duration:</span>
-          <span>{exam?.duration ? `${exam.duration} Hours` : '—'}</span>
-        </div>
-        <div className="hidden sm:block w-px h-5 bg-gray-200" />
-        <div className="inline-flex items-center gap-1.5 text-gray-600">
-          <span className="font-semibold text-gray-800">Shift:</span>
-          <span>{formatTimeRange(exam)}</span>
-        </div>
-      </div>
-      {(onPrevDate || onNextDate) && (
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button
-            type="button"
-            onClick={onPrevDate}
-            disabled={!canPrevDate}
-            className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed bg-white shadow-xs"
-            aria-label="Previous exam date"
-          >
-            <span className="sr-only">Previous date</span>
-            <span aria-hidden>&lt;</span>
-          </button>
-          <span className="text-[11px] text-gray-500 font-medium">
-            {shortDateLabel || '—'}
-          </span>
-          <button
-            type="button"
-            onClick={onNextDate}
-            disabled={!canNextDate}
-            className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 disabled:opacity-40 disabled:cursor-not-allowed bg-white shadow-xs"
-            aria-label="Next exam date"
-          >
-            <span className="sr-only">Next date</span>
-            <span aria-hidden>&gt;</span>
-          </button>
-        </div>
-      )}
-    </div>
-  )
 }
 
 const ClassCard: React.FC<{
@@ -575,16 +464,10 @@ const ClipboardListIcon: React.FC = () => (
 const TodaysExamControlPanel: React.FC<TodaysExamControlPanelProps> = ({
   data,
   isLoading,
-  onPrevDate,
-  onNextDate,
-  canPrevDate,
-  canNextDate,
 }) => {
   const hasData = !!data && Array.isArray(data.exams) && data.exams.length > 0
 
   const {
-    primaryExam,
-    dateLabel,
     classXSummary,
     classXiiSummary,
     schoolRows,
