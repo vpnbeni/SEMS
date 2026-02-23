@@ -6,6 +6,18 @@ export interface RoomAllocation {
   candidates: number
 }
 
+export interface SchoolWiseCount {
+  schoolName: string
+  count: number
+}
+
+export interface AnswerSheetUsedDetail {
+  serialFrom: string
+  serialTo: string
+  type: string
+  colour: string
+}
+
 export interface TodaysExam {
   _id: string
   class: string
@@ -20,6 +32,14 @@ export interface TodaysExam {
   candidateCount: number
   roomsUsed: number
   rooms: RoomAllocation[]
+  schoolWiseCandidateCount?: SchoolWiseCount[]
+  answerSheetDetails?: AnswerSheetUsedDetail[]
+  hindiMediumCandidateCount?: number
+}
+
+export interface PackingDetails {
+  clothColor: string
+  marker: string
 }
 
 export interface TodaysExamsResponse {
@@ -28,11 +48,13 @@ export interface TodaysExamsResponse {
   exams: TodaysExam[]
   totalExams: number
   totalCandidates: number
+  packing?: PackingDetails
+  dutiesAssignedCount?: number
 }
 
 const getTodaysExams = async (): Promise<TodaysExamsResponse> => {
   const response = await api.get('/dashboard/todays-exams')
-  return response.data.data
+  return response.data?.data ?? response.data
 }
 
 const dashboardService = {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { AnswerSheetEntry } from '../services/answerSheetService'
 import type { CentreDatesheetEntry } from '../services/centreDatesheetService'
@@ -81,6 +81,7 @@ const AnswerSheets: React.FC = () => {
     subject: ''
   })
   const [selectedClass, setSelectedClass] = useState<string | number>('')
+  const autoUpdatedUsedEntryIds = useRef<Set<string>>(new Set())
 
   const { data: entries = [], isLoading: loadingList, isFetching, error: listError } = useAnswerSheetsQuery(
     { class: selectedClass || undefined }
@@ -289,11 +290,17 @@ const AnswerSheets: React.FC = () => {
   }
 
   const handleSaveUsed = async (datesheetEntry: CentreDatesheetEntry) => {
-    const newValue = parseInt(editUsedValue)
+    let newValue = parseInt(editUsedValue)
 
     if (isNaN(newValue) || newValue < 0) {
       alert('Please enter a valid number')
       return
+    }
+
+    const maxAllowed = datesheetEntry.candidateCount ?? 0
+    if (maxAllowed > 0 && newValue > maxAllowed) {
+      newValue = maxAllowed
+      alert(`Used quantity cannot exceed the number of candidates (${maxAllowed}). Value capped to ${maxAllowed}.`)
     }
 
     try {
@@ -378,6 +385,74 @@ const AnswerSheets: React.FC = () => {
     const acceptableTypes = typeMap[requiredType] || []
     return acceptableTypes.includes(sheetType)
   }
+
+  // Auto-update "used" count for past/today exam dates so the Used tab reflects usage as dates pass
+  useEffect(() => {
+    if (activeTab !== 'used' || loadingList || entries.length === 0 || centreDatesheetEntries.length === 0) return
+
+    const todayStart = (() => {
+      const d = new Date()
+      d.setHours(0, 0, 0, 0)
+      return d.getTime()
+    })()
+
+    let list = [...centreDatesheetEntries]
+    if (selectedClass) {
+      list = list.filter(e => String(e.class) === String(selectedClass))
+    }
+    list.sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
+
+    const run = async () => {
+      for (const datesheetEntry of list) {
+        const examDayStart = new Date(datesheetEntry.examDate)
+        examDayStart.setHours(0, 0, 0, 0)
+        if (examDayStart.getTime() > todayStart) continue
+        if (autoUpdatedUsedEntryIds.current.has(datesheetEntry._id)) continue
+
+        const usedSheets = entries.filter(
+          (e: AnswerSheetEntry) =>
+            e.linkedExamDate &&
+            new Date(e.linkedExamDate).toDateString() === new Date(datesheetEntry.examDate).toDateString() &&
+            e.linkedSubjectCode === datesheetEntry.subjectCode
+        )
+        const totalUsed = usedSheets.reduce((sum, e) => sum + (e.used ?? 0), 0)
+        const candidateCount = datesheetEntry.candidateCount ?? 0
+        if (candidateCount <= 0 || totalUsed >= candidateCount) continue
+
+        const shortfall = candidateCount - totalUsed
+        const answerSheetType = datesheetEntry.answerSheetType
+        const targetSheet = entries.find((e: AnswerSheetEntry) => {
+          const bal = (e.total ?? 0) - (e.used ?? 0) - (e.discarded ?? 0)
+          return bal > 0 &&
+            e.class === datesheetEntry.class &&
+            matchesAnswerSheetType(e.answerSheetType, answerSheetType)
+        })
+        if (!targetSheet?._id) continue
+
+        const balance = (targetSheet.total ?? 0) - (targetSheet.used ?? 0) - (targetSheet.discarded ?? 0)
+        const quantity = Math.min(shortfall, balance)
+        if (quantity <= 0) continue
+
+        try {
+          await useSheetsMutation.mutateAsync({
+            id: targetSheet._id,
+            quantity,
+            linkData: {
+              centreDatesheetEntryId: datesheetEntry._id,
+              examDate: datesheetEntry.examDate,
+              subjectCode: datesheetEntry.subjectCode,
+              subjectName: datesheetEntry.subjectName,
+              candidateCount: datesheetEntry.candidateCount
+            }
+          })
+          autoUpdatedUsedEntryIds.current.add(datesheetEntry._id)
+        } catch (err) {
+          console.error('Auto-update used sheets for exam:', datesheetEntry.subjectName, datesheetEntry.examDate, err)
+        }
+      }
+    }
+    run()
+  }, [activeTab, loadingList, entries, centreDatesheetEntries, selectedClass])
 
   const handleDiscardSheets = async (id: string, quantity: number) => {
     try {
@@ -934,7 +1009,9 @@ const AnswerSheets: React.FC = () => {
                         new Date(e.linkedExamDate).toDateString() === new Date(datesheetEntry.examDate).toDateString() &&
                         e.linkedSubjectCode === datesheetEntry.subjectCode
                       )
-                      const totalUsed = usedSheets.reduce((sum, e) => sum + e.used, 0)
+                      const rawTotalUsed = usedSheets.reduce((sum, e) => sum + (e.used ?? 0), 0)
+                      const candidateCount = datesheetEntry.candidateCount ?? 0
+                      const totalUsed = candidateCount > 0 ? Math.min(rawTotalUsed, candidateCount) : rawTotalUsed
 
                       return (
                         <tr key={datesheetEntry._id} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}>
@@ -974,10 +1051,20 @@ const AnswerSheets: React.FC = () => {
                                 <input
                                   type="number"
                                   min="0"
+                                  max={candidateCount > 0 ? candidateCount : undefined}
                                   value={editUsedValue}
-                                  onChange={(e) => setEditUsedValue(e.target.value)}
+                                  onChange={(e) => {
+                                    const v = e.target.value
+                                    const num = parseInt(v, 10)
+                                    if (candidateCount > 0 && !Number.isNaN(num) && num > candidateCount) {
+                                      setEditUsedValue(String(candidateCount))
+                                    } else {
+                                      setEditUsedValue(v)
+                                    }
+                                  }}
                                   className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                                   autoFocus
+                                  title="Used sheets (cannot exceed candidates)"
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter') {
                                       handleSaveUsed(datesheetEntry)
@@ -1010,7 +1097,7 @@ const AnswerSheets: React.FC = () => {
                                 className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 px-2 py-1 rounded"
                                 onClick={() => {
                                   setEditingUsedEntry(datesheetEntry._id)
-                                  setEditUsedValue(String(totalUsed || 0))
+                                  setEditUsedValue(String(totalUsed))
                                 }}
                                 title="Click to edit"
                               >
@@ -1212,13 +1299,16 @@ const AnswerSheets: React.FC = () => {
                   Upload Answer Sheets Excel
                 </h3>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowUploadModal(false)
                     setUploadFile(null)
                   }}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  aria-label="Close upload modal"
+                  title="Close upload modal"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -1250,14 +1340,17 @@ const AnswerSheets: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label htmlFor="answer-sheet-excel-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Select Excel File
                   </label>
                   <input
+                    id="answer-sheet-excel-upload"
                     type="file"
                     accept=".xlsx,.xls"
                     onChange={handleFileSelect}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    title="Select Excel file (.xlsx or .xls) to upload"
+                    aria-label="Select Excel file (.xlsx or .xls) to upload"
                   />
                   {uploadFile && (
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -1301,10 +1394,13 @@ const AnswerSheets: React.FC = () => {
                   Add Received Answer Sheets
                 </h3>
                 <button
+                  type="button"
                   onClick={() => setShowAddModal(false)}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  aria-label="Close add received answer sheets modal"
+                  title="Close"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -1320,6 +1416,8 @@ const AnswerSheets: React.FC = () => {
                       value={formData.answerSheetType}
                       onChange={(e) => setFormData({ ...formData, answerSheetType: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      aria-label="Answer Sheet Type"
+                      title="Answer Sheet Type"
                       required
                     >
                       <option value="">Select Type</option>
@@ -1355,6 +1453,8 @@ const AnswerSheets: React.FC = () => {
                       value={formData.colour}
                       onChange={(e) => setFormData({ ...formData, colour: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                      aria-label="Colour"
+                      title="Colour"
                       required
                     >
                       <option value="">Select Colour</option>
@@ -1477,14 +1577,17 @@ const AnswerSheets: React.FC = () => {
                   Link Answer Sheets to Exam
                 </h3>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowLinkModal(false)
                     setLinkingEntry(null)
                     setSelectedDatesheetEntry('')
                   }}
                   className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                  aria-label="Close link answer sheets to exam modal"
+                  title="Close"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -1505,6 +1608,8 @@ const AnswerSheets: React.FC = () => {
                     value={selectedDatesheetEntry}
                     onChange={(e) => setSelectedDatesheetEntry(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                    aria-label="Select Exam (Optional)"
+                    title="Select Exam (Optional)"
                   >
                     <option value="">-- Skip linking (mark as used without exam details) --</option>
                     {centreDatesheetEntries.map((entry) => (

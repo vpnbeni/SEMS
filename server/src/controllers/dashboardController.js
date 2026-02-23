@@ -2,6 +2,10 @@ const asyncHandler = require('../middleware/asyncHandler');
 const CBSEDatesheet = require('../models/CBSEDatesheet');
 const { Form66 } = require('../models/Form66');
 const Room = require('../models/Room');
+const Candidate = require('../models/Candidate');
+const DutySelection = require('../models/DutySelection');
+const AnswerSheet = require('../models/AnswerSheet');
+const CentreDetail = require('../models/CentreDetail');
 const seatingPlanBuilder = require('../utils/seatingPlanBuilder');
 const { generateResponse } = require('../utils/helpers');
 const { HTTP_STATUS } = require('../utils/constants');
@@ -46,7 +50,9 @@ const getTodaysExams = asyncHandler(async (req, res) => {
         dayName: getDayName(today),
         exams: [],
         totalExams: 0,
-        totalCandidates: 0
+        totalCandidates: 0,
+        packing: { clothColor: '', marker: '' },
+        dutiesAssignedCount: 0
       })
     );
   }
@@ -54,16 +60,74 @@ const getTodaysExams = asyncHandler(async (req, res) => {
   // Get all rooms for allocation calculation
   const rooms = await Room.find({ isActive: true }).sort({ roomNo: 1 });
 
+  // Packing details and duties count for the day (once)
+  const centreDetails = await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean();
+  const packing = {
+    clothColor: centreDetails?.packingClothColor || '',
+    marker: centreDetails?.packingMarker || ''
+  };
+  const dutiesAssignedCount = await DutySelection.countDocuments({ examDate: todayStr });
+
   // Process each exam
   const examsWithDetails = await Promise.all(
     todaysEntries.map(async (entry) => {
       try {
-        // Get candidate count from Form66
-        const candidateCount = await Form66.countDocuments({
+        // Get candidate count and roll numbers from Form66
+        const form66Docs = await Form66.find({
           examDate: todayStr,
           subjectCode: entry.subject.code,
           isActive: true
-        });
+        })
+          .select('rollNo')
+          .lean();
+        const candidateCount = form66Docs.length;
+        const rollNos = form66Docs.map((d) => String(d.rollNo).trim()).filter(Boolean);
+
+        // School-wise candidate count
+        let schoolWiseCandidateCount = [];
+        if (rollNos.length > 0) {
+          const candidates = await Candidate.find(
+            { rollNumber: { $in: rollNos } },
+            'schoolName schoolCode'
+          ).lean();
+          const bySchool = new Map();
+          for (const c of candidates) {
+            const key = String(c.schoolName || c.schoolCode || 'Unknown').trim() || 'Unknown';
+            bySchool.set(key, (bySchool.get(key) || 0) + 1);
+          }
+          schoolWiseCandidateCount = Array.from(bySchool.entries()).map(([schoolName, count]) => ({
+            schoolName,
+            count
+          }));
+        }
+
+        // Hindi medium candidate count (candidates with this subject in Hindi medium)
+        let hindiMediumCandidateCount = 0;
+        if (rollNos.length > 0) {
+          hindiMediumCandidateCount = await Candidate.countDocuments({
+            rollNumber: { $in: rollNos },
+            subjectCodes: {
+              $elemMatch: {
+                code: entry.subject.code,
+                medium: { $regex: /hindi|हिंदी|h\b/i }
+              }
+            }
+          });
+        }
+
+        // Answer sheets used for this exam (linked to this datesheet entry)
+        const answerSheets = await AnswerSheet.find({
+          centreDatesheetEntry: entry._id,
+          isActive: true
+        })
+          .select('serialFrom serialTo answerSheetType colour')
+          .lean();
+        const answerSheetDetails = answerSheets.map((s) => ({
+          serialFrom: s.serialFrom,
+          serialTo: s.serialTo,
+          type: s.answerSheetType,
+          colour: s.colour
+        }));
 
         // Get room allocations using seating plan builder
         let roomDetails = [];
@@ -72,7 +136,7 @@ const getTodaysExams = asyncHandler(async (req, res) => {
         if (candidateCount > 0 && rooms.length > 0) {
           try {
             const seatingData = await seatingPlanBuilder.buildSeatingData(entry._id);
-            roomDetails = seatingData.rooms.map(room => ({
+            roomDetails = seatingData.rooms.map((room) => ({
               roomNo: room.roomNo,
               roomName: room.roomName || '',
               candidates: room.registered
@@ -80,7 +144,6 @@ const getTodaysExams = asyncHandler(async (req, res) => {
             roomsUsed = seatingData.rooms.length;
           } catch (seatingError) {
             console.error(`Error building seating data for ${entry.subject.code}:`, seatingError);
-            // Fallback: calculate rooms needed manually
             const candidatesPerRoom = 24;
             roomsUsed = Math.ceil(candidateCount / candidatesPerRoom);
           }
@@ -96,7 +159,10 @@ const getTodaysExams = asyncHandler(async (req, res) => {
           answerSheetType: entry.answerSheet,
           candidateCount,
           roomsUsed,
-          rooms: roomDetails
+          rooms: roomDetails,
+          schoolWiseCandidateCount,
+          answerSheetDetails,
+          hindiMediumCandidateCount
         };
       } catch (error) {
         console.error(`Error processing exam ${entry.subject.code}:`, error);
@@ -128,7 +194,9 @@ const getTodaysExams = asyncHandler(async (req, res) => {
       dayName: getDayName(today),
       exams: validExams,
       totalExams: validExams.length,
-      totalCandidates
+      totalCandidates,
+      packing,
+      dutiesAssignedCount
     })
   );
 });

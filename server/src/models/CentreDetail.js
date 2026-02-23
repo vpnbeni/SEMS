@@ -47,6 +47,17 @@ const centreDetailSchema = new mongoose.Schema({
     trim: true,
     default: '',
   },
+  // Packing details for exam day (answer sheet packing)
+  packingClothColor: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  packingMarker: {
+    type: String,
+    trim: true,
+    default: '',
+  },
 }, {
   timestamps: true,
 });

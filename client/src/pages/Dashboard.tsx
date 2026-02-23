@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
-  KPISection,
   ExamTimeline,
   TodaysExamCard,
   RoomAllotmentTable,
@@ -9,11 +9,35 @@ import {
   RecentActivity,
   ExamOverview,
 } from '@/components/dashboard'
-import type { KPICard, ExamTimelineItem } from '@/components/dashboard'
-import { Users, UserCheck, UserX, DoorOpen, ClipboardList, FileStack } from 'lucide-react'
+import type { ExamTimelineItem } from '@/components/dashboard'
+import { useCentreDatesheet } from '@/hooks/useDatesheets'
+import dashboardService from '@/services/dashboardService'
 
 const Dashboard: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(() => new Date())
+
+  const { data: centreDatesheet } = useCentreDatesheet({
+    limit: 200,
+    sortField: 'date',
+    sortOrder: 'asc',
+  })
+
+  const examTimelineDates: ExamTimelineItem[] = useMemo(() => {
+    const entries = centreDatesheet?.entries ?? []
+    return entries.map((entry: { examDate: string | Date; subject?: { name?: string; code?: string; class?: string } }) => {
+      const d = typeof entry.examDate === 'string' ? new Date(entry.examDate) : entry.examDate
+      const dateStr = d.toISOString().slice(0, 10)
+      const subject = entry.subject?.name ?? 'Exam'
+      const subjectCode = entry.subject?.code
+      const classVal = entry.subject?.class
+      return { date: dateStr, subject, subjectCode, class: classVal }
+    })
+  }, [centreDatesheet?.entries])
+
+  const { data: todaysExamsData, isLoading: todaysExamsLoading } = useQuery({
+    queryKey: ['dashboard', 'todays-exams'],
+    queryFn: () => dashboardService.getTodaysExams(),
+  })
 
   useEffect(() => {
     const t = setInterval(() => setCurrentTime(new Date()), 1000)
@@ -26,35 +50,6 @@ const Dashboard: React.FC = () => {
     month: 'short',
     year: 'numeric',
   })
-  const totalCandidates = 210
-  const presentToday = 206
-  const absentToday = 4
-  const roomsUsed = 24
-  const dutyStaff = 52
-  const answerSheetsUsed = 610
-
-  const kpiCards: KPICard[] = [
-    { label: 'Total Candidates', value: totalCandidates, icon: Users, accentColor: 'bg-[#1E40AF]' },
-    { label: 'Present Today', value: presentToday, icon: UserCheck, accentColor: 'bg-[#10B981]' },
-    { label: 'Absent Today', value: absentToday, icon: UserX, accentColor: 'bg-[#EF4444]' },
-    { label: 'Rooms Used', value: roomsUsed, icon: DoorOpen, accentColor: 'bg-[#F59E0B]' },
-    { label: 'Duty Staff', value: dutyStaff, icon: ClipboardList, accentColor: 'bg-cyan-500' },
-    { label: 'Answer Sheets Used', value: answerSheetsUsed, icon: FileStack, accentColor: 'bg-[#8B5CF6]' },
-  ]
-
-  const todaysExam = {
-    subjectName: 'Mathematics',
-    subjectCode: '041',
-    class: 'XII',
-    timeStart: '10:30 AM',
-    timeEnd: '1:30 PM',
-    totalCandidates: 210,
-    absent: 4,
-    checkedIn: 206,
-    roomsAllocated: 24,
-    invigilatorsAssigned: 52,
-    sheetsPackets: '610 (7 pkts)',
-  }
 
   const roomAllotmentRows = [
     { roomNo: '101', candidates: 24, invigilator: 'R. Sharma', observer: 'A. Verma', status: 'Checked In' as const },
@@ -62,16 +57,6 @@ const Dashboard: React.FC = () => {
     { roomNo: '103', candidates: 24, invigilator: 'P. Kumar', observer: '—', status: 'Pending' as const },
     { roomNo: '104', candidates: 24, invigilator: 'M. Gupta', observer: '—', status: 'Checked In' as const },
     { roomNo: '105', candidates: 24, invigilator: '—', observer: '—', status: 'Not Checked In' as const },
-  ]
-
-  const examTimelineDates: ExamTimelineItem[] = [
-    { date: '2026-02-20', subject: 'English Core' },
-    { date: '2026-02-22', subject: 'Mathematics' },
-    { date: '2026-02-25', subject: 'Accountancy' },
-    { date: '2026-03-01', subject: 'Physics' },
-    { date: '2026-03-04', subject: 'Chemistry' },
-    { date: '2026-03-07', subject: 'Biology' },
-    { date: '2026-03-10', subject: 'Computer Science' },
   ]
 
   const upcomingExamsItems = [
@@ -91,10 +76,6 @@ const Dashboard: React.FC = () => {
     <div className="h-full min-h-0 flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden">
       <div className="flex-1 min-h-0 flex flex-col p-4 overflow-hidden">
         <div className="flex-shrink-0 mb-4">
-          <KPISection cards={kpiCards} />
-        </div>
-
-        <div className="flex-shrink-0 mb-4">
           <ExamTimeline exams={examTimelineDates} />
         </div>
 
@@ -102,7 +83,10 @@ const Dashboard: React.FC = () => {
           {/* LEFT col-span-2 */}
           <div className="col-span-2 flex flex-col gap-4 min-h-0 overflow-hidden">
             <div className="flex-shrink-0">
-              <TodaysExamCard dateStr={dateStr} exam={todaysExam} />
+              <TodaysExamCard
+                data={todaysExamsData ?? null}
+                isLoading={todaysExamsLoading}
+              />
             </div>
             <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 overflow-hidden">
               <div className="min-h-0 overflow-hidden">

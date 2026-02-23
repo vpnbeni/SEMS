@@ -15,6 +15,8 @@ const centreDetailsUpsertSchema = Joi.object({
   deputyCentreSuperintendentContact: optionalPhone,
   centreClerk: optionalText(120),
   centreClerkContact: optionalPhone,
+  packingClothColor: optionalText(80),
+  packingMarker: optionalText(80),
 }).custom((value, helpers) => {
   const hasCentreName = Boolean(String(value.centreName || '').trim());
   const hasCentreSchoolCode = Boolean(String(value.centreSchoolCode || '').trim());

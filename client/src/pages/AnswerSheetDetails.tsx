@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
@@ -84,6 +84,25 @@ const AnswerSheetDetails: React.FC = () => {
     const [dispatchPreviewLoading, setDispatchPreviewLoading] = useState(false)
     const [dispatchPreviewError, setDispatchPreviewError] = useState<string | null>(null)
     const [dispatchPreviewAlloc, setDispatchPreviewAlloc] = useState<SerialAllocation | null>(null)
+
+    // Must run unconditionally (Rules of Hooks). Used for utilization "as of today".
+    const todayStart = useMemo(() => {
+        const d = new Date()
+        d.setHours(0, 0, 0, 0)
+        return d.getTime()
+    }, [])
+
+    const allocatedAsOfToday = useMemo(() => {
+        const list = allocation?.allocations ?? []
+        return list.reduce((sum, alloc) => {
+            const examDate = alloc.examDate
+            if (!examDate) return sum
+            const d = typeof examDate === 'string' ? new Date(examDate) : new Date(examDate)
+            d.setHours(0, 0, 0, 0)
+            if (d.getTime() <= todayStart) return sum + (alloc.sheetsAllocated || 0)
+            return sum
+        }, 0)
+    }, [allocation?.allocations, todayStart])
 
     useEffect(() => {
         if (id) {
@@ -318,7 +337,7 @@ const AnswerSheetDetails: React.FC = () => {
 
     // Use usableTotal (total - discarded) for percentage calculation
     const usableTotal = allocation?.usableTotal || allocation?.total || 0
-    const usagePercentage = usableTotal ? Math.round(((allocation?.totalAllocated || 0) / usableTotal) * 100) : 0;
+    const usagePercentage = usableTotal ? Math.round((allocatedAsOfToday / usableTotal) * 100) : 0;
 
     // Calculate color based on percentage
     const getProgressBarColor = (percentage: number) => {
@@ -500,11 +519,16 @@ const AnswerSheetDetails: React.FC = () => {
                                             <div>
                                                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Utilization</span>
                                                 <p className="text-xs text-gray-500 mt-1">
-                                                    <span className="font-medium text-gray-900 dark:text-white">{allocation.totalAllocated?.toLocaleString()}</span> allocated of <span className="font-medium text-gray-900 dark:text-white">{(allocation.usableTotal || allocation.total)?.toLocaleString()}</span> usable
+                                                    <span className="font-medium text-gray-900 dark:text-white">{allocatedAsOfToday.toLocaleString()}</span> used so far (of <span className="font-medium text-gray-900 dark:text-white">{(allocation.usableTotal || allocation.total)?.toLocaleString()}</span> usable)
                                                     {(allocation.discardedCount || 0) > 0 && (
                                                         <span className="text-red-500 ml-1">({allocation.discardedCount} discarded)</span>
                                                     )}
                                                 </p>
+                                                {allocation.totalAllocated != null && allocatedAsOfToday < allocation.totalAllocated && (
+                                                    <p className="text-[10px] text-gray-400 mt-0.5">
+                                                        Total allocated across all exam dates: {allocation.totalAllocated.toLocaleString()}
+                                                    </p>
+                                                )}
                                             </div>
                                             <div className={`text-xl font-bold ${usagePercentage > 90 ? 'text-red-600' :
                                                     usagePercentage > 75 ? 'text-orange-600' : 'text-green-600'
@@ -523,8 +547,8 @@ const AnswerSheetDetails: React.FC = () => {
 
                                         <div className="mt-6 grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-700">
                                             <div className="px-3 text-center">
-                                                <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Allocated</div>
-                                                <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{allocation.totalAllocated?.toLocaleString()}</div>
+                                                <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Used (so far)</div>
+                                                <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{allocatedAsOfToday.toLocaleString()}</div>
                                             </div>
                                             <div className="px-3 text-center">
                                                 <div className="text-xs font-medium uppercase tracking-wider text-red-500">Discarded</div>
@@ -532,7 +556,7 @@ const AnswerSheetDetails: React.FC = () => {
                                             </div>
                                             <div className="px-3 text-center">
                                                 <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Remaining</div>
-                                                <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{allocation.remaining?.toLocaleString()}</div>
+                                                <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{(usableTotal - allocatedAsOfToday).toLocaleString()}</div>
                                             </div>
                                             <div className="px-3 text-center">
                                                 <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Expected</div>

@@ -31,6 +31,8 @@ interface CentreForm {
   deputyCentreSuperintendentContact: string
   centreClerk: string
   centreClerkContact: string
+  packingClothColor: string
+  packingMarker: string
 }
 
 interface CentreDetailsResponse extends Partial<CentreForm> {
@@ -49,6 +51,8 @@ const defaultForm: CentreForm = {
   deputyCentreSuperintendentContact: '',
   centreClerk: '',
   centreClerkContact: '',
+  packingClothColor: '',
+  packingMarker: '',
 }
 
 const sanitizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 10)
@@ -322,6 +326,25 @@ const CentreDetails: React.FC = () => {
             <div className="space-y-1.5">
               <label htmlFor="centre-clerk-contact" className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Contact Number</label>
               <input id="centre-clerk-contact" title="Centre Clerk Contact Number" className="input w-full" inputMode="numeric" placeholder="10-digit mobile" value={form.centreClerkContact} onChange={(e) => handleChange('centreClerkContact', e.target.value)} />
+            </div>
+
+            {/* Packing details (exam day) */}
+            <div className="md:col-span-2 flex items-center gap-3 pt-2">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+              </div>
+              <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Packing details (exam day)</span>
+              <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="packing-cloth-color" className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Colour of cloth to be used</label>
+              <input id="packing-cloth-color" title="Packing cloth colour" className="input w-full" placeholder="e.g. Red, Blue" value={form.packingClothColor} onChange={(e) => handleChange('packingClothColor', e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="packing-marker" className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Marker to write with</label>
+              <input id="packing-marker" title="Marker for packing" className="input w-full" placeholder="e.g. Black marker" value={form.packingMarker} onChange={(e) => handleChange('packingMarker', e.target.value)} />
             </div>
           </div>
         </div>

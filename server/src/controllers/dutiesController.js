@@ -154,6 +154,90 @@ const getDutyAllocationMode = async () => {
   return String(setting?.mode || '').toLowerCase() === 'auto' ? 'auto' : 'manual';
 };
 
+/**
+ * Rule 1 (seating): No candidate allotted same room across all exams — enforced in seatingPlanBuilder.
+ * Rule 2 (duties): No invigilator allotted same candidate across all exams — enforced below via
+ * hasInvigilatorCandidateOverlap and getRollNosSupervisedByFunctionaryOnOtherDates.
+ */
+
+/**
+ * Get roll numbers of candidates sitting in a given room on a given exam date.
+ * Used to link room allocation to candidates (from SeatingPlanAllocation).
+ */
+const getRollNosInRoomOnDate = async (examDateKey, roomNo) => {
+  if (!examDateKey || !normalizeRoomNo(roomNo)) return new Set();
+  const allocations = await SeatingPlanAllocation.find({
+    examDate: examDateKey,
+    roomNo: normalizeRoomNo(roomNo),
+  })
+    .select('rollNo')
+    .lean();
+  const set = new Set();
+  (allocations || []).forEach((a) => {
+    const r = normalizeRollNo(a?.rollNo);
+    if (r) set.add(r);
+  });
+  return set;
+};
+
+/**
+ * Get all roll numbers that a functionary has already supervised on any other exam date.
+ * Used to enforce Rule 2: No invigilator shall be allotted the same candidate across all exams.
+ */
+const getRollNosSupervisedByFunctionaryOnOtherDates = async (functionaryId, excludeDateKey) => {
+  if (!functionaryId || !excludeDateKey) return new Set();
+  const excludeDate = normalizeExamDate(excludeDateKey);
+  if (!excludeDate) return new Set();
+
+  const otherAssignments = await DutyAssignment.find({
+    isActive: true,
+    examDate: { $ne: excludeDate },
+    $or: [
+      { functionary: functionaryId },
+      { functionary2: functionaryId },
+    ],
+  })
+    .select('examDate room')
+    .lean();
+
+  if (!otherAssignments.length) return new Set();
+
+  const roomIds = [...new Set(otherAssignments.map((a) => String(a?.room)).filter(Boolean))];
+  const rooms = await Room.find({ _id: { $in: roomIds } }).select('_id roomNo').lean();
+  const roomNoById = new Map(rooms.map((r) => [String(r._id), normalizeRoomNo(r?.roomNo)]));
+
+  const allRollNos = new Set();
+  const dateRoomPairs = new Set();
+  for (const a of otherAssignments) {
+    const roomNo = roomNoById.get(String(a.room));
+    if (!roomNo) continue;
+    const d = a.examDate instanceof Date ? a.examDate.toISOString().slice(0, 10) : String(a.examDate).slice(0, 10);
+    if (!d) continue;
+    dateRoomPairs.add(`${d}::${roomNo}`);
+  }
+
+  for (const pair of dateRoomPairs) {
+    const [dateKey, roomNo] = pair.split('::');
+    const rollNos = await getRollNosInRoomOnDate(dateKey, roomNo);
+    rollNos.forEach((r) => allRollNos.add(r));
+  }
+  return allRollNos;
+};
+
+/**
+ * Rule 2: Returns true if this functionary would supervise any candidate they already supervised
+ * on another exam day — such an assignment is disallowed (assign a different room).
+ */
+const hasInvigilatorCandidateOverlap = async (functionaryId, roomNo, examDateKey) => {
+  const rollNosInRoom = await getRollNosInRoomOnDate(examDateKey, roomNo);
+  if (rollNosInRoom.size === 0) return false;
+  const rollNosOtherDays = await getRollNosSupervisedByFunctionaryOnOtherDates(functionaryId, examDateKey);
+  for (const r of rollNosInRoom) {
+    if (rollNosOtherDays.has(r)) return true;
+  }
+  return false;
+};
+
 const buildRoomCandidateSchoolCodes = async (examDateKey, rooms = []) => {
   const roomIdByRoomNo = new Map(
     (rooms || [])
@@ -301,6 +385,11 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
           queue.push(fn);
           continue;
         }
+        const overlap = await hasInvigilatorCandidateOverlap(fn._id, room.roomNo, examDateKey);
+        if (overlap) {
+          queue.push(fn);
+          continue;
+        }
         firstAssigned = fn;
         break;
       }
@@ -315,6 +404,11 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
         const fn = queue.shift();
         if (!fn) break;
         if (String(fn._id) === String(firstAssigned._id) || hasSchoolConflict(room._id, fn)) {
+          queue.push(fn);
+          continue;
+        }
+        const overlap = await hasInvigilatorCandidateOverlap(fn._id, room.roomNo, examDateKey);
+        if (overlap) {
           queue.push(fn);
           continue;
         }
@@ -334,7 +428,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
     if (unresolvedRooms.length > 0 || orderedFirst.length !== sortedRooms.length || orderedSecond.length !== sortedRooms.length) {
       return res.status(400).json({
         success: false,
-        message: `Auto assignment could not complete due to school conflicts for room(s): ${unresolvedRooms.join(', ')}.`,
+        message: `Auto assignment could not complete for room(s): ${unresolvedRooms.join(', ')}. Ensure no invigilator is assigned to a room where they already supervised any candidate on another day, and no school conflict.`,
       });
     }
   } else {
@@ -365,6 +459,20 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
         return res.status(400).json({
           success: false,
           message: `Invigilator cannot be of the candidate school for room ${room.roomNo} on ${examDateKey}.`,
+        });
+      }
+      const overlap1 = await hasInvigilatorCandidateOverlap(first._id, room.roomNo, examDateKey);
+      const overlap2 = await hasInvigilatorCandidateOverlap(second._id, room.roomNo, examDateKey);
+      if (overlap1) {
+        return res.status(400).json({
+          success: false,
+          message: `Invigilator 1 for room ${room.roomNo} has already supervised one or more candidates in this room on another exam day. Assign a different room to this invigilator.`,
+        });
+      }
+      if (overlap2) {
+        return res.status(400).json({
+          success: false,
+          message: `Invigilator 2 for room ${room.roomNo} has already supervised one or more candidates in this room on another exam day. Assign a different room to this invigilator.`,
         });
       }
       orderedFirst.push(first);

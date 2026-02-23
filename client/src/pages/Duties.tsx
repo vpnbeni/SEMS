@@ -574,7 +574,11 @@ const Duties: React.FC = () => {
 
         setRooms(roomsRes || [])
 
-        const entries = Array.isArray(datesheetRes?.data) ? datesheetRes.data : []
+        const rawEntries = Array.isArray(datesheetRes?.data) ? datesheetRes.data : []
+        // Only include dates that have at least one exam with candidates
+        const entries = rawEntries.filter(
+          (entry: { candidateCount?: number }) => Number(entry?.candidateCount ?? 0) > 0
+        )
         const nextRequired: Record<string, number> = {}
         const nextCandidates: Record<string, number> = {}
         const nextExamSubjectCodesByDate: Record<string, Set<string>> = {}
@@ -1225,13 +1229,13 @@ const Duties: React.FC = () => {
             <table className="min-w-full border-collapse border-2 border-gray-400 dark:border-gray-500">
               <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                 <tr>
-                  <th className="border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider">
+                  <th className="sticky left-0 z-20 w-[4.5rem] min-w-[4.5rem] border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]">
                     Sr No
                   </th>
-                  <th className="border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider">
+                  <th className="sticky left-[4.5rem] z-20 w-52 min-w-52 border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]">
                     Functionary Name
                   </th>
-                  <th className="border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider">
+                  <th className="sticky left-[17.5rem] z-20 w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]">
                     OASIS ID
                   </th>
                   {examDates.map((dateKey) => (
@@ -1247,7 +1251,7 @@ const Duties: React.FC = () => {
                 <tr>
                   <th
                     colSpan={3}
-                    className="border border-gray-400 dark:border-gray-500 px-4 py-2 text-left text-[11px] font-semibold text-gray-700 dark:text-gray-100 uppercase tracking-wide"
+                    className="sticky left-0 z-20 min-w-[24.5rem] border border-gray-400 dark:border-gray-500 px-4 py-2 text-left text-[11px] font-semibold text-gray-700 dark:text-gray-100 uppercase tracking-wide bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]"
                   >
                     {getMaxRowLabel(activeTab)}
                   </th>
@@ -1279,11 +1283,11 @@ const Duties: React.FC = () => {
               </thead>
               <tbody className="bg-white dark:bg-gray-800">
                 {filteredFunctionaries.map((func, index) => (
-                  <tr key={func._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                    <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  <tr key={func._id} className="group hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="sticky left-0 z-[5] w-[4.5rem] min-w-[4.5rem] border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]">
                       {index + 1}
                     </td>
-                    <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                    <td className="sticky left-[4.5rem] z-[5] w-52 min-w-52 border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]">
                       <div className="inline-flex items-center gap-2">
                         <span>{String(func.name || '').toUpperCase()}</span>
                         <span
@@ -1294,7 +1298,7 @@ const Duties: React.FC = () => {
                         </span>
                       </div>
                     </td>
-                    <td className="border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className="sticky left-[17.5rem] z-[5] w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]">
                       {func.employeeId || '-'}
                     </td>
                     {examDates.map((dateKey) => {

@@ -35,6 +35,8 @@ const upsertCentreDetails = asyncHandler(async (req, res) => {
     deputyCentreSuperintendentContact: req.body.deputyCentreSuperintendentContact || '',
     centreClerk: req.body.centreClerk || '',
     centreClerkContact: req.body.centreClerkContact || '',
+    packingClothColor: req.body.packingClothColor || '',
+    packingMarker: req.body.packingMarker || '',
   };
 
   const existing = await CentreDetail.findOne({}).sort({ updatedAt: -1 });

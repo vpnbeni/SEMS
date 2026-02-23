@@ -4,6 +4,12 @@ const CBSEDatesheet = require('../models/CBSEDatesheet');
 const SeatingPlanAllocation = require('../models/SeatingPlanAllocation');
 const { compareRoomNo } = require('./roomSort');
 
+/**
+ * Exam allocation rules (simplified):
+ * Rule 1: No candidate shall be allotted the same room across all exams.
+ *         Enforced here via buildCandidateRoomHistoryBeforeEntry + resolveAutoStartRoomIndexWithoutRepeats.
+ */
+
 const ACTIVE_CANDIDATE_FILTER = {
   $or: [{ status: 'active' }, { status: { $exists: false } }],
 };
@@ -557,6 +563,10 @@ class SeatingPlanBuilder {
     return map;
   }
 
+  /**
+   * Build per-rollNo set of room numbers this candidate was already allotted on previous exam dates.
+   * Used to enforce Rule 1: No candidate shall be allotted the same room across all exams.
+   */
   async buildCandidateRoomHistoryBeforeEntry(currentEntry, allEntries, rooms) {
     const history = new Map();
     const currentCandidates = await this.getCandidatesForExam(currentEntry);
@@ -621,6 +631,7 @@ class SeatingPlanBuilder {
     await SeatingPlanAllocation.insertMany(docs, { ordered: false });
   }
 
+  /** Count how many candidates would repeat a room they had on a previous exam (Rule 1). */
   countRoomRepeatConflicts(candidates, rooms, startRoomIndex, historyByRollNo) {
     const allocations = this.allocateCandidatesToRoomsWithOffset(
       candidates,
@@ -642,6 +653,7 @@ class SeatingPlanBuilder {
     return conflicts;
   }
 
+  /** Choose start room index so that no candidate gets the same room as on a previous exam (Rule 1). */
   resolveAutoStartRoomIndexWithoutRepeats(candidates, rooms, preferredStartIndex, historyByRollNo) {
     const totalRooms = rooms.length;
     if (!totalRooms) return 0;

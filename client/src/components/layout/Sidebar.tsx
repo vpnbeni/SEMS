@@ -81,23 +81,13 @@ const getAnswerSheetRecordCount = (answerStatsPayload: unknown): SidebarCount =>
   return total
 }
 
-const isDashboardPath = (pathname: string): boolean =>
-  pathname === '/dashboard' || pathname.endsWith('/dashboard')
-
 const Sidebar: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
   const currentUser = useSelector(selectUser)
   const location = useLocation()
-  const [isCollapsed, setIsCollapsed] = useState(() => isDashboardPath(location.pathname))
+  const [isCollapsed, setIsCollapsed] = useState(false)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
   const [counts, setCounts] = useState<SidebarCounts>(EMPTY_COUNTS)
-
-  // Keep sidebar collapsed by default when user is on the dashboard
-  useEffect(() => {
-    if (isDashboardPath(location.pathname)) {
-      setIsCollapsed(true)
-    }
-  }, [location.pathname])
 
   useEffect(() => {
     fetchCounts(true)
