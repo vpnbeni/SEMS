@@ -211,6 +211,7 @@ const Duties: React.FC = () => {
   const [loadingDutyPdfPreview, setLoadingDutyPdfPreview] = useState(false)
   const [dutyPdfPageCount, setDutyPdfPageCount] = useState(0)
   const [dutyPdfRenderError, setDutyPdfRenderError] = useState<string | null>(null)
+  const [invigilatorDutySort, setInvigilatorDutySort] = useState<'none' | 'asc' | 'desc'>('none')
 
   const dutyListControlByKey = useMemo(() => {
     const map = new Map<string, { min: number; max: number }>()
@@ -322,18 +323,6 @@ const Duties: React.FC = () => {
 
   /* ── Filter by active tab + search ── */
   const activeDutyType = DUTY_TABS.find((t) => t.key === activeTab)?.dutyType || ''
-
-  const filteredFunctionaries = useMemo(() => {
-    let list = allFunctionaries.filter((f) => hasDutyType(f, activeDutyType))
-    const term = search.trim().toLowerCase()
-    if (term) {
-      list = list.filter((f) => {
-        const haystack = `${f.name} ${f.employeeId || ''}`.toLowerCase()
-        return haystack.includes(term)
-      })
-    }
-    return list
-  }, [allFunctionaries, activeDutyType, search])
 
   const allocatedRoomsForSelectedDate = useMemo(() => {
     if (!selectedRoomDate) return []
@@ -481,6 +470,30 @@ const Duties: React.FC = () => {
     }
     return counts
   }, [checkedDuties])
+
+  const filteredFunctionaries = useMemo(() => {
+    let list = allFunctionaries.filter((f) => hasDutyType(f, activeDutyType))
+    const term = search.trim().toLowerCase()
+    if (term) {
+      list = list.filter((f) => {
+        const haystack = `${f.name} ${f.employeeId || ''}`.toLowerCase()
+        return haystack.includes(term)
+      })
+    }
+    if (activeTab === 'ASI' && invigilatorDutySort !== 'none') {
+      list = [...list].sort((a, b) => {
+        const aCount = checkedCountByFunctionary[a._id] || 0
+        const bCount = checkedCountByFunctionary[b._id] || 0
+        if (aCount === bCount) {
+          return String(a?.name || '').localeCompare(String(b?.name || ''), undefined, {
+            sensitivity: 'base',
+          })
+        }
+        return invigilatorDutySort === 'asc' ? aCount - bCount : bCount - aCount
+      })
+    }
+    return list
+  }, [allFunctionaries, activeDutyType, search, activeTab, invigilatorDutySort, checkedCountByFunctionary])
 
   const getFunctionarySubjectCodes = useCallback((functionary?: Teacher) => {
     if (!functionary) return []
@@ -1235,6 +1248,23 @@ const Duties: React.FC = () => {
                   <th className="sticky left-[4.5rem] z-20 w-52 min-w-52 border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]">
                     Functionary Name
                   </th>
+                  {activeTab === 'ASI' && (
+                    <th
+                      className="border border-gray-400 dark:border-gray-500 px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider whitespace-nowrap cursor-pointer select-none"
+                      onClick={() =>
+                        setInvigilatorDutySort((prev) =>
+                          prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none'
+                        )
+                      }
+                    >
+                      Duties
+                      {invigilatorDutySort !== 'none' && (
+                        <span className="ml-1 text-[10px]">
+                          {invigilatorDutySort === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </th>
+                  )}
                   <th className="sticky left-[17.5rem] z-20 w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]">
                     OASIS ID
                   </th>
@@ -1288,16 +1318,13 @@ const Duties: React.FC = () => {
                       {index + 1}
                     </td>
                     <td className="sticky left-[4.5rem] z-[5] w-52 min-w-52 border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]">
-                      <div className="inline-flex items-center gap-2">
-                        <span>{String(func.name || '').toUpperCase()}</span>
-                        <span
-                          className="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold leading-none bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
-                          title={`Assigned on ${checkedCountByFunctionary[func._id] || 0} date(s)`}
-                        >
-                          {checkedCountByFunctionary[func._id] || 0}
-                        </span>
-                      </div>
+                      <span>{String(func.name || '').toUpperCase()}</span>
                     </td>
+                    {activeTab === 'ASI' && (
+                      <td className="border border-gray-400 dark:border-gray-500 px-4 py-4 text-center text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700">
+                        {checkedCountByFunctionary[func._id] || 0}
+                      </td>
+                    )}
                     <td className="sticky left-[17.5rem] z-[5] w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]">
                       {func.employeeId || '-'}
                     </td>
@@ -1328,7 +1355,7 @@ const Duties: React.FC = () => {
                 {filteredFunctionaries.length === 0 && (
                   <tr>
                     <td
-                      colSpan={3 + examDates.length}
+                      colSpan={3 + examDates.length + (activeTab === 'ASI' ? 1 : 0)}
                       className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
                     >
                       {allFunctionaries.length === 0

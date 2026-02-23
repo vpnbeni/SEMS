@@ -83,6 +83,24 @@ const sanitizeTextForParsing = (value) => String(value || '')
   .replace(/[ \t]+/g, ' ')
   .replace(/\n{3,}/g, '\n\n');
 
+/**
+ * Parse page range string (e.g. "4-5", "77", "6-32") into startPage and endPage
+ */
+function parsePageRange(pageStr) {
+  if (!pageStr || typeof pageStr !== 'string') return { startPage: null, endPage: null };
+  const trimmed = pageStr.trim();
+  const rangeMatch = trimmed.match(/^(\d{1,3})-(\d{1,3})$/);
+  if (rangeMatch) {
+    return { startPage: parseInt(rangeMatch[1], 10), endPage: parseInt(rangeMatch[2], 10) };
+  }
+  const singleMatch = trimmed.match(/^(\d{1,3})$/);
+  if (singleMatch) {
+    const p = parseInt(singleMatch[1], 10);
+    return { startPage: p, endPage: p };
+  }
+  return { startPage: null, endPage: null };
+}
+
 const extractStructuredFromText = (rawText) => {
   const text = sanitizeTextForParsing(rawText);
   const chapters = [];
@@ -100,78 +118,93 @@ const extractStructuredFromText = (rawText) => {
     ? text.slice(appendicesIdx, Math.min(text.length, appendicesIdx + 25000))
     : text.slice(0, Math.min(text.length, 25000));
 
-  const chapterSegment = chapterSegmentRaw.replace(/\s+/g, ' ');
-  const appendixSegment = appendixSegmentRaw.replace(/\s+/g, ' ');
-
-  // Common TOC chapter format: "1. SOME TITLE 4-5 2. NEXT TITLE 6-7"
-  const chapterLineRegex = /(?:^|\n)\s*(\d{1,2})\.\s+([A-Z][A-Z ,()'\/&\-\.;]{6,180}?)(?:\s+\d{1,3}(?:-\d{1,3})?)?(?=\n|$)/g;
+  // CBSE TOC format: "1. TITLE" followed by "4-5" or "77" (page at end of line)
+  // Title can be long, multi-word; page may have dots/ellipsis before it
+  const chapterWithPageRegex = /(\d{1,2})\.\s+(.+?)\s+(\d{1,3}(?:-\d{1,3})?)\s*$/gm;
   let match;
-  while ((match = chapterLineRegex.exec(text)) !== null) {
-    const number = String(match[1] || '').trim();
-    const title = String(match[2] || '').trim();
-    if (!number || !title) continue;
-    if (title.includes('APPENDICES')) continue;
-    if (seenChapterNumbers.has(number)) continue;
-    seenChapterNumbers.add(number);
-    chapters.push({
-      number,
-      title,
-      description: '',
-      fullContent: '',
-      formattedContent: [],
-    });
+  const lines = chapterSegmentRaw.split(/\r?\n/);
+  for (const line of lines) {
+    const m = line.match(/^(\d{1,2})\.\s+(.+?)\s+(?:Pages?:\s*)?(\d{1,3}(?:-\d{1,3})?)\s*$/);
+    if (m) {
+      const number = m[1].trim();
+      let title = m[2].trim().replace(/\s*\.{2,}\s*$/, '').replace(/\s+/g, ' ');
+      const pageStr = m[3].trim();
+      if (!number || !title || title.toUpperCase().includes('APPENDICES')) continue;
+      if (seenChapterNumbers.has(number)) continue;
+      seenChapterNumbers.add(number);
+      const { startPage } = parsePageRange(pageStr);
+      chapters.push({
+        number,
+        title,
+        description: '',
+        fullContent: '',
+        formattedContent: [],
+        startPage: startPage || undefined,
+      });
+    }
   }
 
-  const chapterInlineRegex = /(\d{1,2})\.\s+([A-Z][A-Z ,()'\/&\-\.;]{6,220}?)(?=\s+\d{1,3}(?:-\d{1,3})?\s+(?:\d{1,2}\.|APPENDICES|$))/g;
+  // Fallback: inline regex for concatenated text (no newlines)
+  const chapterSegment = chapterSegmentRaw.replace(/\s+/g, ' ');
+  const chapterInlineRegex = /(\d{1,2})\.\s+([A-Z][A-Z0-9 ,()'\/&\-\.;]{5,200}?)\s+(\d{1,3}(?:-\d{1,3})?)(?=\s+\d{1,2}\.|\s*APPENDICES|$)/g;
   while ((match = chapterInlineRegex.exec(chapterSegment)) !== null) {
     const number = String(match[1] || '').trim();
     const title = String(match[2] || '').trim().replace(/\s+/g, ' ');
-    if (!number || !title) continue;
+    const pageStr = String(match[3] || '').trim();
+    if (!number || !title || title.includes('APPENDICES')) continue;
     if (seenChapterNumbers.has(number)) continue;
     seenChapterNumbers.add(number);
+    const { startPage } = parsePageRange(pageStr);
     chapters.push({
       number,
       title,
       description: '',
       fullContent: '',
       formattedContent: [],
+      startPage: startPage || undefined,
     });
   }
 
-  // Prefer appendix extraction from APPENDICES section.
-  const appendicesSectionStart = text.search(/\bAPPENDICES\b/i);
-  const appendicesSource = appendicesSectionStart >= 0 ? text.slice(appendicesSectionStart) : text;
-  const appendixLineRegex = /(?:^|\n)\s*([A-Z])\s+([A-Z][A-Z ,()'\/&\-\.;]{5,200}?)(?:\s+\d{1,3}(?:-\d{1,3})?)?(?=\n|$)/g;
-  while ((match = appendixLineRegex.exec(appendicesSource)) !== null) {
-    const letter = String(match[1] || '').trim();
-    const title = String(match[2] || '').trim();
-    if (!letter || !title) continue;
-    if (letter === 'I') continue; // avoid accidental "I BACKGROUND" chapter misread
-    if (seenAppendixLetters.has(letter)) continue;
-    seenAppendixLetters.add(letter);
-    appendices.push({
-      letter,
-      title,
-      subtitle: '',
-      fullContent: '',
-      formattedContent: [],
-    });
+  // APPENDICES: "A TITLE" followed by "78-79" or "91"
+  const appendixLines = appendixSegmentRaw.split(/\r?\n/);
+  for (const line of appendixLines) {
+    const m = line.match(/^([A-Z])\s+(.+?)\s+(?:Pages?:\s*)?(\d{1,3}(?:-\d{1,3})?)\s*$/);
+    if (m) {
+      const letter = m[1].trim();
+      let title = m[2].trim().replace(/\s*\.{2,}\s*$/, '').replace(/\s+/g, ' ');
+      const pageStr = m[3].trim();
+      if (!letter || !title) continue;
+      if (seenAppendixLetters.has(letter)) continue;
+      seenAppendixLetters.add(letter);
+      const { startPage } = parsePageRange(pageStr);
+      appendices.push({
+        letter,
+        title,
+        subtitle: '',
+        fullContent: '',
+        formattedContent: [],
+        startPage: startPage || undefined,
+      });
+    }
   }
 
-  const appendixInlineRegex = /\b([A-Z])\s+([A-Z][A-Z ,()'\/&\-\.;]{5,220}?)(?=\s+\d{1,3}(?:-\d{1,3})?\s+(?:[A-Z]\s+|$))/g;
+  const appendixSegment = appendixSegmentRaw.replace(/\s+/g, ' ');
+  const appendixInlineRegex = /\b([A-Z])\s+([A-Z][A-Z0-9 ,()'\/&\-\.;]{5,200}?)\s+(\d{1,3}(?:-\d{1,3})?)(?=\s+[A-Z]\s+|$)/g;
   while ((match = appendixInlineRegex.exec(appendixSegment)) !== null) {
     const letter = String(match[1] || '').trim();
     const title = String(match[2] || '').trim().replace(/\s+/g, ' ');
+    const pageStr = String(match[3] || '').trim();
     if (!letter || !title) continue;
-    if (letter === 'I') continue;
     if (seenAppendixLetters.has(letter)) continue;
     seenAppendixLetters.add(letter);
+    const { startPage } = parsePageRange(pageStr);
     appendices.push({
       letter,
       title,
       subtitle: '',
       fullContent: '',
       formattedContent: [],
+      startPage: startPage || undefined,
     });
   }
 

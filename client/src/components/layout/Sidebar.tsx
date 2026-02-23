@@ -88,6 +88,9 @@ const Sidebar: React.FC = () => {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
   const [counts, setCounts] = useState<SidebarCounts>(EMPTY_COUNTS)
+  const [centreLabel, setCentreLabel] = useState<string>('')
+  const [centreCode, setCentreCode] = useState<string>('')
+  const [centreName, setCentreName] = useState<string>('')
 
   useEffect(() => {
     fetchCounts(true)
@@ -108,6 +111,28 @@ const Sidebar: React.FC = () => {
   const handleLogout = () => {
     dispatch(logout())
   }
+
+  useEffect(() => {
+    const fetchCentreLabel = async () => {
+      try {
+        const response = await api.get('/centre-details')
+        const payload = response?.data?.data || {}
+        const centreNo = String(payload?.centreNo || '').trim()
+        const schoolCode = String(payload?.centreSchoolCode || '').trim()
+        const centreNameValue = String(payload?.centreName || '').trim()
+        const label = [schoolCode || centreNo, centreNameValue].filter(Boolean).join(' - ')
+        setCentreLabel(label)
+        setCentreCode(centreNo)
+        setCentreName(centreNameValue)
+      } catch {
+        setCentreLabel('')
+        setCentreCode('')
+        setCentreName('')
+      }
+    }
+
+    fetchCentreLabel()
+  }, [])
 
   const fetchCounts = async (useCache = true) => {
     try {
@@ -182,16 +207,6 @@ const Sidebar: React.FC = () => {
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V7l7-4 7 4v14M9 10h6M9 14h6" />
-        </svg>
-      ),
-      badge: null,
-    },
-    {
-      name: 'Billing',
-      href: '/billing',
-      icon: (
-        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a5 5 0 00-10 0v2m-2 0h14a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1v-9a1 1 0 011-1z" />
         </svg>
       ),
       badge: null,
@@ -443,16 +458,16 @@ const Sidebar: React.FC = () => {
           >
             <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md shadow-primary-500/10 ring-2 ring-white dark:ring-secondary-800 group-hover:ring-primary-100 dark:group-hover:ring-primary-900/30 transition-all">
               <span className="text-sm font-bold text-white">
-                {(currentUser?.email || 'A').charAt(0).toUpperCase()}
+                {(centreCode || currentUser?.email || 'A').charAt(0).toUpperCase()}
               </span>
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left ml-3">
                 <p className="text-sm font-semibold text-secondary-900 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
-                  {currentUser?.email || 'admin@becms.edu'}
+                  {centreCode || '—'}
                 </p>
                 <p className="text-xs text-secondary-500 dark:text-secondary-400 truncate">
-                  {currentUser?.role || 'Administrator'}
+                  {centreName || currentUser?.role || 'Administrator'}
                 </p>
               </div>
             )}
@@ -481,24 +496,45 @@ const Sidebar: React.FC = () => {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-secondary-900 dark:text-white truncate">
-                        {currentUser?.email || 'admin@becms.edu'}
+                        {centreLabel || currentUser?.email || 'admin@becms.edu'}
                       </p>
                       <p className="text-xs text-secondary-500 dark:text-secondary-400 truncate">
-                        {currentUser?.role || 'Administrator'}
+                        {centreCode || currentUser?.role || 'Administrator'}
                       </p>
                     </div>
                   </div>
                 </div>
                 <div className="py-2 px-1">
-                  <a
-                    href="#"
-                    className="flex items-center px-3 py-2.5 text-sm font-medium text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400 rounded-xl transition-colors"
+                  <NavLink
+                    to="/account-settings"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-colors ${
+                        isActive
+                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                          : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400'
+                      }`
+                    }
                   >
                     <svg className="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                    Profile Settings
-                  </a>
+                    Account Settings
+                  </NavLink>
+                  <NavLink
+                    to="/billing"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-colors ${
+                        isActive
+                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                          : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400'
+                      }`
+                    }
+                  >
+                    <svg className="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a5 5 0 00-10 0v2m-2 0h14a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1v-9a1 1 0 011-1z" />
+                    </svg>
+                    Billing
+                  </NavLink>
                   <a
                     href="#"
                     className="flex items-center px-3 py-2.5 text-sm font-medium text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400 rounded-xl transition-colors"
@@ -509,15 +545,21 @@ const Sidebar: React.FC = () => {
                     </svg>
                     Preferences
                   </a>
-                  <a
-                    href="#"
-                    className="flex items-center px-3 py-2.5 text-sm font-medium text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400 rounded-xl transition-colors"
+                  <NavLink
+                    to="/help-support"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-colors ${
+                        isActive
+                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                          : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400'
+                      }`
+                    }
                   >
                     <svg className="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     Help & Support
-                  </a>
+                  </NavLink>
                 </div>
                 <div className="p-1 border-t border-secondary-100 dark:border-secondary-800">
                   <button

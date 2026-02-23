@@ -74,19 +74,6 @@ const Dashboard: React.FC = () => {
                 isLoading={todaysExamsLoading}
               />
             </div>
-            <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4 overflow-hidden">
-              <div className="min-h-0 overflow-hidden">
-                <RoomAllotmentTable
-                  rows={roomAllotmentRows}
-                  usedRooms={20}
-                  totalRooms={24}
-                  notCheckedInCount={1}
-                />
-              </div>
-              <div className="flex-shrink-0 lg:w-44">
-                <OccupancyChart used={20} remaining={4} />
-              </div>
-            </div>
           </div>
 
           {/* RIGHT col-span-1 */}

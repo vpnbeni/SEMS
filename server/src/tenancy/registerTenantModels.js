@@ -20,6 +20,8 @@ const SeatingPlanAllocation = require('../models/SeatingPlanAllocation');
 const DutyAllocationSetting = require('../models/DutyAllocationSetting');
 const DutyAssignment = require('../models/DutyAssignment');
 const DutySelection = require('../models/DutySelection');
+const Feedback = require('../models/Feedback');
+const SupportTicket = require('../models/SupportTicket');
 
 const tenantModelExports = {
   User,
@@ -44,7 +46,9 @@ const tenantModelExports = {
   SeatingPlanAllocation,
   DutyAllocationSetting,
   DutyAssignment,
-  DutySelection
+  DutySelection,
+  Feedback,
+  SupportTicket
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

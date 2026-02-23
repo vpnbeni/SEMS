@@ -196,7 +196,7 @@ const Subjects: React.FC = () => {
       <style>{`
         /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
         .subj-page {
-          padding: 20px 32px 32px;
+          padding: 20px 20px 32px;
           max-width: 1600px;
           margin: 0 auto;
         }
@@ -289,6 +289,10 @@ const Subjects: React.FC = () => {
           margin-bottom: 20px;
           position: relative;
           max-width: 420px;
+        }
+        .subj-toolbar .subj-search-wrap {
+          margin-bottom: 0;
+          margin-left: auto;
         }
         .subj-search {
           width: 100%;
@@ -410,7 +414,7 @@ const Subjects: React.FC = () => {
           border-spacing: 0;
         }
         .subj-table thead th {
-          padding: 14px 24px;
+          padding: 12px 18px;
           font-size: 0.72rem;
           font-weight: 700;
           text-transform: uppercase;
@@ -461,7 +465,7 @@ const Subjects: React.FC = () => {
           transition: background 0.15s ease;
         }
         .subj-table tbody td {
-          padding: 14px 24px;
+          padding: 12px 18px;
           font-size: 0.88rem;
           color: #334155;
           border-bottom: 1px solid #f1f5f9;
@@ -749,12 +753,16 @@ const Subjects: React.FC = () => {
         </div>
       )}
 
-      {/* â•â•â•â•â•â•â• Stat Cards â•â•â•â•â•â•â• */}
+      {/* ───── Stat Cards ───── */}
       <div className="subj-stats">
         <div className="subj-stat subj-stat-total">
           <div className="subj-stat-icon">
             <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+              />
             </svg>
           </div>
           <div>
@@ -765,7 +773,11 @@ const Subjects: React.FC = () => {
         <div className="subj-stat subj-stat-10th">
           <div className="subj-stat-icon">
             <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+              />
             </svg>
           </div>
           <div>
@@ -776,7 +788,11 @@ const Subjects: React.FC = () => {
         <div className="subj-stat subj-stat-12th">
           <div className="subj-stat-icon">
             <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+              />
             </svg>
           </div>
           <div>
@@ -786,21 +802,7 @@ const Subjects: React.FC = () => {
         </div>
       </div>
 
-      {/* â•â•â•â•â•â•â• Search â•â•â•â•â•â•â• */}
-      <div className="subj-search-wrap">
-        <svg className="subj-search-icon" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Search subjects..."
-          value={searchInput}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          className="subj-search"
-        />
-      </div>
-
-      {/* â•â•â•â•â•â•â• Table Card â•â•â•â•â•â•â• */}
+      {/* ───── Table Card ───── */}
       <div className="subj-card">
         {/* Toolbar */}
         <div className="subj-toolbar">
@@ -816,6 +818,19 @@ const Subjects: React.FC = () => {
             size="sm"
             ariaLabel="Subject views"
           />
+
+          <div className="subj-search-wrap">
+            <svg className="subj-search-icon" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search subjects..."
+              value={searchInput}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              className="subj-search"
+            />
+          </div>
         </div>
 
         {/* Table */}

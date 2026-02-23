@@ -11,6 +11,23 @@ const isValidPdfBuffer = (buffer) => {
   return trailerProbe.includes('%%EOF');
 };
 
+async function probePdfUrl(url) {
+  if (!url) return false;
+  try {
+    const response = await fetch(String(url), {
+      method: 'GET',
+      headers: { Range: 'bytes=0-15' },
+    });
+    if (!response.ok) return false;
+    const arrayBuffer = await response.arrayBuffer();
+    const buf = Buffer.from(arrayBuffer);
+    const header = buf.subarray(0, 5).toString('utf8');
+    return header.startsWith('%PDF-');
+  } catch {
+    return false;
+  }
+}
+
 async function getActiveTenantGuideline(req) {
   try {
     const Guideline = req.models?.Guideline;
@@ -50,21 +67,32 @@ async function getGuidelinesPdfBuffer(source = {}) {
     try {
       const resource = await cloudinary.api.resource(publicId, { resource_type: 'raw' });
       const response = await fetch(resource.secure_url);
-      if (!response.ok) return null;
-      const arrayBuffer = await response.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      if (!response.ok) {
+        // Fall through to try any direct URL (if present) before giving up.
+        // This helps if publicId is stale but a URL reference is still valid.
+      } else {
+        const arrayBuffer = await response.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+      }
     } catch (err) {
-      if (err.error?.http_code === 404) return null;
-      throw err;
+      if (err.error?.http_code === 404) {
+        // Fall through to try direct URL (if present) before giving up.
+      } else {
+        throw err;
+      }
     }
   }
 
   const directUrl = source?.url ? String(source.url) : '';
   if (directUrl) {
-    const response = await fetch(directUrl);
-    if (!response.ok) return null;
-    const arrayBuffer = await response.arrayBuffer();
-    return Buffer.from(arrayBuffer);
+    try {
+      const response = await fetch(directUrl);
+      if (!response.ok) return null;
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch {
+      return null;
+    }
   }
 
   try {
@@ -274,7 +302,7 @@ exports.checkGuidelines = async (req, res) => {
         if (err.error?.http_code === 404) return null;
         throw err;
       });
-      if (resource?.secure_url) {
+      if (resource?.secure_url && await probePdfUrl(resource.secure_url)) {
         return res.json({
           success: true,
           exists: true,
@@ -283,7 +311,7 @@ exports.checkGuidelines = async (req, res) => {
       }
     }
 
-    if (source?.url) {
+    if (source?.url && await probePdfUrl(source.url)) {
       return res.json({
         success: true,
         exists: true,

@@ -31,6 +31,8 @@ import AnswerSheetDetails from './pages/AnswerSheetDetails'
 import DropdownExamples from './pages/DropdownExamples'
 import DialogShowcase from './pages/DialogShowcase'
 import Billing from './pages/Billing'
+import AccountSettings from './pages/AccountSettings'
+import HelpSupport from './pages/HelpSupport'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -117,6 +119,8 @@ function App() {
               <Route path="cbse-circulars" element={<CBSECirculars />} />
               <Route path="cbse-portals" element={<CBSEPortals />} />
               <Route path="billing" element={<Billing />} />
+              <Route path="account-settings" element={<AccountSettings />} />
+              <Route path="help-support" element={<HelpSupport />} />
               <Route path="dropdown-examples" element={<DropdownExamples />} />
               <Route path="dialog-showcase" element={<DialogShowcase />} />
             </Route>

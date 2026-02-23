@@ -58,6 +58,26 @@ const centreDetailSchema = new mongoose.Schema({
     trim: true,
     default: '',
   },
+  packingClothColorClass10: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  packingMarkerClass10: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  packingClothColorClass12: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  packingMarkerClass12: {
+    type: String,
+    trim: true,
+    default: '',
+  },
 }, {
   timestamps: true,
 });

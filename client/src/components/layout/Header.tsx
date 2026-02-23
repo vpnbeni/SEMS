@@ -115,6 +115,13 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
+      case 'help-support':
+        return {
+          pageTitle: 'Help Support',
+          pageSubtitle: 'Get assistance with BECMS issues, report exam-day problems, and share feedback.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
       case 'cbse-portals':
         return {
           pageTitle: 'CBSE Portals',

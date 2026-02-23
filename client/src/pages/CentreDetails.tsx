@@ -33,6 +33,10 @@ interface CentreForm {
   centreClerkContact: string
   packingClothColor: string
   packingMarker: string
+  packingClothColorClass10: string
+  packingMarkerClass10: string
+  packingClothColorClass12: string
+  packingMarkerClass12: string
 }
 
 interface CentreDetailsResponse extends Partial<CentreForm> {
@@ -53,6 +57,10 @@ const defaultForm: CentreForm = {
   centreClerkContact: '',
   packingClothColor: '',
   packingMarker: '',
+  packingClothColorClass10: '',
+  packingMarkerClass10: '',
+  packingClothColorClass12: '',
+  packingMarkerClass12: '',
 }
 
 const sanitizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 10)
@@ -339,12 +347,94 @@ const CentreDetails: React.FC = () => {
               <div className="flex-1 h-px bg-gray-100 dark:bg-gray-700" />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="packing-cloth-color" className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Colour of cloth to be used</label>
-              <input id="packing-cloth-color" title="Packing cloth colour" className="input w-full" placeholder="e.g. Red, Blue" value={form.packingClothColor} onChange={(e) => handleChange('packingClothColor', e.target.value)} />
+              <label
+                htmlFor="packing-cloth-color"
+                className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+              >
+                Overall cloth colour (optional)
+              </label>
+              <input
+                id="packing-cloth-color"
+                title="Default packing cloth colour"
+                className="input w-full"
+                placeholder="e.g. Blue"
+                value={form.packingClothColor}
+                onChange={(e) => handleChange('packingClothColor', e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
-              <label htmlFor="packing-marker" className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Marker to write with</label>
-              <input id="packing-marker" title="Marker for packing" className="input w-full" placeholder="e.g. Black marker" value={form.packingMarker} onChange={(e) => handleChange('packingMarker', e.target.value)} />
+              <label
+                htmlFor="packing-marker"
+                className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+              >
+                Overall ink / marker (optional)
+              </label>
+              <input
+                id="packing-marker"
+                title="Default packing marker / ink colour"
+                className="input w-full"
+                placeholder="e.g. Red"
+                value={form.packingMarker}
+                onChange={(e) => handleChange('packingMarker', e.target.value)}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden text-xs">
+                <div className="bg-gray-50 dark:bg-gray-800 px-3 py-2 font-semibold text-gray-700 dark:text-gray-200">
+                  Class-wise packing colours
+                </div>
+                <div className="grid grid-cols-3 border-t border-gray-200 dark:border-gray-700">
+                  <div className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Class</div>
+                  <div className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Colour of cloth</div>
+                  <div className="px-3 py-2 font-semibold text-gray-600 dark:text-gray-300">Colour of ink</div>
+                </div>
+                <div className="grid grid-cols-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40">
+                  <div className="px-3 py-2 font-medium text-gray-800 dark:text-gray-100">Class X</div>
+                  <div className="px-3 py-2">
+                    <input
+                      id="packing-cloth-color-class10"
+                      title="Cloth colour for Class X packets"
+                      className="input w-full text-xs"
+                      placeholder="e.g. Blue"
+                      value={form.packingClothColorClass10}
+                      onChange={(e) => handleChange('packingClothColorClass10', e.target.value)}
+                    />
+                  </div>
+                  <div className="px-3 py-2">
+                    <input
+                      id="packing-marker-class10"
+                      title="Ink colour for Class X packets"
+                      className="input w-full text-xs"
+                      placeholder="e.g. Red"
+                      value={form.packingMarkerClass10}
+                      onChange={(e) => handleChange('packingMarkerClass10', e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/60">
+                  <div className="px-3 py-2 font-medium text-gray-800 dark:text-gray-100">Class XII</div>
+                  <div className="px-3 py-2">
+                    <input
+                      id="packing-cloth-color-class12"
+                      title="Cloth colour for Class XII packets"
+                      className="input w-full text-xs"
+                      placeholder="e.g. Pink"
+                      value={form.packingClothColorClass12}
+                      onChange={(e) => handleChange('packingClothColorClass12', e.target.value)}
+                    />
+                  </div>
+                  <div className="px-3 py-2">
+                    <input
+                      id="packing-marker-class12"
+                      title="Ink colour for Class XII packets"
+                      className="input w-full text-xs"
+                      placeholder="e.g. Blue"
+                      value={form.packingMarkerClass12}
+                      onChange={(e) => handleChange('packingMarkerClass12', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

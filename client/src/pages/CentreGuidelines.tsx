@@ -9,6 +9,7 @@ interface Chapter {
   description?: string
   fullContent?: string
   formattedContent?: ContentBlock[]
+  startPage?: number
 }
 
 interface ContentBlock {
@@ -23,6 +24,7 @@ interface Appendix {
   subtitle?: string
   fullContent?: string
   formattedContent?: ContentBlock[]
+  startPage?: number
 }
 
 interface Guideline {
@@ -498,7 +500,7 @@ const CentreGuidelines: React.FC = () => {
                                   </span>
                                 </div>
                                 <div className="flex-1">
-                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-start justify-between">
                                     <div className="flex-1">
                                       <h4 className="font-semibold text-gray-900 dark:text-white text-base mb-1">
                                         Chapter {chapter.number}
@@ -506,6 +508,17 @@ const CentreGuidelines: React.FC = () => {
                                       <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                         {chapter.title}
                                       </p>
+                                      {chapter.startPage && uploadedPdf && (
+                                        <a
+                                          href={`${uploadedPdf}#page=${chapter.startPage}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="inline-flex items-center text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                        >
+                                          View in PDF (Page {chapter.startPage})
+                                        </a>
+                                      )}
                                       {!isExpanded && chapter.description && (
                                         <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                                           {chapter.description}
@@ -659,6 +672,17 @@ const CentreGuidelines: React.FC = () => {
                                       <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                         {appendix.title}
                                       </p>
+                                      {appendix.startPage && uploadedPdf && (
+                                        <a
+                                          href={`${uploadedPdf}#page=${appendix.startPage}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="inline-flex items-center text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                        >
+                                          View in PDF (Page {appendix.startPage})
+                                        </a>
+                                      )}
                                       {!isExpanded && appendix.subtitle && (
                                         <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
                                           {appendix.subtitle}

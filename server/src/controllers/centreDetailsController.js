@@ -37,6 +37,10 @@ const upsertCentreDetails = asyncHandler(async (req, res) => {
     centreClerkContact: req.body.centreClerkContact || '',
     packingClothColor: req.body.packingClothColor || '',
     packingMarker: req.body.packingMarker || '',
+    packingClothColorClass10: req.body.packingClothColorClass10 || '',
+    packingMarkerClass10: req.body.packingMarkerClass10 || '',
+    packingClothColorClass12: req.body.packingClothColorClass12 || '',
+    packingMarkerClass12: req.body.packingMarkerClass12 || '',
   };
 
   const existing = await CentreDetail.findOne({}).sort({ updatedAt: -1 });

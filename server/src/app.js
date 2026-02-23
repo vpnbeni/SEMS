@@ -40,6 +40,7 @@ const undertakingsRoutes = require('./routes/undertakings');
 const cbseCircularsRoutes = require('./routes/cbseCirculars');
 const centreDetailsRoutes = require('./routes/centreDetailsRoutes');
 const billingRoutes = require('./routes/billingRoutes');
+const supportRoutes = require('./routes/supportRoutes');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -227,6 +228,7 @@ app.get('/api', (req, res) => {
       duties: '/api/duties',
       undertakings: '/api/undertakings',
       billing: '/api/billing',
+      support: '/api/support',
       admin: '/api/admin'
       // calendar: '/api/calendar' // Temporarily disabled for debugging
     },
@@ -258,6 +260,7 @@ tenantScopedRouter.use('/form66', form66Routes);
 tenantScopedRouter.use('/dashboard', dashboardRoutes);
 tenantScopedRouter.use('/duties', dutiesRoutes);
 tenantScopedRouter.use('/undertakings', undertakingsRoutes);
+tenantScopedRouter.use('/support', supportRoutes);
 tenantScopedRouter.use('/cbse-circulars', cbseCircularsRoutes);
 tenantScopedRouter.use('/centre-details', centreDetailsRoutes);
 tenantScopedRouter.use('/billing', billingRoutes);
