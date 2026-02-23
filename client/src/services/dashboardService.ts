@@ -40,6 +40,10 @@ export interface TodaysExam {
 export interface PackingDetails {
   clothColor: string
   marker: string
+  clothColorClass10?: string
+  markerClass10?: string
+  clothColorClass12?: string
+  markerClass12?: string
 }
 
 export interface TodaysExamsResponse {
@@ -50,10 +54,13 @@ export interface TodaysExamsResponse {
   totalCandidates: number
   packing?: PackingDetails
   dutiesAssignedCount?: number
+  dutiesByType?: Record<string, number>
 }
 
-const getTodaysExams = async (): Promise<TodaysExamsResponse> => {
-  const response = await api.get('/dashboard/todays-exams')
+const getTodaysExams = async (date?: string): Promise<TodaysExamsResponse> => {
+  const response = await api.get('/dashboard/todays-exams', {
+    params: date ? { date } : undefined,
+  })
   return response.data?.data ?? response.data
 }
 

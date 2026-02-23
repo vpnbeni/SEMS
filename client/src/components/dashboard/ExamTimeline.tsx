@@ -1,5 +1,4 @@
-import React, { useRef, useEffect } from 'react'
-import styles from './ExamTimeline.module.css'
+import React from 'react'
 
 export type ExamTimelineItem = {
   date: string
@@ -10,6 +9,8 @@ export type ExamTimelineItem = {
 
 export type ExamTimelineProps = {
   exams: ExamTimelineItem[]
+  selectedDate?: string
+  onSelectDate?: (date: string) => void
 }
 
 const todayIso = (): string => new Date().toISOString().split('T')[0]
@@ -27,26 +28,7 @@ const formatDayNum = (dateStr: string): string => {
   return day < 10 ? `0${day}` : day.toString()
 }
 
-const ExamTimeline: React.FC<ExamTimelineProps> = ({ exams }) => {
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    const onWheel = (e: WheelEvent) => {
-      const canScrollLeft = el.scrollLeft > 0
-      const canScrollRight = el.scrollLeft < el.scrollWidth - el.clientWidth - 1
-      const scrollingDown = e.deltaY > 0
-      const scrollingUp = e.deltaY < 0
-      if ((scrollingDown && canScrollRight) || (scrollingUp && canScrollLeft)) {
-        el.scrollLeft += e.deltaY
-        e.preventDefault()
-      }
-    }
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [])
-
+const ExamTimeline: React.FC<ExamTimelineProps> = ({ exams, selectedDate, onSelectDate }) => {
   if (!exams.length) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-2 flex items-center justify-center min-h-[50px] text-gray-500 dark:text-gray-400 text-xs">
@@ -55,78 +37,45 @@ const ExamTimeline: React.FC<ExamTimelineProps> = ({ exams }) => {
     )
   }
 
-  const sortedExams = [...exams].sort((a, b) => a.date.localeCompare(b.date))
+  const uniqueDates = Array.from(new Set(exams.map((e) => e.date))).sort()
 
   return (
     <div
-      ref={scrollRef}
-      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-x-auto overflow-y-hidden border border-gray-100 dark:border-gray-700 py-3 px-2"
+      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm overflow-x-auto border border-gray-100 dark:border-gray-700 py-2 px-3"
       role="region"
-      aria-label="Exam timeline"
+      aria-label="Exam dates"
     >
-      <div className="relative flex items-stretch min-w-min gap-0">
-        {sortedExams.map((item, index) => {
-          const status = getDateStatus(item.date)
+      <div className="flex items-center gap-2 min-w-min">
+        {uniqueDates.map((date) => {
+          const status = getDateStatus(date)
           const isToday = status === 'today'
-          const dayNum = formatDayNum(item.date)
+          const isSelected = selectedDate === date
+          const dayNum = formatDayNum(date)
 
-          const segmentColors = {
-            past: 'bg-emerald-600 dark:bg-emerald-700',
-            today: 'bg-blue-600 dark:bg-blue-700',
-            future: 'bg-slate-400 dark:bg-slate-600',
-          }
-          const colorClass = segmentColors[status]
+          const baseClasses =
+            status === 'past'
+              ? 'border-emerald-200 text-emerald-700 bg-emerald-50'
+              : status === 'today'
+                ? 'border-blue-200 text-blue-700 bg-blue-50'
+                : 'border-slate-200 text-slate-700 bg-slate-50'
+
+          const selectedRing = isSelected
+            ? 'ring-2 ring-amber-300 ring-offset-2 ring-offset-white dark:ring-offset-gray-800'
+            : ''
 
           return (
-            <div
-              key={`${item.date}-${item.subject}`}
-              className="relative flex-shrink-0 group"
+            <button
+              key={date}
+              type="button"
+              onClick={() => onSelectDate?.(date)}
+              className={`inline-flex items-center justify-center px-3 py-1.5 rounded-full border text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors ${baseClasses} ${selectedRing} ${
+                isToday ? 'shadow-sm' : ''
+              }`}
+              title={date}
             >
-              {isToday && (
-                <div
-                  className={styles.todayRing}
-                  aria-hidden
-                />
-              )}
-              <div
-                className={`
-                  relative z-10 flex items-center gap-3 pl-7 pr-8 py-3 min-w-[140px] max-w-[180px]
-                  ${styles.segment} ${colorClass} text-white
-                  shadow-[2px_0_8px_rgba(0,0,0,0.15)] dark:shadow-[2px_0_8px_rgba(0,0,0,0.3)]
-                  transition-all duration-200 hover:brightness-110
-                  ${isToday ? 'brightness-110' : ''}
-                  ${index === 0 ? 'ml-2' : 'ml-3'}
-                `}
-                title={`${item.subject}${item.subjectCode || item.class ? ` (${[item.subjectCode, item.class].filter(Boolean).join(' · ')})` : ''}`}
-              >
-                {/* Subtle darker edge for depth */}
-                <div
-                  className={`absolute inset-0 opacity-20 pointer-events-none rounded-none ${styles.segmentDepth}`}
-                  aria-hidden
-                />
-                <div className="relative z-10 flex items-center gap-3 min-w-0">
-                  <span className="text-lg font-bold tabular-nums flex-shrink-0">{dayNum}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold uppercase tracking-wide truncate">
-                      {item.subject}
-                    </p>
-                    {(item.subjectCode || item.class) && (
-                      <p className="text-[10px] opacity-90 truncate">
-                        {[item.subjectCode, item.class].filter(Boolean).join(' · ')}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {isToday && (
-                <span
-                  className="absolute -top-5 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white shadow-md animate-pulse whitespace-nowrap z-30"
-                  aria-hidden
-                >
-                  TODAY
-                </span>
-              )}
-            </div>
+              {dayNum}
+              {isToday && <span className="ml-1 text-[10px] font-bold uppercase">Today</span>}
+            </button>
           )
         })}
       </div>

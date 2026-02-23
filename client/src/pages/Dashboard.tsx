@@ -1,17 +1,7 @@
 import React, { useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import {
-  ExamTimeline,
-  TodaysExamCard,
-  RoomAllotmentTable,
-  OccupancyChart,
-  UpcomingExams,
-  RecentActivity,
-  ExamOverview,
-} from '@/components/dashboard'
+import { ExamTimeline } from '@/components/dashboard'
 import type { ExamTimelineItem } from '@/components/dashboard'
 import { useCentreDatesheet } from '@/hooks/useDatesheets'
-import dashboardService from '@/services/dashboardService'
 
 const Dashboard: React.FC = () => {
   const { data: centreDatesheet } = useCentreDatesheet({
@@ -31,11 +21,6 @@ const Dashboard: React.FC = () => {
       return { date: dateStr, subject, subjectCode, class: classVal }
     })
   }, [centreDatesheet?.entries])
-
-  const { data: todaysExamsData, isLoading: todaysExamsLoading } = useQuery({
-    queryKey: ['dashboard', 'todays-exams'],
-    queryFn: () => dashboardService.getTodaysExams(),
-  })
 
   const roomAllotmentRows = [
     { roomNo: '101', candidates: 24, invigilator: 'R. Sharma', observer: 'A. Verma', status: 'Checked In' as const },
@@ -59,39 +44,10 @@ const Dashboard: React.FC = () => {
   ]
 
   return (
-    <div className="h-full min-h-0 flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden">
-      <div className="flex-1 min-h-0 flex flex-col p-4 overflow-hidden">
-        <div className="flex-shrink-0 mb-4">
+    <div className="h-full min-h-0 flex flex-col bg-gray-100 dark:bg-gray-900">
+      <div className="flex-1 min-h-0 flex flex-col p-4 overflow-y-auto">
+        <div className="flex-shrink-0 mb-2">
           <ExamTimeline exams={examTimelineDates} />
-        </div>
-
-        <div className="grid grid-cols-3 gap-4 flex-1 min-h-0 overflow-hidden">
-          {/* LEFT col-span-2 */}
-          <div className="col-span-2 flex flex-col gap-4 min-h-0 overflow-hidden">
-            <div className="flex-shrink-0">
-              <TodaysExamCard
-                data={todaysExamsData ?? null}
-                isLoading={todaysExamsLoading}
-              />
-            </div>
-          </div>
-
-          {/* RIGHT col-span-1 */}
-          <div className="col-span-1 flex flex-col gap-4 min-h-0 overflow-auto">
-            <div className="flex-shrink-0">
-              <UpcomingExams items={upcomingExamsItems} />
-            </div>
-            <div className="flex-shrink-0">
-              <RecentActivity items={recentActivityItems} />
-            </div>
-            <div className="flex-shrink-0">
-              <ExamOverview
-                schoolsCount={2}
-                functionariesCount={52}
-                roomUsage="24/24"
-              />
-            </div>
-          </div>
         </div>
       </div>
     </div>

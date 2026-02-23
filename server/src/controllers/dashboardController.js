@@ -14,12 +14,19 @@ const { HTTP_STATUS } = require('../utils/constants');
 // @route   GET /api/dashboard/todays-exams
 // @access  Private
 const getTodaysExams = asyncHandler(async (req, res) => {
-  // Get today's date, normalized to start of day
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // Target date for the dashboard (defaults to today, can be overridden via ?date=YYYY-MM-DD)
+  const dateParam = typeof req.query.date === 'string' ? req.query.date : '';
+  const targetDate = new Date();
+  if (dateParam) {
+    const parsed = new Date(dateParam);
+    if (!Number.isNaN(parsed.getTime())) {
+      targetDate.setTime(parsed.getTime());
+    }
+  }
+  targetDate.setHours(0, 0, 0, 0);
 
-  // Format today as DD.MM.YYYY for Form66 queries
-  const todayStr = `${String(today.getDate()).padStart(2, '0')}.${String(today.getMonth() + 1).padStart(2, '0')}.${today.getFullYear()}`;
+  // Format selected date as DD.MM.YYYY for Form66 queries
+  const todayStr = `${String(targetDate.getDate()).padStart(2, '0')}.${String(targetDate.getMonth() + 1).padStart(2, '0')}.${targetDate.getFullYear()}`;
 
   // Get active CBSE datesheet
   const cbseDatesheet = await CBSEDatesheet.getActive();
@@ -27,8 +34,8 @@ const getTodaysExams = asyncHandler(async (req, res) => {
   if (!cbseDatesheet) {
     return res.status(HTTP_STATUS.OK).json(
       generateResponse(true, 'No active datesheet found', {
-        examDate: today.toISOString().split('T')[0],
-        dayName: getDayName(today),
+        examDate: targetDate.toISOString().split('T')[0],
+        dayName: getDayName(targetDate),
         exams: [],
         totalExams: 0,
         totalCandidates: 0
@@ -36,18 +43,18 @@ const getTodaysExams = asyncHandler(async (req, res) => {
     );
   }
 
-  // Filter entries for today's date
+  // Filter entries for the selected date
   const todaysEntries = cbseDatesheet.entries.filter(entry => {
     const entryDate = new Date(entry.examDate);
     entryDate.setHours(0, 0, 0, 0);
-    return entryDate.getTime() === today.getTime();
+    return entryDate.getTime() === targetDate.getTime();
   });
 
   if (todaysEntries.length === 0) {
     return res.status(HTTP_STATUS.OK).json(
       generateResponse(true, 'No exams scheduled for today', {
-        examDate: today.toISOString().split('T')[0],
-        dayName: getDayName(today),
+        examDate: targetDate.toISOString().split('T')[0],
+        dayName: getDayName(targetDate),
         exams: [],
         totalExams: 0,
         totalCandidates: 0,
@@ -64,9 +71,23 @@ const getTodaysExams = asyncHandler(async (req, res) => {
   const centreDetails = await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean();
   const packing = {
     clothColor: centreDetails?.packingClothColor || '',
-    marker: centreDetails?.packingMarker || ''
+    marker: centreDetails?.packingMarker || '',
+    clothColorClass10: centreDetails?.packingClothColorClass10 || '',
+    markerClass10: centreDetails?.packingMarkerClass10 || '',
+    clothColorClass12: centreDetails?.packingClothColorClass12 || '',
+    markerClass12: centreDetails?.packingMarkerClass12 || ''
   };
   const dutiesAssignedCount = await DutySelection.countDocuments({ examDate: todayStr });
+  const dutiesByTypeAgg = await DutySelection.aggregate([
+    { $match: { examDate: todayStr } },
+    { $group: { _id: '$dutyType', count: { $sum: 1 } } },
+  ]);
+  const dutiesByType = {};
+  for (const row of dutiesByTypeAgg) {
+    if (row && row._id) {
+      dutiesByType[row._id] = row.count || 0;
+    }
+  }
 
   // Process each exam
   const examsWithDetails = await Promise.all(
@@ -190,13 +211,14 @@ const getTodaysExams = asyncHandler(async (req, res) => {
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, 'Today\'s exams fetched successfully', {
-      examDate: today.toISOString().split('T')[0],
-      dayName: getDayName(today),
+      examDate: targetDate.toISOString().split('T')[0],
+      dayName: getDayName(targetDate),
       exams: validExams,
       totalExams: validExams.length,
       totalCandidates,
       packing,
-      dutiesAssignedCount
+      dutiesAssignedCount,
+      dutiesByType
     })
   );
 });

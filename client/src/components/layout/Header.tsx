@@ -244,7 +244,7 @@ const Header: React.FC = () => {
                 <input
                   type="text"
                   placeholder="Search..."
-                  className="pl-9 pr-4 py-2 w-56 sm:w-64 text-sm bg-gray-50/80 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 rounded-xl focus:ring-0 focus:border-primary-400 focus:bg-white dark:focus:bg-gray-800 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)] transition-all duration-200 placeholder:text-gray-400 dark:text-white"
+                  className="pl-9 pr-4 py-2 w-28 sm:w-32 text-sm bg-gray-50/80 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 rounded-xl focus:ring-0 focus:border-primary-400 focus:bg-white dark:focus:bg-gray-800 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)] transition-all duration-200 placeholder:text-gray-400 dark:text-white"
                 />
               </div>
             </div>
