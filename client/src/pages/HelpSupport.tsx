@@ -1,52 +1,9 @@
-import React, { useEffect, useState } from 'react'
-import api from '@/services/api'
+import React from 'react'
 import FAQAccordion from '@/components/FAQAccordion'
 import SupportForm from '@/components/SupportForm'
 import FeedbackForm from '@/components/FeedbackForm'
 
-type SystemStatus = {
-  status: 'operational' | 'maintenance' | 'down'
-  message: string
-}
-
 const HelpSupport: React.FC = () => {
-  const [status, setStatus] = useState<SystemStatus | null>(null)
-  const [loadingStatus, setLoadingStatus] = useState(false)
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      setLoadingStatus(true)
-      try {
-        const res = await api.get('/support/status')
-        const data = res.data?.data ?? res.data
-        if (data?.status) {
-          setStatus({
-            status: data.status,
-            message: data.message,
-          })
-        }
-      } finally {
-        setLoadingStatus(false)
-      }
-    }
-
-    fetchStatus()
-  }, [])
-
-  const getStatusStyles = () => {
-    if (!status) return 'bg-gray-100 text-gray-700'
-    if (status.status === 'operational') return 'bg-green-50 text-green-700'
-    if (status.status === 'maintenance') return 'bg-yellow-50 text-yellow-700'
-    return 'bg-red-50 text-red-700'
-  }
-
-  const getStatusLabel = () => {
-    if (!status) return 'Checking system status...'
-    if (status.status === 'operational') return 'All Systems Operational'
-    if (status.status === 'maintenance') return 'Maintenance Mode'
-    return 'Server Downtime'
-  }
-
   return (
     <div className="min-h-screen bg-gray-100 p-4 sm:p-6">
       <div className="max-w-6xl mx-auto space-y-4">

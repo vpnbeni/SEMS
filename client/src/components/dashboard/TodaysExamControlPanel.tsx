@@ -516,9 +516,6 @@ const TodaysExamControlPanel: React.FC<TodaysExamControlPanelProps> = ({
     const classX = aggregateClassSummary(exams, 'X')
     const classXii = aggregateClassSummary(exams, 'XII')
 
-    const hasClassXExam = exams.some((e) => normalizeClassKey(e.class) === 'X')
-    const hasClassXiiExam = exams.some((e) => normalizeClassKey(e.class) === 'XII')
-
     const schoolRowsLocal = buildSchoolRows(exams)
     const schoolsTotal = schoolRowsLocal.reduce((sum, row) => sum + row.total, 0)
     const totalCandidatesLocal = data!.totalCandidates ?? exams.reduce((sum, e) => sum + (e.candidateCount || 0), 0)

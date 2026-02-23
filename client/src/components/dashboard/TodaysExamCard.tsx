@@ -2,7 +2,6 @@ import React from 'react'
 import {
   BookOpen,
   Calendar,
-  Clock,
   Users,
   DoorOpen,
   ClipboardList,
@@ -10,11 +9,10 @@ import {
   Palette,
   Pen,
   FileStack,
-  Languages,
   CheckCircle2,
   AlertTriangle,
 } from 'lucide-react'
-import type { TodaysExamsResponse, TodaysExam } from '@/services/dashboardService'
+import type { TodaysExamsResponse } from '@/services/dashboardService'
 
 export type TodaysExamData = {
   subjectName: string
@@ -38,21 +36,6 @@ export type TodaysExamCardProps = {
   /** Legacy: when data is not provided, show a single exam with dateStr + exam */
   dateStr?: string
   exam?: TodaysExamData
-}
-
-const formatTime = (slot: { start?: string; end?: string }): string => {
-  if (!slot?.start && !slot?.end) return '—'
-  const s = slot.start || ''
-  const e = slot.end || ''
-  const fmt = (t: string) => {
-    if (!t) return ''
-    const [h, m] = t.split(':').map(Number)
-    if (h == null) return t
-    const period = h >= 12 ? 'PM' : 'AM'
-    const h12 = h % 12 || 12
-    return `${h12}:${String(m ?? 0).padStart(2, '0')} ${period}`
-  }
-  return [fmt(s), fmt(e)].filter(Boolean).join(' – ')
 }
 
 const TodaysExamCard: React.FC<TodaysExamCardProps> = ({
