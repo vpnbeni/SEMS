@@ -721,6 +721,9 @@ const RoomAllocation: React.FC = () => {
         .ra-alloc-table {
           width: 100%;
           border-collapse: collapse;
+          --ra-alloc-col-1: 64px;
+          --ra-alloc-col-2: 96px;
+          --ra-alloc-col-3: 220px;
         }
         .ra-alloc-table thead th {
           padding: 12px 14px;
@@ -761,10 +764,74 @@ const RoomAllocation: React.FC = () => {
         .ra-alloc-table tbody td:nth-child(3) {
           text-align: left;
         }
+        .ra-alloc-table thead tr:first-child th:nth-child(1),
+        .ra-alloc-table tbody td:nth-child(1) {
+          width: var(--ra-alloc-col-1);
+          min-width: var(--ra-alloc-col-1);
+        }
+        .ra-alloc-table thead tr:first-child th:nth-child(2),
+        .ra-alloc-table tbody td:nth-child(2) {
+          width: var(--ra-alloc-col-2);
+          min-width: var(--ra-alloc-col-2);
+        }
+        .ra-alloc-table thead tr:first-child th:nth-child(3),
+        .ra-alloc-table tbody td:nth-child(3) {
+          width: var(--ra-alloc-col-3);
+          min-width: var(--ra-alloc-col-3);
+        }
+        .ra-alloc-table thead tr:first-child th:nth-child(1),
+        .ra-alloc-table tbody td:nth-child(1) {
+          position: sticky;
+          left: 0;
+        }
+        .ra-alloc-table thead tr:first-child th:nth-child(2),
+        .ra-alloc-table tbody td:nth-child(2) {
+          position: sticky;
+          left: var(--ra-alloc-col-1);
+        }
+        .ra-alloc-table thead tr:first-child th:nth-child(3),
+        .ra-alloc-table tbody td:nth-child(3) {
+          position: sticky;
+          left: calc(var(--ra-alloc-col-1) + var(--ra-alloc-col-2));
+          box-shadow: 2px 0 0 rgba(148, 163, 184, 0.28);
+        }
+        .ra-alloc-table thead tr.ra-required-row th:first-child {
+          position: sticky;
+          left: 0;
+          min-width: calc(var(--ra-alloc-col-1) + var(--ra-alloc-col-2) + var(--ra-alloc-col-3));
+          box-shadow: 2px 0 0 rgba(148, 163, 184, 0.28);
+          z-index: 6;
+        }
+        .ra-alloc-table thead tr:first-child th:nth-child(1),
+        .ra-alloc-table thead tr:first-child th:nth-child(2),
+        .ra-alloc-table thead tr:first-child th:nth-child(3) {
+          z-index: 7;
+        }
+        .ra-alloc-table tbody td:nth-child(1),
+        .ra-alloc-table tbody td:nth-child(2),
+        .ra-alloc-table tbody td:nth-child(3) {
+          z-index: 2;
+          background: #ffffff;
+        }
         .ra-alloc-table tbody tr:hover td {
           background: #f0f4ff;
         }
+        .ra-alloc-table tbody tr:hover td:nth-child(1),
+        .ra-alloc-table tbody tr:hover td:nth-child(2),
+        .ra-alloc-table tbody tr:hover td:nth-child(3) {
+          background: #f0f4ff;
+        }
         .dark .ra-alloc-table tbody tr:hover td {
+          background: #283548;
+        }
+        .dark .ra-alloc-table tbody td:nth-child(1),
+        .dark .ra-alloc-table tbody td:nth-child(2),
+        .dark .ra-alloc-table tbody td:nth-child(3) {
+          background: #0f172a;
+        }
+        .dark .ra-alloc-table tbody tr:hover td:nth-child(1),
+        .dark .ra-alloc-table tbody tr:hover td:nth-child(2),
+        .dark .ra-alloc-table tbody tr:hover td:nth-child(3) {
           background: #283548;
         }
 

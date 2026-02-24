@@ -300,6 +300,26 @@ const SeatingPlan: React.FC = () => {
     return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`
   }
 
+  const getCalendarDateKey = (value: string | Date) => {
+    const date = value instanceof Date ? value : new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const todayDateKey = useMemo(() => getCalendarDateKey(new Date()), [])
+  const nextExamDateKey = useMemo(() => {
+    const futureExamDateKeys = datesheetEntries
+      .map((entry) => getCalendarDateKey(entry.examDate))
+      .filter((key) => key && key > todayDateKey)
+      .sort()
+
+    return futureExamDateKeys[0] || null
+  }, [datesheetEntries, todayDateKey])
+
   const handleDownloadPDF = (datesheetId: string, format: SeatingPlanFormat) => {
     const entry = datesheetEntries.find((item) => item._id === datesheetId)
     const formatLabel = format === 'mainGate'
@@ -921,7 +941,7 @@ const SeatingPlan: React.FC = () => {
                 No datesheet entries found. Please import a datesheet first.
               </div>
             ) : (
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <table className="sp-schedule-table min-w-full">
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -956,22 +976,44 @@ const SeatingPlan: React.FC = () => {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {datesheetEntries.map((entry, index) => (
-                    <tr
-                      key={entry._id}
-                      className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${entry.class === '10'
-                        ? 'bg-green-50 dark:bg-green-900/20'
-                        : entry.class === '12'
-                          ? 'bg-purple-50 dark:bg-purple-900/20'
-                          : ''
-                        }`}
-                    >
+                <tbody className="bg-white dark:bg-gray-800">
+                  {datesheetEntries.map((entry, index) => {
+                    const examDateKey = getCalendarDateKey(entry.examDate)
+                    const isTodayExam = examDateKey === todayDateKey
+                    const isNextExam = !isTodayExam && !!nextExamDateKey && examDateKey === nextExamDateKey
+
+                    return (
+                      <tr
+                        key={entry._id}
+                        className={`${isTodayExam
+                          ? 'bg-green-200 dark:bg-green-800/70 hover:bg-green-200 dark:hover:bg-green-800/70'
+                          : isNextExam
+                            ? 'bg-yellow-200 dark:bg-yellow-800/70 hover:bg-yellow-200 dark:hover:bg-yellow-800/70'
+                          : `hover:bg-gray-50 dark:hover:bg-gray-700 ${entry.class === '10'
+                            ? 'bg-green-50 dark:bg-green-900/20'
+                            : entry.class === '12'
+                              ? 'bg-purple-50 dark:bg-purple-900/20'
+                              : ''
+                          }`
+                          }`}
+                      >
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {index + 1}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {formatDate(entry.examDate)}
+                        <div className="inline-flex items-center gap-2">
+                          <span>{formatDate(entry.examDate)}</span>
+                          {isTodayExam && (
+                            <span className="sp-today-badge inline-flex items-center rounded-full bg-green-200 dark:bg-green-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-900 dark:text-green-100">
+                              Today
+                            </span>
+                          )}
+                          {isNextExam && (
+                            <span className="sp-next-badge inline-flex items-center rounded-full bg-yellow-200 dark:bg-yellow-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow-900 dark:text-yellow-100">
+                              Next
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                         {entry.dayName || 'Unknown'}
@@ -1022,8 +1064,9 @@ const SeatingPlan: React.FC = () => {
                           </button>
                         </div>
                       </td>
-                    </tr>
-                  ))}
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             )}

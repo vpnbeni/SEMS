@@ -98,3 +98,62 @@
 .sp-cbse-body-cell { height: var(--sp-cbse-row-height); padding: var(--sp-cbse-cell-padding-y) var(--sp-cbse-cell-padding-x); font-size: var(--sp-cbse-body-font-size); }
 .sp-boundary-marker { left: var(--sp-boundary-left); }
 .sp-preview-page-size { width: 210mm; min-height: 297mm; }
+
+.sp-schedule-table {
+  border-collapse: collapse;
+  border: 2px solid #1f2937;
+}
+
+.sp-schedule-table th,
+.sp-schedule-table td {
+  border: 1.5px solid #1f2937;
+}
+
+.seating-table-wrapper .sp-schedule-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background-color: #f9fafb;
+}
+
+.seating-plan-table-layout-fixed th,
+.seating-plan-table-layout-fixed td {
+  border-color: #1f2937 !important;
+}
+
+.dark .sp-schedule-table {
+  border-color: #e5e7eb;
+}
+
+.dark .sp-schedule-table th,
+.dark .sp-schedule-table td,
+.dark .seating-plan-table-layout-fixed th,
+.dark .seating-plan-table-layout-fixed td {
+  border-color: #d1d5db !important;
+}
+
+.dark .seating-table-wrapper .sp-schedule-table thead th {
+  background-color: #374151;
+}
+
+.sp-today-badge {
+  position: relative;
+  border: 1px solid #14532d;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.4);
+}
+
+.dark .sp-today-badge {
+  border-color: #bbf7d0;
+  box-shadow: 0 0 0 2px rgba(187, 247, 208, 0.45);
+}
+
+.sp-next-badge {
+  position: relative;
+  border: 1px solid #854d0e;
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.45);
+}
+
+.dark .sp-next-badge {
+  border-color: #fef08a;
+  box-shadow: 0 0 0 2px rgba(254, 240, 138, 0.45);
+}

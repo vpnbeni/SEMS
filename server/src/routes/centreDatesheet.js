@@ -108,6 +108,7 @@ router.get('/entries', protect, asyncHandler(async (req, res) => {
           answerSheetType
         }
       })
+      .filter(entry => entry.candidateCount > 0)
       .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
     
     console.log(`✅ Found ${entries.length} centre datesheet entries`)
