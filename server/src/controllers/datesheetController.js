@@ -9,6 +9,7 @@ const CBSEDatesheetParser = require('../utils/cbseDatesheetParser')
 const CBSEDatesheet = require('../models/CBSEDatesheet')
 const { getDayNameForDate } = require('../utils/calendarSeeder')
 const { getDayName, addDayNameToEntry } = require('../utils/dateHelper')
+const { calculateRoomsGroupedByDate } = require('../utils/roomCalculator')
 
 const ACTIVE_CANDIDATE_FILTER = {
   $or: [{ status: 'active' }, { status: { $exists: false } }],
@@ -832,25 +833,21 @@ exports.getCentreDatesheet = asyncHandler(async (req, res) => {
     })
     
     // Filter CBSE datesheet entries to only include subjects that candidates have chosen
-    // and add candidate count and rooms for each entry
-    const centreEntries = cbseDatesheet.entries
+    // and add candidate count for each entry
+    const entriesWithCounts = cbseDatesheet.entries
       .map(entry => {
-        // Get candidate count by subject code + class combination
         const key = buildSubjectKey(entry.subject.code, entry.subject.class)
         const candidateCount = subjectFrequency.get(key) || 0
-        // Calculate rooms needed: 1 room per 24 candidates (standard exam room capacity)
-        const roomsNeeded = Math.ceil(candidateCount / 24)
-        
+
         return {
           ...entry.toObject(),
-          candidateCount,
-          roomsNeeded
+          candidateCount
         }
       })
-      .filter(entry => {
-        // Only include subjects that have at least 1 candidate
-        return entry.candidateCount > 0
-      })
+      .filter(entry => entry.candidateCount > 0)
+
+    // Calculate rooms using per-day grouping with remainder merging
+    const centreEntries = calculateRoomsGroupedByDate(entriesWithCounts)
     
     console.log(`📋 Filtered to ${centreEntries.length} centre-specific entries`)
     

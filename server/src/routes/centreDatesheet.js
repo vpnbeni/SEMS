@@ -4,6 +4,7 @@ const { protect } = require('../middleware/auth')
 const asyncHandler = require('../middleware/asyncHandler')
 const CBSEDatesheet = require('../models/CBSEDatesheet')
 const Candidate = require('../models/Candidate')
+const { calculateRoomsGroupedByDate } = require('../utils/roomCalculator')
 
 const ACTIVE_CANDIDATE_FILTER = {
   $or: [{ status: 'active' }, { status: { $exists: false } }],
@@ -83,7 +84,7 @@ router.get('/entries', protect, asyncHandler(async (req, res) => {
     })
     
     // Filter and format entries
-    const entries = cbseDatesheet.entries
+    const entriesWithCounts = cbseDatesheet.entries
       .map(entry => {
         // Normalize class format (10th -> 10, 12th -> 12)
         const normalizedClass = entry.subject.class.replace(/th$/i, '')
@@ -104,12 +105,14 @@ router.get('/entries', protect, asyncHandler(async (req, res) => {
           timeSlot: entry.timeSlot,
           duration: entry.subject.duration,
           candidateCount,
-          roomsNeeded: Math.ceil(candidateCount / 24),
           answerSheetType
         }
       })
       .filter(entry => entry.candidateCount > 0)
-      .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
+
+    // Calculate rooms using per-day grouping with remainder merging
+    const entries = calculateRoomsGroupedByDate(entriesWithCounts)
+    entries.sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
     
     console.log(`✅ Found ${entries.length} centre datesheet entries`)
     

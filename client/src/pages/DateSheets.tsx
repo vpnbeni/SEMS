@@ -381,9 +381,9 @@ const DateSheets: React.FC = () => {
           const answerSheetText = formatAnswerSheetForPdf(String(row.answerSheet || row.answerSheetType || 'none'))
           const durationText = row.subject?.duration ? `${row.subject.duration} Hours` : 'N/A'
           const candidatesText = String(row.candidateCount || 0)
-          const roomsText = String(row.roomsNeeded || 0)
           const roomsNeeded = Number(row.roomsNeeded || 0)
-          const invigilatorsText = String(row.invigilatorsNeeded ?? roomsNeeded * 2)
+          const roomsText = roomsNeeded === 0 ? 'Shared' : String(roomsNeeded)
+          const invigilatorsText = roomsNeeded === 0 ? '-' : String(row.invigilatorsNeeded ?? roomsNeeded * 2)
 
           const subjectLines = doc.splitTextToSize(subjectText, colWidths.subject - 3)
           const answerSheetLines = doc.splitTextToSize(answerSheetText, colWidths.answerSheetType - 3)
@@ -998,7 +998,11 @@ const DateSheets: React.FC = () => {
                             {row.candidateCount || 0}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
-                            {row.roomsNeeded || 0}
+                            {row.roomsNeeded === 0 ? (
+                              <span className="italic text-xs text-amber-600 dark:text-amber-400">Shared</span>
+                            ) : (
+                              row.roomsNeeded
+                            )}
                           </td>
                         </>
                       )}

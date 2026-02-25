@@ -14,6 +14,7 @@ export interface CentreDatesheetEntry {
   duration: number
   candidateCount: number
   roomsNeeded: number
+  sharedRoomPosition?: number
   answerSheetType: string
 }
 

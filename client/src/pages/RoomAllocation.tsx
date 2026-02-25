@@ -23,6 +23,7 @@ const RoomAllocation: React.FC = () => {
   const [loadingAllocationMode, setLoadingAllocationMode] = useState(false)
   const [dateRoomOrderDraft, setDateRoomOrderDraft] = useState<Record<string, string[]>>({})
   const [requiredRoomsByDate, setRequiredRoomsByDate] = useState<Record<string, number>>({})
+  const [sharedPositionsByDate, setSharedPositionsByDate] = useState<Record<string, Set<number>>>({})
   const [isSavingAllocation, setIsSavingAllocation] = useState(false)
 
   useEffect(() => {
@@ -85,10 +86,21 @@ const RoomAllocation: React.FC = () => {
       ).sort()
       setExamDates(uniqueDates)
       setRequiredRoomsByDate(nextRequiredRooms)
+
+      const nextSharedPositions: Record<string, Set<number>> = {}
+      entries.forEach((entry) => {
+        const dateKey = normalizeDateKey(entry.examDate)
+        if (dateKey && entry.sharedRoomPosition) {
+          if (!nextSharedPositions[dateKey]) nextSharedPositions[dateKey] = new Set()
+          nextSharedPositions[dateKey].add(entry.sharedRoomPosition)
+        }
+      })
+      setSharedPositionsByDate(nextSharedPositions)
     } catch (error) {
       console.error('Failed to fetch exam dates for allocation:', error)
       setExamDates([])
       setRequiredRoomsByDate({})
+      setSharedPositionsByDate({})
     } finally {
       setLoadingExamDates(false)
     }
@@ -905,6 +917,20 @@ const RoomAllocation: React.FC = () => {
           line-height: 1.5;
           box-shadow: 0 1px 4px rgba(99, 102, 241, 0.35);
         }
+        .ra-shared-tag {
+          font-size: 9px;
+          font-style: italic;
+          font-weight: 600;
+          color: #d97706;
+          background: #fef3c7;
+          border-radius: 8px;
+          padding: 1px 6px;
+          line-height: 1.5;
+        }
+        .dark .ra-shared-tag {
+          color: #fbbf24;
+          background: rgba(251, 191, 36, 0.15);
+        }
 
         /* ───────── Room stat cards ───────── */
         .ra-stats {
@@ -1422,6 +1448,12 @@ const RoomAllocation: React.FC = () => {
                               #{getSelectionOrder(room._id, dateKey)}
                             </span>
                           )}
+                          {(() => {
+                            const order = getSelectionOrder(room._id, dateKey)
+                            const shared = sharedPositionsByDate[dateKey]
+                            const isShared = order !== null && shared && shared.has(order)
+                            return isShared ? <span className="ra-shared-tag">Shared</span> : null
+                          })()}
                         </div>
                       </td>
                     ))}
