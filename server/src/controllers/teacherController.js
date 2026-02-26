@@ -273,15 +273,7 @@ const getTeacher = asyncHandler(async (req, res) => {
 // @route   POST /api/teachers
 // @access  Private
 const createTeacher = asyncHandler(async (req, res) => {
-  // Check if OASIS/employee ID already exists
-  const existingEmployeeId = await Teacher.findOne({ employeeId: req.body.employeeId });
-  if (existingEmployeeId) {
-    return res.status(HTTP_STATUS.CONFLICT).json(
-      generateResponse(false, 'Teacher with this OASIS ID already exists')
-    );
-  }
-
-  // Validate subjects if provided
+  // Validate subjects first so resolvedSubjectCode is available for reactivation too
   let resolvedSubjectCode = '';
   if (req.body.subjects && req.body.subjects.length > 0) {
     const validSubjects = await Subject.find({
@@ -295,6 +287,36 @@ const createTeacher = asyncHandler(async (req, res) => {
       );
     }
     resolvedSubjectCode = validSubjects[0]?.code || '';
+  }
+
+  // Check if OASIS/employee ID already exists (including soft-deleted records)
+  const existingEmployeeId = await Teacher.findOne({ employeeId: req.body.employeeId });
+  if (existingEmployeeId) {
+    if (!existingEmployeeId.isActive) {
+      // Reactivate the soft-deleted record with the new payload
+      const payload = {
+        ...req.body,
+        isActive: true,
+        email: req.body.email || `${String(req.body.employeeId || '').toLowerCase()}@sems.local`,
+        subjectCode: resolvedSubjectCode || req.body.subjectCode || '',
+        accountNumber: digitsOnly(req.body.accountNumber),
+        phone: req.body.mobileNo || req.body.phone || ''
+      };
+      if (normalizeDutyType(payload.dutyType)) {
+        payload.dutyHistory = mergeDutyHistory(existingEmployeeId.dutyHistory || [], payload.dutyType);
+      }
+      const reactivated = await Teacher.findByIdAndUpdate(
+        existingEmployeeId._id,
+        payload,
+        { new: true, runValidators: true }
+      ).populate('subjects', 'name code class');
+      return res.status(HTTP_STATUS.CREATED).json(
+        generateResponse(true, SUCCESS_MESSAGES.CREATED, reactivated)
+      );
+    }
+    return res.status(HTTP_STATUS.CONFLICT).json(
+      generateResponse(false, 'Teacher with this OASIS ID already exists')
+    );
   }
 
   const payload = {
@@ -337,7 +359,7 @@ const updateTeacher = asyncHandler(async (req, res) => {
       employeeId: req.body.employeeId,
       _id: { $ne: req.params.id }
     });
-    if (existingEmployeeId) {
+    if (existingEmployeeId && existingEmployeeId.isActive) {
       return res.status(HTTP_STATUS.CONFLICT).json(
         generateResponse(false, 'Teacher with this OASIS ID already exists')
       );

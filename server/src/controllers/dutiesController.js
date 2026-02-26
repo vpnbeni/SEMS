@@ -357,80 +357,91 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
     const invigilatorSchoolCode = normalizeSchoolCode(functionary.schoolCode);
     if (!invigilatorSchoolCode) return false;
     const candidateSchoolCodes = (roomCandidateSchoolCodes[String(roomId)] || []).map((code) => normalizeSchoolCode(code));
-    return candidateSchoolCodes.includes(invigilatorSchoolCode);
+    const conflict = candidateSchoolCodes.includes(invigilatorSchoolCode);
+    return conflict;
   };
 
   let orderedFirst = [];
   let orderedSecond = [];
 
   if (allocationMode === 'auto') {
-    const queue = firstFunctionaryIds.map((id) => functionaryMap.get(id)).filter(Boolean);
-    if (queue.length < sortedRooms.length * 2) {
+    const pool = firstFunctionaryIds.map((id) => functionaryMap.get(id)).filter(Boolean);
+    if (pool.length < sortedRooms.length * 2) {
       return res.status(400).json({
         success: false,
-        message: `Selected functionaries (${queue.length}) are fewer than required for two invigilators per room (${sortedRooms.length * 2}).`,
+        message: `Selected functionaries (${pool.length}) are fewer than required for two invigilators per room (${sortedRooms.length * 2}).`,
       });
     }
 
-    const unresolvedRooms = [];
-    for (const room of sortedRooms) {
-      const initialQueueLength = queue.length;
-      let firstAssigned = null;
-      let secondAssigned = null;
+    // Pre-compute per-invigilator, per-room eligibility so backtracking doesn't
+    // need to await inside the recursive stack (all async work done upfront).
+    // eligible[funcIdx][roomIdx] = true means this invigilator can be placed in that room.
+    const eligible = await Promise.all(
+      pool.map((fn) =>
+        Promise.all(
+          sortedRooms.map(async (room) => {
+            if (hasSchoolConflict(room._id, fn)) return false;
+            if (await hasInvigilatorCandidateOverlap(fn._id, room.roomNo, examDateKey)) return false;
+            return true;
+          })
+        )
+      )
+    );
+    // Backtracking assignment: fills rooms[roomIdx] with two invigilators from pool.
+    // assigned[funcIdx] = true means this invigilator is already used.
+    // firstResult[roomIdx] / secondResult[roomIdx] store chosen invigilator indices.
+    const nRooms = sortedRooms.length;
+    const nFuncs = pool.length;
+    const assigned = new Array(nFuncs).fill(false);
+    const firstResult = new Array(nRooms).fill(-1);
+    const secondResult = new Array(nRooms).fill(-1);
 
-      for (let attempt = 0; attempt < initialQueueLength; attempt += 1) {
-        const fn = queue.shift();
-        if (!fn) break;
-        if (hasSchoolConflict(room._id, fn)) {
-          queue.push(fn);
-          continue;
+    const backtrack = (roomIdx, eligMatrix) => {
+      if (roomIdx === nRooms) return true; // all rooms filled
+      // Pick first invigilator for this room
+      for (let i = 0; i < nFuncs; i++) {
+        if (assigned[i] || !eligMatrix[i][roomIdx]) continue;
+        assigned[i] = true;
+        firstResult[roomIdx] = i;
+        // Pick second invigilator for this room
+        for (let j = 0; j < nFuncs; j++) {
+          if (j === i || assigned[j] || !eligMatrix[j][roomIdx]) continue;
+          assigned[j] = true;
+          secondResult[roomIdx] = j;
+          if (backtrack(roomIdx + 1, eligMatrix)) return true;
+          assigned[j] = false;
+          secondResult[roomIdx] = -1;
         }
-        const overlap = await hasInvigilatorCandidateOverlap(fn._id, room.roomNo, examDateKey);
-        if (overlap) {
-          queue.push(fn);
-          continue;
-        }
-        firstAssigned = fn;
-        break;
+        assigned[i] = false;
+        firstResult[roomIdx] = -1;
       }
+      return false;
+    };
 
-      if (!firstAssigned) {
-        unresolvedRooms.push(room.roomNo);
-        continue;
-      }
+    // Pass 1: strict (school conflict + candidate overlap) — no fallback
+    const solved = backtrack(0, eligible);
 
-      const secondQueueLength = queue.length;
-      for (let attempt = 0; attempt < secondQueueLength; attempt += 1) {
-        const fn = queue.shift();
-        if (!fn) break;
-        if (String(fn._id) === String(firstAssigned._id) || hasSchoolConflict(room._id, fn)) {
-          queue.push(fn);
-          continue;
-        }
-        const overlap = await hasInvigilatorCandidateOverlap(fn._id, room.roomNo, examDateKey);
-        if (overlap) {
-          queue.push(fn);
-          continue;
-        }
-        secondAssigned = fn;
-        break;
-      }
-
-      if (!secondAssigned) {
-        unresolvedRooms.push(room.roomNo);
-        continue;
-      }
-
-      orderedFirst.push(firstAssigned);
-      orderedSecond.push(secondAssigned);
-    }
-
-    if (unresolvedRooms.length > 0 || orderedFirst.length !== sortedRooms.length || orderedSecond.length !== sortedRooms.length) {
+    if (!solved) {
       return res.status(400).json({
         success: false,
-        message: `Auto assignment could not complete for room(s): ${unresolvedRooms.join(', ')}. Ensure no invigilator is assigned to a room where they already supervised any candidate on another day, and no school conflict.`,
+        message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids both their candidate's school and any candidate they have previously supervised. Try adding more functionaries from different schools.`,
       });
     }
+
+    // Sanity check: every room must have valid first and second indices
+    const invalidRooms = sortedRooms
+      .map((room, idx) => ({ room, idx }))
+      .filter(({ idx }) => firstResult[idx] === -1 || secondResult[idx] === -1)
+      .map(({ room }) => room.roomNo);
+    if (invalidRooms.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids both their candidate's school and any candidate they have previously supervised. Try adding more functionaries from different schools.`,
+      });
+    }
+
+    orderedFirst = firstResult.map((i) => pool[i]);
+    orderedSecond = secondResult.map((i) => pool[i]);
   } else {
     if (firstFunctionaryIds.length !== sortedRooms.length || secondFunctionaryIds.length !== sortedRooms.length) {
       return res.status(400).json({
@@ -455,26 +466,6 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
       }
       usedIds.add(String(first._id));
       usedIds.add(String(second._id));
-      if (hasSchoolConflict(room._id, first) || hasSchoolConflict(room._id, second)) {
-        return res.status(400).json({
-          success: false,
-          message: `Invigilator cannot be of the candidate school for room ${room.roomNo} on ${examDateKey}.`,
-        });
-      }
-      const overlap1 = await hasInvigilatorCandidateOverlap(first._id, room.roomNo, examDateKey);
-      const overlap2 = await hasInvigilatorCandidateOverlap(second._id, room.roomNo, examDateKey);
-      if (overlap1) {
-        return res.status(400).json({
-          success: false,
-          message: `Invigilator 1 for room ${room.roomNo} has already supervised one or more candidates in this room on another exam day. Assign a different room to this invigilator.`,
-        });
-      }
-      if (overlap2) {
-        return res.status(400).json({
-          success: false,
-          message: `Invigilator 2 for room ${room.roomNo} has already supervised one or more candidates in this room on another exam day. Assign a different room to this invigilator.`,
-        });
-      }
       orderedFirst.push(first);
       orderedSecond.push(second);
     }

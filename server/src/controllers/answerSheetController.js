@@ -141,7 +141,11 @@ const getSerialAllocationDataForAnswerSheet = async (answerSheet) => {
       }
     })
     .filter(exam => exam.candidateCount > 0)
-    .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
+    .sort((a, b) => {
+      const dateDiff = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
+      if (dateDiff !== 0) return dateDiff
+      return b.candidateCount - a.candidateCount
+    })
 
   const fromNum = parseInt(answerSheet.serialFrom.replace(/\D/g, ''), 10)
   const toNum = parseInt(answerSheet.serialTo.replace(/\D/g, ''), 10)
@@ -993,7 +997,11 @@ exports.getAnswerSheetDetails = async (req, res) => {
           }
         })
         .filter(exam => exam.candidateCount > 0)
-        .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
+        .sort((a, b) => {
+          const dateDiff = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
+          if (dateDiff !== 0) return dateDiff
+          return b.candidateCount - a.candidateCount
+        })
     }
 
     res.status(200).json({

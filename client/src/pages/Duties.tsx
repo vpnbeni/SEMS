@@ -449,27 +449,36 @@ const Duties: React.FC = () => {
     return counts
   }, [allFunctionaries])
 
-  /* ── Count checked duties per date ── */
+  /* ── Count checked duties per date (only for active functionaries in this tab) ── */
+  const activeFunctionaryIdSet = useMemo(() => {
+    const set = new Set<string>()
+    allFunctionaries.filter((f) => hasDutyType(f, activeDutyType)).forEach((f) => set.add(String(f._id)))
+    return set
+  }, [allFunctionaries, activeDutyType])
+
   const checkedCountByDate = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const key of Object.keys(checkedDuties)) {
       if (!checkedDuties[key]) continue
-      const dateKey = key.split('::')[1]
-      if (dateKey) counts[dateKey] = (counts[dateKey] || 0) + 1
+      const [funcId, dateKey] = key.split('::')
+      // Only count slots for functionaries that currently exist in this tab
+      if (!funcId || !dateKey || !activeFunctionaryIdSet.has(funcId)) continue
+      counts[dateKey] = (counts[dateKey] || 0) + 1
     }
     return counts
-  }, [checkedDuties])
+  }, [checkedDuties, activeFunctionaryIdSet])
 
-  /* ── Count checked duties per functionary ── */
+  /* ── Count checked duties per functionary (only for active functionaries in this tab) ── */
   const checkedCountByFunctionary = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const key of Object.keys(checkedDuties)) {
       if (!checkedDuties[key]) continue
       const functionaryId = key.split('::')[0]
-      if (functionaryId) counts[functionaryId] = (counts[functionaryId] || 0) + 1
+      if (!functionaryId || !activeFunctionaryIdSet.has(functionaryId)) continue
+      counts[functionaryId] = (counts[functionaryId] || 0) + 1
     }
     return counts
-  }, [checkedDuties])
+  }, [checkedDuties, activeFunctionaryIdSet])
 
   const filteredFunctionaries = useMemo(() => {
     let list = allFunctionaries.filter((f) => hasDutyType(f, activeDutyType))
@@ -905,9 +914,8 @@ const Duties: React.FC = () => {
       setLoadingAllocationMode(true)
       const savedMode = await dutiesService.updateDutyAllocationMode(mode)
       setAllocationMode(savedMode)
-      toast.success(`Duty allocation mode updated to ${savedMode === 'auto' ? 'Auto' : 'Manual'}`)
       if (savedMode === 'auto' && activeTab === 'ASI') {
-        await runAutoAssignmentForSelectedDate(false)
+        await runAutoAssignmentForSelectedDate(true)
       }
     } catch (error) {
       console.error('Failed to update duty allocation mode:', error)
@@ -930,7 +938,7 @@ const Duties: React.FC = () => {
       const roomSchoolConflict = getRoomSchoolConflict(roomId, functionaryId, selectedRoomDate)
       if (roomSchoolConflict) {
         toast.error(
-          `Invigilator cannot be of candidate school. ${roomSchoolConflict.functionaryName} (${roomSchoolConflict.schoolCode})`
+          `Invigilator cannot be of candidate school. ${roomSchoolConflict.functionaryName} (school code: ${roomSchoolConflict.schoolCode}) matches candidates in this room. Check candidate data if incorrect.`
         )
         return
       }
@@ -962,7 +970,7 @@ const Duties: React.FC = () => {
       const roomSchoolConflict = getRoomSchoolConflict(roomId, functionaryId, selectedRoomDate)
       if (roomSchoolConflict) {
         toast.error(
-          `Invigilator cannot be of candidate school. ${roomSchoolConflict.functionaryName} (${roomSchoolConflict.schoolCode})`
+          `Invigilator cannot be of candidate school. ${roomSchoolConflict.functionaryName} (school code: ${roomSchoolConflict.schoolCode}) matches candidates in this room. Check candidate data if incorrect.`
         )
         return
       }
@@ -1034,21 +1042,6 @@ const Duties: React.FC = () => {
         return
       }
 
-      for (let index = 0; index < allocatedRoomsForSelectedDate.length; index += 1) {
-        const room = allocatedRoomsForSelectedDate[index]
-        const firstFunctionaryId = orderedFunctionaryIds[index]
-        const secondFunctionaryId = orderedSecondFunctionaryIds[index]
-        const roomSchoolConflictFirst = getRoomSchoolConflict(room._id, firstFunctionaryId, selectedRoomDate)
-        const roomSchoolConflictSecond = getRoomSchoolConflict(room._id, secondFunctionaryId, selectedRoomDate)
-        if (roomSchoolConflictFirst || roomSchoolConflictSecond) {
-          const roomLabel = `${room.roomNo}${room.roomName ? ` - ${room.roomName}` : ''}`
-          const conflict = roomSchoolConflictFirst || roomSchoolConflictSecond
-          toast.error(
-            `Invigilator cannot be of candidate school. ${conflict?.functionaryName} conflicts with ${roomLabel}`
-          )
-          return
-        }
-      }
     }
 
     setSavingRoomAssignments(true)

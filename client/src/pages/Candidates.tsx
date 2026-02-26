@@ -121,10 +121,15 @@ const Candidates: React.FC = () => {
       onSuccess: (response: any) => {
         const payload = response?.data?.data ?? response?.data
         const imported = payload?.imported ?? 0
-        const errors = payload?.errors ?? 0
-        toast.success(`Successfully imported ${imported} candidates`)
-        if (errors > 0) {
-          toast.error(`${errors} candidates had errors during import`)
+        const skipped = payload?.errors ?? 0
+        if (imported === 0 && skipped === 0) {
+          toast('No candidates found in PDF', { icon: 'ℹ️' })
+        } else if (imported === 0) {
+          toast.success(`All ${skipped} candidates already exist — nothing new to import`)
+        } else if (skipped === 0) {
+          toast.success(`Successfully added ${imported} new candidate${imported !== 1 ? 's' : ''}`)
+        } else {
+          toast.success(`Added ${imported} new candidate${imported !== 1 ? 's' : ''} (${skipped} already existed, skipped)`)
         }
         setShowImportModal(false)
       },

@@ -400,7 +400,11 @@ const AnswerSheets: React.FC = () => {
     if (selectedClass) {
       list = list.filter(e => String(e.class) === String(selectedClass))
     }
-    list.sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime())
+    list.sort((a, b) => {
+      const dateDiff = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
+      if (dateDiff !== 0) return dateDiff
+      return (b.candidateCount ?? 0) - (a.candidateCount ?? 0)
+    })
 
     const run = async () => {
       for (const datesheetEntry of list) {
@@ -627,9 +631,11 @@ const AnswerSheets: React.FC = () => {
     if (selectedClass) {
       list = list.filter(e => String(e.class) === String(selectedClass))
     }
-    return list.sort((a, b) =>
-      new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
-    )
+    return list.sort((a, b) => {
+      const dateDiff = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
+      if (dateDiff !== 0) return dateDiff
+      return (b.candidateCount ?? 0) - (a.candidateCount ?? 0)
+    })
   }
 
   // Format answer sheet type for display

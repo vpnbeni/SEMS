@@ -20,7 +20,15 @@ const errorHandler = (err, req, res, next) => {
 
   // Mongoose duplicate key
   if (err.code === 11000) {
-    const message = 'Duplicate field value entered';
+    const field = Object.keys(err.keyValue || {})[0] || 'field';
+    const fieldLabels = {
+      employeeId: 'OASIS ID',
+      email: 'Email',
+      mobileNo: 'Mobile Number',
+      accountNumber: 'Account Number'
+    };
+    const fieldLabel = fieldLabels[field] || field;
+    const message = `Duplicate value: ${fieldLabel} already exists`;
     error = {
       message,
       statusCode: 400
@@ -73,6 +81,7 @@ const errorHandler = (err, req, res, next) => {
 
   res.status(error.statusCode || 500).json({
     success: false,
+    message: error.message || 'Server Error',
     error: error.message || 'Server Error',
     ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });

@@ -31,7 +31,7 @@ const DateSheets: React.FC = () => {
   const [editing, setEditing] = useState<boolean>(false)
   const [editingData, setEditingData] = useState<any | null>(null)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
-  const [activeTab, setActiveTab] = useState<DateSheetTabId>('all')
+  const [activeTab, setActiveTab] = useState<DateSheetTabId>('centre')
   const [sortField, setSortField] = useState<'date' | 'class' | 'subjectName' | 'subjectCode' | 'duration' | null>('date')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)

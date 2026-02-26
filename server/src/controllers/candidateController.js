@@ -509,10 +509,31 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
     const rollNumbers = candidates.map(c => c.rollNumber).filter(Boolean);
     const existingCandidates = await CandidateModel.find({
       rollNumber: { $in: rollNumbers }
-    }).select('rollNumber');
+    }).select('rollNumber schoolCode schoolName');
+    const existingByRollNo = new Map(existingCandidates.map(c => [c.rollNumber, c]));
     const existingRollNumbers = new Set(existingCandidates.map(c => c.rollNumber));
 
     console.log('Found existing candidates:', existingRollNumbers.size);
+
+    // Fix school codes on existing candidates whose schoolCode was incorrectly stored
+    // (e.g. parsed from CENTRE: line instead of SCHOOL: line during a previous import)
+    const schoolCodeFixes = [];
+    for (const candidateData of candidates) {
+      const existing = existingByRollNo.get(candidateData.rollNumber);
+      if (!existing) continue;
+      if (candidateData.schoolCode && existing.schoolCode !== candidateData.schoolCode) {
+        schoolCodeFixes.push({
+          updateOne: {
+            filter: { rollNumber: candidateData.rollNumber },
+            update: { $set: { schoolCode: candidateData.schoolCode, schoolName: candidateData.schoolName } },
+          },
+        });
+      }
+    }
+    if (schoolCodeFixes.length > 0) {
+      await CandidateModel.bulkWrite(schoolCodeFixes, { ordered: false });
+      console.log(`Fixed school codes for ${schoolCodeFixes.length} existing candidates`);
+    }
 
     // Prepare candidates for bulk insert
     const candidatesToInsert = [];
@@ -642,17 +663,19 @@ const extractCandidatesFromText = (text) => {
 
   // Roll number patterns:
   // 1) Alphanumeric with separator (e.g., "CS2021001 John Doe")
-  // 2) Compact numeric CBSE line (e.g., "12345678JOHN DOE")
+  // 2) Compact numeric CBSE line (e.g., "31194811AARTI") — 8 digits followed immediately by
+  //    a letter (name starts right after). Must NOT match pure-digit lines like "184002041".
   const rollNumberPatternWithSpace = /^([A-Z]{1,5}\d{4,12})\s+(.+)$/i;
-  const rollNumberPatternCompact = /^(\d{8})(.+)$/;
+  const rollNumberPatternCompact = /^(\d{8})([A-Za-z].*)$/;
   const isRollNumberLine = (value) =>
     rollNumberPatternWithSpace.test(value) || rollNumberPatternCompact.test(value);
 
   // Pattern for date of birth (DD.MM.YYYY)
   const dobPattern = /^(\d{2})\.(\d{2})\.(\d{4})$/;
 
-  // Pattern for school/centre line with code
-  const schoolPattern = /(?:CENTRE|SCHOOL)\s*[:：-]\s*(\d+)\s+(.+?)(?:ROHTAK|$)/i;
+  // Pattern for school line with code — SCHOOL: only, NOT CENTRE:
+  // CENTRE line is the exam centre header and must not be treated as candidate school.
+  const schoolPattern = /^SCHOOL\s*[:：-]\s*(\d+)\s+(.+)$/i;
 
   // Pattern for class/examination type (handles both full and abbreviated forms)
   const classPattern = /(?:SENIOR\s+SEC(?:ONDARY)?|SECONDARY)\s+(?:SCH|SCHOOL)\s+(?:CERT\s+)?EXAMINATION/i;
@@ -699,9 +722,21 @@ const extractCandidatesFromText = (text) => {
         continue;
       }
 
+      // Detect case where the PDF packs subject-codes+DOB on the roll number line with no name,
+      // e.g. "18400204108608740212.06.2011" → roll=18400204, "name"=108608740212.06.2011
+      // The "name" will match \d{6,30} followed by DD.MM.YYYY — it is not a real name.
+      let inlineSubjectDigits = null;
+      let inlineDob = null;
+      const inlinePacked = candidateName.match(/^(\d{6,30})(\d{2}\.\d{2}\.\d{4})$/);
+      if (inlinePacked) {
+        inlineSubjectDigits = inlinePacked[1];
+        inlineDob = inlinePacked[2];
+        candidateName = ''; // name will be read from next line
+      }
+
       // Extract FLC if present (single letter followed by space at start of name)
       let flc = '';
-      if (candidateName.length > 2 && /^[A-Z]\s/.test(candidateName)) {
+      if (!inlinePacked && candidateName.length > 2 && /^[A-Z]\s/.test(candidateName)) {
         flc = candidateName[0];
         candidateName = candidateName.substring(2).trim();
       }
@@ -720,7 +755,19 @@ const extractCandidatesFromText = (text) => {
       // Parse the next lines for additional information
       let lineOffset = 1;
 
-      // Line i+1: Mother Name
+      // When the roll-number line itself contained packed subject codes+DOB (no name on that line),
+      // the very next line is the candidate name, not the mother name.
+      if (inlinePacked) {
+        if (i + lineOffset < lines.length) {
+          const nameFromNextLine = lines[i + lineOffset].trim();
+          if (nameFromNextLine && !isRollNumberLine(nameFromNextLine) && !/^\d/.test(nameFromNextLine)) {
+            candidate.name = nameFromNextLine;
+          }
+          lineOffset++;
+        }
+      }
+
+      // Line i+1 (or i+2 if inlinePacked): Mother Name
       if (i + lineOffset < lines.length) {
         const motherName = lines[i + lineOffset].trim();
         if (motherName && !isRollNumberLine(motherName) && motherName.length > 1) {
@@ -729,7 +776,7 @@ const extractCandidatesFromText = (text) => {
         lineOffset++;
       }
 
-      // Line i+2: Father Name
+      // Line i+2 (or i+3 if inlinePacked): Father Name
       if (i + lineOffset < lines.length) {
         const fatherName = lines[i + lineOffset].trim();
         if (fatherName && !isRollNumberLine(fatherName) && fatherName.length > 1) {
@@ -787,9 +834,11 @@ const extractCandidatesFromText = (text) => {
       // Then alternating: code, medium, code, medium...
       const subjectCodes = [];
       const addGroupedSubjectCodes = (digits) => {
-        if (!digits || digits.length % 3 !== 0) return;
-        for (let k = 0; k < digits.length; k += 3) {
-          subjectCodes.push({ code: digits.substring(k, k + 3), medium: '' });
+        if (!digits || digits.length < 3) return;
+        // Truncate to nearest multiple of 3 to avoid partial codes
+        const usable = digits.substring(0, digits.length - (digits.length % 3));
+        for (let k = 0; k < usable.length; k += 3) {
+          subjectCodes.push({ code: usable.substring(k, k + 3), medium: '' });
         }
       };
       const addDenseSubjectCodes = (digits) => {
@@ -813,15 +862,21 @@ const extractCandidatesFromText = (text) => {
         return true;
       };
 
-      if (i + lineOffset < lines.length) {
+      if (inlinePacked) {
+        // Subject codes and DOB were already on the roll number line — apply them directly.
+        addGroupedSubjectCodes(inlineSubjectDigits);
+        setDobFromString(inlineDob);
+      } else if (i + lineOffset < lines.length) {
         const firstSubjectLine = lines[i + lineOffset].trim();
-        const combinedCodesAndDob = firstSubjectLine.match(/^(\d{6,24})(\d{2}\.\d{2}\.\d{4})$/);
+        const combinedCodesAndDob = firstSubjectLine.match(/^(\d{6,30})(\d{2}\.\d{2}\.\d{4})$/);
 
         // Some rows pack all subject codes and DOB into one line:
         // e.g., 18400204108608740212.06.2011
-        if (combinedCodesAndDob && combinedCodesAndDob[1].length % 3 === 0) {
-          addGroupedSubjectCodes(combinedCodesAndDob[1]);
-          setDobFromString(combinedCodesAndDob[2]);
+        const combinedDigits = combinedCodesAndDob?.[1];
+        const combinedDob = combinedCodesAndDob?.[2];
+        if (combinedDigits && combinedDob && combinedDigits.length >= 6) {
+          addGroupedSubjectCodes(combinedDigits);
+          setDobFromString(combinedDob);
           lineOffset++;
         }
 
@@ -851,10 +906,15 @@ const extractCandidatesFromText = (text) => {
         // Continue extracting remaining subject codes (alternating code, medium)
         for (let j = 0; j < 15 && i + lineOffset + j < lines.length; j++) {
           const currentLine = lines[i + lineOffset + j].trim();
-          const currentCombinedCodesAndDob = currentLine.match(/^(\d{6,24})(\d{2}\.\d{2}\.\d{4})$/);
+          // Match a line that is subject code(s) packed with DOB, e.g. "40231.07.2010" (3 digits + DOB)
+          // or "402184031.07.2010" (6+ digits + DOB). Minimum 3 digits before DOB.
+          const currentCombinedCodesAndDob = currentLine.match(/^(\d{3,24})(\d{2}\.\d{2}\.\d{4})$/);
 
-          if (currentCombinedCodesAndDob && currentCombinedCodesAndDob[1].length % 3 === 0) {
-            addGroupedSubjectCodes(currentCombinedCodesAndDob[1]);
+          if (currentCombinedCodesAndDob) {
+            // Only add as subject codes if digit count is multiple of 3
+            if (currentCombinedCodesAndDob[1].length % 3 === 0) {
+              addGroupedSubjectCodes(currentCombinedCodesAndDob[1]);
+            }
             setDobFromString(currentCombinedCodesAndDob[2]);
             break;
           }
@@ -883,6 +943,13 @@ const extractCandidatesFromText = (text) => {
               }
             }
             subjectCodes.push({ code: code, medium: medium });
+            continue;
+          }
+
+          // Skip single-digit medium lines that were not consumed by a preceding code
+          // (can occur when the first 3-code block's last medium was not pre-consumed)
+          if (/^[0-9]$/.test(currentLine)) {
+            continue;
           }
 
           // Stop if we hit another roll number or dash
