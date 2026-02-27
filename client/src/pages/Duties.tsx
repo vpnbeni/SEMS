@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { Document, Page, pdfjs } from 'react-pdf'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -178,6 +178,7 @@ const DUTY_LIST_COLUMN_CONTROLS: Array<{
 const Duties: React.FC = () => {
   const [rooms, setRooms] = useState<Room[]>([])
   const [examDates, setExamDates] = useState<string[]>([])
+  const dutiesTableRef = useRef<HTMLDivElement | null>(null)
   const [requiredRoomsByDate, setRequiredRoomsByDate] = useState<Record<string, number>>({})
   const [candidatesByDate, setCandidatesByDate] = useState<Record<string, number>>({})
   const [examSubjectCodesByDate, setExamSubjectCodesByDate] = useState<Record<string, string[]>>({})
@@ -573,13 +574,25 @@ const Duties: React.FC = () => {
   const toggleDuty = (funcId: string, dateKey: string) => {
     const key = `${funcId}::${dateKey}`
     const isSelecting = !checkedDuties[key]
-    if (activeTab === 'ASI' && isSelecting) {
-      const conflict = getInvigilatorConflict(funcId, dateKey)
-      if (conflict) {
-        toast.error(
-          `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches ${conflict.conflictingCodes.join(', ')}`
-        )
+    if (isSelecting) {
+      // Enforce max-per-date limit
+      const roomsForDate = Number(requiredRoomsByDate[dateKey] || 0)
+      const candidatesForDate = Number(candidatesByDate[dateKey] || 0)
+      const maxDuties = computeMaxDuties(activeTab, roomsForDate, candidatesForDate)
+      const currentCount = checkedCountByDate[dateKey] || 0
+      if (maxDuties > 0 && currentCount >= maxDuties) {
+        alert(`Maximum ${maxDuties} functionar${maxDuties === 1 ? 'y' : 'ies'} already assigned for ${formatDateLabel(dateKey)}.`)
         return
+      }
+      // Invigilator subject-conflict check
+      if (activeTab === 'ASI') {
+        const conflict = getInvigilatorConflict(funcId, dateKey)
+        if (conflict) {
+          alert(
+            `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches ${conflict.conflictingCodes.join(', ')}`
+          )
+          return
+        }
       }
     }
     setCheckedDuties((prev) => ({ ...prev, [key]: !prev[key] }))
@@ -724,6 +737,29 @@ const Duties: React.FC = () => {
   useEffect(() => {
     if (activeDutyType) loadSelections()
   }, [activeDutyType, loadSelections])
+
+  /* ── Auto-scroll duties table to today's date column (or nearest future exam date) ── */
+  useEffect(() => {
+    if (loadingTeachers || examDates.length === 0) return
+    // Use setTimeout to let the table DOM render fully after tab switch / data load
+    const timer = setTimeout(() => {
+      const wrap = dutiesTableRef.current
+      if (!wrap) return
+      const todayKey = new Date().toISOString().slice(0, 10)
+      // Find today or the nearest future exam date
+      const targetDate = examDates.includes(todayKey)
+        ? todayKey
+        : examDates.find((d) => d >= todayKey) || examDates[examDates.length - 1]
+      if (!targetDate) return
+      const th = wrap.querySelector<HTMLElement>(`[data-date="${targetDate}"]`)
+      if (!th) return
+      // Measure the actual sticky columns width from the first date column's offsetLeft
+      const firstDateTh = wrap.querySelector<HTMLElement>(`[data-date="${examDates[0]}"]`)
+      const stickyWidth = firstDateTh ? firstDateTh.offsetLeft : 0
+      wrap.scrollLeft = th.offsetLeft - stickyWidth
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [examDates, activeTab, loadingTeachers])
 
   /* Auto-select room date: today if it's an exam date, else next exam date */
   const getDefaultRoomDate = useCallback((dates: string[]): string => {
@@ -1240,7 +1276,7 @@ const Duties: React.FC = () => {
             Loading functionaries...
           </div>
         ) : (
-          <div className="overflow-x-auto duties-table-scroll">
+          <div className="overflow-x-auto duties-table-scroll" ref={dutiesTableRef}>
             <table className="min-w-full border-separate border-spacing-0 border-2 border-gray-400 dark:border-gray-500">
               <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                 <tr>
@@ -1277,6 +1313,7 @@ const Duties: React.FC = () => {
                   {examDates.map((dateKey) => (
                     <th
                       key={dateKey}
+                      data-date={dateKey}
                       className="border border-gray-400 dark:border-gray-500 px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider whitespace-nowrap"
                     >
                       {formatDateLabel(dateKey)}
@@ -1470,7 +1507,7 @@ const Duties: React.FC = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto duties-table-scroll">
+          <div className="overflow-x-auto duties-table-scroll">
               <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-600">
                 <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                   <tr>

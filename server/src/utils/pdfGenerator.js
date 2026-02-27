@@ -8,6 +8,14 @@ class PDFGenerator {
     this.templatesPath = path.join(__dirname, '../templates');
   }
 
+  /**
+   * Generate a PDF from a Handlebars template.
+   *
+   * @param {string} templateName  — name (without .html) in /templates
+   * @param {object} data          — Handlebars context
+   * @param {object} [options]     — extra options forwarded to page.pdf()
+   * @returns {Promise<Buffer>}
+   */
   async generatePDF(templateName, data, options = {}) {
     let browser = null;
 
@@ -15,7 +23,7 @@ class PDFGenerator {
       // Read template file
       const templatePath = path.join(this.templatesPath, `${templateName}.html`);
       const templateContent = await fs.readFile(templatePath, 'utf-8');
-      
+
       // Compile template with Handlebars
       const template = handlebars.compile(templateContent);
       const html = template(data);
@@ -43,29 +51,24 @@ class PDFGenerator {
         args: launchArgs,
         pipe: true,
       });
-      
+
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' });
-      
-      // Generate PDF
+
+      // Generate PDF — let CSS @page rules control size, orientation & margins
+      // via preferCSSPageSize.  Puppeteer margin is set to 0 so the CSS @page
+      // margin is the sole source of truth.
       const pdfBytes = await page.pdf({
-        format: 'A4',
         printBackground: true,
-        // Use template-defined @page margins to keep PDF output aligned with preview.
-        margin: {
-          top: '0mm',
-          right: '0mm',
-          bottom: '0mm',
-          left: '0mm'
-        },
+        margin: { top: '0mm', right: '0mm', bottom: '0mm', left: '0mm' },
         preferCSSPageSize: true,
-        ...options
+        ...options,
       });
       const pdfBuffer = Buffer.isBuffer(pdfBytes) ? pdfBytes : Buffer.from(pdfBytes);
-      
+
       await browser.close();
       browser = null;
-      
+
       return pdfBuffer;
     } catch (error) {
       console.error('PDF Generation Error:', error);
@@ -97,8 +100,13 @@ class PDFGenerator {
     return this.generatePDF('answer-sheet-dispatch-record', data);
   }
 
-  async generateFunctionaryDutyRecord(data, options = {}) {
-    return this.generatePDF('functionary-duty-record', data, options);
+  async generateFunctionaryDutyRecord(data) {
+    // Do NOT pass format/landscape to page.pdf() — the template's
+    // @page { size: A4 landscape; margin: 10mm } handles everything.
+    // Passing them caused Puppeteer to apply landscape rotation on top
+    // of the CSS-defined landscape, resulting in content sized for
+    // portrait width on a landscape page.
+    return this.generatePDF('functionary-duty-record', data);
   }
 }
 

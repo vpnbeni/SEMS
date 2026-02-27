@@ -599,10 +599,7 @@ const downloadFunctionaryDutyRecord = asyncHandler(async (req, res) => {
     ],
   };
 
-  const pdfBuffer = await pdfGenerator.generateFunctionaryDutyRecord(templateData, {
-    format: pageSize,
-    landscape: orientation === 'landscape',
-  });
+  const pdfBuffer = await pdfGenerator.generateFunctionaryDutyRecord(templateData);
 
   return res
     .status(200)
