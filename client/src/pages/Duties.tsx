@@ -1240,7 +1240,7 @@ const Duties: React.FC = () => {
             Loading functionaries...
           </div>
         ) : (
-          <div className="overflow-x-auto duties-table-scroll max-h-[370px]">
+          <div className="overflow-x-auto duties-table-scroll">
             <table className="min-w-full border-separate border-spacing-0 border-2 border-gray-400 dark:border-gray-500">
               <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                 <tr>
@@ -1470,7 +1470,7 @@ const Duties: React.FC = () => {
               </div>
             </div>
 
-            <div className="overflow-x-auto max-h-[320px] duties-table-scroll">
+            <div className="overflow-x-auto duties-table-scroll">
               <table className="min-w-full border-collapse border border-gray-300 dark:border-gray-600">
                 <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                   <tr>

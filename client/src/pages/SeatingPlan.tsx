@@ -1041,7 +1041,11 @@ const SeatingPlan: React.FC = () => {
                         {entry.candidateCount}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-purple-600 dark:text-purple-400">
-                        {Math.ceil(entry.candidateCount / 24)}
+                        {entry.roomsNeeded === 0 ? (
+                          <span className="italic text-xs text-amber-600 dark:text-amber-400">Shared</span>
+                        ) : (
+                          entry.roomsNeeded
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm">
                         <div className="flex space-x-2">

@@ -3,6 +3,7 @@ const Room = require('../models/Room');
 const CBSEDatesheet = require('../models/CBSEDatesheet');
 const SeatingPlanAllocation = require('../models/SeatingPlanAllocation');
 const { compareRoomNo } = require('./roomSort');
+const { calculateRoomsForDay } = require('./roomCalculator');
 
 /**
  * Exam allocation rules (simplified):
@@ -130,6 +131,107 @@ class SeatingPlanBuilder {
       console.log(`\n=== SEATING PLAN BUILD ===`);
       console.log(`Total datesheet entries: ${cbseDatesheet.entries.length}`);
       console.log(`Entries with candidates at this centre: ${entriesWithCandidates.length}`);
+
+      // Detect shared room scenario: re-run room calculator for same-date entries
+      // to determine if this entry shares a room with another (roomsNeeded=0 means shared).
+      const sameDateEntries = entriesWithCandidates.filter(e =>
+        this.normalizeDate(e.examDate) === examDateKey
+      );
+      const sameDateWithCounts = await Promise.all(
+        sameDateEntries.map(async (e) => {
+          const cands = await this.getCandidatesForExam(e);
+          return { ...e.toObject ? e.toObject() : e, candidateCount: cands.length, _id: e._id };
+        })
+      );
+      const enrichedSameDate = calculateRoomsForDay(sameDateWithCounts.filter(e => e.candidateCount > 0));
+      const currentEnriched = enrichedSameDate.find(e => e._id.toString() === entry._id.toString());
+      const isSharedRoom = Boolean(currentEnriched && currentEnriched.roomsNeeded === 0);
+
+      if (isSharedRoom) {
+        // This entry shares a room with a "host" entry. Find which room and seat offset to use.
+        const sharedPos = currentEnriched.sharedRoomPosition; // 1-indexed cumulative room position for the day
+
+        // Re-derive host entry: iterate sorted entries (largest candidateCount first),
+        // accumulate roomsNeeded, and stop when cumulative equals sharedPos.
+        const sortedForHost = [...enrichedSameDate].sort((a, b) => b.candidateCount - a.candidateCount);
+        let cumulative = 0;
+        let hostEntry = null;
+        for (const e of sortedForHost) {
+          if (e.roomsNeeded > 0) {
+            cumulative += e.roomsNeeded;
+            if (cumulative === sharedPos) { hostEntry = e; break; }
+          }
+        }
+
+        if (!hostEntry) {
+          throw new Error('Could not resolve shared room host entry for this exam.');
+        }
+
+        // The seat offset is how many seats the host already occupies in the shared room.
+        // The host's candidates fill (roomsNeeded * 24) seats across exclusive rooms plus
+        // (candidateCount % 24) seats in the shared room. If candidateCount % 24 === 0 the
+        // host exactly fills its rooms, meaning it would not share — so sharedRoomPosition
+        // would not be set. We rely on the roomCalculator guarantee that remainder > 0.
+        const seatOffset = hostEntry.candidateCount % 24;
+
+        // sharedRoomIdx is 0-indexed position of the shared room in the day's allocated sequence.
+        const sharedRoomIdx = sharedPos - 1;
+
+        let sharedRoom;
+        if (allocationMode === 'manual') {
+          // rooms is already filtered + ordered by allocationOrderByDate for this date.
+          if (rooms.length === 0) {
+            throw new Error('No rooms are allocated for this exam date in Manual mode. Please allocate rooms in Exam Room/Hall first, or switch allocation mode to Auto.');
+          }
+          if (sharedRoomIdx >= rooms.length) {
+            throw new Error(`Shared room position ${sharedPos} exceeds the number of allocated rooms (${rooms.length}) for this date. Please allocate more rooms.`);
+          }
+          sharedRoom = rooms[sharedRoomIdx];
+        } else {
+          // Auto mode: find the same room the host uses, accounting for day rotation.
+          const dayRotation = this.getAutoStartRoomIndexForDateByClassChange(
+            sortedForHost[0],
+            entriesWithCandidates,
+            allRooms.length
+          );
+          const roomIdx = (dayRotation + sharedRoomIdx) % allRooms.length;
+          sharedRoom = allRooms[roomIdx];
+        }
+
+        console.log(`Exam ${entry.subject.code} (${entry.subject.class}): SHARED ROOM - Room ${sharedRoom?.roomNo || 'N/A'}, Seat offset: ${seatOffset}`);
+
+        // Build the room allocation directly using the shared-entry row builder,
+        // which fills col3 → col2 → col1-tail so there are no vacant rows in the PDF.
+        const sharedRows = this.buildRowsSharedEntry(candidates, seatOffset, 0, answerSheetAllocations);
+        const roomAllocations = [{
+          roomIndex: 0,
+          roomNo: this.formatRoomNoDisplay(sharedRoom.roomNo),
+          roomName: sharedRoom.roomName || '',
+          floor: sharedRoom.floor || 'First Floor',
+          candidates,
+          rows: sharedRows,
+          registered: candidates.length,
+          seatOffset,
+        }];
+
+        await this.persistRoomAllocationSnapshot(entry, roomAllocations);
+
+        return {
+          datesheet: {
+            _id: entry._id,
+            date: entry.examDate,
+            dayName: entry.dayName,
+            subjectCode: entry.subject.code,
+            subjectName: entry.subject.name,
+            class: entry.subject.class,
+            timeSlot: entry.timeSlot
+          },
+          rooms: roomAllocations,
+          totalCandidates: candidates.length,
+          answerSheetAllocations,
+          centreIdentity,
+        };
+      }
 
       // Validate centre capacity for auto mode using the peak room requirement across exam days.
       if (allocationMode === 'auto') {
@@ -681,18 +783,31 @@ class SeatingPlanBuilder {
   }
 
   async getMaxRoomsRequiredAcrossExamDays(entriesWithCandidates) {
-    const candidatesPerRoom = 24;
     const roomsRequiredByDate = new Map();
 
+    // Group entries by date
+    const byDate = new Map();
     for (const entry of entriesWithCandidates) {
       const dateKey = this.normalizeDate(entry.examDate);
       if (!dateKey) continue;
-      const candidates = await this.getCandidatesForExam(entry);
-      if (!candidates.length) continue;
+      if (!byDate.has(dateKey)) byDate.set(dateKey, []);
+      byDate.get(dateKey).push(entry);
+    }
 
-      const requiredForEntry = Math.ceil(candidates.length / candidatesPerRoom);
-      const current = roomsRequiredByDate.get(dateKey) || 0;
-      roomsRequiredByDate.set(dateKey, current + requiredForEntry);
+    // For each date, fetch candidate counts and run the room calculator to correctly
+    // account for shared rooms (roomsNeeded=0 entries don't consume additional rooms).
+    for (const [dateKey, dateEntries] of byDate) {
+      const withCounts = await Promise.all(
+        dateEntries.map(async (e) => {
+          const cands = await this.getCandidatesForExam(e);
+          return { ...e.toObject ? e.toObject() : e, candidateCount: cands.length, _id: e._id };
+        })
+      );
+      const filtered = withCounts.filter(e => e.candidateCount > 0);
+      if (filtered.length === 0) continue;
+      const enriched = calculateRoomsForDay(filtered);
+      const totalRoomsForDate = enriched.reduce((sum, e) => sum + (e.roomsNeeded || 0), 0);
+      roomsRequiredByDate.set(dateKey, totalRoomsForDate);
     }
 
     let maxRequired = 0;
@@ -995,6 +1110,97 @@ class SeatingPlanBuilder {
         row.row3RollNo = seat3.rollNo;
         row.row3QpCode = this.getQPCodeBySequenceIndex((i + 16) - seatOffset);
         row.row3SheetNo = this.getSheetNo(seat3, seat3GlobalIndex, answerSheetAllocations);
+      }
+
+      rows.push(row);
+    }
+
+    return rows;
+  }
+
+  /**
+   * Build PDF rows for a shared-room entry.
+   * Available seats are seatOffset..23 (the host occupies 0..seatOffset-1).
+   * Candidates fill col3 → col2 → col1 tail, all top-down.
+   * Any empty seat in col1 appears immediately after the host block (not at the bottom),
+   * because col1 is filled from the bottom of the available range upward so that
+   * candidates sit sequentially without reversing their numbering.
+   *
+   * col1 = seats 0–7  |  col2 = seats 8–15  |  col3 = seats 16–23
+   */
+  buildRowsSharedEntry(candidates, seatOffset = 0, globalCandidateStartIndex = 0, answerSheetAllocations = null) {
+    const totalSeats = 24;
+    const seats = new Array(totalSeats).fill(null);
+
+    // How many col3 / col2 seats are free (all of each column when seatOffset < 8/16)
+    const col3Free = Math.max(0, 24 - Math.max(16, seatOffset)); // seats 16..23 free
+    const col2Free = Math.max(0, 16 - Math.max(8,  seatOffset)); // seats 8..15 free
+    const col1Free = Math.max(0,  8 - Math.max(0,  seatOffset)); // seats 0..7 free
+
+    // How many candidates spill into each column (fill col3 first, then col2, then col1)
+    const inCol3 = Math.min(candidates.length, col3Free);
+    const inCol2 = Math.min(candidates.length - inCol3, col2Free);
+    const inCol1 = candidates.length - inCol3 - inCol2;
+
+    // col1 candidates sit at the BOTTOM of the available col1 range so any empty gap
+    // appears right after the host block (top of col1 tail), candidates are sequential.
+    const col1Start = 8 - inCol1; // first seat used in col1 (≥ seatOffset always)
+
+    const availableSeats = [];
+    for (let s = 16; s <= 23; s++) if (s >= seatOffset) availableSeats.push(s); // col3 top-down
+    for (let s = 8;  s <= 15; s++) if (s >= seatOffset) availableSeats.push(s); // col2 top-down
+    for (let s = col1Start; s <= 7; s++) availableSeats.push(s);                 // col1 top-down from gap end
+
+    // Place candidates into the available seats
+    for (let i = 0; i < candidates.length && i < availableSeats.length; i++) {
+      seats[availableSeats[i]] = candidates[i];
+    }
+
+    // Map seat position → global candidate index (for answer sheet serial lookup)
+    const seatToGlobalIndex = new Map();
+    for (let i = 0; i < candidates.length && i < availableSeats.length; i++) {
+      seatToGlobalIndex.set(availableSeats[i], globalCandidateStartIndex + i);
+    }
+
+    const rows = [];
+    for (let i = 0; i < 8; i++) {
+      const row = {
+        col1: '\u00a0',
+        col2: '\u00a0',
+        col3: '\u00a0',
+        row1RollNo: '',
+        row2RollNo: '',
+        row3RollNo: '',
+        row1QpCode: '',
+        row2QpCode: '',
+        row3QpCode: '',
+        row1SheetNo: '',
+        row2SheetNo: '',
+        row3SheetNo: ''
+      };
+
+      const seat1 = seats[i];
+      if (seat1) {
+        row.col1 = seat1.rollNo;
+        row.row1RollNo = seat1.rollNo;
+        row.row1QpCode = this.getQPCodeBySequenceIndex(availableSeats.indexOf(i));
+        row.row1SheetNo = this.getSheetNo(seat1, seatToGlobalIndex.get(i) ?? -1, answerSheetAllocations);
+      }
+
+      const seat2 = seats[i + 8];
+      if (seat2) {
+        row.col2 = seat2.rollNo;
+        row.row2RollNo = seat2.rollNo;
+        row.row2QpCode = this.getQPCodeBySequenceIndex(availableSeats.indexOf(i + 8));
+        row.row2SheetNo = this.getSheetNo(seat2, seatToGlobalIndex.get(i + 8) ?? -1, answerSheetAllocations);
+      }
+
+      const seat3 = seats[i + 16];
+      if (seat3) {
+        row.col3 = seat3.rollNo;
+        row.row3RollNo = seat3.rollNo;
+        row.row3QpCode = this.getQPCodeBySequenceIndex(availableSeats.indexOf(i + 16));
+        row.row3SheetNo = this.getSheetNo(seat3, seatToGlobalIndex.get(i + 16) ?? -1, answerSheetAllocations);
       }
 
       rows.push(row);

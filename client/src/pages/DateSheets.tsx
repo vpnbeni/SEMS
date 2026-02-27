@@ -921,12 +921,37 @@ const DateSheets: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                {tableRows.map((row, index) => {
+                {(() => {
+                  const isCentreTab = activeTab === 'centre' || activeTab === 'centre10th' || activeTab === 'centre12th'
+                  const todayStr = new Date().toDateString()
+                  let centreNextExamDateStr: string | null = null
+                  if (isCentreTab) {
+                    const futureDates = tableRows
+                      .map((r: any) => r.examDate ? new Date(r.examDate) : null)
+                      .filter((d: Date | null): d is Date => d !== null && d.toDateString() !== todayStr && d >= new Date(new Date().toDateString()))
+                    if (futureDates.length > 0) {
+                      const minDate = futureDates.reduce((a: Date, b: Date) => a < b ? a : b)
+                      centreNextExamDateStr = minDate.toDateString()
+                    }
+                  }
+                  return tableRows.map((row: any, index: number) => {
                   let rowClassName = "hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                   let textClassName = "text-gray-900 dark:text-white"
                   let classBadgeColor = "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
 
-                  if (row.class === '10th') {
+                  const rowDateStr = row.examDate ? new Date(row.examDate).toDateString() : null
+
+                  if (isCentreTab && rowDateStr === todayStr) {
+                    rowClassName = "bg-green-50 dark:bg-green-900/20 hover:bg-green-100/60 dark:hover:bg-green-900/30 transition-colors"
+                    classBadgeColor = row.class === '10th'
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 ring-1 ring-emerald-500/20"
+                      : "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 ring-1 ring-violet-500/20";
+                  } else if (isCentreTab && centreNextExamDateStr && rowDateStr === centreNextExamDateStr) {
+                    rowClassName = "bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100/60 dark:hover:bg-yellow-900/30 transition-colors"
+                    classBadgeColor = row.class === '10th'
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 ring-1 ring-emerald-500/20"
+                      : "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 ring-1 ring-violet-500/20";
+                  } else if (row.class === '10th') {
                     rowClassName = "bg-emerald-50/30 dark:bg-emerald-900/10 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-colors"
                     classBadgeColor = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 ring-1 ring-emerald-500/20";
                   } else if (row.class === '12th') {
@@ -964,7 +989,15 @@ const DateSheets: React.FC = () => {
                         {String(srNo).padStart(2, '0')}
                       </td>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${textClassName}`}>
-                        {row.examDate ? new Date(row.examDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : <span className="text-gray-400">—</span>}
+                        <div className="inline-flex items-center gap-2">
+                          <span>{row.examDate ? new Date(row.examDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : <span className="text-gray-400">—</span>}</span>
+                          {isCentreTab && rowDateStr === todayStr && (
+                            <span className="inline-flex items-center rounded-full bg-green-200 dark:bg-green-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-900 dark:text-green-100">Today</span>
+                          )}
+                          {isCentreTab && centreNextExamDateStr && rowDateStr === centreNextExamDateStr && (
+                            <span className="inline-flex items-center rounded-full bg-yellow-200 dark:bg-yellow-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow-900 dark:text-yellow-100">Next</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                         {row.examDate ? (row.dayName && row.dayName !== 'Unknown' ? row.dayName : getDayName(row.examDate)) : <span className="text-gray-400">—</span>}
@@ -1008,7 +1041,8 @@ const DateSheets: React.FC = () => {
                       )}
                     </tr>
                   )
-                })}
+                })
+                })()}
               </tbody>
             </table>
           </div>

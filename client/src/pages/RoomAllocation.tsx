@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { seatingPlanService, Room } from '../services/seatingPlanService'
 import centreDatesheetService from '../services/centreDatesheetService'
@@ -25,6 +25,20 @@ const RoomAllocation: React.FC = () => {
   const [requiredRoomsByDate, setRequiredRoomsByDate] = useState<Record<string, number>>({})
   const [sharedPositionsByDate, setSharedPositionsByDate] = useState<Record<string, Set<number>>>({})
   const [isSavingAllocation, setIsSavingAllocation] = useState(false)
+  const allocTableWrapRef = useRef<HTMLDivElement | null>(null)
+
+  // Scroll allocation table to today's column on load and whenever the date changes
+  useEffect(() => {
+    const todayKey = new Date().toISOString().slice(0, 10)
+    const wrap = allocTableWrapRef.current
+    if (!wrap || examDates.length === 0) return
+    const th = wrap.querySelector<HTMLElement>(`[data-date="${todayKey}"]`)
+    if (th) {
+      // Scroll so the today column is visible, offset by the 3 sticky left columns width
+      const stickyWidth = 64 + 96 + 220 // --ra-alloc-col-1 + col-2 + col-3
+      wrap.scrollLeft = th.offsetLeft - stickyWidth
+    }
+  }, [examDates])
 
   useEffect(() => {
     fetchRooms()
@@ -571,13 +585,8 @@ const RoomAllocation: React.FC = () => {
           overflow-x: auto;
         }
         .ra-room-table-wrap {
-          max-height: 320px;
-          overflow-y: auto;
         }
         .ra-room-table-wrap .ra-table thead th {
-          position: sticky;
-          top: 0;
-          z-index: 2;
         }
         .ra-table {
           width: 100%;
@@ -1397,7 +1406,7 @@ const RoomAllocation: React.FC = () => {
             No centre datesheet dates found. Import/generate centre datesheet to enable allocation columns.
           </div>
         ) : (
-          <div className="ra-table-wrap">
+          <div className="ra-table-wrap" ref={allocTableWrapRef}>
             <table className="ra-alloc-table">
               <thead>
                 <tr>
@@ -1405,7 +1414,7 @@ const RoomAllocation: React.FC = () => {
                   <th className="ra-text-left">Room No</th>
                   <th className="ra-text-left">Name</th>
                   {examDates.map((dateKey) => (
-                    <th key={dateKey}>{formatDateLabel(dateKey)}</th>
+                    <th key={dateKey} data-date={dateKey}>{formatDateLabel(dateKey)}</th>
                   ))}
                 </tr>
                 <tr className="ra-required-row">
