@@ -828,9 +828,9 @@ const SeatingPlan: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 flex flex-col sp-page-fill">
       {/* Status Overview - Clickable Tabs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 shrink-0">
         <ToggleButton
           pressed={activeTab === 'mainGate'}
           onClick={() => setActiveTab('mainGate')}
@@ -913,15 +913,15 @@ const SeatingPlan: React.FC = () => {
       </div>
 
       {/* Datesheet Table */}
-      <div className={`bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-8 transition-all ${scheduleHighlightRingClass[activeTab]}`}>
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+      <div className={`bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-8 transition-all flex flex-col min-h-0 flex-1 ${scheduleHighlightRingClass[activeTab]}`}>
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Examination Schedule
           </h3>
         </div>
 
-        <div className="overflow-x-auto overflow-y-visible sp-datesheet-scroll-container">
-          <div className="seating-table-wrapper overflow-x-auto pb-4">
+        <div className="overflow-x-auto overflow-y-visible sp-datesheet-scroll-container flex-1 min-h-0 flex flex-col">
+          <div className="seating-table-wrapper overflow-x-auto pb-4 flex-1">
             {loading ? (
               <div className="flex justify-center items-center py-12">
                 <Loader size="lg" />
@@ -1079,8 +1079,8 @@ const SeatingPlan: React.FC = () => {
       </div>
 
       {/* Content Area */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden flex flex-col min-h-0 flex-1">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {activeTab === 'mainGate' && 'Main Gate Format'}
             {activeTab === 'roomFolderSlip' && 'Room Folder Slip Format'}
@@ -1089,7 +1089,7 @@ const SeatingPlan: React.FC = () => {
           </h3>
         </div>
 
-        <div className="p-6">
+        <div className="p-6 flex-1 min-h-0 overflow-y-auto">
           {activeTab === 'mainGate' && (
             <div className="space-y-4">
               <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
