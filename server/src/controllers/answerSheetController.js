@@ -1400,4 +1400,81 @@ exports.getDiscardedSerials = async (req, res) => {
   }
 }
 
+/**
+ * @desc    Bulk-update series on all active answer sheets
+ * @route   PUT /api/answersheets/series
+ * @access  Private
+ */
+exports.updateSeries = async (req, res) => {
+  try {
+    const { series } = req.body
+
+    if (series !== undefined && series !== null && typeof series !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Series must be a string'
+      })
+    }
+
+    const trimmed = (series || '').trim()
+
+    if (trimmed.length > 50) {
+      return res.status(400).json({
+        success: false,
+        error: 'Series cannot exceed 50 characters'
+      })
+    }
+
+    // Update all active answer sheets with the series value
+    // If trimmed is empty, unset the field
+    const update = trimmed
+      ? { $set: { series: trimmed } }
+      : { $unset: { series: 1 } }
+
+    const result = await AnswerSheet.updateMany(
+      { isActive: true },
+      update
+    )
+
+    res.status(200).json({
+      success: true,
+      data: {
+        series: trimmed || null,
+        modifiedCount: result.modifiedCount
+      }
+    })
+  } catch (error) {
+    console.error('Error updating series:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update series'
+    })
+  }
+}
+
+/**
+ * @desc    Get the current series value (from any active answer sheet)
+ * @route   GET /api/answersheets/series
+ * @access  Private
+ */
+exports.getSeries = async (req, res) => {
+  try {
+    const sheet = await AnswerSheet.findOne(
+      { isActive: true, series: { $exists: true, $ne: '' } },
+      { series: 1 }
+    )
+
+    res.status(200).json({
+      success: true,
+      data: { series: sheet?.series || null }
+    })
+  } catch (error) {
+    console.error('Error getting series:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get series'
+    })
+  }
+}
+
 module.exports = exports

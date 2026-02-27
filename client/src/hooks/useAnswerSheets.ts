@@ -155,3 +155,43 @@ export function useDiscardSheetsMutation(
     ...options,
   })
 }
+
+// --- Series hooks ---
+
+export const seriesKeys = {
+  current: ['answerSheetSeries'] as const,
+}
+
+export function useSeries(
+  options?: Omit<
+    UseQueryOptions<string | null, Error>,
+    'queryKey' | 'queryFn'
+  >
+) {
+  return useQuery({
+    queryKey: seriesKeys.current,
+    queryFn: async () => {
+      const response = await answerSheetService.getSeries()
+      return response?.data?.series ?? null
+    },
+    ...options,
+  })
+}
+
+export function useUpdateSeriesMutation(
+  options?: UseMutationOptions<
+    { success: boolean; data: { series: string | null; modifiedCount: number } },
+    Error,
+    string
+  >
+) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (series: string) => answerSheetService.updateSeries(series),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: seriesKeys.current })
+      queryClient.invalidateQueries({ queryKey: answerSheetKeys.all })
+    },
+    ...options,
+  })
+}

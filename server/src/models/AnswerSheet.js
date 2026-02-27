@@ -53,6 +53,11 @@ const answerSheetSchema = new mongoose.Schema({
     uppercase: true,
     maxlength: [1, 'Suffix must be a single character']
   },
+  series: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'Series cannot exceed 50 characters']
+  },
   serialFrom: {
     type: String,
     required: [true, 'Serial number from is required'],

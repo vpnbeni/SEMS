@@ -38,6 +38,9 @@ router.get('/dates/:date/pdf', form66Controller.generateForm66PDF);
 // Get Form 66 records by date and subject
 router.get('/dates/:date/subjects/:subjectCode/records', form66Controller.getForm66RecordsByDateAndSubject);
 
+// Generate PDF for a specific date and subject
+router.get('/dates/:date/subjects/:subjectCode/pdf', form66Controller.generateForm66PDFBySubject);
+
 // Delete Form 66 record
 router.delete('/records/:id', form66Controller.deleteForm66Record);
 

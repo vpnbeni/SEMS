@@ -1,7 +1,4 @@
-/* Page container: fill the available viewport height minus the header (h-20 = 5rem) */
-.sp-page-fill {
-  height: calc(100vh - 5rem);
-}
+/* Page container: no longer uses fixed height — page scrolls naturally */
 
 /* Datesheet table scroll container: stable scrollbar gutter, contain horizontal overscroll */
 .sp-datesheet-scroll-container {
@@ -15,10 +12,9 @@
   }
 }
 
-/* Table wrapper with dynamic height and custom scrollbar */
+/* Table wrapper — no vertical scroll; page scrolls instead */
 .seating-table-wrapper {
   position: relative;
-  overflow-y: auto;
 }
 
 .seating-table-wrapper::-webkit-scrollbar {
@@ -115,8 +111,6 @@
 }
 
 .seating-table-wrapper .sp-schedule-table thead th {
-  position: sticky;
-  top: 0;
   z-index: 20;
   background-color: #f9fafb;
 }

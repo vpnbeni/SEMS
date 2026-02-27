@@ -446,38 +446,44 @@ exports.generateForm66PDF = async (req, res) => {
       return res.status(404).json({ message: 'No records found for this date' });
     }
 
-    // Fetch the latest completed upload to get the original TXT content
-    const latestUpload = await Form66Upload.findOne({ status: 'completed' })
-      .sort({ createdAt: -1 });
+    // Find which classes are present on this date so we fetch the right upload files
+    const classesOnDate = await Form66.distinct('class', { examDate: date, isActive: true });
+    const normalizedClasses = [...new Set(classesOnDate.map(c => normalizeClassLabel(c) || 'XII'))];
 
-    if (!latestUpload || !latestUpload.originalFileUrl) {
-      return res.status(404).json({
-        message: 'Original TXT file not found. Please re-upload the Form 66 file.'
-      });
+    // Collect pages from all relevant upload files
+    let allFilteredPages = [];
+    for (const cls of normalizedClasses) {
+      const upload = await findLatestUploadForClass(cls);
+      if (!upload || !upload.originalFileUrl) continue;
+
+      const content = await fetchFromUrl(upload.originalFileUrl);
+      const pages = splitIntoPages(content);
+      const matched = pages.filter((page) => page.date === date);
+      allFilteredPages.push(...matched);
     }
 
-    console.log(`📥 Fetching original TXT from: ${latestUpload.originalFileUrl}`);
+    // Fallback: if class-aware lookup found nothing, try the latest upload (backward compat)
+    if (allFilteredPages.length === 0) {
+      const latestUpload = await Form66Upload.findOne({ status: 'completed' })
+        .sort({ createdAt: -1 });
 
-    // Fetch the original TXT content from Cloudinary
-    const originalContent = await fetchFromUrl(latestUpload.originalFileUrl);
-    console.log(`📄 Fetched ${originalContent.length} characters`);
+      if (latestUpload && latestUpload.originalFileUrl) {
+        const content = await fetchFromUrl(latestUpload.originalFileUrl);
+        const pages = splitIntoPages(content);
+        allFilteredPages = pages.filter((page) => page.date === date);
+      }
+    }
 
-    // Split into pages and extract info
-    const allPages = splitIntoPages(originalContent);
-    console.log(`📄 Total pages in file: ${allPages.length}`);
+    console.log(`📄 Pages matching date ${date}: ${allFilteredPages.length}`);
 
-    // Filter pages that match the requested date
-    const filteredPages = allPages.filter((page) => page.date === date);
-    console.log(`📄 Pages matching date ${date}: ${filteredPages.length}`);
-
-    if (filteredPages.length === 0) {
+    if (allFilteredPages.length === 0) {
       return res.status(404).json({
         message: `No pages found for date ${date} in the original file`
       });
     }
 
     // Reconstruct TXT content from filtered pages (preserving original formatting)
-    const filteredContent = filteredPages.map((p) => p.content).join('\f');
+    const filteredContent = allFilteredPages.map((p) => p.content).join('\f');
 
     // Convert to PDF using the original content (preserving exact formatting)
     console.log('📄 Converting filtered pages to PDF...');
@@ -491,6 +497,73 @@ exports.generateForm66PDF = async (req, res) => {
     res.end(Buffer.from(pdfBuffer));
   } catch (error) {
     console.error('Generate Form 66 PDF Error:', error);
+    res.status(500).json({
+      message: 'Failed to generate PDF',
+      error: error.message
+    });
+  }
+};
+
+// Generate PDF for a specific date and subject - preserves original formatting from TXT file
+exports.generateForm66PDFBySubject = async (req, res) => {
+  try {
+    const { date, subjectCode } = req.params;
+    console.log(`📄 Generating Form 66 PDF for date: ${date}, subject: ${subjectCode}`);
+
+    // Find a record for this date + subject to determine the class
+    const sampleRecord = await Form66.findOne({
+      examDate: date,
+      subjectCode: subjectCode,
+      isActive: true
+    });
+    if (!sampleRecord) {
+      return res.status(404).json({ message: 'No records found for this date and subject' });
+    }
+
+    // Use the record's class to find the correct upload file
+    const recordClass = normalizeClassLabel(sampleRecord.class) || 'XII';
+    const latestUpload = await findLatestUploadForClass(recordClass);
+
+    if (!latestUpload || !latestUpload.originalFileUrl) {
+      return res.status(404).json({
+        message: `Original TXT file not found for Class ${recordClass}. Please re-upload the Form 66 file.`
+      });
+    }
+
+    // Fetch the original TXT content from Cloudinary
+    const originalContent = await fetchFromUrl(latestUpload.originalFileUrl);
+
+    // Split into pages and extract info
+    const allPages = splitIntoPages(originalContent);
+
+    // Filter pages that match the requested date AND subject code
+    const filteredPages = allPages.filter(
+      (page) => page.date === date && page.subjectCode === subjectCode
+    );
+    console.log(`📄 Pages matching date ${date} + subject ${subjectCode}: ${filteredPages.length}`);
+
+    if (filteredPages.length === 0) {
+      return res.status(404).json({
+        message: `No pages found for date ${date} and subject ${subjectCode} in the original file`
+      });
+    }
+
+    // Reconstruct TXT content from filtered pages (preserving original formatting)
+    const filteredContent = filteredPages.map((p) => p.content).join('\f');
+
+    // Convert to PDF using the original content (preserving exact formatting)
+    const pdfBuffer = await convertTxtToPdf(filteredContent);
+
+    // Send PDF as response
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Length', pdfBuffer.length);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="Form66_${date.replace(/\./g, '-')}_${subjectCode}.pdf"`
+    );
+    res.end(Buffer.from(pdfBuffer));
+  } catch (error) {
+    console.error('Generate Form 66 PDF by Subject Error:', error);
     res.status(500).json({
       message: 'Failed to generate PDF',
       error: error.message

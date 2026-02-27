@@ -13,6 +13,7 @@ export interface AnswerSheetEntry {
   colour: string
   class: string
   suffix?: string
+  series?: string
   serialFrom: string
   serialTo: string
   total: number
@@ -234,6 +235,22 @@ class AnswerSheetService {
    */
   async removeDiscardedSerial(id: string, serial: string) {
     const response = await api.delete(`/answersheets/${id}/discarded/${serial}`)
+    return response.data
+  }
+
+  /**
+   * Get the current series value
+   */
+  async getSeries(): Promise<{ success: boolean; data: { series: string | null } }> {
+    const response = await api.get('/answersheets/series')
+    return response.data
+  }
+
+  /**
+   * Bulk-update series on all active answer sheets
+   */
+  async updateSeries(series: string): Promise<{ success: boolean; data: { series: string | null; modifiedCount: number } }> {
+    const response = await api.put('/answersheets/series', { series })
     return response.data
   }
 }

@@ -86,6 +86,7 @@ const Form66: React.FC = () => {
 
   /* Form 66 by-date PDF preview (same pattern as Duties preview) */
   const [form66DatePreviewDate, setForm66DatePreviewDate] = useState<string | null>(null)
+  const [form66DatePreviewSubject, setForm66DatePreviewSubject] = useState<string | null>(null)
   const [form66DatePreviewUrl, setForm66DatePreviewUrl] = useState<string | null>(null)
   const [showForm66DatePreview, setShowForm66DatePreview] = useState(false)
   const [form66DatePreviewLoading, setForm66DatePreviewLoading] = useState(false)
@@ -396,6 +397,7 @@ const Form66: React.FC = () => {
   const closeForm66DatePreview = useCallback(() => {
     setShowForm66DatePreview(false)
     setForm66DatePreviewDate(null)
+    setForm66DatePreviewSubject(null)
     setForm66DatePreviewError(null)
     setForm66DatePreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev)
@@ -409,8 +411,9 @@ const Form66: React.FC = () => {
     }
   }, [form66DatePreviewUrl])
 
-  const openForm66DatePreview = async (date: string) => {
+  const openForm66DatePreview = async (date: string, subjectCode?: string) => {
     setForm66DatePreviewDate(date)
+    setForm66DatePreviewSubject(subjectCode || null)
     setForm66DatePreviewError(null)
     setForm66DatePreviewLoading(true)
     setShowForm66DatePreview(true)
@@ -419,7 +422,10 @@ const Form66: React.FC = () => {
       return null
     })
     try {
-      const response = await fetch(`${API_BASE_URL}/form66/dates/${date}/pdf${buildLocalTenantQuery()}`, withAuthAndTenantHeaders())
+      const pdfPath = subjectCode
+        ? `/form66/dates/${date}/subjects/${subjectCode}/pdf`
+        : `/form66/dates/${date}/pdf`
+      const response = await fetch(`${API_BASE_URL}${pdfPath}${buildLocalTenantQuery()}`, withAuthAndTenantHeaders())
       if (!response.ok) {
         const data = await parseJsonSafely(response)
         const message =
@@ -440,7 +446,9 @@ const Form66: React.FC = () => {
   }
 
   const form66DatePdfDownloadFilename = form66DatePreviewDate
-    ? `Form66_${form66DatePreviewDate.replace(/\./g, '-')}.pdf`
+    ? form66DatePreviewSubject
+      ? `Form66_${form66DatePreviewDate.replace(/\./g, '-')}_${form66DatePreviewSubject}.pdf`
+      : `Form66_${form66DatePreviewDate.replace(/\./g, '-')}.pdf`
     : 'Form66.pdf'
 
   const openDownloadDialog = (classKey: FormClassKey) => {
@@ -939,6 +947,9 @@ const Form66: React.FC = () => {
                                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                       Candidates
                                     </th>
+                                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                      Actions
+                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -999,12 +1010,25 @@ const Form66: React.FC = () => {
                                               {subject.count}
                                             </span>
                                           </td>
+                                          <td className="px-6 py-3 whitespace-nowrap text-center">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                openForm66DatePreview(dateGroup.date, subject.code)
+                                              }}
+                                              disabled={form66DatePreviewLoading}
+                                              className="inline-flex items-center justify-center p-1.5 bg-green-100 hover:bg-green-200 dark:bg-green-900/30 dark:hover:bg-green-800/50 text-green-700 dark:text-green-400 rounded-lg transition-colors disabled:opacity-60"
+                                              title={`Preview and download PDF for subject ${subject.code}`}
+                                            >
+                                              <Download className="w-4 h-4" />
+                                            </button>
+                                          </td>
                                         </tr>
 
                                         {/* Expanded Roll Numbers */}
                                         {isSubjectExpanded && (
                                           <tr>
-                                            <td colSpan={4} className="p-0">
+                                            <td colSpan={5} className="p-0">
                                               <div className="bg-white dark:bg-gray-800 border-y border-gray-100 dark:border-gray-700 pl-24 pr-6 py-3">
                                                 <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
                                                   <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -1218,7 +1242,7 @@ const Form66: React.FC = () => {
                 Form 66 PDF Preview
                 {form66DatePreviewDate && (
                   <span className="ml-2 text-gray-500 dark:text-gray-400 font-normal">
-                    ({form66DatePreviewDate})
+                    ({form66DatePreviewDate}{form66DatePreviewSubject ? ` — Subject ${form66DatePreviewSubject}` : ''})
                   </span>
                 )}
               </h4>

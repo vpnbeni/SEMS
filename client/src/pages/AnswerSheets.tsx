@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { AnswerSheetEntry } from '../services/answerSheetService'
 import type { CentreDatesheetEntry } from '../services/centreDatesheetService'
@@ -9,6 +9,8 @@ import {
   useUseSheetsMutation,
   useUpdateAnswerSheetMutation,
   useDiscardSheetsMutation,
+  useSeries,
+  useUpdateSeriesMutation,
 } from '../hooks/useAnswerSheets'
 import { useCentreDatesheetEntries } from '../hooks/useSeatingPlan'
 import { Dropdown } from '../components/common/Dropdown'
@@ -81,17 +83,29 @@ const AnswerSheets: React.FC = () => {
     subject: ''
   })
   const [selectedClass, setSelectedClass] = useState<string | number>('')
-  const autoUpdatedUsedEntryIds = useRef<Set<string>>(new Set())
 
   const { data: entries = [], isLoading: loadingList, isFetching, error: listError } = useAnswerSheetsQuery(
     { class: selectedClass || undefined }
   )
   const { data: centreDatesheetEntries = [] } = useCentreDatesheetEntries()
+  const { data: savedSeries } = useSeries()
   const createMutation = useCreateAnswerSheetMutation()
   const uploadMutation = useUploadExcelMutation()
   const useSheetsMutation = useUseSheetsMutation()
   const updateMutation = useUpdateAnswerSheetMutation()
   const discardMutation = useDiscardSheetsMutation()
+  const updateSeriesMutation = useUpdateSeriesMutation()
+
+  const [seriesInput, setSeriesInput] = useState<string>('')
+  const [seriesInitialized, setSeriesInitialized] = useState(false)
+
+  // Sync saved series from server into input state (once on load)
+  useEffect(() => {
+    if (!seriesInitialized && savedSeries !== undefined) {
+      setSeriesInput(savedSeries || '')
+      setSeriesInitialized(true)
+    }
+  }, [savedSeries, seriesInitialized])
 
   const getDiscardedCount = (entry: AnswerSheetEntry) =>
     Math.max(Number(entry.discarded || 0), Number(entry.discardedSerials?.length || 0))
@@ -247,6 +261,14 @@ const AnswerSheets: React.FC = () => {
 
 
 
+  const handleSaveSeries = () => {
+    updateSeriesMutation.mutate(seriesInput, {
+      onError: (err: any) => {
+        alert(err?.response?.data?.error || err?.message || 'Failed to save series')
+      }
+    })
+  }
+
   const handleUseSheets = async (id: string, quantity: number) => {
     // Show link modal if centre datesheet entries are available
     if (centreDatesheetEntries.length > 0) {
@@ -385,78 +407,6 @@ const AnswerSheets: React.FC = () => {
     const acceptableTypes = typeMap[requiredType] || []
     return acceptableTypes.includes(sheetType)
   }
-
-  // Auto-update "used" count for past/today exam dates so the Used tab reflects usage as dates pass
-  useEffect(() => {
-    if (activeTab !== 'used' || loadingList || entries.length === 0 || centreDatesheetEntries.length === 0) return
-
-    const todayStart = (() => {
-      const d = new Date()
-      d.setHours(0, 0, 0, 0)
-      return d.getTime()
-    })()
-
-    let list = [...centreDatesheetEntries]
-    if (selectedClass) {
-      list = list.filter(e => String(e.class) === String(selectedClass))
-    }
-    list.sort((a, b) => {
-      const dateDiff = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
-      if (dateDiff !== 0) return dateDiff
-      return (b.candidateCount ?? 0) - (a.candidateCount ?? 0)
-    })
-
-    const run = async () => {
-      for (const datesheetEntry of list) {
-        const examDayStart = new Date(datesheetEntry.examDate)
-        examDayStart.setHours(0, 0, 0, 0)
-        if (examDayStart.getTime() > todayStart) continue
-        if (autoUpdatedUsedEntryIds.current.has(datesheetEntry._id)) continue
-
-        const usedSheets = entries.filter(
-          (e: AnswerSheetEntry) =>
-            e.linkedExamDate &&
-            new Date(e.linkedExamDate).toDateString() === new Date(datesheetEntry.examDate).toDateString() &&
-            e.linkedSubjectCode === datesheetEntry.subjectCode
-        )
-        const totalUsed = usedSheets.reduce((sum, e) => sum + (e.used ?? 0), 0)
-        const candidateCount = datesheetEntry.candidateCount ?? 0
-        if (candidateCount <= 0 || totalUsed >= candidateCount) continue
-
-        const shortfall = candidateCount - totalUsed
-        const answerSheetType = datesheetEntry.answerSheetType
-        const targetSheet = entries.find((e: AnswerSheetEntry) => {
-          const bal = (e.total ?? 0) - (e.used ?? 0) - (e.discarded ?? 0)
-          return bal > 0 &&
-            e.class === datesheetEntry.class &&
-            matchesAnswerSheetType(e.answerSheetType, answerSheetType)
-        })
-        if (!targetSheet?._id) continue
-
-        const balance = (targetSheet.total ?? 0) - (targetSheet.used ?? 0) - (targetSheet.discarded ?? 0)
-        const quantity = Math.min(shortfall, balance)
-        if (quantity <= 0) continue
-
-        try {
-          await useSheetsMutation.mutateAsync({
-            id: targetSheet._id,
-            quantity,
-            linkData: {
-              centreDatesheetEntryId: datesheetEntry._id,
-              examDate: datesheetEntry.examDate,
-              subjectCode: datesheetEntry.subjectCode,
-              subjectName: datesheetEntry.subjectName,
-              candidateCount: datesheetEntry.candidateCount
-            }
-          })
-          autoUpdatedUsedEntryIds.current.add(datesheetEntry._id)
-        } catch (err) {
-          console.error('Auto-update used sheets for exam:', datesheetEntry.subjectName, datesheetEntry.examDate, err)
-        }
-      }
-    }
-    run()
-  }, [activeTab, loadingList, entries, centreDatesheetEntries, selectedClass])
 
   const handleDiscardSheets = async (id: string, quantity: number) => {
     try {
@@ -711,7 +661,44 @@ const AnswerSheets: React.FC = () => {
             size="md"
             ariaLabel="Answer sheet status"
           />
-          <div className="flex space-x-4 min-w-0">
+          <div className="flex items-center space-x-4 min-w-0">
+            {/* Series input */}
+            <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Series</label>
+              <div className="flex">
+                <input
+                  type="text"
+                  value={seriesInput}
+                  onChange={(e) => setSeriesInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleSaveSeries()
+                    }
+                  }}
+                  placeholder="e.g. GGM - 31"
+                  className="w-36 px-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-l-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+                  maxLength={50}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSaveSeries()}
+                  disabled={updateSeriesMutation.isPending}
+                  className="px-2.5 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 rounded-r-md border border-blue-600 hover:border-blue-700 disabled:border-blue-400 transition-colors"
+                  title="Save series"
+                >
+                  {updateSeriesMutation.isPending ? (
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            </div>
             <Dropdown
               options={classOptions}
               value={selectedClass}
@@ -1009,15 +996,32 @@ const AnswerSheets: React.FC = () => {
                   // Used Tab - Show Centre Datesheet Entries
                   getUsedTabEntries().length > 0 ? (
                     getUsedTabEntries().map((datesheetEntry, index) => {
-                      // Find matching answer sheets used for this exam
-                      const usedSheets = entries.filter(e =>
-                        e.linkedExamDate &&
-                        new Date(e.linkedExamDate).toDateString() === new Date(datesheetEntry.examDate).toDateString() &&
-                        e.linkedSubjectCode === datesheetEntry.subjectCode
-                      )
-                      const rawTotalUsed = usedSheets.reduce((sum, e) => sum + (e.used ?? 0), 0)
                       const candidateCount = datesheetEntry.candidateCount ?? 0
-                      const totalUsed = candidateCount > 0 ? Math.min(rawTotalUsed, candidateCount) : rawTotalUsed
+
+                      // Determine if this exam date is today or in the past
+                      const examDayStart = new Date(datesheetEntry.examDate)
+                      examDayStart.setHours(0, 0, 0, 0)
+                      const todayStart = new Date()
+                      todayStart.setHours(0, 0, 0, 0)
+                      const isPastOrToday = examDayStart.getTime() <= todayStart.getTime()
+
+                      // Received = candidate count (sheets allocated for this exam)
+                      const totalReceived = candidateCount
+
+                      // Used: for past/today exams, used = candidateCount (every candidate gets a sheet)
+                      // For future exams, show whatever has been manually linked
+                      let totalUsed = 0
+                      if (isPastOrToday) {
+                        totalUsed = candidateCount
+                      } else {
+                        const usedSheets = entries.filter(e =>
+                          e.linkedExamDate &&
+                          new Date(e.linkedExamDate).toDateString() === new Date(datesheetEntry.examDate).toDateString() &&
+                          e.linkedSubjectCode === datesheetEntry.subjectCode
+                        )
+                        const rawTotalUsed = usedSheets.reduce((sum, e) => sum + (e.used ?? 0), 0)
+                        totalUsed = candidateCount > 0 ? Math.min(rawTotalUsed, candidateCount) : rawTotalUsed
+                      }
 
                       return (
                         <tr key={datesheetEntry._id} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}>
@@ -1048,11 +1052,15 @@ const AnswerSheets: React.FC = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
                             {datesheetEntry.candidateCount}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-600 dark:text-gray-400">
-                            -
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
+                            {totalReceived || 0}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600 dark:text-green-400">
-                            {editingUsedEntry === datesheetEntry._id ? (
+                            {isPastOrToday ? (
+                              <span title="Auto-set to candidate count for completed exams">
+                                {totalUsed}
+                              </span>
+                            ) : editingUsedEntry === datesheetEntry._id ? (
                               <div className="flex items-center space-x-2">
                                 <input
                                   type="number"

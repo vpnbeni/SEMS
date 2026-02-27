@@ -1349,13 +1349,13 @@ class SeatingPlanBuilder {
   }
 
   getExamName(classValue) {
-    // Class 10 = Secondary School Certificate Examination
-    // Class 12 = Sr. Secondary School Certificate Examination
+    // Class 10 = Secondary School Main Examinations
+    // Class 12 = Senior School Certificate Examinations
     const normalizedClass = String(classValue).replace(/th$/i, '');
     if (normalizedClass === '10') {
-      return 'Secondary School Certificate Examination';
+      return 'Secondary School Main Examinations';
     }
-    return 'Sr. Secondary School Certificate Examination';
+    return 'Senior School Certificate Examinations';
   }
 
   getExamYear(date) {

@@ -18,13 +18,20 @@ const {
   downloadDispatchRecord,
   addDiscardedSerials,
   removeDiscardedSerial,
-  getDiscardedSerials
+  getDiscardedSerials,
+  updateSeries,
+  getSeries
 } = require('../controllers/answerSheetController')
 
 router.use(protect)
 
 // Statistics route (must be before :id routes)
 router.get('/stats/summary', getStatistics)
+
+// Series routes (must be before :id routes)
+router.route('/series')
+  .get(getSeries)
+  .put(updateSeries)
 
 // Template routes
 router.get('/parse/template', parseTemplate)
