@@ -62,6 +62,8 @@ export const register = createAsyncThunk<AuthResponse, RegisterData>(
   }
 );
 
+const ACADEMIC_SESSION_STORAGE_KEY = 'becms-academic-session';
+
 export const logout = createAsyncThunk(
   "auth/logout",
   async (_, { rejectWithValue }) => {
@@ -70,11 +72,13 @@ export const logout = createAsyncThunk(
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
       return null;
     } catch (error: any) {
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
       return rejectWithValue(error.response?.data?.message || "Logout failed");
     }
   }
@@ -115,6 +119,7 @@ export const changePassword = createAsyncThunk<ApiResponse<null>, PasswordChange
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
       return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || "Password change failed");
@@ -145,6 +150,7 @@ const authSlice = createSlice({
       localStorage.removeItem('token');
       localStorage.removeItem('refreshToken');
       localStorage.removeItem('user');
+      localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;

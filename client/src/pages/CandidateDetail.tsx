@@ -60,6 +60,7 @@ const CandidateDetail: React.FC = () => {
   const [candidate, setCandidate] = useState<Candidate | null>(null)
   const [loading, setLoading] = useState(true)
   const [subjectSerials, setSubjectSerials] = useState<Record<string, string>>({})
+  const [serialsLoading, setSerialsLoading] = useState(false)
 
   useEffect(() => {
     if (id) {
@@ -70,6 +71,7 @@ const CandidateDetail: React.FC = () => {
   useEffect(() => {
     if (!id || !candidate?.subjects?.length) return
     let cancelled = false
+    setSerialsLoading(true)
     candidateService
       .getCandidateSubjectSerials(id)
       .then((serials) => {
@@ -81,6 +83,9 @@ const CandidateDetail: React.FC = () => {
         setSubjectSerials(map)
       })
       .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setSerialsLoading(false)
+      })
     return () => {
       cancelled = true
     }
@@ -499,7 +504,11 @@ const CandidateDetail: React.FC = () => {
                           {subject.answerSheetType ?? '—'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
-                          {subjectSerials[subject._id] ?? subject.serialNumber ?? '—'}
+                          {subjectSerials[subject._id]
+                            ? subjectSerials[subject._id]
+                            : serialsLoading
+                              ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent text-secondary-400" />
+                              : (subject.serialNumber ?? '—')}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
                           {subject.roomNo ?? '—'}

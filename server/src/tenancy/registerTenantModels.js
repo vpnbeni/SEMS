@@ -22,6 +22,7 @@ const DutyAssignment = require('../models/DutyAssignment');
 const DutySelection = require('../models/DutySelection');
 const Feedback = require('../models/Feedback');
 const SupportTicket = require('../models/SupportTicket');
+const AcademicSession = require('../models/AcademicSession');
 
 const tenantModelExports = {
   User,
@@ -48,7 +49,8 @@ const tenantModelExports = {
   DutyAssignment,
   DutySelection,
   Feedback,
-  SupportTicket
+  SupportTicket,
+  AcademicSession
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

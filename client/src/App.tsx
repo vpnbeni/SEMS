@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { HashRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { getCurrentUser, selectIsAuthenticated, selectAuthLoading } from './redux/slices/authSlice'
+import { useAcademicSession } from './contexts/AcademicSessionContext'
 import authService from './services/authService'
 import type { AppDispatch } from './redux/store'
 
@@ -33,6 +34,7 @@ import DialogShowcase from './pages/DialogShowcase'
 import Billing from './pages/Billing'
 import AccountSettings from './pages/AccountSettings'
 import HelpSupport from './pages/HelpSupport'
+import SessionSelector from './pages/SessionSelector'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -43,6 +45,7 @@ function App() {
   const dispatch = useDispatch<AppDispatch>()
   const isAuthenticated = useSelector(selectIsAuthenticated)
   const loading = useSelector(selectAuthLoading)
+  const { hasSession } = useAcademicSession()
 
   useEffect(() => {
     // Initialize auth on app startup
@@ -74,19 +77,43 @@ function App() {
           <Route
             path="/login"
             element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
+              isAuthenticated ? (
+                hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
+              ) : (
+                <Login />
+              )
             }
           />
           <Route
             path="/signup"
             element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <TenantSignupChat />
+              isAuthenticated ? (
+                hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
+              ) : (
+                <TenantSignupChat />
+              )
             }
           />
           <Route
             path="/signup/complete"
             element={
-              isAuthenticated ? <Navigate to="/dashboard" replace /> : <TenantSignupComplete />
+              isAuthenticated ? (
+                hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
+              ) : (
+                <TenantSignupComplete />
+              )
+            }
+          />
+
+          {/* Session Selection (authenticated but no session yet) */}
+          <Route
+            path="/select-session"
+            element={
+              !isAuthenticated ? (
+                <Navigate to="/login" replace />
+              ) : (
+                <SessionSelector />
+              )
             }
           />
 

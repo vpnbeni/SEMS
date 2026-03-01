@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const dutyAssignmentSchema = new mongoose.Schema(
   {
@@ -46,5 +47,7 @@ const dutyAssignmentSchema = new mongoose.Schema(
 
 dutyAssignmentSchema.index({ examDate: 1, room: 1 }, { unique: true });
 dutyAssignmentSchema.index({ examDate: 1, isActive: 1, room: 1 });
+
+dutyAssignmentSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('DutyAssignment', dutyAssignmentSchema);

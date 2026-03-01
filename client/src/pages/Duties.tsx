@@ -1322,9 +1322,10 @@ const Duties: React.FC = () => {
                 </tr>
                 {/* Dynamic Maximum Duties row */}
                 <tr>
+                  {/* Merged sticky label cell spanning all frozen columns */}
                   <th
-                    colSpan={3 + (activeTab === 'ASI' ? 1 : 0)}
-                    className="sticky left-0 z-20 min-w-[24.5rem] border border-gray-400 dark:border-gray-500 px-4 py-2 text-left text-[11px] font-semibold text-gray-700 dark:text-gray-100 uppercase tracking-wide bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]"
+                    colSpan={activeTab === 'ASI' ? 4 : 3}
+                    className="sticky left-0 z-20 border border-gray-400 dark:border-gray-500 px-4 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-100 uppercase tracking-wide whitespace-nowrap bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]"
                   >
                     {getMaxRowLabel(activeTab)}
                   </th>

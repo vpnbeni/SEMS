@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const undertakingSchema = new mongoose.Schema({
   title: {
@@ -39,5 +40,7 @@ const undertakingSchema = new mongoose.Schema({
 });
 
 undertakingSchema.index({ academicYear: 1, isActive: 1 });
+
+undertakingSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('Undertaking', undertakingSchema);

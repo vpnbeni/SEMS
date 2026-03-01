@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import toast from 'react-hot-toast'
 import { getTenantHeader, isLocalRuntime, resolveApiBaseUrl } from '@/utils/tenantRuntime'
+import { getAcademicSessionHeader } from '@/contexts/AcademicSessionContext'
 
 // API configuration
 const API_BASE_URL = resolveApiBaseUrl()
@@ -100,6 +101,11 @@ api.interceptors.request.use(
     if (config.headers) {
       if (tenantHeader) {
         config.headers['x-tenant-slug'] = tenantHeader
+      }
+
+      const sessionHeader = getAcademicSessionHeader()
+      if (sessionHeader) {
+        config.headers['x-academic-session'] = sessionHeader
       }
     }
 

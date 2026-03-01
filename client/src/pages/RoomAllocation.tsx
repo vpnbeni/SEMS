@@ -27,14 +27,21 @@ const RoomAllocation: React.FC = () => {
   const [isSavingAllocation, setIsSavingAllocation] = useState(false)
   const allocTableWrapRef = useRef<HTMLDivElement | null>(null)
 
-  // Scroll allocation table to today's column on load and whenever the date changes
+  // Scroll allocation table to the current/next exam date column on load
   useEffect(() => {
-    const todayKey = new Date().toISOString().slice(0, 10)
     const wrap = allocTableWrapRef.current
     if (!wrap || examDates.length === 0) return
-    const th = wrap.querySelector<HTMLElement>(`[data-date="${todayKey}"]`)
+
+    const todayKey = new Date().toISOString().slice(0, 10)
+
+    // Find the nearest exam date that is today or in the future
+    const targetDate = examDates.find((d) => d >= todayKey)
+      // If all dates are past, fall back to the last exam date
+      || examDates[examDates.length - 1]
+
+    const th = wrap.querySelector<HTMLElement>(`[data-date="${targetDate}"]`)
     if (th) {
-      // Scroll so the today column is visible, offset by the 3 sticky left columns width
+      // Scroll so the target column is visible, offset by the 3 sticky left columns width
       const stickyWidth = 64 + 96 + 220 // --ra-alloc-col-1 + col-2 + col-3
       wrap.scrollLeft = th.offsetLeft - stickyWidth
     }

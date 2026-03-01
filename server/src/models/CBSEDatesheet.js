@@ -1,5 +1,6 @@
 const mongoose = require('mongoose')
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const cbseDatesheetSchema = new mongoose.Schema({
   title: {
@@ -133,5 +134,7 @@ cbseDatesheetSchema.methods.getEntriesByDateRange = function (startDate, endDate
 cbseDatesheetSchema.statics.getActive = function () {
   return this.findOne({ isActive: true }).sort({ createdAt: -1 })
 }
+
+cbseDatesheetSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('CBSEDatesheet', cbseDatesheetSchema)

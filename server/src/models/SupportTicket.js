@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const supportTicketSchema = new mongoose.Schema(
   {
@@ -42,6 +43,8 @@ const supportTicketSchema = new mongoose.Schema(
 
 supportTicketSchema.index({ createdAt: -1 });
 supportTicketSchema.index({ centreCode: 1, status: 1 });
+
+supportTicketSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('SupportTicket', supportTicketSchema);
 

@@ -47,7 +47,7 @@ const Login: React.FC = () => {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard')
+      navigate('/select-session')
     }
   }, [isAuthenticated, navigate])
 
@@ -108,7 +108,7 @@ const Login: React.FC = () => {
 
     try {
       await dispatch(login(formData)).unwrap()
-      navigate('/dashboard')
+      navigate('/select-session')
     } catch (error) {
       console.error('Login failed:', error)
     }

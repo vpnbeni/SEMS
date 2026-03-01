@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const cbseCircularSchema = new mongoose.Schema({
   title: {
@@ -32,5 +33,7 @@ const cbseCircularSchema = new mongoose.Schema({
 });
 
 cbseCircularSchema.index({ publishDate: -1, createdAt: -1 });
+
+cbseCircularSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('CBSECircular', cbseCircularSchema);

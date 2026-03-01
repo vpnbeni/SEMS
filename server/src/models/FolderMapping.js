@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const folderMappingSchema = new mongoose.Schema({
   dateSheet: {
@@ -403,5 +404,7 @@ folderMappingSchema.methods.generateBarcode = function() {
   
   return this.save();
 };
+
+folderMappingSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('FolderMapping', folderMappingSchema);

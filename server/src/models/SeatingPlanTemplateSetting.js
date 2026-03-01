@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const cbseCopySchema = new mongoose.Schema({
   infoCol1Width: { type: Number, default: 20 },
@@ -120,5 +121,7 @@ const seatingPlanTemplateSettingSchema = new mongoose.Schema({
 });
 
 seatingPlanTemplateSettingSchema.index({ updatedAt: -1 });
+
+seatingPlanTemplateSettingSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('SeatingPlanTemplateSetting', seatingPlanTemplateSettingSchema);

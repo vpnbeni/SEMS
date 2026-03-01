@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const centreDetailSchema = new mongoose.Schema({
   centreNo: {
@@ -83,5 +84,7 @@ const centreDetailSchema = new mongoose.Schema({
 });
 
 centreDetailSchema.index({ updatedAt: -1 });
+
+centreDetailSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('CentreDetail', centreDetailSchema);

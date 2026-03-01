@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { DISPATCH_STATUS } = require('../utils/constants');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const answerSheetDispatchSchema = new mongoose.Schema({
   dateSheet: {
@@ -582,5 +583,7 @@ answerSheetDispatchSchema.methods.updateInsurance = function(insuranceData) {
   this.insurance = { ...this.insurance, ...insuranceData };
   return this.save();
 };
+
+answerSheetDispatchSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('AnswerSheetDispatch', answerSheetDispatchSchema);

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const candidateSchema = new mongoose.Schema({
   name: {
@@ -120,6 +121,9 @@ const candidateSchema = new mongoose.Schema({
 // Indexes for better performance
 candidateSchema.index({ rollNumber: 1 });
 candidateSchema.index({ status: 1 });
+candidateSchema.index({ academicSession: 1, rollNumber: 1 });
+
+candidateSchema.plugin(academicSessionPlugin);
 
 // Virtual for full name display
 candidateSchema.virtual('displayName').get(function() {

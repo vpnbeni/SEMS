@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { logout, selectUser } from '../../redux/slices/authSlice'
 import type { AppDispatch } from '../../redux/store'
 import api from '../../services/api'
+import { useAcademicSession } from '../../contexts/AcademicSessionContext'
 
 type SidebarCount = number | null
 
@@ -85,6 +86,8 @@ const Sidebar: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
   const currentUser = useSelector(selectUser)
   const location = useLocation()
+  const navigate = useNavigate()
+  const { currentSession, clearSession } = useAcademicSession()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
   const [counts, setCounts] = useState<SidebarCounts>(EMPTY_COUNTS)
@@ -110,6 +113,14 @@ const Sidebar: React.FC = () => {
 
   const handleLogout = () => {
     dispatch(logout())
+  }
+
+  const handleSwitchSession = () => {
+    clearSession()
+    // Clear cached sidebar counts since they are session-scoped
+    localStorage.removeItem(SIDEBAR_COUNTS_STORAGE_KEY)
+    localStorage.removeItem(SIDEBAR_COUNTS_TIME_KEY)
+    navigate('/select-session')
   }
 
   useEffect(() => {
@@ -390,6 +401,33 @@ const Sidebar: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Academic Session Indicator */}
+      {currentSession && (
+        <div className={`flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'px-2' : 'px-4'}`}>
+          <button
+            onClick={handleSwitchSession}
+            title={isCollapsed ? `Session: ${currentSession} — Click to switch` : 'Switch academic session'}
+            className={`w-full flex items-center rounded-xl border border-primary-200/50 dark:border-primary-800/50 bg-primary-50/50 dark:bg-primary-900/20 hover:bg-primary-100/60 dark:hover:bg-primary-900/30 transition-all duration-200 group ${
+              isCollapsed ? 'justify-center p-2.5' : 'px-3 py-2.5 gap-2.5'
+            }`}
+          >
+            <svg className="w-4 h-4 flex-shrink-0 text-primary-500 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            {!isCollapsed && (
+              <>
+                <span className="text-xs font-semibold text-primary-700 dark:text-primary-300 truncate">
+                  {currentSession}
+                </span>
+                <svg className="w-3.5 h-3.5 ml-auto flex-shrink-0 text-primary-400 dark:text-primary-500 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+              </>
+            )}
+          </button>
+        </div>
+      )}
 
       {/* Navigation - scrollable */}
       <nav className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden transition-all duration-300 ${isCollapsed ? 'px-3' : 'px-4'} py-2`}>

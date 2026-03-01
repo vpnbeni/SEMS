@@ -148,9 +148,12 @@ const getCandidate = asyncHandler(async (req, res) => {
     const Room = require('../models/Room');
     const DutyAssignment = require('../models/DutyAssignment');
 
+    const seatingPlanBuilder = require('../utils/seatingPlanBuilder');
+
     const cbseDatesheet = await CBSEDatesheet.getActive();
     const examDateBySubjectKey = new Map();
     const answerSheetBySubjectKey = new Map();
+    const entrySortKeyBySubjectKey = new Map();
 
     if (cbseDatesheet?.entries?.length) {
       cbseDatesheet.entries.forEach((entry) => {
@@ -164,6 +167,7 @@ const getCandidate = asyncHandler(async (req, res) => {
         if (!existing || examDate < existing) {
           examDateBySubjectKey.set(key, examDate);
           if (entry.answerSheet) answerSheetBySubjectKey.set(key, entry.answerSheet);
+          entrySortKeyBySubjectKey.set(key, seatingPlanBuilder.getEntrySortKey(entry));
         }
       });
     }
@@ -199,11 +203,11 @@ const getCandidate = asyncHandler(async (req, res) => {
 
         if (!subject.examDate || !rollNo) continue;
 
-        const examDate = new Date(subject.examDate);
-        const dateNorm = examDate.toISOString().slice(0, 10);
-        const classNum = String(subject.class || candidateData.class || '').replace(/th$/i, '');
-        const subjectCode = normalizeSubjectCode(subject.code);
-        const entrySortKey = `${dateNorm}::${String(classNum).padStart(2, '0')}::${subjectCode}`;
+        const subjectKey = buildSubjectKey(subject.code, classValue);
+        const entrySortKey = entrySortKeyBySubjectKey.get(subjectKey);
+        if (!entrySortKey) continue;
+
+        const dateNorm = new Date(subject.examDate).toISOString().slice(0, 10);
 
         const allocation = await SeatingPlanAllocation.findOne({
           rollNo,
@@ -215,7 +219,15 @@ const getCandidate = asyncHandler(async (req, res) => {
 
           const cacheKey = `${dateNorm}::${allocation.roomNo}`;
           if (!dutyCache.has(cacheKey)) {
-            const room = await Room.findOne({ roomNo: allocation.roomNo, isActive: true }).lean();
+            // The seating plan stores zero-padded roomNo (e.g. "05") while
+            // the Room document may store the unpadded value (e.g. "5").
+            // Try both variants so the lookup succeeds either way.
+            const allocRoomNo = allocation.roomNo;
+            const unpadded = /^\d+$/.test(allocRoomNo) ? String(parseInt(allocRoomNo, 10)) : allocRoomNo;
+            const roomQuery = allocRoomNo === unpadded
+              ? { roomNo: allocRoomNo, isActive: true }
+              : { roomNo: { $in: [allocRoomNo, unpadded] }, isActive: true };
+            const room = await Room.findOne(roomQuery).lean();
             let duty = null;
             if (room) {
               duty = await DutyAssignment.findOne({

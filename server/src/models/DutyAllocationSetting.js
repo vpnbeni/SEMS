@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const dutyAllocationSettingSchema = new mongoose.Schema(
   {
@@ -12,5 +13,7 @@ const dutyAllocationSettingSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+dutyAllocationSettingSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('DutyAllocationSetting', dutyAllocationSettingSchema);

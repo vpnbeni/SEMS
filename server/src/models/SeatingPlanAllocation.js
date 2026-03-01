@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const seatingPlanAllocationSchema = new mongoose.Schema(
   {
@@ -53,5 +54,7 @@ seatingPlanAllocationSchema.index(
 );
 
 seatingPlanAllocationSchema.index({ rollNo: 1, entrySortKey: 1 });
+
+seatingPlanAllocationSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('SeatingPlanAllocation', seatingPlanAllocationSchema);

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const guidelineSchema = new mongoose.Schema({
   title: {
@@ -39,5 +40,7 @@ const guidelineSchema = new mongoose.Schema({
 });
 
 guidelineSchema.index({ academicYear: 1, isActive: 1 });
+
+guidelineSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('Guideline', guidelineSchema);

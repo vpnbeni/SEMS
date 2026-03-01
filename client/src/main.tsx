@@ -7,6 +7,7 @@ import { Toaster } from 'react-hot-toast'
 import App from './App'
 import { store, persistor } from './redux/store'
 import { setStoreDispatch } from './services/api'
+import { AcademicSessionProvider } from './contexts/AcademicSessionContext'
 import './styles/globals.css'
 
 // Set up store dispatch for API interceptors
@@ -26,7 +27,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <PersistGate loading={null} persistor={persistor}>
-          <App />
+          <AcademicSessionProvider>
+            <App />
+          </AcademicSessionProvider>
         <Toaster
           position="top-right"
           toastOptions={{

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose')
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 /**
  * Answer Sheet Model
@@ -362,5 +363,7 @@ answerSheetSchema.methods.addDiscardedRange = function(fromSerial, toSerial, rea
   
   return this.save().then(() => added)
 }
+
+answerSheetSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('AnswerSheet', answerSheetSchema)

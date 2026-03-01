@@ -16,6 +16,7 @@ const os = require('os');
 const errorHandler = require('./middleware/errorHandler');
 const { billingEntitlementMiddleware } = require('./middleware/billingEntitlement');
 const { requestContextMiddleware } = require('./tenancy/requestContext');
+const { academicSessionMiddleware } = require('./middleware/academicSession');
 const { platformContextMiddleware, tenantContextMiddleware } = require('./tenancy/tenantContextMiddleware');
 
 // Import routes
@@ -41,6 +42,7 @@ const cbseCircularsRoutes = require('./routes/cbseCirculars');
 const centreDetailsRoutes = require('./routes/centreDetailsRoutes');
 const billingRoutes = require('./routes/billingRoutes');
 const supportRoutes = require('./routes/supportRoutes');
+const sessionRoutes = require('./routes/sessionRoutes');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -116,7 +118,7 @@ const corsOptions = {
     return callback(new Error('Not allowed by CORS'));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'x-tenant-slug'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-requested-with', 'x-tenant-slug', 'x-academic-session'],
   exposedHeaders: ['Content-Disposition', 'Content-Type'],
   credentials: true,
   optionsSuccessStatus: 200
@@ -229,6 +231,7 @@ app.get('/api', (req, res) => {
       undertakings: '/api/undertakings',
       billing: '/api/billing',
       support: '/api/support',
+      sessions: '/api/sessions',
       admin: '/api/admin'
       // calendar: '/api/calendar' // Temporarily disabled for debugging
     },
@@ -243,6 +246,7 @@ app.use('/api/admin', platformContextMiddleware, adminRoutes);
 const tenantScopedRouter = express.Router();
 tenantScopedRouter.use(tenantContextMiddleware);
 tenantScopedRouter.use(billingEntitlementMiddleware);
+tenantScopedRouter.use(academicSessionMiddleware);
 tenantScopedRouter.use('/auth', authRoutes);
 tenantScopedRouter.use('/teachers', teacherRoutes);
 tenantScopedRouter.use('/students', studentRoutes);
@@ -264,6 +268,7 @@ tenantScopedRouter.use('/support', supportRoutes);
 tenantScopedRouter.use('/cbse-circulars', cbseCircularsRoutes);
 tenantScopedRouter.use('/centre-details', centreDetailsRoutes);
 tenantScopedRouter.use('/billing', billingRoutes);
+tenantScopedRouter.use('/sessions', sessionRoutes);
 // tenantScopedRouter.use('/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 app.use('/api', tenantScopedRouter);

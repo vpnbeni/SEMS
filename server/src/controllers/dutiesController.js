@@ -156,86 +156,149 @@ const getDutyAllocationMode = async () => {
 
 /**
  * Rule 1 (seating): No candidate allotted same room across all exams — enforced in seatingPlanBuilder.
- * Rule 2 (duties): No invigilator allotted same candidate across all exams — enforced below via
- * hasInvigilatorCandidateOverlap and getRollNosSupervisedByFunctionaryOnOtherDates.
+ * Rule 2 (duties – CBSE rule): No invigilator (identified by unique OASIS ID) shall supervise
+ * the same candidate (identified by unique roll number) on any two exam dates.
+ *
+ * Implementation:
+ *   - Link is OASIS ID ↔ Candidate Roll Number.
+ *   - For the target date, build a map: roomId → Set<rollNo> (candidates seated in that room).
+ *   - For each invigilator in the pool, collect the Set<rollNo> they supervised on ALL other dates
+ *     (via DutyAssignment → Room → SeatingPlanAllocation).
+ *   - An invigilator is ineligible for a room if ANY candidate roll number in that room was already
+ *     supervised by the same OASIS ID on a previous date.
+ *
+ * All data is fetched in batch upfront so the backtracking solver runs purely in-memory.
  */
 
 /**
- * Get roll numbers of candidates sitting in a given room on a given exam date.
- * Used to link room allocation to candidates (from SeatingPlanAllocation).
+ * Build a map of roomId → Set<rollNo> for candidates seated in each room on the given date.
+ * Single batch query — no per-room calls.
  */
-const getRollNosInRoomOnDate = async (examDateKey, roomNo) => {
-  if (!examDateKey || !normalizeRoomNo(roomNo)) return new Set();
-  const allocations = await SeatingPlanAllocation.find({
-    examDate: examDateKey,
-    roomNo: normalizeRoomNo(roomNo),
-  })
-    .select('rollNo')
+const buildRollNosByRoomForDate = async (examDateKey, rooms) => {
+  const result = new Map(); // roomId (string) → Set<rollNo>
+  if (!examDateKey || !rooms?.length) return result;
+
+  // roomNo → roomId lookup
+  const roomIdByRoomNo = new Map(
+    rooms.map((r) => [normalizeRoomNo(r.roomNo), String(r._id)])
+  );
+
+  // Single query: all seating allocations for this exam date
+  const allocations = await SeatingPlanAllocation.find({ examDate: examDateKey })
+    .select('roomNo rollNo')
     .lean();
-  const set = new Set();
-  (allocations || []).forEach((a) => {
-    const r = normalizeRollNo(a?.rollNo);
-    if (r) set.add(r);
-  });
-  return set;
+
+  for (const alloc of allocations) {
+    const roomNo = normalizeRoomNo(alloc?.roomNo);
+    const roomId = roomIdByRoomNo.get(roomNo);
+    if (!roomId) continue;
+    const rollNo = normalizeRollNo(alloc?.rollNo);
+    if (!rollNo) continue;
+    if (!result.has(roomId)) result.set(roomId, new Set());
+    result.get(roomId).add(rollNo);
+  }
+  return result;
 };
 
 /**
- * Get all roll numbers that a functionary has already supervised on any other exam date.
- * Used to enforce Rule 2: No invigilator shall be allotted the same candidate across all exams.
+ * For a set of invigilator IDs, batch-compute the set of candidate roll numbers each one has
+ * already supervised on any date OTHER than excludeDateKey.
+ *
+ * Returns: Map<functionaryIdString, Set<rollNo>>
+ *
+ * Steps:
+ *   1. Find ALL DutyAssignment records on other dates where any pool invigilator is assigned.
+ *   2. Collect the distinct (date, roomNo) pairs from those assignments.
+ *   3. Batch-fetch all SeatingPlanAllocation records for those (date, roomNo) pairs.
+ *   4. Map roll numbers back to each invigilator.
  */
-const getRollNosSupervisedByFunctionaryOnOtherDates = async (functionaryId, excludeDateKey) => {
-  if (!functionaryId || !excludeDateKey) return new Set();
-  const excludeDate = normalizeExamDate(excludeDateKey);
-  if (!excludeDate) return new Set();
+const buildSupervisedRollNosByFunctionary = async (functionaryIds, excludeDateKey) => {
+  const supervised = new Map(); // functionaryId → Set<rollNo>
+  for (const id of functionaryIds) supervised.set(String(id), new Set());
 
+  if (!functionaryIds.length || !excludeDateKey) return supervised;
+
+  const excludeDate = normalizeExamDate(excludeDateKey);
+  if (!excludeDate) return supervised;
+
+  // Step 1: All duty assignments for pool invigilators on OTHER dates
   const otherAssignments = await DutyAssignment.find({
     isActive: true,
     examDate: { $ne: excludeDate },
     $or: [
-      { functionary: functionaryId },
-      { functionary2: functionaryId },
+      { functionary: { $in: functionaryIds } },
+      { functionary2: { $in: functionaryIds } },
     ],
   })
-    .select('examDate room')
+    .select('examDate room functionary functionary2')
     .lean();
 
-  if (!otherAssignments.length) return new Set();
+  if (!otherAssignments.length) return supervised;
 
+  // Step 2: Collect unique roomIds; resolve roomNo
   const roomIds = [...new Set(otherAssignments.map((a) => String(a?.room)).filter(Boolean))];
   const rooms = await Room.find({ _id: { $in: roomIds } }).select('_id roomNo').lean();
-  const roomNoById = new Map(rooms.map((r) => [String(r._id), normalizeRoomNo(r?.roomNo)]));
+  const roomNoById = new Map(rooms.map((r) => [String(r._id), normalizeRoomNo(r.roomNo)]));
 
-  const allRollNos = new Set();
-  const dateRoomPairs = new Set();
+  // Build (dateKey, roomNo) → [functionaryId, ...] mapping
+  // and collect unique (dateKey, roomNo) pairs for batch SeatingPlan query
+  const pairToFuncIds = new Map(); // "dateKey::roomNo" → Set<functionaryId>
+  const dateKeys = new Set();
+
   for (const a of otherAssignments) {
     const roomNo = roomNoById.get(String(a.room));
     if (!roomNo) continue;
-    const d = a.examDate instanceof Date ? a.examDate.toISOString().slice(0, 10) : String(a.examDate).slice(0, 10);
+    const d = a.examDate instanceof Date
+      ? a.examDate.toISOString().slice(0, 10)
+      : String(a.examDate).slice(0, 10);
     if (!d) continue;
-    dateRoomPairs.add(`${d}::${roomNo}`);
+
+    const pairKey = `${d}::${roomNo}`;
+    if (!pairToFuncIds.has(pairKey)) pairToFuncIds.set(pairKey, new Set());
+    dateKeys.add(d);
+
+    const fn1 = String(a.functionary || '');
+    const fn2 = String(a.functionary2 || '');
+    if (fn1 && supervised.has(fn1)) pairToFuncIds.get(pairKey).add(fn1);
+    if (fn2 && supervised.has(fn2)) pairToFuncIds.get(pairKey).add(fn2);
   }
 
-  for (const pair of dateRoomPairs) {
-    const [dateKey, roomNo] = pair.split('::');
-    const rollNos = await getRollNosInRoomOnDate(dateKey, roomNo);
-    rollNos.forEach((r) => allRollNos.add(r));
-  }
-  return allRollNos;
-};
+  if (pairToFuncIds.size === 0) return supervised;
 
-/**
- * Rule 2: Returns true if this functionary would supervise any candidate they already supervised
- * on another exam day — such an assignment is disallowed (assign a different room).
- */
-const hasInvigilatorCandidateOverlap = async (functionaryId, roomNo, examDateKey) => {
-  const rollNosInRoom = await getRollNosInRoomOnDate(examDateKey, roomNo);
-  if (rollNosInRoom.size === 0) return false;
-  const rollNosOtherDays = await getRollNosSupervisedByFunctionaryOnOtherDates(functionaryId, examDateKey);
-  for (const r of rollNosInRoom) {
-    if (rollNosOtherDays.has(r)) return true;
+  // Step 3: Batch-fetch all SeatingPlanAllocation records for those dates
+  const allAllocations = await SeatingPlanAllocation.find({
+    examDate: { $in: [...dateKeys] },
+  })
+    .select('examDate roomNo rollNo')
+    .lean();
+
+  // Index allocations by "dateKey::roomNo" for fast lookup
+  const allocsByPair = new Map(); // "dateKey::roomNo" → rollNo[]
+  for (const alloc of allAllocations) {
+    const roomNo = normalizeRoomNo(alloc?.roomNo);
+    const dateKey = String(alloc?.examDate || '').slice(0, 10);
+    if (!roomNo || !dateKey) continue;
+    const pairKey = `${dateKey}::${roomNo}`;
+    if (!pairToFuncIds.has(pairKey)) continue; // skip irrelevant pairs
+    const rollNo = normalizeRollNo(alloc?.rollNo);
+    if (!rollNo) continue;
+    if (!allocsByPair.has(pairKey)) allocsByPair.set(pairKey, []);
+    allocsByPair.get(pairKey).push(rollNo);
   }
-  return false;
+
+  // Step 4: Map roll numbers back to each invigilator
+  for (const [pairKey, funcIdSet] of pairToFuncIds) {
+    const rollNos = allocsByPair.get(pairKey);
+    if (!rollNos?.length) continue;
+    for (const funcId of funcIdSet) {
+      const set = supervised.get(funcId);
+      if (set) {
+        for (const r of rollNos) set.add(r);
+      }
+    }
+  }
+
+  return supervised;
 };
 
 const buildRoomCandidateSchoolCodes = async (examDateKey, rooms = []) => {
@@ -373,20 +436,40 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
       });
     }
 
-    // Pre-compute per-invigilator, per-room eligibility so backtracking doesn't
-    // need to await inside the recursive stack (all async work done upfront).
+    // ── Batch pre-compute all data needed for the eligibility matrix ────
+    // 1. Candidate roll numbers seated in each room TODAY
+    const rollNosByRoom = await buildRollNosByRoomForDate(examDateKey, sortedRooms);
+
+    // 2. Roll numbers each invigilator (OASIS ID) already supervised on OTHER dates
+    const poolIds = pool.map((fn) => fn._id);
+    const supervisedByFunc = await buildSupervisedRollNosByFunctionary(poolIds, examDateKey);
+
+    // ── Build eligibility matrix purely in-memory ───────────────────────
     // eligible[funcIdx][roomIdx] = true means this invigilator can be placed in that room.
-    const eligible = await Promise.all(
-      pool.map((fn) =>
-        Promise.all(
-          sortedRooms.map(async (room) => {
-            if (hasSchoolConflict(room._id, fn)) return false;
-            if (await hasInvigilatorCandidateOverlap(fn._id, room.roomNo, examDateKey)) return false;
-            return true;
-          })
-        )
-      )
-    );
+    //
+    // An invigilator is INELIGIBLE for a room if:
+    //   (a) School conflict: invigilator's schoolCode matches any candidate's schoolCode in the room, OR
+    //   (b) CBSE Rule 2 — OASIS ID ↔ Roll Number overlap: ANY candidate roll number seated
+    //       in this room today was already supervised by this invigilator on a previous date.
+    const eligible = pool.map((fn) => {
+      const funcId = String(fn._id);
+      const prevRollNos = supervisedByFunc.get(funcId) || new Set();
+
+      return sortedRooms.map((room) => {
+        // (a) School conflict
+        if (hasSchoolConflict(room._id, fn)) return false;
+
+        // (b) OASIS ID ↔ Roll Number overlap
+        const roomRollNos = rollNosByRoom.get(String(room._id));
+        if (roomRollNos && prevRollNos.size > 0) {
+          for (const rollNo of roomRollNos) {
+            if (prevRollNos.has(rollNo)) return false;
+          }
+        }
+
+        return true;
+      });
+    });
     // Backtracking assignment: fills rooms[roomIdx] with two invigilators from pool.
     // assigned[funcIdx] = true means this invigilator is already used.
     // firstResult[roomIdx] / secondResult[roomIdx] store chosen invigilator indices.

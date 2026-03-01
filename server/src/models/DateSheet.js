@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { STUDENT_CLASSES, DATESHEET_STATUS, TIME_SLOTS } = require('../utils/constants');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const dateSheetSchema = new mongoose.Schema({
   title: {
@@ -196,6 +197,8 @@ dateSheetSchema.index({ 'subjects.examDate': 1 });
 // Compound indexes
 dateSheetSchema.index({ class: 1, examType: 1, academicYear: 1 });
 dateSheetSchema.index({ status: 1, isActive: 1 });
+
+dateSheetSchema.plugin(academicSessionPlugin);
 
 // Virtual for total examination days
 dateSheetSchema.virtual('totalDays').get(function() {

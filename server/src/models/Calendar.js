@@ -1,5 +1,6 @@
 const mongoose = require('mongoose')
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const calendarSchema = new mongoose.Schema({
   year: {
@@ -88,5 +89,7 @@ calendarSchema.statics.generateYearCalendar = function(year) {
   
   return dates
 }
+
+calendarSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('Calendar', calendarSchema)

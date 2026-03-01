@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { STUDENT_CLASSES, REGEX_PATTERNS } = require('../utils/constants');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const subjectSchema = new mongoose.Schema({
   name: {
@@ -317,5 +318,7 @@ subjectSchema.post('findOneAndUpdate', async function(doc) {
     console.error('Error updating datesheet entries:', error);
   }
 });
+
+subjectSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('Subject', subjectSchema);

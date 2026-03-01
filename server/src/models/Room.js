@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
+const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
 const roomSchema = new mongoose.Schema({
   roomNo: {
@@ -36,5 +37,7 @@ const roomSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+roomSchema.plugin(academicSessionPlugin);
 
 module.exports = createContextModelProxy('Room', roomSchema);
