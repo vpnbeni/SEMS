@@ -178,8 +178,30 @@ exports.parseGuidelines = async (req, res) => {
     }
 
     let parsed = null;
+    let _debug = {};
     try {
+      _debug.bufferSize = dataBuffer.length;
+      _debug.headerBytes = dataBuffer.subarray(0, 20).toString('utf8');
       parsed = await parseGuidelinesPdf(dataBuffer);
+      _debug.pages = parsed?.metadata?.pages;
+      _debug.chaptersCount = parsed?.structure?.chapters?.length;
+      _debug.appendicesCount = parsed?.structure?.appendices?.length;
+      if (parsed?.structure?.chapters?.length === 0) {
+        _debug.textSnippet = (parsed?.fullText || '').substring(0, 2000);
+      }
+      // Write debug info + full text to a temp file for diagnostics
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const debugPath = path.join(__dirname, '..', '..', '_parse_debug.json');
+        fs.writeFileSync(debugPath, JSON.stringify({
+          _debug,
+          chaptersFound: parsed?.structure?.chapters?.map(c => ({ number: c.number, title: c.title, startPage: c.startPage })),
+          appendicesFound: parsed?.structure?.appendices?.map(a => ({ letter: a.letter, title: a.title, startPage: a.startPage })),
+          textFirst5000: (parsed?.fullText || '').substring(0, 5000),
+          textLength: (parsed?.fullText || '').length,
+        }, null, 2));
+      } catch (e) { /* ignore file write errors */ }
     } catch (parseError) {
       console.warn('Guidelines parse failed; returning fallback structure:', parseError.message);
       parsed = {
@@ -199,7 +221,8 @@ exports.parseGuidelines = async (req, res) => {
 
     res.json({
       success: true,
-      data: parsed
+      data: parsed,
+      _debug,
     });
   } catch (error) {
     console.error('Parse error:', error);

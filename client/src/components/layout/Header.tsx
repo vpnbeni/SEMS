@@ -131,6 +131,13 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
+      case 'school-hub':
+        return {
+          pageTitle: 'School Hub',
+          pageSubtitle: 'All school management modules at a glance',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
       case 'cbse-circulars':
         return {
           pageTitle: 'CBSE Circulars',

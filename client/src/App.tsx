@@ -26,6 +26,7 @@ import AnswerSheets from './pages/AnswerSheets'
 import CentreGuidelines from './pages/CentreGuidelines'
 import CBSECirculars from './pages/CBSECirculars'
 import CBSEPortals from './pages/CBSEPortals'
+import SchoolHub from './pages/SchoolHub'
 import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
 import AnswerSheetDetails from './pages/AnswerSheetDetails'
@@ -122,6 +123,7 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
+              <Route path="school-hub" element={<SchoolHub />} />
               <Route path="centre-details" element={<CentreDetails />} />
               <Route path="exam-functionaries" element={<Teachers />} />
               <Route path="exam-functionaries/:id" element={<TeacherDetail />} />
