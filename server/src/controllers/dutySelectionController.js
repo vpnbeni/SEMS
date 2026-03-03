@@ -115,9 +115,31 @@ const updateDutyAllocationMode = asyncHandler(async (req, res) => {
     );
 });
 
+/**
+ * @desc    Get total duty selection counts grouped by dutyType
+ * @route   GET /api/duties/selections/counts
+ * @access  Private
+ */
+const getDutySelectionCounts = asyncHandler(async (_req, res) => {
+    const counts = await DutySelection.aggregate([
+        { $group: { _id: '$dutyType', total: { $sum: 1 } } },
+    ]);
+
+    // Return as a map: { "Invigilator": 38, "Centre Superintendent": 5, ... }
+    const countMap = {};
+    for (const entry of counts) {
+        countMap[entry._id] = entry.total;
+    }
+
+    res.status(HTTP_STATUS.OK).json(
+        generateResponse(true, 'Duty selection counts fetched', countMap)
+    );
+});
+
 module.exports = {
     getDutySelections,
     saveDutySelections,
     getDutyAllocationMode,
     updateDutyAllocationMode,
+    getDutySelectionCounts,
 };

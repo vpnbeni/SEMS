@@ -30,6 +30,7 @@ import SchoolHub from './pages/SchoolHub'
 import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
 import AnswerSheetDetails from './pages/AnswerSheetDetails'
+import Attendance from './pages/Attendance'
 import DropdownExamples from './pages/DropdownExamples'
 import DialogShowcase from './pages/DialogShowcase'
 import Billing from './pages/Billing'
@@ -144,6 +145,7 @@ function App() {
               <Route path="rooms" element={<Navigate to="/examrooms" replace />} />
               <Route path="answersheets" element={<AnswerSheets />} />
               <Route path="answersheets/:id" element={<AnswerSheetDetails />} />
+              <Route path="attendance" element={<Attendance />} />
               <Route path="centre-guidelines" element={<CentreGuidelines />} />
               <Route path="cbse-circulars" element={<CBSECirculars />} />
               <Route path="cbse-portals" element={<CBSEPortals />} />

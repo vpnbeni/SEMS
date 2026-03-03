@@ -91,7 +91,8 @@ const uploadDocumentToCloudinary = async (filePathOrBuffer, folder, publicId = n
     };
   } catch (error) {
     console.error('Cloudinary document upload error:', error);
-    throw new Error('Failed to upload document to Cloudinary');
+    const msg = error?.message || error?.http_code || 'Unknown Cloudinary error';
+    throw new Error(`Failed to upload document to Cloudinary: ${msg}`);
   }
 };
 

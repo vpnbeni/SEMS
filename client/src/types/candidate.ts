@@ -21,6 +21,7 @@ export interface Candidate {
   department?: string
   status: 'active' | 'inactive' | 'graduated' | 'suspended'
   admissionDate?: string
+  photoUrl?: string
   subjects?: Array<{ _id: string; name: string; code: string }>
   subjectCodes?: string[]
   importedFrom?: {

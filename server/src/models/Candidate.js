@@ -103,6 +103,15 @@ const candidateSchema = new mongoose.Schema({
     cloudinaryUrl: String,
     cloudinaryPublicId: String
   },
+  // Candidate photo (extracted from attendance sheet PDF)
+  photoUrl: {
+    type: String,
+    trim: true,
+  },
+  photoPublicId: {
+    type: String,
+    trim: true,
+  },
   // Additional metadata
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import CandidateTable from '../components/candidates/CandidateTable'
@@ -44,13 +44,20 @@ const Candidates: React.FC = () => {
   })
   const [showFilterPanel, setShowFilterPanel] = useState(false)
 
+  // Debounce search input so the API query fires only after the user stops typing
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filters.search), 350)
+    return () => clearTimeout(timer)
+  }, [filters.search])
+
   const classTabId: ClassTabId = filters.class === '' ? 'all' : (filters.class === '10th' ? '10th' : '12th')
 
   const queryParams = useMemo(
     () => ({
       page,
       limit: pageSize,
-      ...(filters.search && { search: filters.search }),
+      ...(debouncedSearch && { search: debouncedSearch }),
       ...(filters.class && { class: filters.class }),
       ...(filters.schoolCode && { schoolCode: filters.schoolCode }),
       ...(filters.subjectCode && { subjectCode: filters.subjectCode }),
@@ -58,12 +65,12 @@ const Candidates: React.FC = () => {
       ...(filters.pwd && { pwd: filters.pwd }),
       ...(filters.medium && { medium: filters.medium }),
     }),
-    [page, pageSize, filters]
+    [page, pageSize, debouncedSearch, filters]
   )
 
   const statsParams = useMemo(
     () => ({
-      ...(filters.search && { search: filters.search }),
+      ...(debouncedSearch && { search: debouncedSearch }),
       ...(filters.class && { class: filters.class }),
       ...(filters.schoolCode && { schoolCode: filters.schoolCode }),
       ...(filters.subjectCode && { subjectCode: filters.subjectCode }),
@@ -71,7 +78,7 @@ const Candidates: React.FC = () => {
       ...(filters.pwd && { pwd: filters.pwd }),
       ...(filters.medium && { medium: filters.medium }),
     }),
-    [filters]
+    [debouncedSearch, filters]
   )
 
   const { data, isLoading: loading } = useCandidates(queryParams)
@@ -345,7 +352,7 @@ const Candidates: React.FC = () => {
               </div>
               <input
                 type="text"
-                placeholder="Search candidates..."
+                placeholder="Search by name or roll number..."
                 value={filters.search}
                 onChange={(e) => handleFilterChange({ ...filters, search: e.target.value })}
                 className="block w-full pl-10 pr-3 py-2 border-2 border-secondary-300 dark:border-secondary-600 rounded-lg bg-white dark:bg-secondary-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-0 focus:border-primary-500 dark:focus:border-primary-400 text-sm"

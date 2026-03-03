@@ -23,6 +23,7 @@ const DutySelection = require('../models/DutySelection');
 const Feedback = require('../models/Feedback');
 const SupportTicket = require('../models/SupportTicket');
 const AcademicSession = require('../models/AcademicSession');
+const { AttendanceRecord, AttendanceUpload } = require('../models/AttendanceRecord');
 
 const tenantModelExports = {
   User,
@@ -50,7 +51,9 @@ const tenantModelExports = {
   DutySelection,
   Feedback,
   SupportTicket,
-  AcademicSession
+  AcademicSession,
+  AttendanceRecord,
+  AttendanceUpload
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

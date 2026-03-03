@@ -10,6 +10,7 @@ const {
   useAnswerSheets,
   discardAnswerSheets,
   getStatistics,
+  getDailySummary,
   parseTemplate,
   downloadTemplate,
   uploadExcel,
@@ -27,6 +28,9 @@ router.use(protect)
 
 // Statistics route (must be before :id routes)
 router.get('/stats/summary', getStatistics)
+
+// Daily allocation summary for dashboard (must be before :id routes)
+router.get('/daily-summary', getDailySummary)
 
 // Series routes (must be before :id routes)
 router.route('/series')

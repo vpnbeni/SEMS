@@ -30,6 +30,7 @@ export interface DailyDutiesResponse {
   totalAssigned: number
   totalRooms?: number
   roomCandidateSchoolCodes?: Record<string, string[]>
+  roomSchoolNames?: Record<string, string[]>
 }
 
 const getDailyDuties = async (examDate: string): Promise<DailyDutiesResponse> => {
@@ -75,6 +76,12 @@ const downloadFunctionaryDutyRecord = async (examDate: string): Promise<Blob> =>
   return response.data
 }
 
+/** Fetch total duty selection counts grouped by dutyType */
+const getDutySelectionCounts = async (): Promise<Record<string, number>> => {
+  const response = await api.get('/duties/selections/counts')
+  return response.data?.data ?? {}
+}
+
 const dutiesService = {
   getDailyDuties,
   assignDailyDuties,
@@ -83,6 +90,7 @@ const dutiesService = {
   getDutyAllocationMode,
   updateDutyAllocationMode,
   downloadFunctionaryDutyRecord,
+  getDutySelectionCounts,
 }
 
 export default dutiesService

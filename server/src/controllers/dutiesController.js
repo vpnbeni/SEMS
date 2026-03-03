@@ -37,18 +37,26 @@ const normalizeExamDate = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return null;
 
+  // YYYY-MM-DD
   const fromIso = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  let date;
   if (fromIso) {
-    date = new Date(`${fromIso[1]}-${fromIso[2]}-${fromIso[3]}T00:00:00.000Z`);
-  } else {
-    const parsed = new Date(raw);
-    if (Number.isNaN(parsed.getTime())) return null;
-    date = new Date(
-      Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate(), 0, 0, 0, 0)
-    );
+    const date = new Date(`${fromIso[1]}-${fromIso[2]}-${fromIso[3]}T00:00:00.000Z`);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
+  // DD.MM.YYYY
+  const fromDot = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (fromDot) {
+    const date = new Date(`${fromDot[3]}-${fromDot[2]}-${fromDot[1]}T00:00:00.000Z`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  // Fallback: try native Date parsing
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const date = new Date(
+    Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate(), 0, 0, 0, 0)
+  );
   if (Number.isNaN(date.getTime())) return null;
   return date;
 };
@@ -350,6 +358,54 @@ const buildRoomCandidateSchoolCodes = async (examDateKey, rooms = []) => {
   );
 };
 
+/**
+ * Build a mapping of roomNo -> school names for display purposes.
+ * Uses SeatingPlanAllocation to find which candidates sit in which room,
+ * then looks up the school name from the Candidate collection.
+ */
+const buildRoomSchoolNames = async (examDateKey, rooms = []) => {
+  if (!rooms.length) return {};
+
+  const allocations = await SeatingPlanAllocation.find({ examDate: examDateKey })
+    .select('roomNo rollNo')
+    .lean();
+  if (!allocations.length) return {};
+
+  const rollNumbers = Array.from(
+    new Set(allocations.map((entry) => normalizeRollNo(entry?.rollNo)).filter(Boolean))
+  );
+  if (rollNumbers.length === 0) return {};
+
+  const candidates = await Candidate.find({ rollNumber: { $in: rollNumbers } })
+    .select('rollNumber schoolName schoolCode')
+    .lean();
+  const schoolInfoByRollNo = new Map(
+    candidates.map((c) => [
+      normalizeRollNo(c?.rollNumber),
+      c?.schoolName || c?.schoolCode || '',
+    ])
+  );
+
+  // Build roomNo -> Set<schoolName>
+  const schoolNamesByRoomNo = {};
+  for (const allocation of allocations) {
+    const roomNo = normalizeRoomNo(allocation?.roomNo);
+    if (!roomNo) continue;
+
+    const schoolName = schoolInfoByRollNo.get(normalizeRollNo(allocation?.rollNo));
+    if (!schoolName) continue;
+
+    if (!schoolNamesByRoomNo[roomNo]) {
+      schoolNamesByRoomNo[roomNo] = new Set();
+    }
+    schoolNamesByRoomNo[roomNo].add(schoolName);
+  }
+
+  return Object.fromEntries(
+    Object.entries(schoolNamesByRoomNo).map(([roomNo, names]) => [roomNo, Array.from(names)])
+  );
+};
+
 const getDailyDuties = asyncHandler(async (req, res) => {
   const examDate = normalizeExamDate(req.query.examDate || new Date().toISOString().slice(0, 10));
   if (!examDate) {
@@ -369,7 +425,10 @@ const getDailyDuties = asyncHandler(async (req, res) => {
   const sortedDuties = [...duties].sort((a, b) => compareRoomNo(a?.room, b?.room));
   const activeRooms = await Room.find({ isActive: true }).select('_id roomNo').lean();
   const examDateKey = examDate.toISOString().slice(0, 10);
-  const roomCandidateSchoolCodes = await buildRoomCandidateSchoolCodes(examDateKey, activeRooms);
+  const [roomCandidateSchoolCodes, roomSchoolNames] = await Promise.all([
+    buildRoomCandidateSchoolCodes(examDateKey, activeRooms),
+    buildRoomSchoolNames(examDateKey, activeRooms),
+  ]);
 
   return res.status(200).json({
     success: true,
@@ -378,6 +437,7 @@ const getDailyDuties = asyncHandler(async (req, res) => {
       duties: sortedDuties,
       totalAssigned: sortedDuties.length,
       roomCandidateSchoolCodes,
+      roomSchoolNames,
     },
   });
 });

@@ -50,6 +50,7 @@ interface Candidate {
   }
   createdAt: string
   updatedAt: string
+  photoUrl?: string
   createdBy?: { name: string; email: string }
   updatedBy?: { name: string; email: string }
 }
@@ -194,6 +195,19 @@ const CandidateDetail: React.FC = () => {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
       </svg>
       </button>
+      {candidate.photoUrl ? (
+        <img
+          src={candidate.photoUrl}
+          alt={candidate.name}
+          className="w-14 h-14 rounded-full object-cover border-2 border-secondary-200 dark:border-secondary-600"
+        />
+      ) : (
+        <div className="w-14 h-14 rounded-full bg-secondary-200 dark:bg-secondary-700 flex items-center justify-center">
+          <svg className="w-7 h-7 text-secondary-400 dark:text-secondary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
+        </div>
+      )}
       <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {candidate.name}
@@ -548,6 +562,22 @@ const CandidateDetail: React.FC = () => {
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Candidate Photo */}
+          {candidate.photoUrl && (
+            <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Candidate Photo
+              </h2>
+              <div className="flex justify-center">
+                <img
+                  src={candidate.photoUrl}
+                  alt={candidate.name}
+                  className="w-48 h-auto rounded-lg border border-secondary-200 dark:border-secondary-600 shadow-sm object-contain"
+                />
+              </div>
+            </div>
+          )}
+
           {/* Import Information */}
           {candidate.importedFrom && (
             <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">

@@ -74,7 +74,7 @@ const ExamCard: React.FC<{ exam: TodaysExam }> = ({ exam }) => {
             <span>{exam.timeSlot?.start || '10:30'} - {exam.timeSlot?.end || '13:30'}</span>
           </div>
           <div className="text-secondary-500 dark:text-secondary-400">
-            {exam.duration ? `${exam.duration} min` : ''}
+            {exam.duration ? `${exam.duration} hr` : ''}
           </div>
         </div>
 

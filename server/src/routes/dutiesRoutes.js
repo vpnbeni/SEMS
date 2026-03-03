@@ -10,6 +10,7 @@ const {
   saveDutySelections,
   getDutyAllocationMode,
   updateDutyAllocationMode,
+  getDutySelectionCounts,
 } = require('../controllers/dutySelectionController');
 
 const router = express.Router();
@@ -21,6 +22,7 @@ router.post('/assign', authorize('admin', 'staff'), assignDailyDuties);
 router.get('/functionary-duty-record', downloadFunctionaryDutyRecord);
 
 // Duty selections (pre-assignment)
+router.get('/selections/counts', getDutySelectionCounts);
 router.get('/selections', getDutySelections);
 router.post('/selections', authorize('admin', 'staff'), saveDutySelections);
 router.get('/allocation-mode', getDutyAllocationMode);

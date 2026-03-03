@@ -43,6 +43,7 @@ const centreDetailsRoutes = require('./routes/centreDetailsRoutes');
 const billingRoutes = require('./routes/billingRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
+const attendanceRoutes = require('./routes/attendanceRoutes');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -232,6 +233,7 @@ app.get('/api', (req, res) => {
       billing: '/api/billing',
       support: '/api/support',
       sessions: '/api/sessions',
+      attendance: '/api/attendance',
       admin: '/api/admin'
       // calendar: '/api/calendar' // Temporarily disabled for debugging
     },
@@ -269,6 +271,7 @@ tenantScopedRouter.use('/cbse-circulars', cbseCircularsRoutes);
 tenantScopedRouter.use('/centre-details', centreDetailsRoutes);
 tenantScopedRouter.use('/billing', billingRoutes);
 tenantScopedRouter.use('/sessions', sessionRoutes);
+tenantScopedRouter.use('/attendance', attendanceRoutes);
 // tenantScopedRouter.use('/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 app.use('/api', tenantScopedRouter);

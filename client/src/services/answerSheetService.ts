@@ -65,6 +65,34 @@ export interface AnswerSheetStats {
   }>
 }
 
+export interface DailySummaryEntry {
+  answerSheetId: string
+  answerSheetType: string
+  pages: number
+  colour: string
+  serialFrom: string
+  serialTo: string
+  sheetsAllocated: number
+  candidateCount: number
+  subjectCode: string
+  subjectName: string
+  insufficientSheets: boolean
+}
+
+export interface DailySummaryClassData {
+  entries: DailySummaryEntry[]
+  totalAllocated: number
+  totalDiscarded: number
+  totalInventory: number
+  serialFrom: string
+  serialTo: string
+}
+
+export interface DailySummaryResponse {
+  date: string
+  classes: Record<string, DailySummaryClassData>
+}
+
 class AnswerSheetService {
 
   /**
@@ -251,6 +279,14 @@ class AnswerSheetService {
    */
   async updateSeries(series: string): Promise<{ success: boolean; data: { series: string | null; modifiedCount: number } }> {
     const response = await api.put('/answersheets/series', { series })
+    return response.data
+  }
+
+  /**
+   * Get daily answer-sheet allocation summary for a specific date
+   */
+  async getDailySummary(date: string): Promise<{ success: boolean; data: DailySummaryResponse }> {
+    const response = await api.get(`/answersheets/daily-summary?date=${date}`)
     return response.data
   }
 }

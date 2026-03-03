@@ -1477,4 +1477,114 @@ exports.getSeries = async (req, res) => {
   }
 }
 
+/**
+ * @desc    Get daily answer-sheet allocation summary for a specific date
+ * @route   GET /api/answersheets/daily-summary?date=YYYY-MM-DD
+ * @access  Private
+ *
+ * For each active answer sheet, computes serial allocation using the existing
+ * getSerialAllocationDataForAnswerSheet() helper, picks the allocation entry
+ * that matches the requested date, and returns a per-class summary.
+ */
+exports.getDailySummary = async (req, res) => {
+  try {
+    const { date } = req.query
+    if (!date) {
+      return res.status(400).json({ success: false, error: 'date query parameter is required (YYYY-MM-DD)' })
+    }
+
+    const targetDate = new Date(date)
+    if (Number.isNaN(targetDate.getTime())) {
+      return res.status(400).json({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' })
+    }
+
+    // Normalize to midnight UTC for comparison
+    const targetDay = date // keep as string for comparison
+
+    const sheets = await AnswerSheet.find({ isActive: true }).lean()
+    if (!sheets.length) {
+      return res.status(200).json({
+        success: true,
+        data: { date: targetDay, classes: {} }
+      })
+    }
+
+    // Build summary grouped by normalized class (10 / 12)
+    // Each class → { entries: [{ answerSheetType, pages, colour, serialFrom, serialTo, sheetsAllocated, candidateCount, subjectCode, subjectName }], totalAllocated, totalDiscarded }
+    const classSummary = {}
+
+    for (const sheet of sheets) {
+      const allocationData = await getSerialAllocationDataForAnswerSheet(sheet)
+      if (!allocationData.hasSerialNumbers || !allocationData.allocations.length) continue
+
+      // Find allocations that match the target date
+      const dayAllocations = allocationData.allocations.filter(a => {
+        const allocDate = new Date(a.examDate).toISOString().split('T')[0]
+        return allocDate === targetDay
+      })
+
+      if (!dayAllocations.length) continue
+
+      // Normalize class key: "10th" → "10", "12th" → "12", or keep raw
+      const rawClass = sheet.class || ''
+      const classKey = rawClass.replace(/th$/i, '')
+
+      if (!classSummary[classKey]) {
+        classSummary[classKey] = {
+          entries: [],
+          totalAllocated: 0,
+          totalDiscarded: (sheet.discardedSerials || []).length,
+          totalInventory: sheet.total || 0,
+        }
+      } else {
+        classSummary[classKey].totalDiscarded += (sheet.discardedSerials || []).length
+        classSummary[classKey].totalInventory += (sheet.total || 0)
+      }
+
+      for (const alloc of dayAllocations) {
+        classSummary[classKey].entries.push({
+          answerSheetId: sheet._id,
+          answerSheetType: sheet.answerSheetType,
+          pages: sheet.pages,
+          colour: sheet.colour,
+          serialFrom: alloc.serialFrom,
+          serialTo: alloc.serialTo,
+          sheetsAllocated: alloc.sheetsAllocated,
+          candidateCount: alloc.candidateCount,
+          subjectCode: alloc.subjectCode,
+          subjectName: alloc.subjectName,
+          insufficientSheets: alloc.insufficientSheets || false,
+        })
+        classSummary[classKey].totalAllocated += alloc.sheetsAllocated
+      }
+    }
+
+    // Compute aggregate from/to per class (overall serial range used today)
+    for (const classKey of Object.keys(classSummary)) {
+      const summary = classSummary[classKey]
+      if (summary.entries.length) {
+        const serials = summary.entries
+          .filter(e => e.serialFrom !== 'N/A')
+          .sort((a, b) => a.serialFrom.localeCompare(b.serialFrom))
+        summary.serialFrom = serials.length ? serials[0].serialFrom : '—'
+        summary.serialTo = serials.length ? serials[serials.length - 1].serialTo : '—'
+      } else {
+        summary.serialFrom = '—'
+        summary.serialTo = '—'
+      }
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: { date: targetDay, classes: classSummary }
+    })
+  } catch (error) {
+    console.error('Error getting daily answer sheet summary:', error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get daily answer sheet summary'
+    })
+  }
+}
+
 module.exports = exports

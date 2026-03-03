@@ -490,7 +490,7 @@ const Duties: React.FC = () => {
         return haystack.includes(term)
       })
     }
-    if (activeTab === 'ASI' && invigilatorDutySort !== 'none') {
+    if (invigilatorDutySort !== 'none') {
       list = [...list].sort((a, b) => {
         const aCount = checkedCountByFunctionary[a._id] || 0
         const bCount = checkedCountByFunctionary[b._id] || 0
@@ -1286,27 +1286,23 @@ const Duties: React.FC = () => {
                   <th className="sticky left-[4.5rem] z-20 w-52 min-w-52 border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]">
                     Functionary Name
                   </th>
-                  {activeTab === 'ASI' && (
-                    <th
-                      className="sticky left-[17.5rem] z-20 w-20 min-w-20 border border-gray-400 dark:border-gray-500 px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider whitespace-nowrap cursor-pointer select-none bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]"
-                      onClick={() =>
-                        setInvigilatorDutySort((prev) =>
-                          prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none'
-                        )
-                      }
-                    >
-                      Duties
-                      {invigilatorDutySort !== 'none' && (
-                        <span className="ml-1 text-[10px]">
-                          {invigilatorDutySort === 'asc' ? '↑' : '↓'}
-                        </span>
-                      )}
-                    </th>
-                  )}
                   <th
-                    className={`sticky z-20 w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)] ${
-                      activeTab === 'ASI' ? 'left-[22.5rem]' : 'left-[17.5rem]'
-                    }`}
+                    className="sticky left-[17.5rem] z-20 w-20 min-w-20 border border-gray-400 dark:border-gray-500 px-4 py-3 text-center text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider whitespace-nowrap cursor-pointer select-none bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]"
+                    onClick={() =>
+                      setInvigilatorDutySort((prev) =>
+                        prev === 'none' ? 'desc' : prev === 'desc' ? 'asc' : 'none'
+                      )
+                    }
+                  >
+                    Duties
+                    {invigilatorDutySort !== 'none' && (
+                      <span className="ml-1 text-[10px]">
+                        {invigilatorDutySort === 'asc' ? '↑' : '↓'}
+                      </span>
+                    )}
+                  </th>
+                  <th
+                    className="sticky left-[22.5rem] z-20 w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-3 text-left text-xs font-medium text-gray-600 dark:text-gray-200 uppercase tracking-wider bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]"
                   >
                     OASIS ID
                   </th>
@@ -1322,12 +1318,41 @@ const Duties: React.FC = () => {
                 </tr>
                 {/* Dynamic Maximum Duties row */}
                 <tr>
-                  {/* Merged sticky label cell spanning all frozen columns */}
+                  {/* Label cell spanning Sr No + Functionary Name */}
                   <th
-                    colSpan={activeTab === 'ASI' ? 4 : 3}
+                    colSpan={2}
                     className="sticky left-0 z-20 border border-gray-400 dark:border-gray-500 px-4 py-2 text-center text-[11px] font-semibold text-gray-700 dark:text-gray-100 uppercase tracking-wide whitespace-nowrap bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]"
                   >
                     {getMaxRowLabel(activeTab)}
+                  </th>
+                  {/* Total assigned / total max spanning Duties + OASIS ID */}
+                  <th
+                    colSpan={2}
+                    className="sticky left-[17.5rem] z-20 border border-gray-400 dark:border-gray-500 px-4 py-2 text-center text-[11px] font-semibold whitespace-nowrap bg-gray-50 dark:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.3)]"
+                  >
+                    {(() => {
+                      const totalAssigned = examDates.reduce((sum, dk) => sum + (checkedCountByDate[dk] || 0), 0)
+                      const totalMax = examDates.reduce((sum, dk) => {
+                        const rooms = Number(requiredRoomsByDate[dk] || 0)
+                        const candidates = Number(candidatesByDate[dk] || 0)
+                        return sum + computeMaxDuties(activeTab, rooms, candidates)
+                      }, 0)
+                      return (
+                        <span
+                          className={
+                            totalMax <= 0
+                              ? 'text-gray-700 dark:text-gray-100'
+                              : totalAssigned > totalMax
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : totalAssigned === totalMax
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : 'text-red-600 dark:text-red-400'
+                          }
+                        >
+                          {totalAssigned}/{totalMax}
+                        </span>
+                      )
+                    })()}
                   </th>
                   {examDates.map((dateKey) => {
                     const roomsForDate = Number(requiredRoomsByDate[dateKey] || 0)
@@ -1343,9 +1368,11 @@ const Duties: React.FC = () => {
                           className={
                             maxDuties <= 0
                               ? 'text-gray-700 dark:text-gray-100'
-                              : checked >= maxDuties
-                                ? 'text-green-600 dark:text-green-400'
-                                : 'text-red-600 dark:text-red-400'
+                              : checked > maxDuties
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : checked === maxDuties
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : 'text-red-600 dark:text-red-400'
                           }
                         >
                           {checked}/{maxDuties}
@@ -1364,17 +1391,13 @@ const Duties: React.FC = () => {
                     <td className="sticky left-[4.5rem] z-[5] w-52 min-w-52 border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]">
                       <span>{String(func.name || '').toUpperCase()}</span>
                     </td>
-                    {activeTab === 'ASI' && (
-                      <td className="sticky left-[17.5rem] z-[5] w-20 min-w-20 border border-gray-400 dark:border-gray-500 px-4 py-4 text-center text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]">
-                        {checkedCountByFunctionary[func._id] || 0}
-                      </td>
-                    )}
+                    <td className="sticky left-[17.5rem] z-[5] w-20 min-w-20 border border-gray-400 dark:border-gray-500 px-4 py-4 text-center text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]">
+                      {checkedCountByFunctionary[func._id] || 0}
+                    </td>
                     <td
-                      className={`sticky z-[5] w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)] ${
-                        activeTab === 'ASI' ? 'left-[22.5rem]' : 'left-[17.5rem]'
-                      }`}
+                      className="sticky left-[22.5rem] z-[5] w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]"
                     >
-                      {func.employeeId || '-'}
+                      {activeTab === 'CL4' ? 'N/A' : (func.employeeId || '-')}
                     </td>
                     {examDates.map((dateKey) => {
                       const key = `${func._id}::${dateKey}`
@@ -1403,7 +1426,7 @@ const Duties: React.FC = () => {
                 {filteredFunctionaries.length === 0 && (
                   <tr>
                     <td
-                      colSpan={3 + examDates.length + (activeTab === 'ASI' ? 1 : 0)}
+                      colSpan={4 + examDates.length}
                       className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
                     >
                       {allFunctionaries.length === 0

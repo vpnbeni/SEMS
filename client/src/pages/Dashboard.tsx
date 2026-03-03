@@ -1,23 +1,18 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { ExamTimeline } from '@/components/dashboard'
 import type { ExamTimelineItem } from '@/components/dashboard'
-import { useTodaysExams, useDailyDuties, useDashboardAnswerSheets } from '@/hooks/useDashboard'
+import { useTodaysExams, useDailyDuties, useDailyAnswerSheetSummary } from '@/hooks/useDashboard'
 import { useCentreDatesheetEntries } from '@/hooks/useSeatingPlan'
 import type { CentreDatesheetEntry } from '@/services/centreDatesheetService'
 import type { TodaysExamsResponse, TodaysExam } from '@/services/dashboardService'
 import type { DailyDutiesResponse } from '@/services/dutiesService'
-import type { AnswerSheetEntry } from '@/services/answerSheetService'
+import type { DailySummaryResponse, DailySummaryClassData } from '@/services/answerSheetService'
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 const todayIso = (): string => new Date().toISOString().split('T')[0]
-
-/** Convert YYYY-MM-DD to DD.MM.YYYY for duty queries */
-const isoToDotFormat = (iso: string): string => {
-  const [y, m, d] = iso.split('-')
-  return `${d}.${m}.${y}`
-}
 
 const normalizeClass = (v: string | undefined | null): 'X' | 'XII' | null => {
   if (!v) return null
@@ -46,16 +41,22 @@ const CandidateDetails: React.FC<{ data: TodaysExamsResponse }> = ({ data }) => 
   const classX = byClass('X')
   const classXII = byClass('XII')
 
-  const agg = (list: TodaysExam[]) => ({
-    subject: list.map((e) => e.subjectName).join(', ') || '\u2014',
-    code: list.map((e) => e.subjectCode).join(', ') || '\u2014',
-    duration: list[0]?.duration ? `${list[0].duration} min` : '\u2014',
-    candidates: list.reduce((s, e) => s + (e.candidateCount || 0), 0),
-    rooms: list.reduce((s, e) => s + (e.roomsUsed || 0), 0),
-    invigilators: '\u2014',
-    hindi: list.reduce((s, e) => s + (e.hindiMediumCandidateCount || 0), 0),
-    pwd: '\u2014',
-  })
+  const hasX = classX.length > 0
+  const hasXII = classXII.length > 0
+
+  const agg = (list: TodaysExam[]) => {
+    const rooms = list.reduce((s, e) => s + (e.roomsUsed || 0), 0)
+    return {
+      subject: list.map((e) => e.subjectName).join(', ') || '\u2014',
+      code: list.map((e) => e.subjectCode).join(', ') || '\u2014',
+      duration: list[0]?.duration ? `${list[0].duration} hr` : '\u2014',
+      candidates: list.reduce((s, e) => s + (e.candidateCount || 0), 0),
+      rooms,
+      invigilators: rooms > 0 ? rooms * 2 : 0,
+      hindi: list.reduce((s, e) => s + (e.hindiMediumCandidateCount || 0), 0),
+      pwd: '\u2014',
+    }
+  }
 
   const x = agg(classX)
   const xii = agg(classXII)
@@ -66,29 +67,37 @@ const CandidateDetails: React.FC<{ data: TodaysExamsResponse }> = ({ data }) => 
     { label: 'Duration', x: x.duration, xii: xii.duration },
     { label: 'No of Candidates', x: x.candidates || '\u2014', xii: xii.candidates || '\u2014' },
     { label: 'No of Rooms', x: x.rooms || '\u2014', xii: xii.rooms || '\u2014' },
-    { label: 'No of Invigilators', x: x.invigilators, xii: xii.invigilators },
+    { label: 'No of Invigilators', x: x.invigilators || '\u2014', xii: xii.invigilators || '\u2014' },
     { label: 'Hindi Medium', x: x.hindi || '\u2014', xii: xii.hindi || '\u2014' },
     { label: 'PWD', x: x.pwd, xii: xii.pwd },
   ]
 
   return (
     <div>
-      <p className={sectionTitle}>Candidate Details</p>
+      <Link
+        to="/datesheets"
+        className={sectionTitle + ' inline-flex items-center gap-1 hover:text-primary-600 dark:hover:text-primary-400 transition-colors'}
+      >
+        Candidate Details
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+        </svg>
+      </Link>
       <div className={tableWrapper}>
         <table className="w-full text-xs">
           <thead>
             <tr>
               <th className={headerCell + ' text-left'}>Detail</th>
-              <th className={headerCell + ' text-center'}>Class X</th>
-              <th className={headerCell + ' text-center'}>Class XII</th>
+              {hasX && <th className={headerCell + ' text-center'}>Class X</th>}
+              {hasXII && <th className={headerCell + ' text-center'}>Class XII</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {rows.map((r) => (
               <tr key={r.label}>
                 <td className={cell + ' font-medium'}>{r.label}</td>
-                <td className={cell + ' text-center'}>{r.x}</td>
-                <td className={cell + ' text-center'}>{r.xii}</td>
+                {hasX && <td className={cell + ' text-center'}>{r.x}</td>}
+                {hasXII && <td className={cell + ' text-center'}>{r.xii}</td>}
               </tr>
             ))}
           </tbody>
@@ -99,49 +108,45 @@ const CandidateDetails: React.FC<{ data: TodaysExamsResponse }> = ({ data }) => 
 }
 
 /** 2. PwD Candidates */
-const PwdCandidates: React.FC<{ data: TodaysExamsResponse }> = ({ data }) => {
-  // PwD data is not currently returned per-candidate by the API.
-  // Show header structure; rows will be populated when PwD data is available.
-  const hasExams = (data.exams?.length ?? 0) > 0
+const PwdCandidates: React.FC<{ data: TodaysExamsResponse }> = ({ data: _data }) => {
+  // TODO: When PwD candidate data is available from the API, render
+  // the full table with Roll No, Room No, Scribe, Sheet No, Extra Time, etc.
+  // For now, show a simple "No PwD Candidate" message.
+  const hasPwdCandidates = false // will be driven by API data once available
+
   return (
     <div>
       <p className={sectionTitle}>PwD Candidates</p>
       <div className={tableWrapper}>
-        <table className="w-full text-xs">
-          <thead>
-            <tr>
-              <th className={headerCell + ' text-left'}>Roll No</th>
-              <th className={headerCell + ' text-center'}>Room No</th>
-              <th className={headerCell + ' text-center'}>With/Without Scribe</th>
-            </tr>
-          </thead>
-          <tbody>
-            {!hasExams && (
-              <tr>
-                <td colSpan={3} className={cell + ' text-center text-gray-400'}>
-                  No PwD candidate data available
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        <table className="w-full text-xs mt-0 border-t border-gray-200 dark:border-gray-700">
-          <thead>
-            <tr>
-              <th className={headerCell + ' text-left'}>Sheet No</th>
-              <th className={headerCell + ' text-center'}>Extra Time</th>
-              <th className={headerCell + ' text-center'}>60 Minutes</th>
-              <th className={headerCell + ' text-center'}>Next Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colSpan={4} className={cell + ' text-center text-gray-400'}>
-                {hasExams ? 'Data will be available when PwD records are imported' : '\u2014'}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        {hasPwdCandidates ? (
+          <>
+            <table className="w-full text-xs">
+              <thead>
+                <tr>
+                  <th className={headerCell + ' text-left'}>Roll No</th>
+                  <th className={headerCell + ' text-center'}>Room No</th>
+                  <th className={headerCell + ' text-center'}>With/Without Scribe</th>
+                </tr>
+              </thead>
+              <tbody />
+            </table>
+            <table className="w-full text-xs mt-0 border-t border-gray-200 dark:border-gray-700">
+              <thead>
+                <tr>
+                  <th className={headerCell + ' text-left'}>Sheet No</th>
+                  <th className={headerCell + ' text-center'}>Extra Time</th>
+                  <th className={headerCell + ' text-center'}>60 Minutes</th>
+                  <th className={headerCell + ' text-center'}>Next Date</th>
+                </tr>
+              </thead>
+              <tbody />
+            </table>
+          </>
+        ) : (
+          <div className="flex items-center justify-center py-6 text-xs text-gray-400 dark:text-gray-500">
+            No PwD Candidate
+          </div>
+        )}
       </div>
     </div>
   )
@@ -210,77 +215,81 @@ const DutiesSummary: React.FC<{
 
 /** 4. Answer Sheet Detail */
 const AnswerSheetDetail: React.FC<{
-  dashData: TodaysExamsResponse
-  sheets: AnswerSheetEntry[]
-}> = ({ dashData, sheets }) => {
-  const exams = dashData.exams ?? []
+  data: TodaysExamsResponse
+  summary?: DailySummaryResponse
+  isLoading?: boolean
+}> = ({ data, summary, isLoading }) => {
+  const exams = data.exams ?? []
+  const hasX = exams.some((e) => normalizeClass(e.class) === 'X')
+  const hasXII = exams.some((e) => normalizeClass(e.class) === 'XII')
 
-  // Aggregate from dashboard data (linked to today's exam)
-  const byClassFromDash = (target: 'X' | 'XII') => {
-    const filtered = exams.filter((e) => normalizeClass(e.class) === target)
-    const details = filtered.flatMap((e) => e.answerSheetDetails ?? [])
-    if (!details.length) return { type: '\u2014', from: '\u2014', to: '\u2014', total: 0, discarded: 0 }
-    const sorted = [...details].sort((a, b) => a.serialFrom.localeCompare(b.serialFrom))
-    const total = details.reduce((s, d) => {
-      const f = parseInt(d.serialFrom.replace(/\D/g, ''), 10)
-      const t = parseInt(d.serialTo.replace(/\D/g, ''), 10)
-      return Number.isFinite(f) && Number.isFinite(t) && t >= f ? s + (t - f + 1) : s
-    }, 0)
-    return {
-      type: details[0]?.type || '\u2014',
-      from: sorted[0]?.serialFrom || '\u2014',
-      to: sorted[sorted.length - 1]?.serialTo || '\u2014',
-      total,
-      discarded: 0,
-    }
+  const getClassData = (classKey: string): DailySummaryClassData | null => {
+    if (!summary?.classes) return null
+    return summary.classes[classKey] ?? null
   }
 
-  // Also pull discarded from full answer sheet inventory if available
-  const byClassFromSheets = (target: 'X' | 'XII') => {
-    const classVal = target === 'X' ? '10' : '12'
-    const matched = sheets.filter(
-      (s) =>
-        s.class?.includes(classVal) ||
-        s.class?.toLowerCase() === target.toLowerCase()
-    )
-    return {
-      discarded: matched.reduce((s, sh) => s + (sh.discarded || 0), 0),
-    }
-  }
+  const classX = getClassData('10')
+  const classXII = getClassData('12')
 
-  const x = { ...byClassFromDash('X'), discarded: byClassFromSheets('X').discarded }
-  const xii = { ...byClassFromDash('XII'), discarded: byClassFromSheets('XII').discarded }
+  const fmt = (val: DailySummaryClassData | null, field: 'type' | 'serialFrom' | 'serialTo' | 'totalAllocated' | 'totalDiscarded'): string | number => {
+    if (!val) return '\u2014'
+    if (field === 'type') {
+      // Derive type from entries — pick the first entry's type or aggregate
+      const types = [...new Set(val.entries.map(e => `${e.answerSheetType} ${e.pages}p`))]
+      return types.length ? types.join(', ') : '\u2014'
+    }
+    if (field === 'serialFrom') return val.serialFrom || '\u2014'
+    if (field === 'serialTo') return val.serialTo || '\u2014'
+    if (field === 'totalAllocated') return val.totalAllocated || '\u2014'
+    if (field === 'totalDiscarded') return val.totalDiscarded || '\u2014'
+    return '\u2014'
+  }
 
   const rows: { label: string; x: string | number; xii: string | number }[] = [
-    { label: 'Type', x: x.type, xii: xii.type },
-    { label: 'From', x: x.from, xii: xii.from },
-    { label: 'To', x: x.to, xii: xii.to },
-    { label: 'Total', x: x.total || '\u2014', xii: xii.total || '\u2014' },
-    { label: 'Discarded', x: x.discarded || '\u2014', xii: xii.discarded || '\u2014' },
+    { label: 'Type', x: fmt(classX, 'type'), xii: fmt(classXII, 'type') },
+    { label: 'From', x: fmt(classX, 'serialFrom'), xii: fmt(classXII, 'serialFrom') },
+    { label: 'To', x: fmt(classX, 'serialTo'), xii: fmt(classXII, 'serialTo') },
+    { label: 'Total', x: fmt(classX, 'totalAllocated'), xii: fmt(classXII, 'totalAllocated') },
+    { label: 'Discarded', x: fmt(classX, 'totalDiscarded'), xii: fmt(classXII, 'totalDiscarded') },
   ]
 
   return (
     <div>
-      <p className={sectionTitle}>Answer Sheet Detail</p>
+      <Link
+        to="/answersheets"
+        className={sectionTitle + ' hover:text-blue-600 dark:hover:text-blue-400 transition-colors inline-flex items-center gap-1'}
+      >
+        Answer Sheet Detail
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </Link>
       <div className={tableWrapper}>
-        <table className="w-full text-xs">
-          <thead>
-            <tr>
-              <th className={headerCell + ' text-left'}>Detail</th>
-              <th className={headerCell + ' text-center'}>Class X</th>
-              <th className={headerCell + ' text-center'}>Class XII</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {rows.map((r) => (
-              <tr key={r.label}>
-                <td className={cell + ' font-medium'}>{r.label}</td>
-                <td className={cell + ' text-center'}>{r.x}</td>
-                <td className={cell + ' text-center'}>{r.xii}</td>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-500" />
+            <span className="ml-2 text-xs text-gray-400">Loading...</span>
+          </div>
+        ) : (
+          <table className="w-full text-xs">
+            <thead>
+              <tr>
+                <th className={headerCell + ' text-left'}>Detail</th>
+                {hasX && <th className={headerCell + ' text-center'}>Class X</th>}
+                {hasXII && <th className={headerCell + ' text-center'}>Class XII</th>}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+              {rows.map((r) => (
+                <tr key={r.label}>
+                  <td className={cell + ' font-medium'}>{r.label}</td>
+                  {hasX && <td className={cell + ' text-center'}>{r.x}</td>}
+                  {hasXII && <td className={cell + ' text-center'}>{r.xii}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )
@@ -293,9 +302,15 @@ const StatusTracker: React.FC<{ data: TodaysExamsResponse; dutiesData?: DailyDut
 }) => {
   const exams = data.exams ?? []
   const hasRooms = exams.some((e) => e.roomsUsed > 0)
-  const hasDuties = (data.dutiesAssignedCount ?? 0) > 0 || (dutiesData?.totalAssigned ?? 0) > 0
-  const totalDuties = data.dutiesAssignedCount ?? dutiesData?.totalAssigned ?? 0
   const totalRooms = exams.reduce((s, e) => s + (e.roomsUsed || 0), 0)
+
+  // DutySelection count (functionaries selected for this date)
+  const selectionsCount = data.dutiesAssignedCount ?? 0
+  const hasSelections = selectionsCount > 0
+
+  // DutyAssignment count (actual room-level invigilator assignments)
+  const assignmentsCount = dutiesData?.totalAssigned ?? 0
+  const hasAssignments = assignmentsCount > 0
 
   const items: { label: string; status: string }[] = [
     { label: 'Room Selection', status: hasRooms ? 'Selected' : 'Pending' },
@@ -304,11 +319,11 @@ const StatusTracker: React.FC<{ data: TodaysExamsResponse; dutiesData?: DailyDut
       label: 'Seating Plan Download',
       status: hasRooms ? `Downloaded ${totalRooms}/${totalRooms}` : 'Pending',
     },
-    { label: 'Functionary Update', status: hasDuties ? 'New Functionary Added' : 'Pending' },
-    { label: 'Functionary Selection', status: hasDuties ? 'Functionaries Selected' : 'Pending' },
+    { label: 'Functionary Update', status: hasSelections ? 'New Functionary Added' : 'Pending' },
+    { label: 'Functionary Selection', status: hasSelections ? `${selectionsCount} Selected` : 'Pending' },
     {
       label: 'Duty Assigned',
-      status: hasDuties ? `${totalDuties}/${totalDuties} Duties Assigned` : 'Pending',
+      status: hasAssignments ? `${assignmentsCount}/${totalRooms} Rooms Assigned` : 'Pending',
     },
   ]
 
@@ -363,6 +378,9 @@ const PackingDetails: React.FC<{ data: TodaysExamsResponse }> = ({ data }) => {
   const xExams = exams.filter((e) => normalizeClass(e.class) === 'X')
   const xiiExams = exams.filter((e) => normalizeClass(e.class) === 'XII')
 
+  const hasX = xExams.length > 0
+  const hasXII = xiiExams.length > 0
+
   const xCandidates = xExams.reduce((s, e) => s + (e.candidateCount || 0), 0)
   const xiiCandidates = xiiExams.reduce((s, e) => s + (e.candidateCount || 0), 0)
 
@@ -397,16 +415,16 @@ const PackingDetails: React.FC<{ data: TodaysExamsResponse }> = ({ data }) => {
           <thead>
             <tr>
               <th className={headerCell + ' text-left'}>Detail</th>
-              <th className={headerCell + ' text-center'}>Class X</th>
-              <th className={headerCell + ' text-center'}>Class XII</th>
+              {hasX && <th className={headerCell + ' text-center'}>Class X</th>}
+              {hasXII && <th className={headerCell + ' text-center'}>Class XII</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {rows.map((r) => (
               <tr key={r.label}>
                 <td className={cell + ' font-medium'}>{r.label}</td>
-                <td className={cell + ' text-center'}>{r.x}</td>
-                <td className={cell + ' text-center'}>{r.xii}</td>
+                {hasX && <td className={cell + ' text-center'}>{r.x}</td>}
+                {hasXII && <td className={cell + ' text-center'}>{r.xii}</td>}
               </tr>
             ))}
           </tbody>
@@ -419,6 +437,10 @@ const PackingDetails: React.FC<{ data: TodaysExamsResponse }> = ({ data }) => {
 /** 7. School Wise Distribution */
 const SchoolWiseDistribution: React.FC<{ data: TodaysExamsResponse }> = ({ data }) => {
   const exams = data.exams ?? []
+
+  const hasX = exams.some((e) => normalizeClass(e.class) === 'X')
+  const hasXII = exams.some((e) => normalizeClass(e.class) === 'XII')
+  const colCount = 1 + (hasX ? 1 : 0) + (hasXII ? 1 : 0) + 1 // School + class cols + Total
 
   // Aggregate school-wise by class
   const map = new Map<string, { x: number; xii: number }>()
@@ -449,15 +471,15 @@ const SchoolWiseDistribution: React.FC<{ data: TodaysExamsResponse }> = ({ data 
           <thead>
             <tr>
               <th className={headerCell + ' text-left'}>School</th>
-              <th className={headerCell + ' text-center'}>Class X</th>
-              <th className={headerCell + ' text-center'}>Class XII</th>
+              {hasX && <th className={headerCell + ' text-center'}>Class X</th>}
+              {hasXII && <th className={headerCell + ' text-center'}>Class XII</th>}
               <th className={headerCell + ' text-center'}>Total</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4} className={cell + ' text-center text-gray-400'}>
+                <td colSpan={colCount} className={cell + ' text-center text-gray-400'}>
                   No school data available
                 </td>
               </tr>
@@ -465,8 +487,8 @@ const SchoolWiseDistribution: React.FC<{ data: TodaysExamsResponse }> = ({ data 
             {rows.map((r, i) => (
               <tr key={r.name + i}>
                 <td className={cell}>{r.name}</td>
-                <td className={cell + ' text-center'}>{r.x || '\u2014'}</td>
-                <td className={cell + ' text-center'}>{r.xii || '\u2014'}</td>
+                {hasX && <td className={cell + ' text-center'}>{r.x || '\u2014'}</td>}
+                {hasXII && <td className={cell + ' text-center'}>{r.xii || '\u2014'}</td>}
                 <td className={cell + ' text-center font-semibold'}>{r.total}</td>
               </tr>
             ))}
@@ -475,8 +497,8 @@ const SchoolWiseDistribution: React.FC<{ data: TodaysExamsResponse }> = ({ data 
             <tfoot>
               <tr className="bg-gray-50 dark:bg-gray-800">
                 <td className={cell + ' font-bold'}>Total</td>
-                <td className={cell + ' text-center font-bold'}>{totalX || '\u2014'}</td>
-                <td className={cell + ' text-center font-bold'}>{totalXII || '\u2014'}</td>
+                {hasX && <td className={cell + ' text-center font-bold'}>{totalX || '\u2014'}</td>}
+                {hasXII && <td className={cell + ' text-center font-bold'}>{totalXII || '\u2014'}</td>}
                 <td className={cell + ' text-center font-bold'}>{grandTotal}</td>
               </tr>
             </tfoot>
@@ -607,8 +629,8 @@ const SeatingInvigilatorDetails: React.FC<{
     })
   }
 
-  // School codes from dutiesData
-  const schoolByRoom = dutiesData?.roomCandidateSchoolCodes ?? {}
+  // School names from dutiesData (keyed by roomNo)
+  const schoolByRoom = dutiesData?.roomSchoolNames ?? {}
 
   const rows: RoomRow[] = Array.from(roomMap.entries())
     .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
@@ -707,10 +729,9 @@ const Dashboard: React.FC = () => {
 
   const { data: centreDatesheetEntries } = useCentreDatesheetEntries()
 
-  const dotDate = useMemo(() => isoToDotFormat(selectedDate), [selectedDate])
-  const { data: dutiesData } = useDailyDuties(dotDate)
+  const { data: dutiesData } = useDailyDuties(selectedDate)
 
-  const { data: answerSheets } = useDashboardAnswerSheets()
+  const { data: dailyAnswerSheetSummary, isLoading: isDailySummaryLoading } = useDailyAnswerSheetSummary(selectedDate)
 
   // --- exam timeline items ---
   const examTimelineItems: ExamTimelineItem[] = useMemo(() => {
@@ -726,6 +747,31 @@ const Dashboard: React.FC = () => {
       }
     })
   }, [centreDatesheetEntries])
+
+  // --- auto-select the best exam date on load ---
+  // If today has no exam, pick the nearest future exam date (or last past date).
+  const hasAutoSelected = useRef(false)
+  useEffect(() => {
+    if (hasAutoSelected.current || examTimelineItems.length === 0) return
+    const today = todayIso()
+    const uniqueDates = Array.from(new Set(examTimelineItems.map((e) => e.date))).sort()
+
+    // If today is an exam date, keep it
+    if (uniqueDates.includes(today)) {
+      hasAutoSelected.current = true
+      return
+    }
+
+    // Find the nearest future exam date
+    const nextDate = uniqueDates.find((d) => d > today)
+    // Or fall back to the last past exam date
+    const bestDate = nextDate ?? uniqueDates[uniqueDates.length - 1]
+
+    if (bestDate) {
+      setSelectedDate(bestDate)
+    }
+    hasAutoSelected.current = true
+  }, [examTimelineItems])
 
   const handleSelectDate = useCallback((date: string) => {
     setSelectedDate(date)
@@ -792,8 +838,9 @@ const Dashboard: React.FC = () => {
               {/* Left: Answer Sheet Detail */}
               <div className="lg:col-span-5">
                 <AnswerSheetDetail
-                  dashData={todaysExamsData}
-                  sheets={answerSheets ?? []}
+                  data={todaysExamsData}
+                  summary={dailyAnswerSheetSummary}
+                  isLoading={isDailySummaryLoading}
                 />
               </div>
 

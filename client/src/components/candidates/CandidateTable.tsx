@@ -27,6 +27,7 @@ interface Candidate {
   department?: string
   status: 'active' | 'inactive' | 'graduated' | 'suspended'
   admissionDate?: string
+  photoUrl?: string
   subjects?: Array<{ _id: string; name: string; code: string }>
   subjectCodes?: Array<{ code: string; medium?: string }> | string[]
   importedFrom?: {
@@ -168,19 +169,36 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
                   )}
                 </td>
                 <td className="px-6 py-4">
-                  <div className="text-sm font-medium text-gray-900 dark:text-white">
-                    {candidate.name}
+                  <div className="flex items-center gap-3">
+                    {candidate.photoUrl ? (
+                      <img
+                        src={candidate.photoUrl}
+                        alt={candidate.name}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600 flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 flex-shrink-0 flex items-center justify-center">
+                        <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                        {candidate.name}
+                      </div>
+                      {candidate.dateOfBirth && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          DoB: {formatDate(candidate.dateOfBirth)}
+                        </div>
+                      )}
+                      {candidate.sex && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          Sex: {candidate.sex}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {candidate.dateOfBirth && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      DoB: {formatDate(candidate.dateOfBirth)}
-                    </div>
-                  )}
-                  {candidate.sex && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
-                      Sex: {candidate.sex}
-                    </div>
-                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {candidate.class ? (

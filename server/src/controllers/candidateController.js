@@ -50,10 +50,11 @@ function buildCandidateQuery(queryParams) {
   const query = {};
 
   if (queryParams.search) {
-    const searchRegex = new RegExp(queryParams.search, 'i');
-    query.$or = [
-      { name: searchRegex },
-      { rollNumber: searchRegex }
+    const escaped = queryParams.search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const searchRegex = new RegExp(escaped, 'i');
+    // Use $and to avoid conflict with academicSessionPlugin's $or on the same query
+    query.$and = [
+      { $or: [{ name: searchRegex }, { rollNumber: searchRegex }] }
     ];
   }
 

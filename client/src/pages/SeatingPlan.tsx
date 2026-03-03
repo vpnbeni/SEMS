@@ -130,6 +130,7 @@ const SeatingPlan: React.FC = () => {
   const [showPreviewDialog, setShowPreviewDialog] = useState(false)
   const [previewPageCount, setPreviewPageCount] = useState(0)
   const [previewRenderError, setPreviewRenderError] = useState<string | null>(null)
+  const scheduleTableRef = useRef<HTMLDivElement | null>(null)
   const mainGateTableWrapperRef = useRef<HTMLDivElement | null>(null)
   const cbseInfoTableWrapperRef = useRef<HTMLDivElement | null>(null)
   const cbseTableWrapperRef = useRef<HTMLDivElement | null>(null)
@@ -319,6 +320,21 @@ const SeatingPlan: React.FC = () => {
 
     return futureExamDateKeys[0] || null
   }, [datesheetEntries, todayDateKey])
+
+  /* ── Auto-scroll examination schedule table to today's (or next) exam row ── */
+  useEffect(() => {
+    if (loading || datesheetEntries.length === 0) return
+    const timer = setTimeout(() => {
+      const container = scheduleTableRef.current
+      if (!container) return
+      const targetRow =
+        container.querySelector<HTMLElement>(`tr[data-date="${todayDateKey}"]`) ||
+        (nextExamDateKey ? container.querySelector<HTMLElement>(`tr[data-date="${nextExamDateKey}"]`) : null)
+      if (!targetRow) return
+      targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [loading, datesheetEntries.length, todayDateKey, nextExamDateKey])
 
   const handleDownloadPDF = (datesheetId: string, format: SeatingPlanFormat) => {
     const entry = datesheetEntries.find((item) => item._id === datesheetId)
@@ -913,7 +929,7 @@ const SeatingPlan: React.FC = () => {
       </div>
 
       {/* Datesheet Table */}
-      <div className={`bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-8 transition-all ${scheduleHighlightRingClass[activeTab]}`}>
+      <div ref={scheduleTableRef} className={`bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-8 transition-all ${scheduleHighlightRingClass[activeTab]}`}>
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Examination Schedule
@@ -985,6 +1001,7 @@ const SeatingPlan: React.FC = () => {
                     return (
                       <tr
                         key={entry._id}
+                        data-date={examDateKey}
                         className={`${isTodayExam
                           ? 'bg-green-200 dark:bg-green-800/70 hover:bg-green-200 dark:hover:bg-green-800/70'
                           : isNextExam

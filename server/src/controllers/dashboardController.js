@@ -44,15 +44,58 @@ const getTodaysExams = asyncHandler(async (req, res) => {
   }
 
   // Filter entries for the selected date
-  const todaysEntries = cbseDatesheet.entries.filter(entry => {
+  const todaysEntriesAll = cbseDatesheet.entries.filter(entry => {
     const entryDate = new Date(entry.examDate);
     entryDate.setHours(0, 0, 0, 0);
     return entryDate.getTime() === targetDate.getTime();
   });
 
-  if (todaysEntries.length === 0) {
+  if (todaysEntriesAll.length === 0) {
     return res.status(HTTP_STATUS.OK).json(
       generateResponse(true, 'No exams scheduled for today', {
+        examDate: targetDate.toISOString().split('T')[0],
+        dayName: getDayName(targetDate),
+        exams: [],
+        totalExams: 0,
+        totalCandidates: 0,
+        packing: { clothColor: '', marker: '' },
+        dutiesAssignedCount: 0
+      })
+    );
+  }
+
+  // Build a set of subject codes that have enrolled candidates at this centre,
+  // so we only show subjects relevant to the centre (not all national subjects).
+  const activeCandidates = await Candidate.find(
+    { $or: [{ status: 'active' }, { status: { $exists: false } }] }
+  )
+    .populate('subjects', 'code class')
+    .lean();
+
+  const centreSubjectKeys = new Set();
+  for (const candidate of activeCandidates) {
+    if (candidate.subjects) {
+      for (const subj of candidate.subjects) {
+        if (subj && subj.code) {
+          // Normalize: uppercase code + class without "th" suffix
+          const code = String(subj.code).trim().toUpperCase();
+          const cls = String(subj.class || '').trim().toLowerCase().replace(/th$/i, '');
+          centreSubjectKeys.add(`${code}-${cls}`);
+        }
+      }
+    }
+  }
+
+  // Keep only entries whose subject+class has enrolled candidates at this centre
+  const todaysEntries = todaysEntriesAll.filter(entry => {
+    const code = String(entry.subject.code).trim().toUpperCase();
+    const cls = String(entry.subject.class || '').trim().toLowerCase().replace(/th$/i, '');
+    return centreSubjectKeys.has(`${code}-${cls}`);
+  });
+
+  if (todaysEntries.length === 0) {
+    return res.status(HTTP_STATUS.OK).json(
+      generateResponse(true, 'No exams at this centre for the selected date', {
         examDate: targetDate.toISOString().split('T')[0],
         dayName: getDayName(targetDate),
         exams: [],
@@ -77,9 +120,10 @@ const getTodaysExams = asyncHandler(async (req, res) => {
     clothColorClass12: centreDetails?.packingClothColorClass12 || '',
     markerClass12: centreDetails?.packingMarkerClass12 || ''
   };
-  const dutiesAssignedCount = await DutySelection.countDocuments({ examDate: todayStr });
+  const isoDateStr = targetDate.toISOString().split('T')[0]; // YYYY-MM-DD for DutySelection
+  const dutiesAssignedCount = await DutySelection.countDocuments({ examDate: isoDateStr });
   const dutiesByTypeAgg = await DutySelection.aggregate([
-    { $match: { examDate: todayStr } },
+    { $match: { examDate: isoDateStr } },
     { $group: { _id: '$dutyType', count: { $sum: 1 } } },
   ]);
   const dutiesByType = {};
@@ -192,8 +236,8 @@ const getTodaysExams = asyncHandler(async (req, res) => {
     })
   );
 
-  // Filter out any null results from errors
-  const validExams = examsWithDetails.filter(exam => exam !== null);
+  // Filter out any null results from errors and exams with no candidates at this centre
+  const validExams = examsWithDetails.filter(exam => exam !== null && exam.candidateCount > 0);
 
   // Sort by time slot and then by class
   validExams.sort((a, b) => {
