@@ -145,6 +145,24 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
+      case 'time-table': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          'classes': { title: 'Classes', subtitle: 'Manage classes and sections for timetable scheduling' },
+          'subjects': { title: 'Subjects', subtitle: 'Manage subjects and their weekly period requirements' },
+          'bell-timings': { title: 'Bell Timings', subtitle: 'Configure school bell timings, period durations, and break schedules' },
+          'class-wise': { title: 'Class Wise Timetable', subtitle: 'View and manage timetables organized by class and section' },
+          'teacher-wise': { title: 'Teacher Wise Timetable', subtitle: 'View and manage timetables organized by teacher' },
+          'period-allocation': { title: 'Period Allocation', subtitle: 'Allocate subjects and teachers to periods across classes' },
+        }
+        const info = titleMap[subPage] || { title: 'Time Table', subtitle: 'School timetable management' }
+        return {
+          pageTitle: info.title,
+          pageSubtitle: info.subtitle,
+          showBackButton: false,
+          backTo: null,
+        }
+      }
       default:
         return {
           pageTitle: seg

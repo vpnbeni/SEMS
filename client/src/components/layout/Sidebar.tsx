@@ -217,12 +217,22 @@ const Sidebar: React.FC = () => {
   type NavGroup = {
     name: string
     icon: React.ReactNode
+    href?: string // optional link for the group header itself
+    children: NavChild[]
+  }
+
+  type NavChild = NavItem | NavSubGroup
+
+  type NavSubGroup = {
+    name: string
+    icon: React.ReactNode
     children: NavItem[]
   }
 
   type NavEntry = NavItem | NavGroup
 
   const isGroup = (entry: NavEntry): entry is NavGroup => 'children' in entry
+  const isSubGroup = (entry: NavChild): entry is NavSubGroup => 'children' in entry
 
   const navigation: NavEntry[] = [
     {
@@ -233,7 +243,78 @@ const Sidebar: React.FC = () => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
         </svg>
       ),
-      badge: null,
+      children: [
+        {
+          name: 'Time Table',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+            </svg>
+          ),
+          children: [
+            {
+              name: 'Classes',
+              href: '/time-table/classes',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342" />
+                </svg>
+              ),
+              badge: null,
+            },
+            {
+              name: 'Subjects',
+              href: '/time-table/subjects',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                </svg>
+              ),
+              badge: null,
+            },
+            {
+              name: 'Bell Timings',
+              href: '/time-table/bell-timings',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              ),
+              badge: null,
+            },
+            {
+              name: 'Class Wise',
+              href: '/time-table/class-wise',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                </svg>
+              ),
+              badge: null,
+            },
+            {
+              name: 'Teacher Wise',
+              href: '/time-table/teacher-wise',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              ),
+              badge: null,
+            },
+            {
+              name: 'Period Allocation',
+              href: '/time-table/period-allocation',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 6.878V6a2.25 2.25 0 012.25-2.25h7.5A2.25 2.25 0 0118 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 004.5 9v.878m13.5-3A2.25 2.25 0 0119.5 9v.878m0 0a2.246 2.246 0 00-.75-.128H5.25c-.263 0-.515.045-.75.128m15 0A2.25 2.25 0 0121 12v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6c0-.98.626-1.813 1.5-2.122" />
+                </svg>
+              ),
+              badge: null,
+            },
+          ],
+        },
+      ],
     },
     {
       name: 'Dashboard',
@@ -498,28 +579,43 @@ const Sidebar: React.FC = () => {
           {navigation.map((entry) => {
             if (isGroup(entry)) {
               const group = entry
-              const isChildActive = group.children.some(child => location.pathname === child.href)
-              const isOpen = openGroups[group.name] ?? isChildActive
+              // Check if any child (or sub-group grandchild) is active
+              const isChildActive = group.children.some(child => {
+                if (isSubGroup(child)) {
+                  return child.children.some(gc => location.pathname === gc.href)
+                }
+                return location.pathname === child.href
+              })
+              // Also check if the group's own href matches
+              const isGroupHrefActive = group.href ? location.pathname === group.href : false
+              const isAnyActive = isChildActive || isGroupHrefActive
+              const isOpen = openGroups[group.name] ?? isAnyActive
 
               return (
                 <div key={group.name}>
                   {/* Group header */}
                   <button
-                    onClick={() => toggleGroup(group.name)}
+                    onClick={() => {
+                      toggleGroup(group.name)
+                      // If the group has an href and is being opened, navigate to it
+                      if (group.href && !isOpen) {
+                        navigate(group.href)
+                      }
+                    }}
                     className={`group relative flex items-center w-full text-sm font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
                       ? 'justify-center w-12 h-12 p-0'
                       : 'px-3.5 py-3'
-                      } ${isChildActive
+                      } ${isAnyActive
                         ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
                         : 'text-secondary-600 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-900 dark:hover:text-secondary-200'
                       }`}
                     title={isCollapsed ? group.name : undefined}
                   >
-                    {isChildActive && !isCollapsed && (
+                    {isAnyActive && !isCollapsed && (
                       <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-primary-500 rounded-r-full" />
                     )}
 
-                    <span className={`flex-shrink-0 transition-colors duration-200 ${isChildActive
+                    <span className={`flex-shrink-0 transition-colors duration-200 ${isAnyActive
                       ? 'text-primary-600 dark:text-primary-400'
                       : 'text-secondary-400 group-hover:text-secondary-600 dark:text-secondary-500 dark:group-hover:text-secondary-300'
                       }`}>
@@ -532,7 +628,7 @@ const Sidebar: React.FC = () => {
                           {group.name}
                         </span>
                         <svg
-                          className={`ml-auto w-4 h-4 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''} ${isChildActive
+                          className={`ml-auto w-4 h-4 flex-shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''} ${isAnyActive
                             ? 'text-primary-500 dark:text-primary-400'
                             : 'text-secondary-400 dark:text-secondary-500'
                             }`}
@@ -550,6 +646,83 @@ const Sidebar: React.FC = () => {
                   {isOpen && !isCollapsed && (
                     <div className="mt-1 ml-4 pl-3.5 border-l-2 border-secondary-100 dark:border-secondary-800 space-y-0.5">
                       {group.children.map((child) => {
+                        if (isSubGroup(child)) {
+                          // Render sub-group with its own expand/collapse
+                          const subGroup = child
+                          const isSubChildActive = subGroup.children.some(gc => location.pathname === gc.href)
+                          const isSubOpen = openGroups[`${group.name}/${subGroup.name}`] ?? isSubChildActive
+
+                          return (
+                            <div key={subGroup.name}>
+                              <button
+                                onClick={() => toggleGroup(`${group.name}/${subGroup.name}`)}
+                                className={`group relative flex items-center w-full text-[13px] font-medium rounded-lg transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 px-3 py-2 ${isSubChildActive
+                                  ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                                  : 'text-secondary-500 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-900 dark:hover:text-secondary-200'
+                                  }`}
+                              >
+                                <span className={`flex-shrink-0 transition-colors duration-200 ${isSubChildActive
+                                  ? 'text-primary-600 dark:text-primary-400'
+                                  : 'text-secondary-400 group-hover:text-secondary-600 dark:text-secondary-500 dark:group-hover:text-secondary-300'
+                                  }`}>
+                                  {subGroup.icon}
+                                </span>
+                                <span className="ml-2.5 truncate">
+                                  {subGroup.name}
+                                </span>
+                                <svg
+                                  className={`ml-auto w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ${isSubOpen ? 'rotate-90' : ''} ${isSubChildActive
+                                    ? 'text-primary-500 dark:text-primary-400'
+                                    : 'text-secondary-400 dark:text-secondary-500'
+                                    }`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </button>
+
+                              {isSubOpen && (
+                                <div className="mt-0.5 ml-3 pl-3 border-l-2 border-secondary-100 dark:border-secondary-800 space-y-0.5">
+                                  {subGroup.children.map((grandChild) => {
+                                    const isActive = location.pathname === grandChild.href
+                                    return (
+                                      <NavLink
+                                        key={grandChild.name}
+                                        to={grandChild.href}
+                                        className={`group relative flex items-center text-[12px] font-medium rounded-lg transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 px-2.5 py-1.5 ${isActive
+                                          ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                                          : 'text-secondary-500 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-900 dark:hover:text-secondary-200'
+                                          }`}
+                                      >
+                                        <span className={`flex-shrink-0 transition-colors duration-200 ${isActive
+                                          ? 'text-primary-600 dark:text-primary-400'
+                                          : 'text-secondary-400 group-hover:text-secondary-600 dark:text-secondary-500 dark:group-hover:text-secondary-300'
+                                          }`}>
+                                          {grandChild.icon}
+                                        </span>
+                                        <span className="ml-2 truncate">
+                                          {grandChild.name}
+                                        </span>
+                                        {grandChild.badge && (
+                                          <span className={`ml-auto inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold shadow-sm ${isActive
+                                            ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300'
+                                            : 'bg-secondary-100 text-secondary-600 dark:bg-secondary-800 dark:text-secondary-400 group-hover:bg-white group-hover:shadow-sm dark:group-hover:bg-secondary-700'
+                                            }`}>
+                                            {grandChild.badge}
+                                          </span>
+                                        )}
+                                      </NavLink>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        }
+
+                        // Regular NavItem child
                         const isActive = location.pathname === child.href
                         return (
                           <NavLink
@@ -583,10 +756,30 @@ const Sidebar: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Collapsed mode: show children as tooltip or just the group icon */}
+                  {/* Collapsed mode: show children icons */}
                   {isCollapsed && isOpen && (
                     <div className="mt-1 space-y-0.5 flex flex-col items-center">
                       {group.children.map((child) => {
+                        if (isSubGroup(child)) {
+                          // For sub-groups in collapsed mode, show sub-group children directly
+                          return child.children.map((gc) => {
+                            const isActive = location.pathname === gc.href
+                            return (
+                              <NavLink
+                                key={gc.name}
+                                to={gc.href}
+                                className={`relative flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${isActive
+                                  ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400'
+                                  : 'text-secondary-400 dark:text-secondary-500 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-600 dark:hover:text-secondary-300'
+                                  }`}
+                                title={gc.name}
+                              >
+                                {gc.icon}
+                              </NavLink>
+                            )
+                          })
+                        }
+
                         const isActive = location.pathname === child.href
                         return (
                           <NavLink

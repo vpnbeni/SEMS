@@ -27,6 +27,13 @@ import CentreGuidelines from './pages/CentreGuidelines'
 import CBSECirculars from './pages/CBSECirculars'
 import CBSEPortals from './pages/CBSEPortals'
 import SchoolHub from './pages/SchoolHub'
+import BellTimings from './pages/timetable/BellTimings'
+import TimetableClasses from './pages/timetable/TimetableClasses'
+import TimetableSubjects from './pages/timetable/TimetableSubjects'
+import ClassWise from './pages/timetable/ClassWise'
+import TeacherWise from './pages/timetable/TeacherWise'
+import PeriodAllocation from './pages/timetable/PeriodAllocation'
+import { TimetableProvider } from './contexts/TimetableContext'
 import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
 import AnswerSheetDetails from './pages/AnswerSheetDetails'
@@ -121,10 +128,17 @@ function App() {
 
           {/* Protected Routes */}
           <Route path="/" element={<ProtectedRoute />}>
-            <Route path="/" element={<Layout />}>
+            <Route path="/" element={<TimetableProvider><Layout /></TimetableProvider>}>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="school-hub" element={<SchoolHub />} />
+              <Route path="time-table/classes" element={<TimetableClasses />} />
+              <Route path="time-table/subjects" element={<TimetableSubjects />} />
+              <Route path="time-table/bell-timings" element={<BellTimings />} />
+              <Route path="time-table/class-wise" element={<ClassWise />} />
+              <Route path="time-table/teacher-wise" element={<TeacherWise />} />
+              <Route path="time-table/period-allocation" element={<PeriodAllocation />} />
+              <Route path="time-table" element={<Navigate to="/time-table/classes" replace />} />
               <Route path="centre-details" element={<CentreDetails />} />
               <Route path="exam-functionaries" element={<Teachers />} />
               <Route path="exam-functionaries/:id" element={<TeacherDetail />} />
