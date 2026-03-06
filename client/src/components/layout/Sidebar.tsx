@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
@@ -6,6 +6,8 @@ import { logout, selectUser } from '../../redux/slices/authSlice'
 import type { AppDispatch } from '../../redux/store'
 import api from '../../services/api'
 import { useAcademicSession } from '../../contexts/AcademicSessionContext'
+import { isFeatureEnabledForPath } from '../../constants/featureAccess'
+import { getAuthToken } from '../../utils/authStorage'
 
 type SidebarCount = number | null
 
@@ -95,10 +97,12 @@ const Sidebar: React.FC = () => {
   const [centreCode, setCentreCode] = useState<string>('')
   const [centreName, setCentreName] = useState<string>('')
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+  const isPathAllowed = (href: string) => isFeatureEnabledForPath(href, currentUser?.featureToggles)
+  const canAccessCentreDetails = isPathAllowed('/centre-details')
 
   useEffect(() => {
     fetchCounts(true)
-  }, [])
+  }, [currentUser?.featureToggles])
 
   // Refresh counts when location changes (user navigates)
   useEffect(() => {
@@ -126,6 +130,13 @@ const Sidebar: React.FC = () => {
 
   useEffect(() => {
     const fetchCentreLabel = async () => {
+      if (!canAccessCentreDetails) {
+        setCentreLabel('')
+        setCentreCode('')
+        setCentreName('')
+        return
+      }
+
       try {
         const response = await api.get('/centre-details')
         const payload = response?.data?.data || {}
@@ -144,7 +155,7 @@ const Sidebar: React.FC = () => {
     }
 
     fetchCentreLabel()
-  }, [])
+  }, [canAccessCentreDetails])
 
   const fetchCounts = async (useCache = true) => {
     try {
@@ -163,17 +174,36 @@ const Sidebar: React.FC = () => {
         }
       }
 
-      const token = localStorage.getItem('token')
+      const token = getAuthToken()
       if (!token) return
+
+      const teachersRequest = isPathAllowed('/exam-functionaries')
+        ? api.get('/teachers', { params: { limit: 1 } })
+        : Promise.resolve({ data: null })
+      const candidatesRequest = isPathAllowed('/candidates')
+        ? api.get('/candidates', { params: { limit: 1 } })
+        : Promise.resolve({ data: null })
+      const subjectsRequest = isPathAllowed('/subjects')
+        ? api.get('/subjects/stats')
+        : Promise.resolve({ data: null })
+      const datesheetsRequest = isPathAllowed('/datesheets')
+        ? api.get('/datesheets/stats')
+        : Promise.resolve({ data: null })
+      const roomsRequest = isPathAllowed('/examrooms')
+        ? api.get('/seating-plan/rooms')
+        : Promise.resolve({ data: null })
+      const answerSheetsRequest = isPathAllowed('/answersheets')
+        ? api.get('/answersheets/stats/summary')
+        : Promise.resolve({ data: null })
 
       // Fetch all counts in parallel with error handling
       const results = await Promise.allSettled([
-        api.get('/teachers', { params: { limit: 1 } }),
-        api.get('/candidates', { params: { limit: 1 } }),
-        api.get('/subjects/stats'),
-        api.get('/datesheets/stats'),
-        api.get('/seating-plan/rooms'),
-        api.get('/answersheets/stats/summary')
+        teachersRequest,
+        candidatesRequest,
+        subjectsRequest,
+        datesheetsRequest,
+        roomsRequest,
+        answerSheetsRequest
       ])
 
       const teachers = results[0].status === 'fulfilled' ? results[0].value.data : null
@@ -499,6 +529,58 @@ const Sidebar: React.FC = () => {
     },
   ]
 
+  const filterNavChildren = (children: NavChild[]): NavChild[] => {
+    const filtered: NavChild[] = []
+
+    children.forEach((child) => {
+      if (isSubGroup(child)) {
+        const grandChildren = child.children.filter((item) => isPathAllowed(item.href))
+        if (grandChildren.length > 0) {
+          filtered.push({
+            ...child,
+            children: grandChildren,
+          })
+        }
+        return
+      }
+
+      if (isPathAllowed(child.href)) {
+        filtered.push(child)
+      }
+    })
+
+    return filtered
+  }
+
+  const filteredNavigation: NavEntry[] = navigation.reduce<NavEntry[]>((acc, entry) => {
+    if (isGroup(entry)) {
+      const filteredChildren = filterNavChildren(entry.children)
+      const groupHrefAllowed = entry.href ? isPathAllowed(entry.href) : false
+
+      if (filteredChildren.length === 0 && !groupHrefAllowed) {
+        return acc
+      }
+
+      acc.push({
+        ...entry,
+        href: groupHrefAllowed ? entry.href : undefined,
+        children: filteredChildren,
+      })
+
+      return acc
+    }
+
+    if (isPathAllowed(entry.href)) {
+      acc.push(entry)
+    }
+
+    return acc
+  }, [])
+
+  const canAccessBilling = isPathAllowed('/billing')
+  const canAccessAccountSettings = isPathAllowed('/account-settings')
+  const canAccessHelpSupport = isPathAllowed('/help-support')
+
   return (
     <div className={`glass border-r border-gray-100/80 dark:border-gray-800/80 h-[100vh] min-h-[100vh] transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'} flex flex-col overflow-hidden relative z-50`}>
       {/* Decorative background accent */}
@@ -576,7 +658,7 @@ const Sidebar: React.FC = () => {
       {/* Navigation - scrollable */}
       <nav className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden transition-all duration-300 ${isCollapsed ? 'px-3' : 'px-4'} py-2`}>
         <div className={`space-y-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
-          {navigation.map((entry) => {
+          {filteredNavigation.map((entry) => {
             if (isGroup(entry)) {
               const group = entry
               // Check if any child (or sub-group grandchild) is active
@@ -918,36 +1000,40 @@ const Sidebar: React.FC = () => {
                   </div>
                 </div>
                 <div className="py-2 px-1">
-                  <NavLink
-                    to="/account-settings"
-                    className={({ isActive }) =>
-                      `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-colors ${
-                        isActive
-                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                          : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400'
-                      }`
-                    }
-                  >
-                    <svg className="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    Account Settings
-                  </NavLink>
-                  <NavLink
-                    to="/billing"
-                    className={({ isActive }) =>
-                      `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-colors ${
-                        isActive
-                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                          : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400'
-                      }`
-                    }
-                  >
-                    <svg className="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a5 5 0 00-10 0v2m-2 0h14a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1v-9a1 1 0 011-1z" />
-                    </svg>
-                    Billing
-                  </NavLink>
+                  {canAccessAccountSettings && (
+                    <NavLink
+                      to="/account-settings"
+                      className={({ isActive }) =>
+                        `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-colors ${
+                          isActive
+                            ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                            : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400'
+                        }`
+                      }
+                    >
+                      <svg className="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Account Settings
+                    </NavLink>
+                  )}
+                  {canAccessBilling && (
+                    <NavLink
+                      to="/billing"
+                      className={({ isActive }) =>
+                        `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-colors ${
+                          isActive
+                            ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                            : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400'
+                        }`
+                      }
+                    >
+                      <svg className="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a5 5 0 00-10 0v2m-2 0h14a1 1 0 011 1v9a1 1 0 01-1 1H5a1 1 0 01-1-1v-9a1 1 0 011-1z" />
+                      </svg>
+                      Billing
+                    </NavLink>
+                  )}
                   <a
                     href="#"
                     className="flex items-center px-3 py-2.5 text-sm font-medium text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400 rounded-xl transition-colors"
@@ -958,21 +1044,23 @@ const Sidebar: React.FC = () => {
                     </svg>
                     Preferences
                   </a>
-                  <NavLink
-                    to="/help-support"
-                    className={({ isActive }) =>
-                      `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-colors ${
-                        isActive
-                          ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                          : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400'
-                      }`
-                    }
-                  >
-                    <svg className="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Help & Support
-                  </NavLink>
+                  {canAccessHelpSupport && (
+                    <NavLink
+                      to="/help-support"
+                      className={({ isActive }) =>
+                        `flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-colors ${
+                          isActive
+                            ? 'bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
+                            : 'text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-800 hover:text-primary-600 dark:hover:text-primary-400'
+                        }`
+                      }
+                    >
+                      <svg className="w-4 h-4 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Help & Support
+                    </NavLink>
+                  )}
                 </div>
                 <div className="p-1 border-t border-secondary-100 dark:border-secondary-800">
                   <button

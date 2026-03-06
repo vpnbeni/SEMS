@@ -5,6 +5,8 @@ const { generateResponse, errorResponse } = require('../utils/helpers');
 const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/constants');
 const { getTenantEntitlement } = require('../services/billingServiceClient');
 
+const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const buildBillingSnapshot = async (tenantSlug) => {
   if (!tenantSlug) {
     return null;
@@ -53,7 +55,10 @@ const register = asyncHandler(async (req, res) => {
   const billing = await buildBillingSnapshot(req.tenant?.slug);
 
   // Generate token and send response
-  createTokenResponse(user, HTTP_STATUS.CREATED, res, req.tenant?.slug, { billing });
+  createTokenResponse(user, HTTP_STATUS.CREATED, res, req.tenant?.slug, {
+    billing,
+    featureToggles: req.tenant?.featureToggles || null,
+  });
 });
 
 // @desc    Login user
@@ -61,9 +66,27 @@ const register = asyncHandler(async (req, res) => {
 // @access  Public
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
+  const identifier = String(email || '').trim().toLowerCase();
+
+  let user = null;
+  if (identifier.includes('@')) {
+    user = await User.findOne({ email: identifier }).select('+password');
+  } else {
+    const prefixRegex = new RegExp(`^${escapeRegex(identifier)}@`, 'i');
+    const candidates = await User.find({ email: { $regex: prefixRegex } })
+      .select('+password')
+      .limit(2);
+
+    if (candidates.length > 1) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        generateResponse(false, 'Multiple users matched this username. Please use full email to login.')
+      );
+    }
+
+    [user] = candidates;
+  }
 
   // Check for user
-  const user = await User.findOne({ email }).select('+password');
   if (!user) {
     return res.status(HTTP_STATUS.UNAUTHORIZED).json(
       generateResponse(false, ERROR_MESSAGES.INVALID_CREDENTIALS)
@@ -92,7 +115,10 @@ const login = asyncHandler(async (req, res) => {
   const billing = await buildBillingSnapshot(req.tenant?.slug);
 
   // Generate token and send response
-  createTokenResponse(user, HTTP_STATUS.OK, res, req.tenant?.slug, { billing });
+  createTokenResponse(user, HTTP_STATUS.OK, res, req.tenant?.slug, {
+    billing,
+    featureToggles: req.tenant?.featureToggles || null,
+  });
 });
 
 // @desc    Logout user
@@ -171,7 +197,8 @@ const refreshToken = asyncHandler(async (req, res) => {
           _id: user._id,
           email: user.email,
           role: user.role,
-          isActive: user.isActive
+          isActive: user.isActive,
+          featureToggles: req.tenant?.featureToggles || null,
         },
         billing
       })
@@ -192,6 +219,7 @@ const getMe = asyncHandler(async (req, res) => {
 
   const payload = user.toObject ? user.toObject() : user;
   payload.billing = billing;
+  payload.featureToggles = req.tenant?.featureToggles || null;
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, 'User profile fetched successfully', payload)

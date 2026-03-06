@@ -1,6 +1,7 @@
 import api from './api'
 import axios from 'axios'
 import { resolvePlatformAdminApiBaseUrl } from '../utils/tenantRuntime'
+import { clearAuthData, getAuthToken, getRefreshToken, setStoredToken } from '../utils/authStorage'
 import type { 
   LoginCredentials, 
   RegisterData, 
@@ -34,9 +35,8 @@ class AuthService {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     const response = await api.post('/auth/login', credentials)
     
-    // Store token in localStorage and set auth header
+    // Keep axios auth header in sync.
     if (response.data.success && response.data.data.token) {
-      localStorage.setItem('token', response.data.data.token)
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.data.token}`
     }
     
@@ -47,9 +47,8 @@ class AuthService {
   async register(userData: RegisterData): Promise<AuthResponse> {
     const response = await api.post('/auth/register', userData)
     
-    // Store token in localStorage and set auth header
+    // Keep axios auth header in sync.
     if (response.data.success && response.data.data.token) {
-      localStorage.setItem('token', response.data.data.token)
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.data.token}`
     }
     
@@ -58,7 +57,7 @@ class AuthService {
 
   // Logout user
   async logout(): Promise<ApiResponse> {
-    const refreshToken = localStorage.getItem('refreshToken')
+    const refreshToken = getRefreshToken()
     
     try {
       const response = await api.post('/auth/logout', { refreshToken })
@@ -95,7 +94,7 @@ class AuthService {
 
   // Refresh token
   async refreshToken(): Promise<AuthResponse> {
-    const refreshToken = localStorage.getItem('refreshToken')
+    const refreshToken = getRefreshToken()
     
     if (!refreshToken) {
       throw new Error('No refresh token available')
@@ -105,7 +104,7 @@ class AuthService {
     
     // Update stored token
     if (response.data.success && response.data.data.accessToken) {
-      localStorage.setItem('token', response.data.data.accessToken)
+      setStoredToken(response.data.data.accessToken)
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.data.accessToken}`
     }
     
@@ -130,31 +129,30 @@ class AuthService {
 
   // Check if user is authenticated
   isAuthenticated(): boolean {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     return !!token
   }
 
   // Get stored token
   getToken(): string | null {
-    return localStorage.getItem('token')
+    return getAuthToken()
   }
 
   // Set auth header
   setAuthHeader(token: string): void {
-    localStorage.setItem('token', token)
+    setStoredToken(token)
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`
   }
 
   // Clear local storage
   clearLocalStorage(): void {
-    localStorage.removeItem('token')
-    localStorage.removeItem('refreshToken')
+    clearAuthData()
     delete api.defaults.headers.common['Authorization']
   }
 
   // Initialize auth on app startup
   initializeAuth(): void {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (token) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
     }

@@ -1,4 +1,5 @@
 const Joi = require('joi');
+const { TENANT_FEATURE_KEYS } = require('../constants/tenantFeatures');
 
 const tenantSlugRegex = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
@@ -67,6 +68,18 @@ const tenantIdParamSchema = Joi.object({
   id: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).required(),
 });
 
+const tenantFeatureToggleShape = TENANT_FEATURE_KEYS.reduce((acc, key) => {
+  acc[key] = Joi.boolean();
+  return acc;
+}, {});
+
+const tenantFeatureUpdateSchema = Joi.object({
+  toggles: Joi.object(tenantFeatureToggleShape)
+    .min(1)
+    .required()
+    .unknown(false),
+});
+
 module.exports = {
   platformLoginSchema,
   createTenantSchema,
@@ -78,4 +91,5 @@ module.exports = {
   deleteTenantSchema,
   tenantQuerySchema,
   tenantIdParamSchema,
+  tenantFeatureUpdateSchema,
 };

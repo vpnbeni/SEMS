@@ -1,6 +1,9 @@
 import React from 'react'
+import { getStoredUser } from '@/utils/authStorage'
 
 const AccountSettings: React.FC = () => {
+  const user = getStoredUser<{ email?: string }>()
+
   return (
     <div className="p-6 space-y-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 max-w-3xl">
@@ -14,17 +17,7 @@ const AccountSettings: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="font-medium">Email</span>
             <span className="px-2 py-1 rounded-md bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
-              {/* The real email is shown in the sidebar header; duplicate display here as read-only for now. */}
-              {localStorage.getItem('user')
-                ? (() => {
-                    try {
-                      const parsed = JSON.parse(localStorage.getItem('user') as string)
-                      return parsed?.email || '—'
-                    } catch {
-                      return '—'
-                    }
-                  })()
-                : '—'}
+              {user?.email || '--'}
             </span>
           </div>
         </div>
@@ -34,4 +27,3 @@ const AccountSettings: React.FC = () => {
 }
 
 export default AccountSettings
-

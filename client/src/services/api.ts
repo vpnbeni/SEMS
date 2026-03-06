@@ -2,6 +2,7 @@ import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 
 import toast from 'react-hot-toast'
 import { getTenantHeader, isLocalRuntime, resolveApiBaseUrl } from '@/utils/tenantRuntime'
 import { getAcademicSessionHeader } from '@/contexts/AcademicSessionContext'
+import { clearAuthData, getAuthToken, getRefreshToken, setStoredToken } from '@/utils/authStorage'
 
 // API configuration
 const API_BASE_URL = resolveApiBaseUrl()
@@ -31,6 +32,11 @@ const showApiErrorToast = (message: string) => {
 
   lastApiErrorToast = { message: normalizedMessage, shownAt: now }
   toast.error(normalizedMessage, { id: API_ERROR_TOAST_ID })
+}
+
+const isAuthSurfacePath = () => {
+  const { pathname } = window.location
+  return pathname === '/' || pathname.includes('/login')
 }
 
 const getValidationErrorMessage = (details: any[] | undefined, fallback: string) => {
@@ -110,7 +116,7 @@ api.interceptors.request.use(
     }
 
     // Add auth token to requests
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
       sessionExpiredToastShown = false // reset so next session expiry can show one toast
@@ -169,7 +175,7 @@ api.interceptors.response.use(
         if (!originalRequest._retry) {
           originalRequest._retry = true
 
-          const refreshToken = localStorage.getItem('refreshToken')
+          const refreshToken = getRefreshToken()
           if (refreshToken) {
             try {
               const tenantHeader = getTenantHeader()
@@ -187,7 +193,7 @@ api.interceptors.response.use(
 
               if (response.data.success) {
                 const newToken = response.data.data.accessToken
-                localStorage.setItem('token', newToken)
+                setStoredToken(newToken)
                 api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`
                 originalRequest.headers.Authorization = `Bearer ${newToken}`
 
@@ -195,9 +201,7 @@ api.interceptors.response.use(
               }
             } catch (refreshError) {
               // Refresh failed, clear storage and let Redux handle the auth state
-              localStorage.removeItem('token')
-              localStorage.removeItem('refreshToken')
-              localStorage.removeItem('user')
+              clearAuthData()
               delete api.defaults.headers.common['Authorization']
 
               // Dispatch logout action to Redux store
@@ -206,7 +210,7 @@ api.interceptors.response.use(
               }
 
               // Show session-expired toast only once (multiple requests can 401 together)
-              if (!window.location.pathname.includes('/login') && !sessionExpiredToastShown) {
+              if (!isAuthSurfacePath() && !sessionExpiredToastShown) {
                 sessionExpiredToastShown = true
                 showApiErrorToast('Session expired. Please login again.')
               }
@@ -215,9 +219,7 @@ api.interceptors.response.use(
             }
           } else {
             // No refresh token, clear storage and let Redux handle auth state
-            localStorage.removeItem('token')
-            localStorage.removeItem('refreshToken')
-            localStorage.removeItem('user')
+            clearAuthData()
             delete api.defaults.headers.common['Authorization']
 
             // Dispatch logout action to Redux store
@@ -225,7 +227,7 @@ api.interceptors.response.use(
               storeDispatch({ type: 'auth/clearCredentials' })
             }
 
-            if (!window.location.pathname.includes('/login') && !sessionExpiredToastShown) {
+            if (!isAuthSurfacePath() && !sessionExpiredToastShown) {
               sessionExpiredToastShown = true
               showApiErrorToast('Please login to continue')
             }

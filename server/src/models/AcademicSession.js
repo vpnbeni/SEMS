@@ -88,16 +88,23 @@ academicSessionSchema.statics.ensureSession = async function (label, createdBy) 
 };
 
 /**
- * Generate a list of reasonable session labels: from 3 years ago to 1 year ahead.
+ * Generate available sessions from current academic year onward.
+ * Default horizon ends at session ending year 2030 (i.e., 2029-2030).
+ * You can override via ACADEMIC_SESSION_LAST_END_YEAR.
  */
 academicSessionSchema.statics.generateAvailableSessions = function () {
   const now = new Date();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();
   const currentStartYear = month <= 3 ? year - 1 : year;
+  const configuredLastEndYear = Number.parseInt(process.env.ACADEMIC_SESSION_LAST_END_YEAR || '2030', 10);
+  const lastEndYear = Number.isFinite(configuredLastEndYear) && configuredLastEndYear >= currentStartYear + 1
+    ? configuredLastEndYear
+    : currentStartYear + 1;
+  const lastStartYear = lastEndYear - 1;
 
   const sessions = [];
-  for (let sy = currentStartYear - 3; sy <= currentStartYear + 1; sy++) {
+  for (let sy = currentStartYear; sy <= lastStartYear; sy++) {
     sessions.push({
       label: `${sy}-${sy + 1}`,
       startYear: sy,

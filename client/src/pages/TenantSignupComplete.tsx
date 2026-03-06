@@ -6,6 +6,7 @@ import tenantSignupService from '@/services/tenantSignupService'
 import { resolveTenantSlug } from '@/utils/tenantRuntime'
 import { setCredentials } from '@/redux/slices/authSlice'
 import type { AppDispatch } from '@/redux/store'
+import { persistAuthData } from '@/utils/authStorage'
 
 const TenantSignupComplete: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
@@ -55,9 +56,12 @@ const TenantSignupComplete: React.FC = () => {
         ...(response.billing ? { billing: response.billing } : {}),
       }
 
-      localStorage.setItem('token', response.token)
-      localStorage.setItem('refreshToken', response.refreshToken)
-      localStorage.setItem('user', JSON.stringify(userWithBilling))
+      persistAuthData({
+        token: response.token,
+        refreshToken: response.refreshToken,
+        user: userWithBilling,
+        remember: true,
+      })
       localStorage.setItem('tenantSlug', response.tenant.slug)
 
       dispatch(setCredentials({ user: userWithBilling, token: response.token }))
@@ -223,7 +227,7 @@ const TenantSignupComplete: React.FC = () => {
                 Restart Signup
               </Link>
               <Link
-                to="/login"
+                to="/"
                 className="rounded-xl border border-white/20 px-4 py-2.5 hover:bg-white/10"
               >
                 Go to Login

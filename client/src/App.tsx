@@ -60,12 +60,20 @@ function App() {
     // Initialize auth on app startup
     authService.initializeAuth()
 
-    // Get current user if token exists
-    const token = authService.getToken()
-    if (token && !isAuthenticated) {
+    // Always refresh current user (and feature toggles) when token exists.
+    const refreshCurrentUser = () => {
+      const token = authService.getToken()
+      if (!token) return
       dispatch(getCurrentUser())
     }
-  }, [dispatch, isAuthenticated])
+
+    refreshCurrentUser()
+    window.addEventListener('focus', refreshCurrentUser)
+
+    return () => {
+      window.removeEventListener('focus', refreshCurrentUser)
+    }
+  }, [dispatch])
 
   if (loading) {
     return (
@@ -84,12 +92,22 @@ function App() {
         <Routes>
           {/* Public Routes */}
           <Route
-            path="/login"
+            path="/"
             element={
               isAuthenticated ? (
                 hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
               ) : (
                 <Login />
+              )
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              isAuthenticated ? (
+                hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
+              ) : (
+                <Navigate to="/" replace />
               )
             }
           />
@@ -119,7 +137,7 @@ function App() {
             path="/select-session"
             element={
               !isAuthenticated ? (
-                <Navigate to="/login" replace />
+                <Navigate to="/" replace />
               ) : (
                 <SessionSelector />
               )
@@ -129,7 +147,6 @@ function App() {
           {/* Protected Routes */}
           <Route path="/" element={<ProtectedRoute />}>
             <Route path="/" element={<TimetableProvider><Layout /></TimetableProvider>}>
-              <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="school-hub" element={<SchoolHub />} />
               <Route path="time-table/classes" element={<TimetableClasses />} />
@@ -180,10 +197,10 @@ function App() {
                   <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">404</h1>
                   <p className="text-gray-600 dark:text-gray-400 mb-8">Page not found</p>
                   <Link
-                    to="/dashboard"
+                    to="/"
                     className="btn btn-primary"
                   >
-                    Go to Dashboard
+                    Back to Home
                   </Link>
                 </div>
               </div>

@@ -13,7 +13,10 @@ import type {
   RolloutStatus,
   SubjectStats,
   Tenant,
+  TenantFeatureConfigResponse,
+  TenantFeaturePage,
   TenantListResponse,
+  TenantWithFeatureSummary,
   UploadResult,
 } from '../types/platform'
 
@@ -151,6 +154,34 @@ export const tenantAdminApi = {
         data: { confirmSlug },
       },
     )
+    return response.data.data
+  },
+}
+
+export const featuresAdminApi = {
+  async listPages(): Promise<TenantFeaturePage[]> {
+    const response = await platformApi.get<ApiResponse<TenantFeaturePage[]>>('/features/pages')
+    return response.data.data
+  },
+
+  async listTenants(search = ''): Promise<TenantWithFeatureSummary[]> {
+    const response = await platformApi.get<ApiResponse<TenantWithFeatureSummary[]>>('/features/tenants', {
+      params: {
+        search: search || undefined,
+      },
+    })
+    return response.data.data
+  },
+
+  async getTenantFeatures(tenantId: string): Promise<TenantFeatureConfigResponse> {
+    const response = await platformApi.get<ApiResponse<TenantFeatureConfigResponse>>(`/features/tenants/${tenantId}`)
+    return response.data.data
+  },
+
+  async updateTenantFeatures(tenantId: string, toggles: Record<string, boolean>): Promise<TenantFeatureConfigResponse> {
+    const response = await platformApi.put<ApiResponse<TenantFeatureConfigResponse>>(`/features/tenants/${tenantId}`, {
+      toggles,
+    })
     return response.data.data
   },
 }

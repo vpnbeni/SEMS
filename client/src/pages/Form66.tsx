@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { ChevronRight, ChevronDown, Download, Upload, RefreshCw, FileText, Calendar, Users, BookOpen, Eye, X } from 'lucide-react'
 import { getTenantHeader, resolveApiBaseUrl, resolveTenantSlug } from '../utils/tenantRuntime'
+import { getAuthToken } from '@/utils/authStorage'
 import { Dialog } from '@/components/common/Dialog'
 
 interface Form66Record {
@@ -96,7 +97,7 @@ const Form66: React.FC = () => {
   const tenantSlug = resolveTenantSlug()
 
   const withAuthAndTenantHeaders = (options: RequestInit = {}): RequestInit => {
-    const token = localStorage.getItem('token')
+    const token = getAuthToken()
     return {
       ...options,
       headers: {

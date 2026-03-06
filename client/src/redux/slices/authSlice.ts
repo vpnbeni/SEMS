@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 import type { User, LoginCredentials, RegisterData, AuthResponse, PasswordChangeData, ApiResponse } from "../../types/auth";
 import authService from "../../services/authService";
+import { clearAuthData, getAuthToken, getRememberPreference, getStoredUser, persistAuthData, setStoredUser } from "../../utils/authStorage";
 
 interface AuthState {
   user: User | null;
@@ -10,11 +11,10 @@ interface AuthState {
   error: string | null;
 }
 
-// Get initial state from localStorage
+// Get initial state from persisted auth storage.
 const getInitialState = (): AuthState => {
-  const token = localStorage.getItem('token');
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
+  const token = getAuthToken();
+  const user = getStoredUser<User>();
   return {
     user,
     token: token || null,
@@ -33,10 +33,12 @@ export const login = createAsyncThunk<AuthResponse, LoginCredentials>(
       const response = await authService.login(credentials);
       const { token, refreshToken, user, billing } = response.data;
       const userWithBilling = { ...user, ...(billing ? { billing } : {}) };
-      // Store tokens in localStorage
-      if (token) localStorage.setItem('token', token);
-      if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-      if (user) localStorage.setItem('user', JSON.stringify(userWithBilling));
+      persistAuthData({
+        token,
+        refreshToken,
+        user: userWithBilling,
+        remember: getRememberPreference(),
+      });
       return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || "Login failed");
@@ -51,10 +53,12 @@ export const register = createAsyncThunk<AuthResponse, RegisterData>(
       const response = await authService.register(userData);
       const { token, refreshToken, user, billing } = response.data;
       const userWithBilling = { ...user, ...(billing ? { billing } : {}) };
-      // Store tokens in localStorage
-      if (token) localStorage.setItem('token', token);
-      if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-      if (user) localStorage.setItem('user', JSON.stringify(userWithBilling));
+      persistAuthData({
+        token,
+        refreshToken,
+        user: userWithBilling,
+        remember: true,
+      });
       return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || "Registration failed");
@@ -69,15 +73,11 @@ export const logout = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       await authService.logout();
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
+      clearAuthData();
       localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
       return null;
     } catch (error: any) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
+      clearAuthData();
       localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
       return rejectWithValue(error.response?.data?.message || "Logout failed");
     }
@@ -102,7 +102,7 @@ export const updateProfile = createAsyncThunk<ApiResponse<User>, Partial<User>>(
     try {
       const response = await authService.updateProfile(userData);
       if (response.data) {
-        localStorage.setItem('user', JSON.stringify(response.data));
+        setStoredUser(response.data);
       }
       return response;
     } catch (error: any) {
@@ -116,9 +116,7 @@ export const changePassword = createAsyncThunk<ApiResponse<null>, PasswordChange
   async (passwordData, { rejectWithValue }) => {
     try {
       const response = await authService.changePassword(passwordData);
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
+      clearAuthData();
       localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
       return response;
     } catch (error: any) {
@@ -139,17 +137,18 @@ const authSlice = createSlice({
       state.token = action.payload.token;
       state.isAuthenticated = true;
       state.error = null;
-      localStorage.setItem('token', action.payload.token);
-      localStorage.setItem('user', JSON.stringify(action.payload.user));
+      persistAuthData({
+        token: action.payload.token,
+        user: action.payload.user,
+        remember: true,
+      });
     },
     clearCredentials: (state) => {
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
       state.error = null;
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('user');
+      clearAuthData();
       localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
@@ -235,6 +234,7 @@ const authSlice = createSlice({
           state.user = action.payload.data;
           state.isAuthenticated = true;
           state.error = null;
+          setStoredUser(action.payload.data);
         }
       })
       .addCase(getCurrentUser.rejected, (state, action) => {

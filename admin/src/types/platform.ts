@@ -16,6 +16,29 @@ export interface Tenant {
   updatedAt?: string
 }
 
+export interface TenantFeaturePage {
+  key: string
+  label: string
+  path: string
+  group: string
+}
+
+export interface TenantFeatureSummary {
+  total: number
+  disabled: number
+  enabled: number
+}
+
+export interface TenantWithFeatureSummary extends Tenant {
+  featureSummary: TenantFeatureSummary
+}
+
+export interface TenantFeatureConfigResponse {
+  tenant: Tenant
+  toggles: Record<string, boolean>
+  pages: TenantFeaturePage[]
+}
+
 export interface TenantListResponse {
   items: Tenant[]
   total: number

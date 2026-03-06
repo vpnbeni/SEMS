@@ -3,6 +3,7 @@ const { getTenantConnectionAndModels } = require('./tenantConnectionManager');
 const { setRequestContext } = require('./requestContext');
 const { getPlatformModels } = require('./platformModels');
 const { TENANT_STATUS } = require('../models/platform/Tenant');
+const { normalizeTenantFeatureToggles } = require('../constants/tenantFeatures');
 
 const buildTenantResolutionDebugContext = (req, resolution) => {
   const headers = req.headers || {};
@@ -90,12 +91,15 @@ const tenantContextMiddleware = async (req, res, next) => {
 
     const { connection, models } = getTenantConnectionAndModels(tenantRecord.dbName);
 
+    const featureToggles = normalizeTenantFeatureToggles(tenantRecord.featureToggles);
+
     req.tenant = {
       id: tenantRecord._id,
       slug: tenantRecord.slug,
       name: tenantRecord.name,
       dbName: tenantRecord.dbName,
       status: tenantRecord.status,
+      featureToggles,
       source: resolution.source,
       host: resolution.host,
     };

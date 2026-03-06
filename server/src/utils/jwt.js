@@ -114,6 +114,7 @@ const createTokenResponse = (user, statusCode, res, tenantSlug, extraData = null
     role: user.role,
     isActive: user.isActive,
     createdAt: user.createdAt,
+    ...(extraData?.featureToggles ? { featureToggles: extraData.featureToggles } : {}),
   };
 
   res

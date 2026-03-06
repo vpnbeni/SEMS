@@ -4,11 +4,11 @@ const { USER_ROLES } = require('../utils/constants');
 // Login validation schema
 const loginSchema = Joi.object({
   email: Joi.string()
-    .email()
+    .trim()
     .required()
     .messages({
-      'string.email': 'Please provide a valid email address',
-      'any.required': 'Email is required'
+      'string.empty': 'Email or username is required',
+      'any.required': 'Email or username is required'
     }),
   password: Joi.string()
     .min(6)

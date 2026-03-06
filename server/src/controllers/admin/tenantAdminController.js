@@ -19,6 +19,7 @@ const {
   onboardTenantTrial,
   getTenantEntitlement,
 } = require('../../services/billingServiceClient');
+const { normalizeTenantFeatureToggles } = require('../../constants/tenantFeatures');
 
 const getClientIp = (req) => {
   const forwarded = req.headers['x-forwarded-for'];
@@ -704,7 +705,8 @@ const exchangePublicTenantSignup = asyncHandler(async (req, res) => {
         email: user.email,
         role: user.role,
         isActive: user.isActive,
-        createdAt: user.createdAt
+        createdAt: user.createdAt,
+        featureToggles: normalizeTenantFeatureToggles(tenantRecord.featureToggles),
       },
       tenant: {
         slug: tenantRecord.slug,

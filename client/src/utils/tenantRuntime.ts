@@ -1,3 +1,5 @@
+import { getAuthToken } from './authStorage';
+
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
 const TENANT_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const RESERVED_PLATFORM_SUBDOMAINS = new Set(['www']);
@@ -82,7 +84,7 @@ export const resolveTenantSlug = (): string | null => {
       return fromStorage;
     }
 
-    const tokenPayload = decodeJwtPayload(localStorage.getItem('token'));
+    const tokenPayload = decodeJwtPayload(getAuthToken());
     const fromToken = sanitizeTenantSlug(tokenPayload?.tenantSlug);
     if (fromToken) {
       localStorage.setItem('tenantSlug', fromToken);

@@ -17,6 +17,7 @@ export interface User {
   updatedAt: string
   lastLogin?: string
   billing?: BillingSnapshot | null
+  featureToggles?: Record<string, boolean> | null
 }
 
 // Login credentials interface

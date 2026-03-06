@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { createAllEnabledFeatureToggles } = require('../../constants/tenantFeatures');
 
 const TENANT_STATUS = {
   ACTIVE: 'active',
@@ -36,6 +37,10 @@ const tenantSchema = new mongoose.Schema({
     required: [true, 'Initial admin email is required'],
     trim: true,
     lowercase: true,
+  },
+  featureToggles: {
+    type: mongoose.Schema.Types.Mixed,
+    default: () => createAllEnabledFeatureToggles(),
   },
   metadata: {
     createdBy: {

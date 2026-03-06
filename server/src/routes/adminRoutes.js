@@ -30,7 +30,8 @@ const {
   updateTenantSchema,
   deleteTenantSchema,
   tenantQuerySchema,
-  tenantIdParamSchema
+  tenantIdParamSchema,
+  tenantFeatureUpdateSchema
 } = require('../validations/adminValidation');
 const masterSubjectsController = require('../controllers/admin/masterSubjectsController');
 const masterDatesheetController = require('../controllers/admin/masterDatesheetController');
@@ -39,6 +40,7 @@ const masterUndertakingsController = require('../controllers/admin/masterUnderta
 const rolloutController = require('../controllers/admin/rolloutController');
 const masterTeacherTemplateController = require('../controllers/admin/masterTeacherTemplateController');
 const billingAdminController = require('../controllers/admin/billingAdminController');
+const tenantFeaturesController = require('../controllers/admin/tenantFeaturesController');
 
 const router = express.Router();
 
@@ -147,6 +149,17 @@ router.delete(
   validateParams(tenantIdParamSchema),
   validateJoi(deleteTenantSchema),
   deleteTenant
+);
+
+// Tenant feature toggle routes
+router.get('/features/pages', tenantFeaturesController.listFeaturePages);
+router.get('/features/tenants', tenantFeaturesController.listFeatureTenants);
+router.get('/features/tenants/:id', validateParams(tenantIdParamSchema), tenantFeaturesController.getTenantFeatures);
+router.put(
+  '/features/tenants/:id',
+  validateParams(tenantIdParamSchema),
+  validateJoi(tenantFeatureUpdateSchema),
+  tenantFeaturesController.updateTenantFeatures
 );
 
 // Master Subjects routes

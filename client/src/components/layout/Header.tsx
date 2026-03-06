@@ -1,14 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useSelector } from 'react-redux'
+import { selectUser } from '@/redux/slices/authSlice'
 import api from '@/services/api'
 import { useAcademicSession } from '@/contexts/AcademicSessionContext'
+import { isFeatureEnabledForPath } from '@/constants/featureAccess'
 
 const Header: React.FC = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [dashboardCentreLabel, setDashboardCentreLabel] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
+  const user = useSelector(selectUser)
   const isDashboardRoute = location.pathname === '/dashboard'
+  const canAccessCentreDetails = isFeatureEnabledForPath('/centre-details', user?.featureToggles)
   const defaultDashboardCentreLabel = '829261 - International Bharti School, Rohtak'
   const { currentSession } = useAcademicSession()
 
@@ -196,6 +201,11 @@ const Header: React.FC = () => {
 
     let isMounted = true
     const fetchCentreLabel = async () => {
+      if (!canAccessCentreDetails) {
+        if (isMounted) setDashboardCentreLabel('')
+        return
+      }
+
       try {
         const response = await api.get('/centre-details')
         const payload = response?.data?.data || {}
@@ -212,7 +222,7 @@ const Header: React.FC = () => {
     return () => {
       isMounted = false
     }
-  }, [isDashboardRoute, location.pathname])
+  }, [canAccessCentreDetails, isDashboardRoute, location.pathname])
 
   return (
     <header className="h-20 flex-shrink-0 sticky top-0 z-40 glass border-b border-gray-100/80 dark:border-gray-800/80 transition-all duration-300">

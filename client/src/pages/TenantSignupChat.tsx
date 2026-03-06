@@ -343,7 +343,7 @@ const TenantSignupChat: React.FC = () => {
             >
               Continue Anyway
             </button>
-            <Link to="/login" className="px-4 py-2 rounded-xl border border-white/20 hover:bg-white/10 transition-colors">
+            <Link to="/" className="px-4 py-2 rounded-xl border border-white/20 hover:bg-white/10 transition-colors">
               Back to Login
             </Link>
           </div>
@@ -381,7 +381,7 @@ const TenantSignupChat: React.FC = () => {
           </div>
 
           <p className="text-xs text-slate-400 mt-10">
-            Already registered? <Link to="/login" className="text-cyan-300 hover:text-cyan-200">Sign in to Centre portal</Link>
+            Already registered? <Link to="/" className="text-cyan-300 hover:text-cyan-200">Sign in to Centre portal</Link>
           </p>
         </section>
 

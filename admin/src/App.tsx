@@ -7,6 +7,7 @@ import { RolloutsPage } from './pages/RolloutsPage'
 import { TenantsPage } from './pages/TenantsPage'
 import { BillingTenantsPage } from './pages/BillingTenantsPage'
 import { BillingCatalogPage } from './pages/BillingCatalogPage'
+import { FeaturesPage } from './pages/FeaturesPage'
 import { platformAuthApi } from './services/platformApi'
 import type { PlatformAdmin } from './types/platform'
 
@@ -95,6 +96,7 @@ function App() {
       { label: 'Datesheet', icon: '#', path: '/master-datesheet', matcher: (path: string) => path === '/master-datesheet' },
       { label: 'Guidelines', icon: '||', path: '/master-guidelines', matcher: (path: string) => path === '/master-guidelines' },
       { label: 'Undertaking', icon: 'U', path: '/master-undertaking', matcher: (path: string) => path === '/master-undertaking' },
+      { label: 'Features', icon: 'F', path: '/features', matcher: (path: string) => path.startsWith('/features') },
       { label: 'Rollouts', icon: 'R', path: '/rollouts', matcher: (path: string) => path.startsWith('/rollouts') },
       { label: 'Billing Tenants', icon: '$', path: '/billing/tenants', matcher: (path: string) => path === '/billing/tenants' },
       { label: 'Billing Catalog', icon: '%', path: '/billing/catalog', matcher: (path: string) => path === '/billing/catalog' },
@@ -127,6 +129,10 @@ function App() {
 
     if (currentPath.startsWith('/rollouts')) {
       return <RolloutsPage />
+    }
+
+    if (currentPath.startsWith('/features')) {
+      return <FeaturesPage />
     }
 
     if (currentPath === '/billing/tenants') {
