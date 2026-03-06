@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   ArrowRight,
   CheckCircle2,
@@ -11,7 +12,7 @@ import {
 
 const appOrigin = (process.env.NEXT_PUBLIC_APP_ORIGIN || "https://app.capabble.cloud").replace(/\/+$/, "");
 const loginUrl = `${appOrigin}/login`;
-const signupUrl = `${appOrigin}/signup`;
+const signupUrl = "/signup";
 
 const workflowSteps = [
   {
@@ -73,10 +74,10 @@ export default function Home() {
               <LogIn className="h-4 w-4" />
               Login
             </a>
-            <a href={signupUrl} className="cta-primary">
+            <Link href={signupUrl} className="cta-primary">
               <UserPlus className="h-4 w-4" />
               Register
-            </a>
+            </Link>
           </div>
         </header>
 
@@ -104,9 +105,9 @@ export default function Home() {
                 Continue to Login
                 <ArrowRight className="h-4 w-4" />
               </a>
-              <a href={signupUrl} className="cta-secondary cta-lg">
+              <Link href={signupUrl} className="cta-secondary cta-lg">
                 Create New Account
-              </a>
+              </Link>
             </div>
           </div>
         </section>
@@ -164,12 +165,12 @@ export default function Home() {
                 <a href={loginUrl} className="rounded-full bg-white px-6 py-3 text-sm font-bold text-sky-700 transition hover:-translate-y-0.5 hover:bg-slate-100">
                   Login
                 </a>
-                <a
+                <Link
                   href={signupUrl}
                   className="rounded-full border border-white/50 bg-white/10 px-6 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-white/20"
                 >
                   Register
-                </a>
+                </Link>
               </div>
             </div>
           </div>
