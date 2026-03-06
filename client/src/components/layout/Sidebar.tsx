@@ -365,7 +365,7 @@ const Sidebar: React.FC = () => {
       ),
       children: [
         {
-          name: 'Centre Details',
+          name: 'Centre Info',
           href: '/centre-details',
           icon: (
             <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">

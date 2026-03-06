@@ -138,6 +138,8 @@ function App() {
             element={
               !isAuthenticated ? (
                 <Navigate to="/" replace />
+              ) : hasSession ? (
+                <Navigate to="/dashboard" replace />
               ) : (
                 <SessionSelector />
               )

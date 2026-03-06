@@ -2,20 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import {
-  Activity,
-  ArrowRight,
-  Building2,
-  ChevronRight,
-  Cloud,
-  Eye,
-  EyeOff,
-  Globe,
-  Lock,
-  Mail,
-  Shield,
-  Sparkles,
-} from 'lucide-react'
+import { Activity, ChevronRight, Eye, EyeOff, Globe, Lock, Mail, Shield, BookOpen } from 'lucide-react'
 import { clearError, login, selectAuth } from '../redux/slices/authSlice'
 import authService from '../services/authService'
 import { useAcademicSession } from '../contexts/AcademicSessionContext'
@@ -25,30 +12,6 @@ import { resolveTenantSlug } from '../utils/tenantRuntime'
 import type { AppDispatch } from '../redux/store'
 import type { LoginCredentials } from '../types/auth'
 import Loader from '../components/common/Loader'
-
-interface ResolvedTenant {
-  slug: string
-  name: string
-}
-
-const showcaseCards = [
-  {
-    url: '/assets/images/login/hero1.png',
-    title: 'Exam command center',
-    desc: 'Track rooms, schedules, and centre readiness from one operational surface.',
-  },
-  {
-    url: '/assets/images/login/hero2.png',
-    title: 'Board workflow clarity',
-    desc: 'Datesheets, staffing, and answer-sheet flows stay aligned across the institution.',
-  },
-]
-
-const trustSignals = [
-  { icon: Shield, label: 'Secure tenant access' },
-  { icon: Activity, label: 'Built for daily operations' },
-  { icon: Globe, label: 'Cloud-ready deployment' },
-]
 
 const syncTenantInUrl = (tenantSlug: string | null) => {
   const url = new URL(window.location.href)
@@ -62,12 +25,22 @@ const syncTenantInUrl = (tenantSlug: string | null) => {
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
+const galleryImages = [
+  {
+    url: '/assets/images/login/hero1.png',
+    title: 'Bharat Edutech',
+  },
+  {
+    url: '/assets/images/login/hero2.png',
+    title: 'Board Excellence',
+  },
+]
+
 const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [resolvingTenant, setResolvingTenant] = useState(false)
   const [rememberMe, setRememberMe] = useState<boolean>(getRememberPreference())
   const [tenantLookupError, setTenantLookupError] = useState<string | null>(null)
-  const [resolvedTenant, setResolvedTenant] = useState<ResolvedTenant | null>(null)
   const [formData, setFormData] = useState<LoginCredentials>({
     email: '',
     password: '',
@@ -119,9 +92,7 @@ const Login: React.FC = () => {
         const tenant = await authService.resolveTenantByEmail(identifier)
         localStorage.setItem('tenantSlug', tenant.slug)
         syncTenantInUrl(tenant.slug)
-        setResolvedTenant(tenant)
       } else {
-        setResolvedTenant(null)
         const tenantSlug = resolveTenantSlug()
         if (!tenantSlug) {
           setTenantLookupError('Use your full work email here, or open your tenant login URL to sign in with a username.')
@@ -168,285 +139,243 @@ const Login: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#07111f] text-white selection:bg-sky-300/30">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(79,172,254,0.18),_transparent_32%),radial-gradient(circle_at_bottom_right,_rgba(34,211,238,0.14),_transparent_28%)]" />
+    <div className="login-shell min-h-screen w-full flex bg-[#050505] text-white selection:bg-primary-500/30">
+      <div className="login-left hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-gray-900 to-black border-r border-white/5">
+        <div className="absolute inset-0 z-0">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-600/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary-600/10 rounded-full blur-[120px]" />
+        </div>
 
-      <div className="relative grid min-h-screen lg:grid-cols-[1.08fr_0.92fr]">
-        <section className="relative border-b border-white/10 px-6 py-8 sm:px-8 lg:border-b-0 lg:border-r lg:border-white/10 lg:px-14 lg:py-12">
-          <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
+        <div className="relative z-10 w-full flex flex-col justify-between p-8 xl:p-12">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-3"
+          >
+            <div className="p-2 bg-primary-500 rounded-xl shadow-lg shadow-primary-500/20">
+              <BookOpen className="w-6 h-6 text-white" />
+            </div>
+            <span className="text-xl font-bold tracking-tight">BECMS</span>
+          </motion.div>
+
+          <div className="space-y-8 xl:space-y-12">
             <motion.div
-              initial={{ opacity: 0, y: -16 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-between"
+              initial={{ opacity: 0, x: -30 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
             >
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 via-cyan-300 to-emerald-300 text-slate-950 shadow-[0_16px_50px_rgba(56,189,248,0.35)]">
-                  <Cloud className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.32em] text-sky-100/70">capabble.cloud</p>
-                  <p className="text-lg font-semibold tracking-tight text-white">Capabble</p>
-                </div>
-              </div>
-              <Link
-                to="/signup"
-                className="hidden items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:border-sky-300/40 hover:bg-white/10 lg:inline-flex"
-              >
-                Create account
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+              <h1 className="login-hero-title text-[2rem] font-bold leading-tight mb-4">
+                The Future of <br />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-secondary-400">
+                  Online Exam Centre Management System
+                </span>
+              </h1>
+              <p className="text-gray-400 text-base xl:text-lg max-w-md">
+                Experience BECMS — a minimalistic, powerful, and secure platform designed for Bharat&apos;s modern
+                educational ecosystem.
+              </p>
             </motion.div>
 
-            <div className="flex flex-1 flex-col justify-center py-10 lg:py-14">
-              <motion.div
-                initial={{ opacity: 0, x: -24 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.12 }}
-                className="max-w-2xl"
-              >
-                <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.28em] text-cyan-100/80">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  cleaner exam operations
-                </div>
-
-                <h1 className="max-w-2xl text-4xl font-semibold leading-[1.05] text-white sm:text-5xl lg:text-[64px]">
-                  Run the full exam centre workflow from one calm surface.
-                </h1>
-
-                <p className="mt-6 max-w-xl text-base leading-8 text-slate-300 sm:text-lg">
-                  Capabble brings datesheets, duty allocation, room planning, attendance, and answer-sheet control into one
-                  cloud workspace for institutions that need operational clarity.
-                </p>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 24 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.22 }}
-                className="mt-10 grid gap-4 sm:grid-cols-3"
-              >
-                <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-                  <p className="text-3xl font-semibold text-white">1 workspace</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">For datesheets, rooms, duties, attendance, and answer sheets.</p>
-                </div>
-                <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-                  <p className="text-3xl font-semibold text-white">Auto tenant</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">Enter your email and Capabble routes you to the right institution.</p>
-                </div>
-                <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
-                  <p className="text-3xl font-semibold text-white">Cloud first</p>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">Built for modern institutional rollout without scattered tools.</p>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 24 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="mt-10 hidden lg:block"
-              >
-                <div className="relative h-[420px] overflow-hidden rounded-[36px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,15,30,0.92),rgba(16,32,51,0.78))] p-5 shadow-[0_32px_100px_rgba(3,7,18,0.55)]">
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.14),_transparent_34%)]" />
-
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.38 }}
-                    className="absolute left-5 top-5 w-[58%] overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/70"
-                  >
-                    <img src={showcaseCards[0].url} alt={showcaseCards[0].title} className="h-[290px] w-full object-cover" />
-                    <div className="space-y-2 p-4">
-                      <p className="text-sm font-semibold text-white">{showcaseCards[0].title}</p>
-                      <p className="text-sm leading-6 text-slate-300">{showcaseCards[0].desc}</p>
-                    </div>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 24, rotate: 3 }}
-                    animate={{ opacity: 1, y: 0, rotate: 6 }}
-                    transition={{ delay: 0.48 }}
-                    className="absolute right-8 top-16 w-[36%] overflow-hidden rounded-[26px] border border-cyan-300/20 bg-slate-950/80 shadow-[0_20px_70px_rgba(14,165,233,0.18)]"
-                  >
-                    <img src={showcaseCards[1].url} alt={showcaseCards[1].title} className="h-[210px] w-full object-cover" />
-                    <div className="space-y-2 p-4">
-                      <p className="text-sm font-semibold text-white">{showcaseCards[1].title}</p>
-                      <p className="text-xs leading-5 text-slate-300">{showcaseCards[1].desc}</p>
-                    </div>
-                  </motion.div>
-
-                  <motion.div
-                    initial={{ opacity: 0, y: 18 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.58 }}
-                    className="absolute bottom-6 right-8 max-w-[260px] rounded-[24px] border border-emerald-300/20 bg-emerald-300/10 p-4 backdrop-blur-xl"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10">
-                        <Building2 className="h-5 w-5 text-emerald-100" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-emerald-50">Institution-aware login</p>
-                        <p className="text-xs text-emerald-100/70">Email-first routing for multi-tenant access.</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                </div>
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.7 }}
-                className="mt-8 flex flex-wrap gap-3"
-              >
-                {trustSignals.map(({ icon: Icon, label }) => (
-                  <div
-                    key={label}
-                    className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200"
-                  >
-                    <Icon className="h-4 w-4 text-cyan-200" />
-                    {label}
+            <div className="login-gallery grid grid-cols-2 gap-4">
+              {galleryImages.map((img, idx) => (
+                <motion.div
+                  key={img.title}
+                  whileHover={{ scale: 1.05, y: -5 }}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.4 + idx * 0.1 }}
+                  className="login-gallery-card group relative h-56 xl:h-64 rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
+                >
+                  <img
+                    src={img.url}
+                    alt={img.title}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-4">
+                    <h3 className="font-semibold text-white">{img.title}</h3>
                   </div>
-                ))}
-              </motion.div>
+                </motion.div>
+              ))}
             </div>
           </div>
-        </section>
-
-        <section className="relative flex items-center justify-center bg-[linear-gradient(180deg,rgba(10,20,32,0.96),rgba(14,34,46,0.94))] px-6 py-8 sm:px-8 lg:px-10">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.1),_transparent_32%)]" />
 
           <motion.div
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="relative z-10 w-full max-w-[440px]"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.8 }}
+            className="flex items-center gap-6 text-sm text-gray-500"
           >
-            <div className="mb-8 text-center lg:text-left">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs uppercase tracking-[0.24em] text-slate-300">
-                <Cloud className="h-3.5 w-3.5 text-sky-200" />
-                Capabble access
+            <div className="flex items-center gap-2"><Shield className="w-4 h-4" /> Secure</div>
+            <div className="flex items-center gap-2"><Activity className="w-4 h-4" /> Indian Market Optimized</div>
+            <div className="flex items-center gap-2"><Globe className="w-4 h-4" /> Localized</div>
+          </motion.div>
+        </div>
+      </div>
+
+      <div className="login-right flex-1 flex flex-col items-center justify-center p-6 xl:p-8 relative overflow-hidden">
+        <div className="lg:hidden absolute top-0 left-0 w-full h-full -z-10">
+          <div className="absolute top-0 left-1/4 w-64 h-64 bg-primary-500/10 rounded-full blur-[80px]" />
+          <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-secondary-500/10 rounded-full blur-[80px]" />
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="w-full max-w-md"
+        >
+          <div className="text-center mb-8 xl:mb-10">
+            <div className="lg:hidden flex justify-center mb-6">
+              <div className="p-3 bg-primary-500 rounded-2xl">
+                <BookOpen className="w-8 h-8 text-white" />
               </div>
-              <h2 className="text-3xl font-semibold tracking-tight text-white sm:text-[38px]">Log in to capabble.cloud</h2>
-              <p className="mt-3 text-sm leading-7 text-slate-300 sm:text-base">
-                Use your email to detect your institution automatically, or sign in with a username from your tenant-specific login URL.
+            </div>
+            <h2 className="text-3xl font-bold mb-2">Welcome to BECMS</h2>
+            <p className="text-gray-400">Enter your username/email and password to login.</p>
+          </div>
+
+          <div className="glass-morphism login-form-card rounded-3xl p-6 xl:p-8 border border-white/10 shadow-2xl relative">
+            <div className="absolute -top-12 -right-12 w-24 h-24 bg-primary-500/20 rounded-full blur-3xl" />
+
+            <AnimatePresence mode="wait">
+              {activeError && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="mb-6 overflow-hidden"
+                >
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex gap-3 text-red-400 text-sm">
+                    <Activity className="w-5 h-5 flex-shrink-0" />
+                    <p>{activeError}</p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <form onSubmit={handleLogin} className="space-y-5 xl:space-y-6">
+              <div className="space-y-2">
+                <label htmlFor="email" className="text-sm font-medium text-gray-300 ml-1 block">Username / Email</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 transition-colors group-focus-within:text-primary-400">
+                    <Mail className="w-5 h-5" />
+                  </div>
+                  <input
+                    id="email"
+                    name="email"
+                    type="text"
+                    required
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                    placeholder="username or name@institution.com"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between items-center ml-1">
+                  <label htmlFor="password" className="text-sm font-medium text-gray-300">Password</label>
+                  <a href="#" className="text-xs text-primary-400 hover:text-primary-300 transition-colors">Forgot Password?</a>
+                </div>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 transition-colors group-focus-within:text-primary-400">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-12 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                    placeholder="********"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-500 hover:text-white transition-colors"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center ml-1">
+                <input
+                  id="remember"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(event) => setRememberMe(event.target.checked)}
+                  className="w-4 h-4 rounded border-white/10 bg-white/5 text-primary-500 focus:ring-primary-500/50 transition-all"
+                />
+                <label htmlFor="remember" className="ml-2 text-sm text-gray-400 cursor-pointer">Stay signed in</label>
+              </div>
+
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={resolvingTenant || loading}
+                className="w-full bg-primary-600 hover:bg-primary-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-primary-500/25 transition-all flex items-center justify-center gap-2 group disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {loading ? 'Signing In...' : resolvingTenant ? 'Finding User...' : 'Login'}
+                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+              </motion.button>
+            </form>
+
+            <div className="mt-6 rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-4">
+              <p className="text-sm text-cyan-100">
+                New user?{' '}
+                <Link to="/signup" className="font-semibold text-cyan-300 hover:text-cyan-200 underline underline-offset-2">
+                  Create your account with AI signup.
+                </Link>
               </p>
             </div>
+          </div>
 
-            <div className="rounded-[32px] border border-white/10 bg-[#0a1320]/80 p-6 shadow-[0_28px_90px_rgba(2,8,23,0.6)] backdrop-blur-2xl sm:p-8">
-              <AnimatePresence mode="wait">
-                {activeError && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mb-5 overflow-hidden"
-                  >
-                    <div className="flex gap-3 rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">
-                      <Activity className="mt-0.5 h-5 w-5 flex-shrink-0" />
-                      <p>{activeError}</p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <form onSubmit={handleLogin} className="space-y-5">
-                <div className="space-y-2">
-                  <label htmlFor="email" className="block text-sm font-medium text-slate-200">
-                    Username or email
-                  </label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
-                    <input
-                      id="email"
-                      name="email"
-                      type="text"
-                      required
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      placeholder="name@institution.edu"
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 py-3.5 pl-12 pr-4 text-white outline-none transition placeholder:text-slate-500 focus:border-sky-300/40 focus:bg-white/10 focus:ring-4 focus:ring-sky-300/10"
-                    />
-                  </div>
-                </div>
-
-                {resolvedTenant && (
-                  <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-50">
-                    Institution detected: <span className="font-semibold">{resolvedTenant.name}</span> ({resolvedTenant.slug})
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-4">
-                    <label htmlFor="password" className="block text-sm font-medium text-slate-200">
-                      Password
-                    </label>
-                    <span className="text-xs text-slate-400">Tenant resolves after email entry</span>
-                  </div>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
-                    <input
-                      id="password"
-                      name="password"
-                      type={showPassword ? 'text' : 'password'}
-                      required
-                      value={formData.password}
-                      onChange={handleInputChange}
-                      placeholder="Enter your password"
-                      className="w-full rounded-2xl border border-white/10 bg-white/5 py-3.5 pl-12 pr-12 text-white outline-none transition placeholder:text-slate-500 focus:border-sky-300/40 focus:bg-white/10 focus:ring-4 focus:ring-sky-300/10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((prev) => !prev)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-white"
-                      aria-label={showPassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                    </button>
-                  </div>
-                </div>
-
-                <label className="flex cursor-pointer items-center gap-3 text-sm text-slate-300">
-                  <input
-                    id="remember"
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(event) => setRememberMe(event.target.checked)}
-                    className="h-4 w-4 rounded border-white/10 bg-white/5 text-sky-400 focus:ring-sky-300/30"
-                  />
-                  Keep me signed in on this device
-                </label>
-
-                <motion.button
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.99 }}
-                  type="submit"
-                  disabled={resolvingTenant || loading}
-                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 via-cyan-400 to-emerald-300 px-5 py-3.5 text-base font-semibold text-slate-950 shadow-[0_18px_40px_rgba(56,189,248,0.28)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {loading ? 'Signing in...' : resolvingTenant ? 'Locating institution...' : 'Log in'}
-                  <ChevronRight className="h-5 w-5" />
-                </motion.button>
-              </form>
-
-              <div className="mt-5 grid gap-3">
-                <Link
-                  to="/signup"
-                  className="flex items-center justify-center rounded-2xl border border-sky-300/25 bg-sky-300/10 px-5 py-3 text-sm font-medium text-sky-100 transition hover:border-sky-300/40 hover:bg-sky-300/15"
-                >
-                  Create an institution account
-                </Link>
-                <p className="text-center text-xs leading-6 text-slate-400">
-                  Need username-only login? Open your tenant-specific URL and sign in there.
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-6 text-center text-xs tracking-[0.18em] text-slate-500 lg:text-left">
-              Copyright 2026 Capabble Cloud
-            </p>
-          </motion.div>
-        </section>
+          <p className="text-center mt-8 xl:mt-10 text-sm text-gray-500">
+            © 2026 Bharat Examination Core Management System
+          </p>
+        </motion.div>
       </div>
+
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+        .glass-morphism {
+          background: rgba(255, 255, 255, 0.03);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+        }
+
+        @media (max-width: 1366px) and (min-width: 1024px), (max-height: 900px) and (min-width: 1024px) {
+          .login-shell {
+            overflow: hidden;
+          }
+
+          .login-left,
+          .login-right {
+            min-height: 100vh;
+          }
+
+          .login-hero-title {
+            font-size: 2rem;
+            line-height: 1.02;
+          }
+
+          .login-gallery-card {
+            height: 13.5rem;
+          }
+
+          .login-form-card {
+            padding: 1.5rem;
+          }
+        }
+      `,
+        }}
+      />
     </div>
   )
 }

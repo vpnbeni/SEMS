@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BookOpen, Calendar, ChevronRight, CheckCircle2, ArrowRight, Loader2, Copy } from 'lucide-react'
@@ -8,7 +8,7 @@ import toast from 'react-hot-toast'
 
 const SessionSelector: React.FC = () => {
   const navigate = useNavigate()
-  const { setSession } = useAcademicSession()
+  const { hasSession, setSession } = useAcademicSession()
   const { data, isLoading, error } = useAvailableSessions()
   const createSession = useCreateSession()
   const carryForward = useCarryForward()
@@ -20,6 +20,12 @@ const SessionSelector: React.FC = () => {
 
   const sessions = data?.data || []
   const currentLabel = data?.meta?.currentLabel || ''
+
+  useEffect(() => {
+    if (hasSession) {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [hasSession, navigate])
 
   const handleSelectSession = (label: string) => {
     setSelectedLabel(label)

@@ -1,24 +1,18 @@
 import type { Metadata } from "next";
-import { Playfair_Display, Outfit } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { Toaster } from "react-hot-toast";
 import { CursorGlow } from "@/components/CursorGlow";
 
-const playfair = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-serif",
-});
-
-const outfit = Outfit({
-  subsets: ["latin"],
-  variable: "--font-sans",
-});
-
 export const metadata: Metadata = {
   title: "Capabble | Unified Examination Operations Platform",
   description: "Brings examination operations into one reliable workflow. Plan, execute, and track exams with confidence.",
   keywords: ["examination operations", "CBSE exams", "school administration", "exam centre management", "seating plans", "answer sheet tracking"],
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
   openGraph: {
     title: "Capabble | Unified Examination Operations Platform",
     description: "Run your entire exam centre process from one Capabble dashboard.",
@@ -35,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${playfair.variable} ${outfit.variable} font-sans antialiased`}>
+      <body className="font-sans antialiased">
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
