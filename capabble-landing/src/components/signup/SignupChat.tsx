@@ -371,53 +371,59 @@ export const SignupChat: React.FC = () => {
   }, [draft.name])
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white px-4 py-10 md:px-8">
-      <div className="max-w-6xl mx-auto grid lg:grid-cols-[1.1fr,1.4fr] gap-8">
-        <section className="rounded-3xl border border-white/10 bg-gradient-to-b from-cyan-900/30 to-slate-900/40 p-8">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/40 px-3 py-1 text-xs text-cyan-200">
-            <Sparkles className="w-4 h-4" />
-            Guided AI-Style Signup
-          </div>
-          <h1 className="text-4xl mt-6 font-semibold leading-tight">Launch your Centre in one chat.</h1>
-          <p className="text-slate-300 mt-4">
-            Fast provisioning, secure onboarding ticket, and automatic dashboard sign-in.
-          </p>
+    <div className="h-dvh bg-slate-950 text-white overflow-hidden">
+      <div className="h-full grid grid-rows-[auto_1fr] lg:grid-rows-1 lg:grid-cols-[1fr_1.3fr]">
+        {/* Left panel — info */}
+        <section className="border-b border-white/10 lg:border-b-0 lg:border-r lg:border-white/10 px-6 py-6 sm:px-8 lg:px-10 lg:py-0 lg:flex lg:flex-col lg:justify-center overflow-y-auto">
+          <div className="max-w-lg mx-auto lg:mx-0">
+            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-300/40 px-3 py-1 text-xs text-cyan-200">
+              <Sparkles className="w-4 h-4" />
+              Guided AI-Style Signup
+            </div>
+            <h1 className="text-3xl sm:text-4xl mt-5 font-semibold leading-tight">
+              Launch your Centre in one chat.
+            </h1>
+            <p className="text-slate-300 mt-3 text-sm sm:text-base">
+              Fast provisioning, secure onboarding ticket, and automatic dashboard sign-in.
+            </p>
 
-          <div className="mt-8 space-y-4 text-sm">
-            <div className="flex items-center gap-3 text-slate-200">
-              <Building2 className="w-5 h-5 text-cyan-300" />
-              Centre database provisioned in real time
+            <div className="mt-6 space-y-3 text-sm hidden sm:block">
+              <div className="flex items-center gap-3 text-slate-200">
+                <Building2 className="w-5 h-5 shrink-0 text-cyan-300" />
+                Centre database provisioned in real time
+              </div>
+              <div className="flex items-center gap-3 text-slate-200">
+                <UserRoundPlus className="w-5 h-5 shrink-0 text-cyan-300" />
+                Admin account created with strong-password checks
+              </div>
+              <div className="flex items-center gap-3 text-slate-200">
+                <CheckCircle2 className="w-5 h-5 shrink-0 text-cyan-300" />
+                Single-use onboarding ticket with auto-login
+              </div>
             </div>
-            <div className="flex items-center gap-3 text-slate-200">
-              <UserRoundPlus className="w-5 h-5 text-cyan-300" />
-              Admin account created with strong-password checks
-            </div>
-            <div className="flex items-center gap-3 text-slate-200">
-              <CheckCircle2 className="w-5 h-5 text-cyan-300" />
-              Single-use onboarding ticket with auto-login
-            </div>
-          </div>
 
-          <p className="text-xs text-slate-400 mt-10">
-            Already registered?{" "}
-            <a href={loginUrl} className="text-cyan-300 hover:text-cyan-200">
-              Sign in to Centre portal
-            </a>
-          </p>
+            <p className="text-xs text-slate-400 mt-6 lg:mt-10">
+              Already registered?{" "}
+              <a href={loginUrl} className="text-cyan-300 hover:text-cyan-200">
+                Sign in to Centre portal
+              </a>
+            </p>
+          </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/5 backdrop-blur p-6 md:p-8">
-          <div className="flex items-center gap-3 mb-6">
+        {/* Right panel — chat */}
+        <section className="flex flex-col min-h-0 px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-6">
+          <div className="flex items-center gap-3 mb-4 shrink-0">
             <div className="p-2 rounded-xl bg-cyan-400/20 border border-cyan-300/30">
               <Bot className="w-5 h-5 text-cyan-200" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold">BECMS Onboarding Assistant</h2>
+              <h2 className="text-lg sm:text-xl font-semibold">BECMS Onboarding Assistant</h2>
               <p className="text-xs text-slate-400">Interactive centre registration</p>
             </div>
           </div>
 
-          <div className="h-[430px] overflow-y-auto space-y-3 pr-2">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-2">
             {messages.map((message) => (
               <div
                 key={message.id}
@@ -438,7 +444,7 @@ export const SignupChat: React.FC = () => {
           </div>
 
           {!isReviewStep && (
-            <form onSubmit={handleStepSubmit} className="mt-5">
+            <form onSubmit={handleStepSubmit} className="mt-4 shrink-0">
               <label className="block text-xs text-slate-400 mb-2">
                 {activeStep.id === "name" ? "Centre Name:" : activeStep.prompt}
               </label>
@@ -481,7 +487,7 @@ export const SignupChat: React.FC = () => {
           )}
 
           {isReviewStep && (
-            <div className="mt-5 space-y-3">
+            <div className="mt-4 space-y-3 shrink-0">
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
