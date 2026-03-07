@@ -1,6 +1,13 @@
 const mongoose = require('mongoose')
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
 const academicSessionPlugin = require('./plugins/academicSessionPlugin');
+const {
+  SERIAL_NUMBER_PATTERN,
+  normalizeAnswerSheetSerialRanges,
+  getConfiguredSerialRanges,
+  parseSerialValue,
+  isSerialWithinAnswerSheetRanges
+} = require('../utils/answerSheetSerialRanges');
 
 /**
  * Answer Sheet Model
@@ -24,6 +31,81 @@ const academicSessionPlugin = require('./plugins/academicSessionPlugin');
  * - Calculate: serialTo - serialFrom + 1
  * - But always store original string format
  */
+
+const serialRangeSchema = new mongoose.Schema({
+  serialFrom: {
+    type: String,
+    required: [true, 'Serial number from is required'],
+    trim: true,
+    uppercase: true,
+    validate: {
+      validator: function(v) {
+        return SERIAL_NUMBER_PATTERN.test(v)
+      },
+      message: 'Serial number must be alphanumeric (optional letter prefix + digits)'
+    }
+  },
+  serialTo: {
+    type: String,
+    required: [true, 'Serial number to is required'],
+    trim: true,
+    uppercase: true,
+    validate: {
+      validator: function(v) {
+        return SERIAL_NUMBER_PATTERN.test(v)
+      },
+      message: 'Serial number must be alphanumeric (optional letter prefix + digits)'
+    }
+  }
+}, { _id: false })
+
+const supplementaryUsageSchema = new mongoose.Schema({
+  centreDatesheetEntry: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CBSEDatesheet',
+    required: true
+  },
+  examDate: {
+    type: Date,
+    required: true
+  },
+  subjectCode: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  subjectName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  roomNo: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  rollNo: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  serials: [{
+    type: String,
+    required: true,
+    trim: true,
+    uppercase: true,
+    validate: {
+      validator: function(v) {
+        return SERIAL_NUMBER_PATTERN.test(v)
+      },
+      message: 'Serial number must be alphanumeric (optional letter prefix + digits)'
+    }
+  }],
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+})
 
 const answerSheetSchema = new mongoose.Schema({
   answerSheetType: {
@@ -59,28 +141,34 @@ const answerSheetSchema = new mongoose.Schema({
     trim: true,
     maxlength: [50, 'Series cannot exceed 50 characters']
   },
+  serialRanges: {
+    type: [serialRangeSchema],
+    default: undefined
+  },
   serialFrom: {
     type: String,
-    required: [true, 'Serial number from is required'],
     trim: true,
+    uppercase: true,
     // IMPORTANT: Stored as string to preserve leading zeros (e.g., "001245", "A001245")
     validate: {
       validator: function(v) {
+        if (!v) return true
         // Allow alphanumeric with optional leading zeros
-        return /^[A-Z]?\d+$/.test(v)
+        return SERIAL_NUMBER_PATTERN.test(v)
       },
       message: 'Serial number must be alphanumeric (optional letter prefix + digits)'
     }
   },
   serialTo: {
     type: String,
-    required: [true, 'Serial number to is required'],
     trim: true,
+    uppercase: true,
     // IMPORTANT: Stored as string to preserve leading zeros (e.g., "001500", "A001500")
     validate: {
       validator: function(v) {
+        if (!v) return true
         // Allow alphanumeric with optional leading zeros
-        return /^[A-Z]?\d+$/.test(v)
+        return SERIAL_NUMBER_PATTERN.test(v)
       },
       message: 'Serial number must be alphanumeric (optional letter prefix + digits)'
     }
@@ -130,6 +218,10 @@ const answerSheetSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  supplementaryUsages: {
+    type: [supplementaryUsageSchema],
+    default: undefined
+  },
   receivedDate: {
     type: Date,
     default: Date.now
@@ -213,20 +305,23 @@ answerSheetSchema.virtual('displayName').get(function() {
   return `${this.answerSheetType} - ${this.pages} Pages - ${this.colour} - Class ${this.class}`
 })
 
-// Pre-validate middleware to calculate total from serial numbers
+// Pre-validate middleware to normalize serial ranges and calculate totals.
 answerSheetSchema.pre('validate', function(next) {
-  if (this.serialFrom && this.serialTo) {
-    try {
-      const from = parseInt(this.serialFrom.replace(/\D/g, ''))
-      const to = parseInt(this.serialTo.replace(/\D/g, ''))
-      
-      if (!isNaN(from) && !isNaN(to) && to >= from) {
-        this.total = to - from + 1
-      }
-    } catch (error) {
-      console.warn('Could not calculate total from serial numbers:', error.message)
-    }
+  try {
+    const normalized = normalizeAnswerSheetSerialRanges({
+      serialRanges: this.serialRanges,
+      serialFrom: this.serialFrom,
+      serialTo: this.serialTo
+    })
+
+    this.serialRanges = normalized.serialRanges
+    this.serialFrom = normalized.serialFrom
+    this.serialTo = normalized.serialTo
+    this.total = normalized.total
+  } catch (error) {
+    return next(error)
   }
+
   next()
 })
 
@@ -302,23 +397,22 @@ answerSheetSchema.methods.discardSheets = function(quantity) {
 
 // Instance method to add a discarded serial number
 answerSheetSchema.methods.addDiscardedSerial = function(serial, reason = 'Damaged/Misprinted') {
+  const parsedSerial = parseSerialValue(serial)
+  if (!parsedSerial) {
+    throw new Error('Serial number must be alphanumeric (optional letter prefix + digits)')
+  }
+
   // Check if serial is already in the discarded list
-  const exists = this.discardedSerials.some(d => d.serial === serial)
+  const exists = this.discardedSerials.some(d => d.serial === parsedSerial.raw)
   if (exists) {
-    throw new Error(`Serial ${serial} is already marked as discarded`)
+    throw new Error(`Serial ${parsedSerial.raw} is already marked as discarded`)
   }
   
-  // Validate serial is within range
-  const prefix = this.serialFrom.replace(/\d+$/, '')
-  const serialNum = parseInt(serial.replace(/\D/g, ''))
-  const fromNum = parseInt(this.serialFrom.replace(/\D/g, ''))
-  const toNum = parseInt(this.serialTo.replace(/\D/g, ''))
-  
-  if (isNaN(serialNum) || serialNum < fromNum || serialNum > toNum) {
-    throw new Error(`Serial ${serial} is outside the valid range (${this.serialFrom} - ${this.serialTo})`)
+  if (!isSerialWithinAnswerSheetRanges(this, parsedSerial.raw)) {
+    throw new Error(`Serial ${parsedSerial.raw} is outside the configured serial ranges`)
   }
   
-  this.discardedSerials.push({ serial, reason, discardedAt: new Date() })
+  this.discardedSerials.push({ serial: parsedSerial.raw, reason, discardedAt: new Date() })
   return this.save()
 }
 
@@ -335,24 +429,36 @@ answerSheetSchema.methods.removeDiscardedSerial = function(serial) {
 
 // Instance method to add multiple discarded serials (range)
 answerSheetSchema.methods.addDiscardedRange = function(fromSerial, toSerial, reason = 'Damaged/Misprinted') {
-  const prefix = this.serialFrom.replace(/\d+$/, '')
-  const padLength = this.serialFrom.replace(/\D/g, '').length
-  
-  const fromNum = parseInt(fromSerial.replace(/\D/g, ''))
-  const toNum = parseInt(toSerial.replace(/\D/g, ''))
-  const rangeStart = parseInt(this.serialFrom.replace(/\D/g, ''))
-  const rangeEnd = parseInt(this.serialTo.replace(/\D/g, ''))
-  
-  if (isNaN(fromNum) || isNaN(toNum) || fromNum > toNum) {
+  const configuredRanges = getConfiguredSerialRanges(this)
+  const parsedFrom = parseSerialValue(fromSerial)
+  const parsedTo = parseSerialValue(toSerial)
+
+  if (!parsedFrom || !parsedTo || parsedFrom.number > parsedTo.number) {
     throw new Error('Invalid serial range')
   }
-  
-  if (fromNum < rangeStart || toNum > rangeEnd) {
-    throw new Error(`Serial range is outside the valid range (${this.serialFrom} - ${this.serialTo})`)
+
+  const targetRange = configuredRanges.find(range => {
+    const rangeFrom = parseSerialValue(range.serialFrom)
+    const rangeTo = parseSerialValue(range.serialTo)
+
+    if (!rangeFrom || !rangeTo) return false
+
+    return (
+      parsedFrom.prefix === rangeFrom.prefix
+      && parsedTo.prefix === rangeTo.prefix
+      && parsedFrom.number >= rangeFrom.number
+      && parsedTo.number <= rangeTo.number
+    )
+  })
+
+  if (!targetRange) {
+    throw new Error('Discard range must stay within one configured serial range')
   }
-  
+
+  const padLength = parsedFrom.padLength
+  const prefix = parsedFrom.prefix
   const added = []
-  for (let i = fromNum; i <= toNum; i++) {
+  for (let i = parsedFrom.number; i <= parsedTo.number; i++) {
     const serial = prefix + i.toString().padStart(padLength, '0')
     const exists = this.discardedSerials.some(d => d.serial === serial)
     if (!exists) {

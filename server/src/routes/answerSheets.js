@@ -15,8 +15,12 @@ const {
   downloadTemplate,
   uploadExcel,
   getAnswerSheetDetails,
+  getSupplementaryUsageContext,
   getSerialAllocation,
   downloadDispatchRecord,
+  downloadConsolidatedRecord,
+  saveSupplementaryUsage,
+  removeSupplementaryUsage,
   addDiscardedSerials,
   removeDiscardedSerial,
   getDiscardedSerials,
@@ -54,8 +58,12 @@ router.route('/:id')
 
 // Details and allocation routes (must be before other :id routes to avoid conflicts)
 router.get('/:id/details', getAnswerSheetDetails)
+router.get('/:id/supplementary-context', getSupplementaryUsageContext)
 router.get('/:id/allocation', getSerialAllocation)
 router.get('/:id/dispatch-record/:entryId/download', downloadDispatchRecord)
+router.get('/:id/consolidated-record/download', downloadConsolidatedRecord)
+router.post('/:id/supplementary-usage', saveSupplementaryUsage)
+router.delete('/:id/supplementary-usage/:usageId', removeSupplementaryUsage)
 
 // Action routes
 router.post('/:id/use', useAnswerSheets)

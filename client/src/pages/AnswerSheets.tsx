@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { AnswerSheetEntry } from '../services/answerSheetService'
+import type { AnswerSheetEntry, AnswerSheetSerialRange } from '../services/answerSheetService'
 import type { CentreDatesheetEntry } from '../services/centreDatesheetService'
+import api from '../services/api'
 import {
   useAnswerSheets as useAnswerSheetsQuery,
   useCreateAnswerSheetMutation,
@@ -17,6 +18,11 @@ import { Dropdown } from '../components/common/Dropdown'
 import type { DropdownOption } from '../components/common/Dropdown'
 import { Tabs } from '../components/common/Tabs'
 import type { TabConfig } from '../components/common/Tabs'
+import {
+  createEmptySerialRange,
+  getAnswerSheetSerialRanges,
+  validateSerialRangeInputs,
+} from '../utils/answerSheetSerialRanges'
 
 const DEFAULT_SEQUENCE_ORDER = 999
 
@@ -59,6 +65,29 @@ const getEntryEditingKey = (entry: AnswerSheetEntry) => {
   return `${entry.answerSheetType}-${entry.pages}-${entry.colour}-${entry.class}-${entry.sortOrder ?? 'template'}`
 }
 
+const isSupplementaryEntry = (answerSheetType?: string) => answerSheetType === 'Supplementary'
+
+const buildSerialRangePayload = (
+  answerSheetType: string,
+  ranges: Array<{ serialFrom: string; serialTo: string }>
+): { serialRanges?: AnswerSheetSerialRange[]; serialFrom?: string; serialTo?: string; error?: string } => {
+  const validation = validateSerialRangeInputs(ranges, {
+    allowMultiple: isSupplementaryEntry(answerSheetType),
+  })
+
+  if (!validation.serialRanges) {
+    return { error: validation.error || 'Please enter valid serial numbers' }
+  }
+
+  const serialRanges = validation.serialRanges
+
+  return {
+    serialRanges,
+    serialFrom: serialRanges[0]?.serialFrom,
+    serialTo: serialRanges[serialRanges.length - 1]?.serialTo,
+  }
+}
+
 const AnswerSheets: React.FC = () => {
   const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState<'received' | 'used' | 'balance' | 'discarded'>('received')
@@ -67,7 +96,9 @@ const AnswerSheets: React.FC = () => {
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [uploadFile, setUploadFile] = useState<File | null>(null)
   const [editingEntry, setEditingEntry] = useState<string | null>(null)
-  const [editValues, setEditValues] = useState<{ serialFrom: string; serialTo: string }>({ serialFrom: '', serialTo: '' })
+  const [editValues, setEditValues] = useState<{ serialRanges: AnswerSheetSerialRange[] }>({
+    serialRanges: [createEmptySerialRange()],
+  })
   const [linkingEntry, setLinkingEntry] = useState<{ id: string; quantity: number } | null>(null)
   const [selectedDatesheetEntry, setSelectedDatesheetEntry] = useState<string>('')
   const [editingUsedEntry, setEditingUsedEntry] = useState<string | null>(null)
@@ -77,12 +108,16 @@ const AnswerSheets: React.FC = () => {
     pages: '',
     colour: '',
     class: '',
-    serialFrom: '',
-    serialTo: '',
+    serialRanges: [createEmptySerialRange()],
     exam: '',
     subject: ''
   })
   const [selectedClass, setSelectedClass] = useState<string | number>('')
+  const [consolidatedPreviewUrl, setConsolidatedPreviewUrl] = useState<string | null>(null)
+  const [showConsolidatedPreview, setShowConsolidatedPreview] = useState(false)
+  const [consolidatedPreviewLoading, setConsolidatedPreviewLoading] = useState(false)
+  const [consolidatedPreviewError, setConsolidatedPreviewError] = useState<string | null>(null)
+  const [consolidatedPreviewEntry, setConsolidatedPreviewEntry] = useState<AnswerSheetEntry | null>(null)
 
   const { data: entries = [], isLoading: loadingList, isFetching, error: listError } = useAnswerSheetsQuery(
     { class: selectedClass || undefined }
@@ -133,6 +168,94 @@ const AnswerSheets: React.FC = () => {
     const period = hours >= 12 ? 'PM' : 'AM'
     const hours12 = hours % 12 || 12
     return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`
+  }
+
+  const getConsolidatedRecordFilename = (entry: AnswerSheetEntry) => {
+    const type = String(entry.answerSheetType || 'answer-sheet')
+      .replace(/[^a-z0-9_-]/gi, '-')
+      .toLowerCase()
+    const classLabel = String(entry.class || '')
+      .replace(/[^a-z0-9_-]/gi, '-')
+      .toLowerCase()
+    const colour = String(entry.colour || '')
+      .replace(/[^a-z0-9_-]/gi, '-')
+      .toLowerCase()
+    return `answer-sheet-consolidated-record-${type}-${classLabel}-${colour}.pdf`
+  }
+
+  const closeConsolidatedPreview = () => {
+    setShowConsolidatedPreview(false)
+    setConsolidatedPreviewEntry(null)
+    setConsolidatedPreviewError(null)
+    setConsolidatedPreviewUrl((previousUrl) => {
+      if (previousUrl) {
+        URL.revokeObjectURL(previousUrl)
+      }
+      return null
+    })
+  }
+
+  const openConsolidatedPreview = async (entry: AnswerSheetEntry) => {
+    if (!entry._id || entry.isTemplate) return
+
+    setConsolidatedPreviewEntry(entry)
+    setConsolidatedPreviewError(null)
+    setConsolidatedPreviewLoading(true)
+    setShowConsolidatedPreview(true)
+    setConsolidatedPreviewUrl((previousUrl) => {
+      if (previousUrl) {
+        URL.revokeObjectURL(previousUrl)
+      }
+      return null
+    })
+
+    try {
+      const response = await api.get<Blob>(
+        `/answersheets/${entry._id}/consolidated-record/download`,
+        { responseType: 'blob' }
+      )
+      const blob = response.data
+      const contentType = response.headers['content-type'] || ''
+
+      if (typeof blob === 'object' && blob !== null && contentType.toLowerCase().includes('application/pdf')) {
+        const objectUrl = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob]))
+        setConsolidatedPreviewUrl(objectUrl)
+      } else {
+        const text = await (blob instanceof Blob ? blob.text() : Promise.resolve(String(blob)))
+        let message = 'Failed to generate preview'
+
+        try {
+          const json = JSON.parse(text)
+          if (typeof json?.error === 'string') {
+            message = json.error
+          }
+        } catch (_) {
+          // Ignore invalid JSON response bodies here.
+        }
+
+        setConsolidatedPreviewError(message)
+      }
+    } catch (error: any) {
+      console.error('Failed to load consolidated answer-sheet preview:', error)
+      if (error?.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text()
+          const json = JSON.parse(text)
+          if (typeof json?.error === 'string') {
+            setConsolidatedPreviewError(json.error)
+            return
+          }
+        } catch (_) {
+          // Ignore invalid JSON response bodies here.
+        }
+      }
+
+      setConsolidatedPreviewError(
+        error?.serverMessage ?? error?.message ?? 'Failed to load consolidated answer-sheet preview'
+      )
+    } finally {
+      setConsolidatedPreviewLoading(false)
+    }
   }
 
   // Download Excel template (commented out - not currently used in UI)
@@ -210,22 +333,62 @@ const AnswerSheets: React.FC = () => {
 
   const balance = totals.received - totals.used - totals.discarded
 
+  const updateFormSerialRange = (index: number, field: 'serialFrom' | 'serialTo', value: string) => {
+    setFormData((current) => ({
+      ...current,
+      serialRanges: current.serialRanges.map((range, rangeIndex) =>
+        rangeIndex === index ? { ...range, [field]: value } : range
+      ),
+    }))
+  }
+
+  const addFormSerialRange = () => {
+    setFormData((current) => ({
+      ...current,
+      serialRanges: [...current.serialRanges, createEmptySerialRange()],
+    }))
+  }
+
+  const removeFormSerialRange = (index: number) => {
+    setFormData((current) => ({
+      ...current,
+      serialRanges: current.serialRanges.length === 1
+        ? [createEmptySerialRange()]
+        : current.serialRanges.filter((_, rangeIndex) => rangeIndex !== index),
+    }))
+  }
+
+  const updateEditSerialRange = (index: number, field: 'serialFrom' | 'serialTo', value: string) => {
+    setEditValues((current) => ({
+      serialRanges: current.serialRanges.map((range, rangeIndex) =>
+        rangeIndex === index ? { ...range, [field]: value } : range
+      ),
+    }))
+  }
+
+  const addEditSerialRange = () => {
+    setEditValues((current) => ({
+      serialRanges: [...current.serialRanges, createEmptySerialRange()],
+    }))
+  }
+
+  const removeEditSerialRange = (index: number) => {
+    setEditValues((current) => ({
+      serialRanges: current.serialRanges.length === 1
+        ? [createEmptySerialRange()]
+        : current.serialRanges.filter((_, rangeIndex) => rangeIndex !== index),
+    }))
+  }
+
   const handleAddQuantity = async () => {
-    if (!formData.answerSheetType || !formData.pages || !formData.colour || !formData.class || !formData.serialFrom || !formData.serialTo) {
+    if (!formData.answerSheetType || !formData.pages || !formData.colour || !formData.class) {
       alert('Please fill all required fields')
       return
     }
 
-    const serialFrom = parseInt(formData.serialFrom.replace(/\D/g, ''))
-    const serialTo = parseInt(formData.serialTo.replace(/\D/g, ''))
-
-    if (isNaN(serialFrom) || isNaN(serialTo)) {
-      alert('Please enter valid serial numbers')
-      return
-    }
-
-    if (serialTo < serialFrom) {
-      alert('Serial To must be greater than Serial From')
+    const serialPayload = buildSerialRangePayload(formData.answerSheetType, formData.serialRanges)
+    if (serialPayload.error || !serialPayload.serialRanges || !serialPayload.serialFrom || !serialPayload.serialTo) {
+      alert(serialPayload.error || 'Please enter valid serial numbers')
       return
     }
 
@@ -235,8 +398,9 @@ const AnswerSheets: React.FC = () => {
         pages: parseInt(formData.pages),
         colour: formData.colour,
         class: formData.class,
-        serialFrom: formData.serialFrom,
-        serialTo: formData.serialTo,
+        serialRanges: serialPayload.serialRanges,
+        serialFrom: serialPayload.serialFrom,
+        serialTo: serialPayload.serialTo,
         exam: formData.exam,
         subject: formData.subject,
         used: 0,
@@ -247,8 +411,7 @@ const AnswerSheets: React.FC = () => {
         pages: '',
         colour: '',
         class: '',
-        serialFrom: '',
-        serialTo: '',
+        serialRanges: [createEmptySerialRange()],
         exam: '',
         subject: ''
       })
@@ -438,41 +601,30 @@ const AnswerSheets: React.FC = () => {
   const handleEditClick = (entry: AnswerSheetEntry) => {
     const key = getEntryEditingKey(entry)
     setEditingEntry(key)
-    setEditValues({
-      serialFrom: entry.serialFrom || '',
-      serialTo: entry.serialTo || ''
-    })
+    setEditValues({ serialRanges: getAnswerSheetSerialRanges(entry) })
   }
 
   const handleCancelEdit = () => {
     setEditingEntry(null)
-    setEditValues({ serialFrom: '', serialTo: '' })
+    setEditValues({ serialRanges: [createEmptySerialRange()] })
   }
 
   const handleSaveEdit = async (entry: AnswerSheetEntry) => {
     try {
-      if (!editValues.serialFrom || !editValues.serialTo) {
-        alert('Please enter both serial numbers')
-        return
-      }
-
-      const fromNum = parseInt(editValues.serialFrom.replace(/\D/g, ''))
-      const toNum = parseInt(editValues.serialTo.replace(/\D/g, ''))
-
-      if (isNaN(fromNum) || isNaN(toNum)) {
-        alert('Please enter valid serial numbers')
-        return
-      }
-
-      if (toNum < fromNum) {
-        alert('Serial To must be greater than or equal to Serial From')
+      const serialPayload = buildSerialRangePayload(entry.answerSheetType, editValues.serialRanges)
+      if (serialPayload.error || !serialPayload.serialRanges || !serialPayload.serialFrom || !serialPayload.serialTo) {
+        alert(serialPayload.error || 'Please enter valid serial numbers')
         return
       }
 
       if (entry._id && !entry.isTemplate) {
         await updateMutation.mutateAsync({
           id: entry._id,
-          data: { serialFrom: editValues.serialFrom, serialTo: editValues.serialTo }
+          data: {
+            serialRanges: serialPayload.serialRanges,
+            serialFrom: serialPayload.serialFrom,
+            serialTo: serialPayload.serialTo,
+          }
         })
       } else {
         const sequenceOrder = getAnswerSheetSequenceOrder(entry)
@@ -483,15 +635,16 @@ const AnswerSheets: React.FC = () => {
           class: entry.class,
           suffix: entry.suffix,
           sortOrder: sequenceOrder,
-          serialFrom: editValues.serialFrom,
-          serialTo: editValues.serialTo,
+          serialRanges: serialPayload.serialRanges,
+          serialFrom: serialPayload.serialFrom,
+          serialTo: serialPayload.serialTo,
           used: 0,
           discarded: 0
         })
       }
 
       setEditingEntry(null)
-      setEditValues({ serialFrom: '', serialTo: '' })
+      setEditValues({ serialRanges: [createEmptySerialRange()] })
     } catch (err: any) {
       console.error('Error saving entry:', err)
       alert(err.response?.data?.error || err?.message || 'Failed to save entry')
@@ -765,6 +918,8 @@ const AnswerSheets: React.FC = () => {
                     receivedEntries.map((entry, index) => {
                       const entryKey = getEntryEditingKey(entry)
                       const isEditing = editingEntry === entryKey
+                      const entrySerialRanges = getAnswerSheetSerialRanges(entry)
+                      const editSerialRanges = editValues.serialRanges
 
                       return (
                         <tr
@@ -799,36 +954,85 @@ const AnswerSheets: React.FC = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                             {entry.class}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
+                          <td className="px-6 py-4 text-sm font-mono align-top">
                             {isEditing ? (
-                              <input
-                                type="text"
-                                value={editValues.serialFrom}
-                                onChange={(e) => setEditValues({ ...editValues, serialFrom: e.target.value })}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                                placeholder="e.g., 1001"
-                              />
+                              <div className="space-y-2">
+                                {editSerialRanges.map((range, rangeIndex) => (
+                                  <input
+                                    key={`edit-from-${rangeIndex}`}
+                                    type="text"
+                                    value={range.serialFrom}
+                                    onChange={(e) => updateEditSerialRange(rangeIndex, 'serialFrom', e.target.value)}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-28 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                    placeholder={`From ${rangeIndex + 1}`}
+                                  />
+                                ))}
+                              </div>
                             ) : (
-                              <span className={entry.serialFrom ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}>
-                                {entry.serialFrom || '-'}
-                              </span>
+                              <div className="space-y-1">
+                                {entrySerialRanges.map((range, rangeIndex) => (
+                                  <div
+                                    key={`display-from-${range.serialFrom}-${rangeIndex}`}
+                                    className={range.serialFrom ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}
+                                  >
+                                    {range.serialFrom || '-'}
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono">
+                          <td className="px-6 py-4 text-sm font-mono align-top">
                             {isEditing ? (
-                              <input
-                                type="text"
-                                value={editValues.serialTo}
-                                onChange={(e) => setEditValues({ ...editValues, serialTo: e.target.value })}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-24 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                                placeholder="e.g., 2000"
-                              />
+                              <div className="space-y-2">
+                                {editSerialRanges.map((range, rangeIndex) => (
+                                  <div key={`edit-to-${rangeIndex}`} className="flex items-center gap-2">
+                                    <input
+                                      type="text"
+                                      value={range.serialTo}
+                                      onChange={(e) => updateEditSerialRange(rangeIndex, 'serialTo', e.target.value)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-28 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                                      placeholder={`To ${rangeIndex + 1}`}
+                                    />
+                                    {isSupplementaryEntry(entry.answerSheetType) && editSerialRanges.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          removeEditSerialRange(rangeIndex)
+                                        }}
+                                        className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                                      >
+                                        Remove
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                {isSupplementaryEntry(entry.answerSheetType) && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      addEditSerialRange()
+                                    }}
+                                    className="text-xs font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                                  >
+                                    + Add range
+                                  </button>
+                                )}
+                              </div>
                             ) : (
-                              <span className={entry.serialTo ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}>
-                                {entry.serialTo || '-'}
-                              </span>
+                              <div className="space-y-1">
+                                {entrySerialRanges.map((range, rangeIndex) => (
+                                  <div
+                                    key={`display-to-${range.serialTo}-${rangeIndex}`}
+                                    className={range.serialTo ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}
+                                  >
+                                    {range.serialTo || '-'}
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
@@ -859,20 +1063,39 @@ const AnswerSheets: React.FC = () => {
                                 </button>
                               </>
                             ) : (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleEditClick(entry)
-                                }}
-                                className="inline-flex items-center justify-center p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-colors duration-150"
-                                disabled={loading}
-                                title="Edit"
-                                aria-label="Edit"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              </button>
+                              <>
+                                {entry._id && !entry.isTemplate && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      openConsolidatedPreview(entry)
+                                    }}
+                                    className="inline-flex items-center justify-center p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:text-emerald-400 dark:hover:bg-emerald-900/30 transition-colors duration-150"
+                                    disabled={loading}
+                                    title="Preview consolidated PDF"
+                                    aria-label="Preview consolidated PDF"
+                                  >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M12 3v12m0 0l4-4m-4 4l-4-4" />
+                                      <path d="M4 17v1a2 2 0 002 2h12a2 2 0 002-2v-1" />
+                                    </svg>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleEditClick(entry)
+                                  }}
+                                  className="inline-flex items-center justify-center p-1.5 rounded-md text-gray-500 dark:text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-900/30 transition-colors duration-150"
+                                  disabled={loading}
+                                  title="Edit"
+                                  aria-label="Edit"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                </button>
+                              </>
                             )}
                           </td>
                         </tr>
@@ -1303,6 +1526,72 @@ const AnswerSheets: React.FC = () => {
         </div>
       </div>
 
+      {showConsolidatedPreview && (consolidatedPreviewUrl || consolidatedPreviewLoading || consolidatedPreviewError) && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-6xl h-[88vh] bg-white dark:bg-gray-900 rounded-xl shadow-xl overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate pr-4">
+                Consolidated Answer Sheet Record
+                {consolidatedPreviewEntry && (
+                  <span className="ml-2 text-gray-500 dark:text-gray-400 font-normal">
+                    {consolidatedPreviewEntry.answerSheetType} • {consolidatedPreviewEntry.pages} Pages • {consolidatedPreviewEntry.colour} • Class {consolidatedPreviewEntry.class}
+                  </span>
+                )}
+              </h4>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {consolidatedPreviewUrl && consolidatedPreviewEntry && (
+                  <>
+                    <a
+                      href={consolidatedPreviewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    >
+                      Open in New Tab
+                    </a>
+                    <a
+                      href={consolidatedPreviewUrl}
+                      download={getConsolidatedRecordFilename(consolidatedPreviewEntry)}
+                      className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Download PDF
+                    </a>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={closeConsolidatedPreview}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="w-full flex-1 overflow-auto bg-gray-100 dark:bg-gray-800 p-4 min-h-0">
+              {consolidatedPreviewLoading ? (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                  <p>Generating preview...</p>
+                </div>
+              ) : consolidatedPreviewError ? (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-2 p-6 text-center text-sm text-gray-600 dark:text-gray-300">
+                  <svg className="w-12 h-12 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p>{consolidatedPreviewError}</p>
+                </div>
+              ) : consolidatedPreviewUrl ? (
+                <iframe
+                  src={`${consolidatedPreviewUrl}#toolbar=0`}
+                  className="w-full h-full min-h-[60vh] border-0 rounded-lg bg-white dark:bg-gray-900"
+                  title="Consolidated answer sheet PDF preview"
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Upload Excel Modal */}
       {showUploadModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1428,7 +1717,16 @@ const AnswerSheets: React.FC = () => {
                     </label>
                     <select
                       value={formData.answerSheetType}
-                      onChange={(e) => setFormData({ ...formData, answerSheetType: e.target.value })}
+                      onChange={(e) => {
+                        const nextType = e.target.value
+                        setFormData((current) => ({
+                          ...current,
+                          answerSheetType: nextType,
+                          serialRanges: isSupplementaryEntry(nextType)
+                            ? current.serialRanges
+                            : [current.serialRanges[0] || createEmptySerialRange()],
+                        }))
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                       aria-label="Answer Sheet Type"
                       title="Answer Sheet Type"
@@ -1495,42 +1793,67 @@ const AnswerSheets: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Serial Number From *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.serialFrom}
-                      onChange={(e) => setFormData({ ...formData, serialFrom: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono"
-                      placeholder="e.g., 1001 or 001001"
-                      title="Supports: 1001, 001001, A1001, A001001 (leading zeros preserved)"
-                      required
-                    />
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Leading zeros will be preserved (e.g., 001001)
-                    </p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        {isSupplementaryEntry(formData.answerSheetType) ? 'Serial Number Ranges *' : 'Serial Number Range *'}
+                      </label>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Leading zeros will be preserved. Use multiple rows for supplementary bundles.
+                      </p>
+                    </div>
+                    {isSupplementaryEntry(formData.answerSheetType) && (
+                      <button
+                        type="button"
+                        onClick={addFormSerialRange}
+                        className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                      >
+                        + Add range
+                      </button>
+                    )}
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Serial Number To *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.serialTo}
-                      onChange={(e) => setFormData({ ...formData, serialTo: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono"
-                      placeholder="e.g., 2000 or 002000"
-                      title="Supports: 2000, 002000, A2000, A002000 (leading zeros preserved)"
-                      required
-                    />
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Leading zeros will be preserved (e.g., 002000)
-                    </p>
-                  </div>
+                  {formData.serialRanges.map((range, rangeIndex) => (
+                    <div key={`form-range-${rangeIndex}`} className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_1fr_auto]">
+                      <div>
+                        <input
+                          type="text"
+                          value={range.serialFrom}
+                          onChange={(e) => updateFormSerialRange(rangeIndex, 'serialFrom', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono"
+                          placeholder={`From ${rangeIndex + 1}`}
+                          title="Supports: 1001, 001001, A1001, A001001 (leading zeros preserved)"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <input
+                          type="text"
+                          value={range.serialTo}
+                          onChange={(e) => updateFormSerialRange(rangeIndex, 'serialTo', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white font-mono"
+                          placeholder={`To ${rangeIndex + 1}`}
+                          title="Supports: 2000, 002000, A2000, A002000 (leading zeros preserved)"
+                          required
+                        />
+                      </div>
+
+                      {isSupplementaryEntry(formData.answerSheetType) && (
+                        <div className="flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => removeFormSerialRange(rangeIndex)}
+                            className="text-sm font-medium text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+                            disabled={formData.serialRanges.length === 1}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">

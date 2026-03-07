@@ -29,6 +29,17 @@ const attendanceRecordSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  roomNo: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  sheetNumber: {
+    type: String,
+    trim: true,
+    uppercase: true,
+    default: '',
+  },
 }, {
   timestamps: true,
 });

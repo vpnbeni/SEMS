@@ -62,6 +62,7 @@ const normalizeExamDate = (value) => {
 };
 
 const normalizeSchoolCode = (value) => String(value || '').trim().toUpperCase();
+const normalizeSubjectCode = (value) => String(value || '').trim().toUpperCase();
 const normalizeRollNo = (value) => String(value || '').trim().toUpperCase();
 const normalizeRoomNo = (value) => String(value || '').trim();
 const normalizeText = (value) => String(value || '').trim();
@@ -125,6 +126,20 @@ const getSchoolInitials = (teacher) => {
       .slice(0, 6);
   }
   return normalizeSchoolCode(teacher?.schoolCode);
+};
+
+const getFunctionarySubjectCodes = (functionary) => {
+  const codes = new Set();
+  const raw = String(functionary?.subjectCode || '').trim();
+  if (!raw) return [];
+
+  raw
+    .split(',')
+    .map((value) => normalizeSubjectCode(value))
+    .filter(Boolean)
+    .forEach((code) => codes.add(code));
+
+  return Array.from(codes);
 };
 
 const formatDateLabel = (examDateKey) => {
@@ -358,6 +373,40 @@ const buildRoomCandidateSchoolCodes = async (examDateKey, rooms = []) => {
   );
 };
 
+const buildRoomSubjectCodes = async (examDateKey, rooms = []) => {
+  const roomIdByRoomNo = new Map(
+    (rooms || [])
+      .map((room) => [normalizeRoomNo(room?.roomNo), String(room?._id || '')])
+      .filter(([roomNo, roomId]) => Boolean(roomNo) && Boolean(roomId))
+  );
+
+  if (roomIdByRoomNo.size === 0) return {};
+
+  const allocations = await SeatingPlanAllocation.find({ examDate: examDateKey })
+    .select('roomNo subjectCode')
+    .lean();
+  if (!allocations.length) return {};
+
+  const subjectCodesByRoomId = {};
+  for (const allocation of allocations) {
+    const roomNo = normalizeRoomNo(allocation?.roomNo);
+    const roomId = roomIdByRoomNo.get(roomNo);
+    if (!roomId) continue;
+
+    const subjectCode = normalizeSubjectCode(allocation?.subjectCode);
+    if (!subjectCode) continue;
+
+    if (!subjectCodesByRoomId[roomId]) {
+      subjectCodesByRoomId[roomId] = new Set();
+    }
+    subjectCodesByRoomId[roomId].add(subjectCode);
+  }
+
+  return Object.fromEntries(
+    Object.entries(subjectCodesByRoomId).map(([roomId, codes]) => [roomId, Array.from(codes)])
+  );
+};
+
 /**
  * Build a mapping of roomNo -> school names for display purposes.
  * Uses SeatingPlanAllocation to find which candidates sit in which room,
@@ -425,8 +474,9 @@ const getDailyDuties = asyncHandler(async (req, res) => {
   const sortedDuties = [...duties].sort((a, b) => compareRoomNo(a?.room, b?.room));
   const activeRooms = await Room.find({ isActive: true }).select('_id roomNo').lean();
   const examDateKey = examDate.toISOString().slice(0, 10);
-  const [roomCandidateSchoolCodes, roomSchoolNames] = await Promise.all([
+  const [roomCandidateSchoolCodes, roomSubjectCodes, roomSchoolNames] = await Promise.all([
     buildRoomCandidateSchoolCodes(examDateKey, activeRooms),
+    buildRoomSubjectCodes(examDateKey, activeRooms),
     buildRoomSchoolNames(examDateKey, activeRooms),
   ]);
 
@@ -437,6 +487,7 @@ const getDailyDuties = asyncHandler(async (req, res) => {
       duties: sortedDuties,
       totalAssigned: sortedDuties.length,
       roomCandidateSchoolCodes,
+      roomSubjectCodes,
       roomSchoolNames,
     },
   });
@@ -468,13 +519,16 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
   const allocationMode = await getDutyAllocationMode();
   const lookupIds = Array.from(new Set([...firstFunctionaryIds, ...secondFunctionaryIds]));
   const functionaries = await Teacher.find({ _id: { $in: lookupIds }, isActive: true })
-    .select('name employeeId department designation schoolCode')
+    .select('name employeeId department designation schoolCode subjectCode')
     .lean();
   if (functionaries.length !== lookupIds.length) {
     return res.status(400).json({ success: false, message: 'Some selected functionaries are invalid or inactive.' });
   }
   const functionaryMap = new Map(functionaries.map((f) => [String(f._id), f]));
-  const roomCandidateSchoolCodes = await buildRoomCandidateSchoolCodes(examDateKey, sortedRooms);
+  const [roomCandidateSchoolCodes, roomSubjectCodes] = await Promise.all([
+    buildRoomCandidateSchoolCodes(examDateKey, sortedRooms),
+    buildRoomSubjectCodes(examDateKey, sortedRooms),
+  ]);
   const hasSchoolConflict = (roomId, functionary) => {
     if (!functionary) return false;
     const invigilatorSchoolCode = normalizeSchoolCode(functionary.schoolCode);
@@ -483,6 +537,15 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
     const conflict = candidateSchoolCodes.includes(invigilatorSchoolCode);
     return conflict;
   };
+  const getSubjectConflictCodes = (roomId, functionary) => {
+    const teacherCodes = getFunctionarySubjectCodes(functionary);
+    if (teacherCodes.length === 0) return [];
+    const roomCodes = (roomSubjectCodes[String(roomId)] || []).map((code) => normalizeSubjectCode(code));
+    if (roomCodes.length === 0) return [];
+    const roomCodeSet = new Set(roomCodes);
+    return teacherCodes.filter((code) => roomCodeSet.has(code));
+  };
+  const hasSubjectConflict = (roomId, functionary) => getSubjectConflictCodes(roomId, functionary).length > 0;
 
   let orderedFirst = [];
   let orderedSecond = [];
@@ -516,6 +579,8 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
       const prevRollNos = supervisedByFunc.get(funcId) || new Set();
 
       return sortedRooms.map((room) => {
+        if (hasSubjectConflict(room._id, fn)) return false;
+
         // (a) School conflict
         if (hasSchoolConflict(room._id, fn)) return false;
 
@@ -567,7 +632,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
     if (!solved) {
       return res.status(400).json({
         success: false,
-        message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids both their candidate's school and any candidate they have previously supervised. Try adding more functionaries from different schools.`,
+        message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids subject conflict, candidate-school conflict, and any candidate they have previously supervised. Try adding more eligible functionaries.`,
       });
     }
 
@@ -579,7 +644,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
     if (invalidRooms.length > 0) {
       return res.status(400).json({
         success: false,
-        message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids both their candidate's school and any candidate they have previously supervised. Try adding more functionaries from different schools.`,
+        message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids subject conflict, candidate-school conflict, and any candidate they have previously supervised. Try adding more eligible functionaries.`,
       });
     }
 
@@ -600,6 +665,20 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
       const second = functionaryMap.get(secondFunctionaryIds[idx]);
       if (!first || !second) {
         return res.status(400).json({ success: false, message: 'Invalid invigilator mapping for one or more rooms.' });
+      }
+      const firstSubjectConflicts = getSubjectConflictCodes(room._id, first);
+      if (firstSubjectConflicts.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Subject teacher cannot be assigned to room ${room.roomNo}. ${first.name || 'Selected invigilator'} matches ${firstSubjectConflicts.join(', ')}.`,
+        });
+      }
+      const secondSubjectConflicts = getSubjectConflictCodes(room._id, second);
+      if (secondSubjectConflicts.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Subject teacher cannot be assigned to room ${room.roomNo}. ${second.name || 'Selected invigilator'} matches ${secondSubjectConflicts.join(', ')}.`,
+        });
       }
       if (String(first._id) === String(second._id)) {
         return res.status(400).json({ success: false, message: `Invigilator 1 and 2 cannot be same for room ${room.roomNo}.` });
@@ -651,6 +730,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
       totalAssigned: sortedDuties.length,
       totalRooms: sortedRooms.length,
       roomCandidateSchoolCodes,
+      roomSubjectCodes,
     },
   });
 });

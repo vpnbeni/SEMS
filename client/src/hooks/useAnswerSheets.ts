@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query'
 import answerSheetService, {
   type AnswerSheetEntry,
+  type AnswerSheetSerialRange,
 } from '../services/answerSheetService'
 
 export const answerSheetKeys = {
@@ -46,6 +47,7 @@ export interface CreateAnswerSheetVariables {
   pages: number
   colour: string
   class: string
+  serialRanges?: AnswerSheetSerialRange[]
   serialFrom: string
   serialTo: string
   exam?: string

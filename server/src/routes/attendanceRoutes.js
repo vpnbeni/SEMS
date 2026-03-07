@@ -10,6 +10,7 @@ router.post('/absentees', attendanceController.saveAbsentees);
 
 // Get absentees (optionally filtered by ?class=X or ?class=XII)
 router.get('/absentees', attendanceController.getAbsentees);
+router.get('/absentees/report/download', attendanceController.downloadAbsenteeReport);
 
 // Upload attendance sheet document
 router.post('/upload', attendanceController.uploadAttendanceSheet);

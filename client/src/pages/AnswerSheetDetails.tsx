@@ -25,7 +25,19 @@ import {
     Loader2
 } from 'lucide-react'
 import api from '../services/api'
-import answerSheetService, { AnswerSheetEntry, DiscardedSerial } from '../services/answerSheetService'
+import answerSheetService, {
+    AnswerSheetEntry,
+    AnswerSheetSerialRange,
+    DiscardedSerial,
+    SupplementarySubjectContext,
+    SupplementaryUsageContextResponse,
+} from '../services/answerSheetService'
+import {
+    createEmptySerialRange,
+    formatSerialRangeLabel,
+    getAnswerSheetSerialRanges,
+    validateSerialRangeInputs,
+} from '../utils/answerSheetSerialRanges'
 
 interface RelatedExam {
     _id: string
@@ -51,6 +63,7 @@ interface SerialAllocation extends RelatedExam {
 
 interface AllocationData {
     hasSerialNumbers: boolean
+    serialRanges?: AnswerSheetSerialRange[]
     serialFrom?: string
     serialTo?: string
     total?: number
@@ -62,16 +75,45 @@ interface AllocationData {
     remaining?: number
 }
 
+const isSupplementaryEntry = (answerSheetType?: string) => answerSheetType === 'Supplementary'
+
+interface SupplementaryUsageDraft {
+    roomNo: string
+    rollNo: string
+    serialInput: string
+    serials: string[]
+}
+
+const createSupplementaryUsageDraft = (): SupplementaryUsageDraft => ({
+    roomNo: '',
+    rollNo: '',
+    serialInput: '',
+    serials: [],
+})
+
+const parseSerialInput = (input: string) => Array.from(
+    new Set(
+        String(input || '')
+            .split(/[\s,]+/)
+            .map((item) => item.trim().toUpperCase())
+            .filter(Boolean)
+    )
+)
+
 const AnswerSheetDetails: React.FC = () => {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
 
     const [answerSheet, setAnswerSheet] = useState<AnswerSheetEntry | null>(null)
-    const [, setRelatedExams] = useState<RelatedExam[]>([])
     const [allocation, setAllocation] = useState<AllocationData | null>(null)
+    const [supplementaryContext, setSupplementaryContext] = useState<SupplementaryUsageContextResponse | null>(null)
+    const [usageDrafts, setUsageDrafts] = useState<Record<string, SupplementaryUsageDraft>>({})
     const [loading, setLoading] = useState(true)
     const [editMode, setEditMode] = useState(false)
-    const [editValues, setEditValues] = useState({ serialFrom: '', serialTo: '' })
+    const [editValues, setEditValues] = useState<{ serialRanges: AnswerSheetSerialRange[] }>({
+        serialRanges: [createEmptySerialRange()],
+    })
+    const [savingSupplementaryUsage, setSavingSupplementaryUsage] = useState<string | null>(null)
     
     // Discarded serials management
     const [showDiscardedModal, setShowDiscardedModal] = useState(false)
@@ -84,6 +126,7 @@ const AnswerSheetDetails: React.FC = () => {
     const [dispatchPreviewLoading, setDispatchPreviewLoading] = useState(false)
     const [dispatchPreviewError, setDispatchPreviewError] = useState<string | null>(null)
     const [dispatchPreviewAlloc, setDispatchPreviewAlloc] = useState<SerialAllocation | null>(null)
+    const isSupplementary = isSupplementaryEntry(answerSheet?.answerSheetType)
 
     // Must run unconditionally (Rules of Hooks). Used for utilization "as of today".
     const todayStart = useMemo(() => {
@@ -104,6 +147,17 @@ const AnswerSheetDetails: React.FC = () => {
         }, 0)
     }, [allocation?.allocations, todayStart])
 
+    const answerSheetSerialRanges = useMemo(
+        () => getAnswerSheetSerialRanges(answerSheet),
+        [answerSheet]
+    )
+
+    const supplementarySubjects = supplementaryContext?.subjects || []
+
+    const actualUsedCount = isSupplementary
+        ? supplementaryContext?.totalUsed || answerSheet?.used || 0
+        : allocatedAsOfToday
+
     useEffect(() => {
         if (id) {
             loadDetails()
@@ -118,17 +172,32 @@ const AnswerSheetDetails: React.FC = () => {
             const detailsResponse = await answerSheetService.getAnswerSheetDetails(id!)
             if (detailsResponse.success) {
                 setAnswerSheet(detailsResponse.data.answerSheet)
-                setRelatedExams(detailsResponse.data.relatedExams || [])
                 setEditValues({
-                    serialFrom: detailsResponse.data.answerSheet.serialFrom || '',
-                    serialTo: detailsResponse.data.answerSheet.serialTo || ''
+                    serialRanges: getAnswerSheetSerialRanges(detailsResponse.data.answerSheet)
                 })
             }
 
-            // Load allocation data if serial numbers exist
             const allocationResponse = await answerSheetService.getSerialAllocation(id!)
             if (allocationResponse.success) {
                 setAllocation(allocationResponse.data)
+            }
+
+            if (detailsResponse.data.answerSheet.answerSheetType === 'Supplementary') {
+                const supplementaryResponse = await answerSheetService.getSupplementaryUsageContext(id!)
+                if (supplementaryResponse.success) {
+                    setSupplementaryContext(supplementaryResponse.data)
+                    setUsageDrafts((current) => {
+                        const nextDrafts = { ...current }
+                        supplementaryResponse.data.subjects.forEach((subject) => {
+                            if (!nextDrafts[subject._id]) {
+                                nextDrafts[subject._id] = createSupplementaryUsageDraft()
+                            }
+                        })
+                        return nextDrafts
+                    })
+                }
+            } else {
+                setSupplementaryContext(null)
             }
         } catch (error: any) {
             console.error('Error loading answer sheet details:', error)
@@ -138,30 +207,137 @@ const AnswerSheetDetails: React.FC = () => {
         }
     }
 
+    const updateEditSerialRange = (index: number, field: 'serialFrom' | 'serialTo', value: string) => {
+        setEditValues((current) => ({
+            serialRanges: current.serialRanges.map((range, rangeIndex) =>
+                rangeIndex === index ? { ...range, [field]: value } : range
+            )
+        }))
+    }
+
+    const addEditSerialRange = () => {
+        setEditValues((current) => ({
+            serialRanges: [...current.serialRanges, createEmptySerialRange()]
+        }))
+    }
+
+    const removeEditSerialRange = (index: number) => {
+        setEditValues((current) => ({
+            serialRanges: current.serialRanges.length === 1
+                ? [createEmptySerialRange()]
+                : current.serialRanges.filter((_, rangeIndex) => rangeIndex !== index)
+        }))
+    }
+
+    const updateSupplementaryDraft = (
+        subjectId: string,
+        updater: (draft: SupplementaryUsageDraft) => SupplementaryUsageDraft
+    ) => {
+        setUsageDrafts((current) => ({
+            ...current,
+            [subjectId]: updater(current[subjectId] || createSupplementaryUsageDraft())
+        }))
+    }
+
+    const handleSupplementaryRoomChange = (subjectId: string, roomNo: string) => {
+        updateSupplementaryDraft(subjectId, (draft) => ({
+            ...draft,
+            roomNo,
+            rollNo: '',
+        }))
+    }
+
+    const handleAddSupplementarySerials = (subjectId: string) => {
+        const draft = usageDrafts[subjectId] || createSupplementaryUsageDraft()
+        const nextSerials = parseSerialInput(draft.serialInput)
+
+        if (nextSerials.length === 0) {
+            toast.error('Enter at least one serial number to add')
+            return
+        }
+
+        updateSupplementaryDraft(subjectId, (current) => ({
+            ...current,
+            serialInput: '',
+            serials: Array.from(new Set([...current.serials, ...nextSerials]))
+        }))
+    }
+
+    const handleRemoveSupplementarySerial = (subjectId: string, serial: string) => {
+        updateSupplementaryDraft(subjectId, (draft) => ({
+            ...draft,
+            serials: draft.serials.filter((item) => item !== serial)
+        }))
+    }
+
+    const handleSaveSupplementaryUsage = async (subject: SupplementarySubjectContext) => {
+        const draft = usageDrafts[subject._id] || createSupplementaryUsageDraft()
+        const pendingSerials = parseSerialInput(draft.serialInput)
+        const serials = Array.from(new Set([...draft.serials, ...pendingSerials]))
+
+        if (!draft.roomNo || !draft.rollNo || serials.length === 0) {
+            toast.error('Select room number, roll number, and at least one serial number')
+            return
+        }
+
+        try {
+            setSavingSupplementaryUsage(subject._id)
+            const response = await answerSheetService.saveSupplementaryUsage(id!, {
+                centreDatesheetEntryId: subject._id,
+                roomNo: draft.roomNo,
+                rollNo: draft.rollNo,
+                serials
+            })
+
+            if (response.success) {
+                setSupplementaryContext(response.data)
+                setUsageDrafts((current) => ({
+                    ...current,
+                    [subject._id]: createSupplementaryUsageDraft()
+                }))
+                await loadDetails()
+                toast.success('Supplementary usage saved')
+            }
+        } catch (error: any) {
+            console.error('Error saving supplementary usage:', error)
+            toast.error(error.response?.data?.error || 'Failed to save supplementary usage')
+        } finally {
+            setSavingSupplementaryUsage(null)
+        }
+    }
+
+    const handleRemoveSupplementaryUsage = async (usageId: string) => {
+        if (!id) return
+
+        try {
+            const response = await answerSheetService.removeSupplementaryUsage(id, usageId)
+            if (response.success) {
+                setSupplementaryContext(response.data)
+                await loadDetails()
+                toast.success('Supplementary usage removed')
+            }
+        } catch (error: any) {
+            console.error('Error removing supplementary usage:', error)
+            toast.error(error.response?.data?.error || 'Failed to remove supplementary usage')
+        }
+    }
+
     const handleSaveSerialNumbers = async () => {
-        if (!editValues.serialFrom || !editValues.serialTo) {
-            toast.error('Please enter both serial numbers')
-            return
-        }
+        const validation = validateSerialRangeInputs(editValues.serialRanges, {
+            allowMultiple: isSupplementaryEntry(answerSheet?.answerSheetType)
+        })
 
-        const fromNum = parseInt(editValues.serialFrom.replace(/\D/g, ''))
-        const toNum = parseInt(editValues.serialTo.replace(/\D/g, ''))
-
-        if (isNaN(fromNum) || isNaN(toNum)) {
-            toast.error('Please enter valid serial numbers')
-            return
-        }
-
-        if (toNum < fromNum) {
-            toast.error('Serial To must be greater than or equal to Serial From')
+        if (!validation.serialRanges) {
+            toast.error(validation.error || 'Please enter valid serial numbers')
             return
         }
 
         try {
             setLoading(true)
             await answerSheetService.updateAnswerSheet(id!, {
-                serialFrom: editValues.serialFrom,
-                serialTo: editValues.serialTo
+                serialRanges: validation.serialRanges,
+                serialFrom: validation.serialRanges[0]?.serialFrom,
+                serialTo: validation.serialRanges[validation.serialRanges.length - 1]?.serialTo
             })
             toast.success('Serial numbers updated successfully')
             setEditMode(false)
@@ -336,8 +512,10 @@ const AnswerSheetDetails: React.FC = () => {
     }
 
     // Use usableTotal (total - discarded) for percentage calculation
-    const usableTotal = allocation?.usableTotal || allocation?.total || 0
-    const usagePercentage = usableTotal ? Math.round((allocatedAsOfToday / usableTotal) * 100) : 0;
+    const usableTotal = isSupplementary
+        ? Math.max(0, (answerSheet?.total || 0) - (supplementaryContext?.discardedCount || allocation?.discardedCount || 0))
+        : allocation?.usableTotal || allocation?.total || 0
+    const usagePercentage = usableTotal ? Math.round((actualUsedCount / usableTotal) * 100) : 0;
 
     // Calculate color based on percentage
     const getProgressBarColor = (percentage: number) => {
@@ -434,7 +612,9 @@ const AnswerSheetDetails: React.FC = () => {
                                         <div className="rounded-md bg-white p-1.5 shadow-sm ring-1 ring-gray-200 dark:bg-gray-700 dark:ring-gray-600">
                                             <Hash className="h-4 w-4 text-gray-500 dark:text-gray-400" />
                                         </div>
-                                        <h2 className="font-semibold text-gray-900 dark:text-white">Serial Number Range</h2>
+                                        <h2 className="font-semibold text-gray-900 dark:text-white">
+                                            {answerSheetSerialRanges.length > 1 ? 'Serial Number Ranges' : 'Serial Number Range'}
+                                        </h2>
                                     </div>
                                     {!editMode ? (
                                         <button
@@ -458,8 +638,7 @@ const AnswerSheetDetails: React.FC = () => {
                                                 onClick={() => {
                                                     setEditMode(false)
                                                     setEditValues({
-                                                        serialFrom: answerSheet.serialFrom || '',
-                                                        serialTo: answerSheet.serialTo || ''
+                                                        serialRanges: getAnswerSheetSerialRanges(answerSheet)
                                                     })
                                                 }}
                                                 disabled={loading}
@@ -474,57 +653,90 @@ const AnswerSheetDetails: React.FC = () => {
                             </div>
 
                             <div className="p-6">
-                                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                                    <div className="relative rounded-xl bg-gray-50/50 p-4 ring-1 ring-gray-100 dark:bg-gray-800/50 dark:ring-gray-700">
-                                        <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                            Start From
-                                        </label>
-                                        {editMode ? (
-                                            <input
-                                                type="text"
-                                                value={editValues.serialFrom}
-                                                onChange={(e) => setEditValues({ ...editValues, serialFrom: e.target.value })}
-                                                className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 font-mono text-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                                                placeholder="e.g. 626101"
-                                            />
-                                        ) : (
-                                            <div className="font-mono text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-                                                {answerSheet.serialFrom || <span className="text-gray-400 text-lg font-normal">Not Set</span>}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="relative rounded-xl bg-gray-50/50 p-4 ring-1 ring-gray-100 dark:bg-gray-800/50 dark:ring-gray-700">
-                                        <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                                            End At
-                                        </label>
-                                        {editMode ? (
-                                            <input
-                                                type="text"
-                                                value={editValues.serialTo}
-                                                onChange={(e) => setEditValues({ ...editValues, serialTo: e.target.value })}
-                                                className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 font-mono text-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                                                placeholder="e.g. 627458"
-                                            />
-                                        ) : (
-                                            <div className="font-mono text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-                                                {answerSheet.serialTo || <span className="text-gray-400 text-lg font-normal">Not Set</span>}
-                                            </div>
-                                        )}
-                                    </div>
+                                <div className="space-y-4">
+                                    {editMode ? (
+                                        <>
+                                            {editValues.serialRanges.map((range, rangeIndex) => (
+                                                <div key={`edit-range-${rangeIndex}`} className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_1fr_auto]">
+                                                    <div className="relative rounded-xl bg-gray-50/50 p-4 ring-1 ring-gray-100 dark:bg-gray-800/50 dark:ring-gray-700">
+                                                        <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                                            Start From
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={range.serialFrom}
+                                                            onChange={(e) => updateEditSerialRange(rangeIndex, 'serialFrom', e.target.value)}
+                                                            className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 font-mono text-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                                            placeholder="e.g. 626101"
+                                                        />
+                                                    </div>
+                                                    <div className="relative rounded-xl bg-gray-50/50 p-4 ring-1 ring-gray-100 dark:bg-gray-800/50 dark:ring-gray-700">
+                                                        <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                                            End At
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={range.serialTo}
+                                                            onChange={(e) => updateEditSerialRange(rangeIndex, 'serialTo', e.target.value)}
+                                                            className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 font-mono text-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                                            placeholder="e.g. 627458"
+                                                        />
+                                                    </div>
+                                                    {isSupplementaryEntry(answerSheet.answerSheetType) && (
+                                                        <div className="flex items-center justify-end">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removeEditSerialRange(rangeIndex)}
+                                                                disabled={editValues.serialRanges.length === 1}
+                                                                className="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
+                                                            >
+                                                                Remove
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                            {isSupplementaryEntry(answerSheet.answerSheetType) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={addEditSerialRange}
+                                                    className="text-sm font-medium text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                                                >
+                                                    + Add another range
+                                                </button>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                            {answerSheetSerialRanges.map((range, rangeIndex) => (
+                                                <div
+                                                    key={`display-range-${range.serialFrom}-${range.serialTo}-${rangeIndex}`}
+                                                    className="relative rounded-xl bg-gray-50/50 p-4 ring-1 ring-gray-100 dark:bg-gray-800/50 dark:ring-gray-700"
+                                                >
+                                                    <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                                        {answerSheetSerialRanges.length > 1 ? `Range ${rangeIndex + 1}` : 'Configured Range'}
+                                                    </label>
+                                                    <div className="font-mono text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
+                                                        {formatSerialRangeLabel(range)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
 
-                                {allocation && allocation.hasSerialNumbers && (
+                                {((allocation && allocation.hasSerialNumbers) || (isSupplementary && answerSheetSerialRanges.length > 0)) && (
                                     <div className="mt-8">
                                         <div className="mb-3 flex items-end justify-between">
                                             <div>
-                                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Utilization</span>
+                                                <h3 className="text-base font-bold text-gray-900 dark:text-white">Utilization (So Far)</h3>
                                                 <p className="text-xs text-gray-500 mt-1">
-                                                    <span className="font-medium text-gray-900 dark:text-white">{allocatedAsOfToday.toLocaleString()}</span> used so far (of <span className="font-medium text-gray-900 dark:text-white">{(allocation.usableTotal || allocation.total)?.toLocaleString()}</span> usable)
-                                                    {(allocation.discardedCount || 0) > 0 && (
-                                                        <span className="text-red-500 ml-1">({allocation.discardedCount} discarded)</span>
+                                                    <span className="font-medium text-gray-900 dark:text-white">{actualUsedCount.toLocaleString()}</span> used so far (of <span className="font-medium text-gray-900 dark:text-white">{usableTotal.toLocaleString()}</span> usable)
+                                                    {((supplementaryContext?.discardedCount || allocation?.discardedCount || 0) > 0) && (
+                                                        <span className="text-red-500 ml-1">({(supplementaryContext?.discardedCount || allocation?.discardedCount || 0)} discarded)</span>
                                                     )}
                                                 </p>
-                                                {allocation.totalAllocated != null && allocatedAsOfToday < allocation.totalAllocated && (
+                                                {!isSupplementary && allocation?.totalAllocated != null && actualUsedCount < allocation.totalAllocated && (
                                                     <p className="text-[10px] text-gray-400 mt-0.5">
                                                         Total allocated across all exam dates: {allocation.totalAllocated.toLocaleString()}
                                                     </p>
@@ -547,22 +759,20 @@ const AnswerSheetDetails: React.FC = () => {
 
                                         <div className="mt-6 grid grid-cols-4 divide-x divide-gray-100 dark:divide-gray-700">
                                             <div className="px-3 text-center">
-                                                <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Used (so far)</div>
-                                                <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{allocatedAsOfToday.toLocaleString()}</div>
+                                                <div className="text-xs font-medium uppercase tracking-wider text-blue-500">Received</div>
+                                                <div className="mt-1 text-lg font-bold text-blue-600">{(answerSheet.total || 0).toLocaleString()}</div>
+                                            </div>
+                                            <div className="px-3 text-center">
+                                                <div className="text-xs font-medium uppercase tracking-wider text-green-500">Used</div>
+                                                <div className="mt-1 text-lg font-bold text-green-600">{actualUsedCount.toLocaleString()}</div>
                                             </div>
                                             <div className="px-3 text-center">
                                                 <div className="text-xs font-medium uppercase tracking-wider text-red-500">Discarded</div>
-                                                <div className="mt-1 text-lg font-bold text-red-600">{(allocation.discardedCount || 0).toLocaleString()}</div>
+                                                <div className="mt-1 text-lg font-bold text-red-600">{((supplementaryContext?.discardedCount || allocation?.discardedCount || 0)).toLocaleString()}</div>
                                             </div>
                                             <div className="px-3 text-center">
-                                                <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Remaining</div>
-                                                <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">{(usableTotal - allocatedAsOfToday).toLocaleString()}</div>
-                                            </div>
-                                            <div className="px-3 text-center">
-                                                <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Expected</div>
-                                                <div className="mt-1 text-lg font-bold text-gray-900 dark:text-white">
-                                                    {(allocation.allocations.reduce((acc, curr) => acc + curr.candidateCount, 0))?.toLocaleString()}
-                                                </div>
+                                                <div className="text-xs font-medium uppercase tracking-wider text-yellow-500">Balance</div>
+                                                <div className="mt-1 text-lg font-bold text-yellow-600">{(usableTotal - actualUsedCount).toLocaleString()}</div>
                                             </div>
                                         </div>
                                     </div>
@@ -628,7 +838,190 @@ const AnswerSheetDetails: React.FC = () => {
                         )}
 
                         {/* Date-wise Breakdown Table */}
-                        {allocation && allocation.hasSerialNumbers && allocation.allocations.length > 0 && (
+                        {isSupplementary && supplementarySubjects.length > 0 && (
+                            <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700">
+                                <div className="border-b border-gray-100 px-6 py-4 dark:border-gray-700 flex justify-between items-center">
+                                    <div>
+                                        <h3 className="font-semibold text-gray-900 dark:text-white">Supplementary Usage</h3>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">Select room, roll no, and one or more serial numbers for each subject.</p>
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                        {supplementarySubjects.length} subjects
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-gray-50/50 dark:bg-gray-700/50">
+                                            <tr>
+                                                <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Date & Subject</th>
+                                                <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Room No</th>
+                                                <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Roll No</th>
+                                                <th className="px-6 py-3 font-medium text-gray-500 dark:text-gray-400">Serial No</th>
+                                                <th className="px-6 py-3 text-right font-medium text-gray-500 dark:text-gray-400">Used</th>
+                                                <th className="px-6 py-3 text-center font-medium text-gray-500 dark:text-gray-400">Save</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 border-t border-gray-100 dark:divide-gray-700 dark:border-gray-700">
+                                            {supplementarySubjects.map((subject, index) => {
+                                                const draft = usageDrafts[subject._id] || createSupplementaryUsageDraft()
+                                                const selectedRoom = subject.roomOptions.find((option) => option.roomNo === draft.roomNo)
+
+                                                return (
+                                                    <React.Fragment key={subject._id || index}>
+                                                        <tr className="group hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors align-top">
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 p-2 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+                                                                        <Calendar className="h-5 w-5" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <div className="font-medium text-gray-900 dark:text-white">{formatDate(subject.examDate)}</div>
+                                                                        <div className="text-xs text-gray-500 dark:text-gray-400" title={subject.subjectName}>
+                                                                            {subject.subjectName} ({subject.subjectCode})
+                                                                        </div>
+                                                                        <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                                                                            <Users className="h-3 w-3" />
+                                                                            {subject.candidateCount}
+                                                                        </div>
+                                                                        {subject.roomError && (
+                                                                            <div className="mt-2 text-xs text-red-500">{subject.roomError}</div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 min-w-[160px]">
+                                                                <select
+                                                                    value={draft.roomNo}
+                                                                    onChange={(e) => handleSupplementaryRoomChange(subject._id, e.target.value)}
+                                                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                                                >
+                                                                    <option value="">Select room</option>
+                                                                    {subject.roomOptions.map((room) => (
+                                                                        <option key={room.roomNo} value={room.roomNo}>
+                                                                            {room.roomNo}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </td>
+                                                            <td className="px-6 py-4 min-w-[180px]">
+                                                                <select
+                                                                    value={draft.rollNo}
+                                                                    onChange={(e) => updateSupplementaryDraft(subject._id, (current) => ({
+                                                                        ...current,
+                                                                        rollNo: e.target.value
+                                                                    }))}
+                                                                    className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                                                    disabled={!draft.roomNo}
+                                                                >
+                                                                    <option value="">{draft.roomNo ? 'Select roll no' : 'Select room first'}</option>
+                                                                    {(selectedRoom?.rollNos || []).map((rollNo) => (
+                                                                        <option key={rollNo} value={rollNo}>
+                                                                            {rollNo}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </td>
+                                                            <td className="px-6 py-4 min-w-[320px]">
+                                                                <div className="space-y-3">
+                                                                    <div className="flex gap-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={draft.serialInput}
+                                                                            onChange={(e) => updateSupplementaryDraft(subject._id, (current) => ({
+                                                                                ...current,
+                                                                                serialInput: e.target.value
+                                                                            }))}
+                                                                            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                                                                            placeholder="Enter serial no(s), comma separated"
+                                                                        />
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleAddSupplementarySerials(subject._id)}
+                                                                            className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-300"
+                                                                        >
+                                                                            Add
+                                                                        </button>
+                                                                    </div>
+                                                                    {draft.serials.length > 0 && (
+                                                                        <div className="flex flex-wrap gap-2">
+                                                                            {draft.serials.map((serial) => (
+                                                                                <span
+                                                                                    key={serial}
+                                                                                    className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800 dark:bg-gray-700 dark:text-gray-200"
+                                                                                >
+                                                                                    <span className="font-mono">{serial}</span>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => handleRemoveSupplementarySerial(subject._id, serial)}
+                                                                                        className="text-gray-400 hover:text-red-500"
+                                                                                    >
+                                                                                        <X className="h-3.5 w-3.5" />
+                                                                                    </button>
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-right">
+                                                                <span className="font-bold text-gray-900 dark:text-white">
+                                                                    {subject.usedCount}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleSaveSupplementaryUsage(subject)}
+                                                                    disabled={savingSupplementaryUsage === subject._id || !!subject.roomError}
+                                                                    className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                                                >
+                                                                    {savingSupplementaryUsage === subject._id ? (
+                                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    ) : (
+                                                                        <Save className="h-4 w-4" />
+                                                                    )}
+                                                                    Save
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                        {subject.usages.length > 0 && (
+                                                            <tr className="bg-gray-50/40 dark:bg-gray-900/20">
+                                                                <td colSpan={6} className="px-6 pb-4 pt-1">
+                                                                    <div className="flex flex-wrap gap-2">
+                                                                        {subject.usages.map((usage) => (
+                                                                            <div
+                                                                                key={usage._id}
+                                                                                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                                                                            >
+                                                                                <span className="font-medium">{usage.roomNo}</span>
+                                                                                <span className="text-gray-400">/</span>
+                                                                                <span className="font-medium">{usage.rollNo}</span>
+                                                                                <span className="text-gray-400">:</span>
+                                                                                <span className="font-mono">{usage.serials.join(', ')}</span>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleRemoveSupplementaryUsage(usage._id)}
+                                                                                    className="rounded p-0.5 text-gray-400 hover:text-red-500"
+                                                                                    title="Remove usage"
+                                                                                >
+                                                                                    <X className="h-3.5 w-3.5" />
+                                                                                </button>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
+                                                )
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {!isSupplementary && allocation && allocation.hasSerialNumbers && allocation.allocations.length > 0 && (
                             <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700">
                                 <div className="border-b border-gray-100 px-6 py-4 dark:border-gray-700 flex justify-between items-center">
                                     <div>
@@ -688,7 +1081,7 @@ const AnswerSheetDetails: React.FC = () => {
                                                             </span>
                                                         </td>
                                                         <td className="px-6 py-4 text-center">
-                                                            <div className="relative inline-flex group">
+                                                            <div className="inline-flex">
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => hasAllocation ? openDispatchPreview(alloc) : undefined}
@@ -703,22 +1096,6 @@ const AnswerSheetDetails: React.FC = () => {
                                                                         <Download className="h-4 w-4" />
                                                                     )}
                                                                 </button>
-                                                                {hasAllocation && (
-                                                                    <span
-                                                                        className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1.5 text-xs font-medium text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-10"
-                                                                        role="tooltip"
-                                                                    >
-                                                                        Preview and download dispatch record PDF
-                                                                    </span>
-                                                                )}
-                                                                {!hasAllocation && (
-                                                                    <span
-                                                                        className="absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md shadow-sm whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-10"
-                                                                        role="tooltip"
-                                                                    >
-                                                                        No allocation available for download
-                                                                    </span>
-                                                                )}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -731,7 +1108,17 @@ const AnswerSheetDetails: React.FC = () => {
                         )}
 
                         {/* Empty States */}
-                        {!loading && allocation && allocation.hasSerialNumbers && allocation.allocations.length === 0 && (
+                        {!loading && isSupplementary && supplementarySubjects.length === 0 && answerSheetSerialRanges.length > 0 && (
+                            <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center dark:border-gray-700 dark:bg-gray-800/50">
+                                <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
+                                <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No Subjects Available</h3>
+                                <p className="mt-2 text-gray-500 dark:text-gray-400">
+                                    No class-wise exam subjects were found for manual supplementary usage.
+                                </p>
+                            </div>
+                        )}
+
+                        {!loading && !isSupplementary && allocation && allocation.hasSerialNumbers && allocation.allocations.length === 0 && (
                             <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50 p-12 text-center dark:border-gray-700 dark:bg-gray-800/50">
                                 <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
                                 <h3 className="mt-4 text-lg font-medium text-gray-900 dark:text-white">No Exams Scheduled</h3>
@@ -742,7 +1129,10 @@ const AnswerSheetDetails: React.FC = () => {
                         )}
 
                         {/* No Serial Numbers State */}
-                        {!loading && (!allocation || !allocation.hasSerialNumbers) && (
+                        {!loading && (
+                            (!isSupplementary && (!allocation || !allocation.hasSerialNumbers))
+                            || (isSupplementary && answerSheetSerialRanges.length === 0)
+                        ) && (
                             <div className="rounded-2xl border border-gray-200 bg-white p-12 text-center shadow-sm dark:border-gray-700 dark:bg-gray-800">
                                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-900/20">
                                     <TrendingUp className="h-8 w-8 text-blue-600 dark:text-blue-400" />
@@ -861,7 +1251,7 @@ const AnswerSheetDetails: React.FC = () => {
                                     value={discardInput.serial}
                                     onChange={(e) => setDiscardInput({ ...discardInput, serial: e.target.value })}
                                     className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 font-mono shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                                    placeholder={`e.g. ${answerSheet?.serialFrom || '446351'}`}
+                                    placeholder={`e.g. ${answerSheetSerialRanges[0]?.serialFrom || answerSheet?.serialFrom || '446351'}`}
                                 />
                             </div>
                         ) : (
@@ -875,7 +1265,7 @@ const AnswerSheetDetails: React.FC = () => {
                                         value={discardInput.fromSerial}
                                         onChange={(e) => setDiscardInput({ ...discardInput, fromSerial: e.target.value })}
                                         className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 font-mono shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                                        placeholder={answerSheet?.serialFrom || '446351'}
+                                        placeholder={answerSheetSerialRanges[0]?.serialFrom || answerSheet?.serialFrom || '446351'}
                                     />
                                 </div>
                                 <div>
@@ -887,7 +1277,7 @@ const AnswerSheetDetails: React.FC = () => {
                                         value={discardInput.toSerial}
                                         onChange={(e) => setDiscardInput({ ...discardInput, toSerial: e.target.value })}
                                         className="w-full rounded-lg border-gray-200 bg-white px-3 py-2 font-mono shadow-sm focus:border-red-500 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                                        placeholder={answerSheet?.serialTo || '446700'}
+                                        placeholder={answerSheetSerialRanges[answerSheetSerialRanges.length - 1]?.serialTo || answerSheet?.serialTo || '446700'}
                                     />
                                 </div>
                             </div>
@@ -940,7 +1330,7 @@ const AnswerSheetDetails: React.FC = () => {
                         </div>
 
                         <p className="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
-                            Valid range: {answerSheet?.serialFrom} - {answerSheet?.serialTo}
+                            Valid {answerSheetSerialRanges.length > 1 ? 'ranges' : 'range'}: {answerSheetSerialRanges.map(formatSerialRangeLabel).join(', ')}
                         </p>
                     </motion.div>
                 </div>

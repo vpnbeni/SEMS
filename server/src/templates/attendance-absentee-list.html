@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Attendance Absentee List</title>
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 10mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      color: #111;
+      font-family: Arial, sans-serif;
+      font-size: 10pt;
+      line-height: 1.25;
+    }
+
+    .page {
+      width: 100%;
+    }
+
+    .page + .page {
+      page-break-before: always;
+    }
+
+    .header {
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .school-name {
+      font-size: 15pt;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .exam-session {
+      margin-top: 4px;
+      font-size: 10pt;
+      font-weight: bold;
+    }
+
+    .title {
+      margin-top: 4px;
+      font-size: 10pt;
+      font-weight: bold;
+    }
+
+    .meta {
+      margin-top: 4px;
+      font-size: 9pt;
+    }
+
+    .candidate-block {
+      margin-top: 12px;
+    }
+
+    .table {
+      width: 100%;
+      border: 1px solid #111;
+      border-right: 1px solid #111;
+      border-collapse: collapse;
+      table-layout: fixed;
+      outline: 1px solid #111;
+      outline-offset: -1px;
+      box-shadow: inset -1px 0 0 #111;
+    }
+
+    .table th,
+    .table td {
+      border: 1px solid #111;
+      padding: 4px 5px;
+      vertical-align: middle;
+      word-wrap: break-word;
+    }
+
+    .table tr > *:last-child {
+      border-right: 1px solid #111;
+    }
+
+    .table tbody tr td:last-child,
+    .table thead tr th:last-child,
+    .table tr td:last-child,
+    .table tr th:last-child {
+      border-right: 1px solid #111 !important;
+      box-shadow: inset -1px 0 0 #111;
+    }
+
+    .table th {
+      background: #f2f2f2;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .roll-label {
+      width: 24%;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .roll-value {
+      font-size: 13pt;
+      font-weight: bold;
+      text-align: center;
+    }
+
+    .col-sr { width: 8%; }
+    .col-date { width: 16%; }
+    .col-day { width: 16%; }
+    .col-subject { width: 24%; }
+    .col-code { width: 11%; }
+    .col-room { width: 12%; }
+    .col-sheet { width: 13%; }
+
+    .center {
+      text-align: center;
+    }
+
+    .empty {
+      margin-top: 20px;
+      border: 1px solid #111;
+      padding: 14px;
+      text-align: center;
+      font-style: italic;
+    }
+
+    .footer {
+      margin-top: 44px;
+      padding-top: 8px;
+      text-align: right;
+    }
+
+    .signature {
+      display: inline-block;
+      min-width: 220px;
+      text-align: center;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  {{#pages}}
+  <div class="page">
+    <div class="header">
+      <div class="school-name">{{schoolName}}</div>
+      <div class="exam-session">{{examName}} {{examYear}}</div>
+      <div class="title">{{title}}; Centre No {{centreNo}}</div>
+      <div class="meta">Class: {{classLabel}}</div>
+    </div>
+
+    {{#if candidates.length}}
+      {{#candidates}}
+      <div class="candidate-block">
+        <table class="table">
+          <tr>
+            <td class="roll-label">Roll Number</td>
+            <td class="roll-value">{{rollNumber}}</td>
+          </tr>
+        </table>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th class="col-sr">Sr No</th>
+              <th class="col-date">Date</th>
+              <th class="col-day">Day</th>
+              <th class="col-subject">Subject</th>
+              <th class="col-code">Code</th>
+              <th class="col-room">Room No</th>
+              <th class="col-sheet">Sheet Number</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#entries}}
+            <tr>
+              <td class="center">{{srNo}}</td>
+              <td class="center">{{dateLabel}}</td>
+              <td class="center">{{dayName}}</td>
+              <td>{{subjectName}}</td>
+              <td class="center">{{subjectCode}}</td>
+              <td class="center">{{roomNo}}</td>
+              <td class="center">{{sheetNumber}}</td>
+            </tr>
+            {{/entries}}
+          </tbody>
+        </table>
+      </div>
+      {{/candidates}}
+    {{else}}
+      <div class="empty">No records available.</div>
+    {{/if}}
+
+    <div class="footer">
+      <div class="signature">Centre Superintendent</div>
+    </div>
+  </div>
+  {{/pages}}
+</body>
+</html>

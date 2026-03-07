@@ -3,6 +3,316 @@ const { AttendanceRecord, AttendanceUpload } = require('../models/AttendanceReco
 const Candidate = require('../models/Candidate');
 const { cloudinary, uploadDocumentToCloudinary, uploadToCloudinary } = require('../config/cloudinary');
 const { parseAttendanceSheetPdf } = require('../utils/attendanceSheetParser');
+const pdfGenerator = require('../utils/pdfGenerator');
+const seatingPlanBuilder = require('../utils/seatingPlanBuilder');
+
+const ACTIVE_CANDIDATE_FILTER = {
+  $or: [{ status: 'active' }, { status: { $exists: false } }],
+};
+
+const normalizeSubjectCode = (code) =>
+  String(code || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/\((?:E|H)\)$/i, '');
+
+const normalizeExamDateKey = (dateValue) => {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return String(dateValue || '');
+  return date.toISOString().split('T')[0];
+};
+
+const formatReportDate = (dateValue) => {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return String(dateValue || '');
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+};
+
+const getSessionLabel = (dateValue) => {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return 'Secondary School Certificate Examination';
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  const startYear = month <= 3 ? year - 1 : year;
+  const endYear = startYear + 1;
+  return `Secondary School Certificate Examination ${endYear}`;
+};
+
+const getSeatPlanOptionsForAttendanceReport = async (req) => {
+  const SeatingPlanTemplateSetting = req.models?.SeatingPlanTemplateSetting || require('../models/SeatingPlanTemplateSetting');
+  const CentreDetail = req.models?.CentreDetail || require('../models/CentreDetail');
+
+  let roomAllocationMode = 'auto';
+  if (SeatingPlanTemplateSetting) {
+    const settingsDoc = await SeatingPlanTemplateSetting.findOne({}).sort({ updatedAt: -1 });
+    if (String(settingsDoc?.roomAllocationMode || '').toLowerCase() === 'manual') {
+      roomAllocationMode = 'manual';
+    }
+  }
+
+  const centreDetails = CentreDetail
+    ? await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean()
+    : null;
+
+  return { roomAllocationMode, centreDetails };
+};
+
+const buildAttendanceAbsenteeReportData = async (req, classValue) => {
+  const AttendanceRecordModel = req.models?.AttendanceRecord || AttendanceRecord;
+  const CandidateModel = req.models?.Candidate || Candidate;
+  const CBSEDatesheet = req.models?.CBSEDatesheet || require('../models/CBSEDatesheet');
+  const SeatingPlanAllocation = req.models?.SeatingPlanAllocation || require('../models/SeatingPlanAllocation');
+  const CentreDetail = req.models?.CentreDetail || require('../models/CentreDetail');
+  let FolderMapping = null;
+
+  try {
+    FolderMapping = req.models?.FolderMapping || require('../models/FolderMapping');
+  } catch (_) {
+    FolderMapping = null;
+  }
+
+  const candidateClass = classValue === 'X' ? '10th' : '12th';
+  const cbseDatesheet = await CBSEDatesheet.getActive();
+
+  if (!cbseDatesheet) {
+    throw new Error('No active CBSE datesheet found');
+  }
+
+  const candidates = await CandidateModel.find({
+    ...ACTIVE_CANDIDATE_FILTER,
+    class: candidateClass,
+  })
+    .select('_id rollNumber name class subjectCodes')
+    .lean();
+
+  const relevantEntries = cbseDatesheet.entries
+    .filter((entry) => String(entry?.subject?.class || '') === candidateClass)
+    .map((entry) => ({
+      _id: String(entry._id),
+      examDate: entry.examDate,
+      examDateKey: normalizeExamDateKey(entry.examDate),
+      dayName: String(entry.dayName || ''),
+      subjectCode: normalizeSubjectCode(entry.subject?.code),
+      subjectName: String(entry.subject?.name || ''),
+    }));
+
+  const seatingOptions = await getSeatPlanOptionsForAttendanceReport(req);
+  const serialLookupByEntry = new Map();
+
+  const absenceRecords = await AttendanceRecordModel.find({
+    isAbsent: true,
+    class: classValue,
+  })
+    .select('_id candidateId examDate subjectCode class roomNo sheetNumber')
+    .lean();
+
+  const absentByCandidate = new Map();
+  const absenceRecordByKey = new Map();
+  absenceRecords.forEach((record) => {
+    const candidateId = String(record.candidateId || '');
+    const normalizedDateKey = normalizeExamDateKey(record.examDate);
+    const normalizedSubjectCode = normalizeSubjectCode(record.subjectCode);
+    const key = `${normalizedDateKey}|${normalizedSubjectCode}`;
+    if (!absentByCandidate.has(candidateId)) {
+      absentByCandidate.set(candidateId, new Set());
+    }
+    absentByCandidate.get(candidateId).add(key);
+    absenceRecordByKey.set(`${candidateId}|${key}`, record);
+  });
+
+  const absentRollNos = candidates
+    .filter((candidate) => absentByCandidate.has(String(candidate._id)))
+    .map((candidate) => String(candidate.rollNumber || '').trim())
+    .filter(Boolean);
+
+  const seatingAllocations = absentRollNos.length
+    ? await SeatingPlanAllocation.find({
+        className: candidateClass,
+        rollNo: { $in: absentRollNos },
+      })
+        .select('rollNo examDate subjectCode roomNo')
+        .lean()
+    : [];
+
+  const roomByExamRoll = new Map();
+  seatingAllocations.forEach((allocation) => {
+    const key = `${String(allocation.rollNo || '').trim()}|${normalizeExamDateKey(allocation.examDate)}|${normalizeSubjectCode(allocation.subjectCode)}`;
+    roomByExamRoll.set(key, String(allocation.roomNo || '').trim() || '-');
+  });
+
+  const sheetByExamRoll = new Map();
+  if (FolderMapping && absentRollNos.length) {
+    try {
+      const folderMappings = await FolderMapping.find({
+        isActive: true,
+        'students.rollNumber': { $in: absentRollNos },
+      })
+        .select('examDate students.rollNumber students.answerSheetNumber subject room')
+        .populate('subject', 'code')
+        .populate('room', 'roomNo')
+        .lean();
+
+      folderMappings.forEach((mapping) => {
+        const examDateKey = normalizeExamDateKey(mapping.examDate);
+        const subjectCode = normalizeSubjectCode(mapping?.subject?.code);
+        (mapping.students || []).forEach((student) => {
+          const rollNo = String(student?.rollNumber || '').trim();
+          if (!rollNo) return;
+          const key = `${rollNo}|${examDateKey}|${subjectCode}`;
+          const answerSheetNumber = String(student?.answerSheetNumber || '').trim();
+          if (answerSheetNumber && !sheetByExamRoll.has(key)) {
+            sheetByExamRoll.set(key, answerSheetNumber);
+          }
+          if (mapping?.room?.roomNo && !roomByExamRoll.has(key)) {
+            roomByExamRoll.set(key, String(mapping.room.roomNo).trim());
+          }
+        });
+      });
+    } catch (error) {
+      console.warn('Failed to fetch folder mappings for absentee report:', error.message);
+    }
+  }
+
+  const classified = {
+    full: [],
+    casual: [],
+  };
+  const cacheUpdateOps = [];
+
+  for (const candidate of candidates) {
+    const candidateId = String(candidate._id);
+    const subjectCodes = Array.isArray(candidate.subjectCodes)
+      ? candidate.subjectCodes
+          .map((item) => normalizeSubjectCode(typeof item === 'string' ? item : item?.code))
+          .filter(Boolean)
+      : [];
+
+    const scheduledEntries = relevantEntries
+      .filter((entry) => subjectCodes.includes(entry.subjectCode))
+      .sort((left, right) => {
+        const dateDiff = new Date(left.examDate).getTime() - new Date(right.examDate).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return left.subjectCode.localeCompare(right.subjectCode);
+      });
+
+    if (!scheduledEntries.length) continue;
+
+    const absentSet = absentByCandidate.get(candidateId) || new Set();
+    const absentEntries = scheduledEntries
+      .filter((entry) => absentSet.has(`${entry.examDateKey}|${entry.subjectCode}`))
+      .map(async (entry, index) => {
+        const detailKey = `${String(candidate.rollNumber || '').trim()}|${entry.examDateKey}|${entry.subjectCode}`;
+        const attendanceRecordKey = `${candidateId}|${entry.examDateKey}|${entry.subjectCode}`;
+        const cachedRecord = absenceRecordByKey.get(attendanceRecordKey);
+        const entryId = String(entry._id || '');
+        let roomNo = String(cachedRecord?.roomNo || '').trim() || roomByExamRoll.get(detailKey) || '-';
+        let serialNumber = String(cachedRecord?.sheetNumber || '').trim() || sheetByExamRoll.get(detailKey) || '-';
+
+        if (serialNumber === '-' && entryId) {
+          const cacheKey = `${entryId}|${String(candidate.rollNumber || '').trim()}`;
+          if (!serialLookupByEntry.has(cacheKey)) {
+            serialLookupByEntry.set(
+              cacheKey,
+              seatingPlanBuilder
+                .getSerialForCandidateInEntry(entryId, String(candidate.rollNumber || '').trim(), seatingOptions)
+                .catch(() => null)
+            );
+          }
+          const serialData = await serialLookupByEntry.get(cacheKey);
+          if (serialData?.serialNumber) {
+            serialNumber = String(serialData.serialNumber).trim();
+          }
+        }
+
+        if (
+          cachedRecord?._id
+          && ((roomNo && roomNo !== '-' && roomNo !== String(cachedRecord.roomNo || '').trim())
+            || (serialNumber && serialNumber !== '-' && serialNumber !== String(cachedRecord.sheetNumber || '').trim()))
+        ) {
+          cacheUpdateOps.push({
+            updateOne: {
+              filter: { _id: cachedRecord._id },
+              update: {
+                $set: {
+                  ...(roomNo && roomNo !== '-' ? { roomNo } : {}),
+                  ...(serialNumber && serialNumber !== '-' ? { sheetNumber: serialNumber } : {}),
+                },
+              },
+            },
+          });
+        }
+
+        return {
+          srNo: index + 1,
+          dateLabel: formatReportDate(entry.examDate),
+          dayName: entry.dayName || '-',
+          subjectName: entry.subjectName || '-',
+          subjectCode: entry.subjectCode || '-',
+          roomNo,
+          sheetNumber: serialNumber || '-',
+        };
+      });
+
+    const resolvedAbsentEntries = await Promise.all(absentEntries);
+
+    if (!resolvedAbsentEntries.length) continue;
+
+    const bucket = resolvedAbsentEntries.length === scheduledEntries.length ? 'full' : 'casual';
+    classified[bucket].push({
+      rollNumber: String(candidate.rollNumber || '').trim(),
+      entries: resolvedAbsentEntries,
+    });
+  }
+
+  classified.full.sort((left, right) => left.rollNumber.localeCompare(right.rollNumber, undefined, { numeric: true }));
+  classified.casual.sort((left, right) => left.rollNumber.localeCompare(right.rollNumber, undefined, { numeric: true }));
+
+  if (cacheUpdateOps.length > 0) {
+    await AttendanceRecordModel.bulkWrite(cacheUpdateOps, { ordered: false });
+  }
+
+  const centreDetails = await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean();
+  const schoolName = (centreDetails?.centreName && String(centreDetails.centreName).trim())
+    || seatingPlanBuilder.schoolName
+    || 'EXAMINATION CENTRE';
+  const centreNo = (centreDetails?.centreNo && String(centreDetails.centreNo).trim())
+    || seatingPlanBuilder.centreNo
+    || '';
+  const examYear = seatingPlanBuilder.getExamYear(relevantEntries[0]?.examDate || new Date());
+  const examName = seatingPlanBuilder.getExamName(classValue === 'X' ? '10' : '12');
+
+  return {
+    schoolName,
+    centreNo,
+    examName,
+    examYear,
+    classLabel: classValue,
+    pages: [
+      {
+        schoolName,
+        centreNo,
+        examName,
+        examYear,
+        classLabel: classValue,
+        title: 'List Of Full Absentee',
+        candidates: classified.full,
+      },
+      {
+        schoolName,
+        centreNo,
+        examName,
+        examYear,
+        classLabel: classValue,
+        title: 'List Of Casual Absentee',
+        candidates: classified.casual,
+      },
+    ],
+  };
+};
 
 /**
  * Save absentees (bulk upsert).
@@ -306,6 +616,35 @@ exports.getAttendanceSheets = async (req, res) => {
     res.status(500).json({
       message: 'Failed to fetch attendance sheets',
       error: error.message,
+    });
+  }
+};
+
+exports.downloadAbsenteeReport = async (req, res) => {
+  try {
+    const classValue = String(req.query.class || '').trim().toUpperCase();
+
+    if (!['X', 'XII'].includes(classValue)) {
+      return res.status(400).json({
+        success: false,
+        error: 'class must be X or XII',
+      });
+    }
+
+    const templateData = await buildAttendanceAbsenteeReportData(req, classValue);
+    const pdfBuffer = await pdfGenerator.generateAttendanceAbsenteeList(templateData);
+    const buffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+    const filename = `attendance-absentee-list-${classValue.toLowerCase()}.pdf`;
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', buffer.length);
+    res.end(buffer);
+  } catch (error) {
+    console.error('Download Absentee Report Error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to generate absentee report',
     });
   }
 };

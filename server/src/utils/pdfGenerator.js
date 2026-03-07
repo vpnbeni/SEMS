@@ -100,6 +100,14 @@ class PDFGenerator {
     return this.generatePDF('answer-sheet-dispatch-record', data);
   }
 
+  async generateAnswerSheetConsolidatedRecord(data) {
+    return this.generatePDF('answer-sheet-consolidated-record', data);
+  }
+
+  async generateAttendanceAbsenteeList(data) {
+    return this.generatePDF('attendance-absentee-list', data);
+  }
+
   async generateFunctionaryDutyRecord(data) {
     // Do NOT pass format/landscape to page.pdf() — the template's
     // @page { size: A4 landscape; margin: 10mm } handles everything.

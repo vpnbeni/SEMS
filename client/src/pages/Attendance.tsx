@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
-import toast from 'react-hot-toast'
 import { Tabs } from '../components/common/Tabs'
 import type { TabConfig } from '../components/common/Tabs'
 import { useCandidates } from '../hooks/useCandidates'
@@ -27,6 +26,10 @@ const Attendance: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [loadedAbsentees, setLoadedAbsentees] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch candidates for both classes (Candidate model stores '10th'/'12th')
@@ -98,6 +101,72 @@ const Attendance: React.FC = () => {
     return date.toLocaleString('en-US', { weekday: 'short' })
   }
 
+  const activeClassValue = activeTab === 'classX' ? 'X' : 'XII'
+
+  const getAbsenteeReportFilename = () =>
+    `attendance-absentee-list-${activeClassValue.toLowerCase()}.pdf`
+
+  const closePreview = () => {
+    setPreviewOpen(false)
+    setPreviewError(null)
+    setPreviewUrl((previousUrl) => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl)
+      return null
+    })
+  }
+
+  const openPreview = useCallback(async () => {
+    setPreviewOpen(true)
+    setPreviewLoading(true)
+    setPreviewError(null)
+    setPreviewUrl((previousUrl) => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl)
+      return null
+    })
+
+    try {
+      const response = await api.get<Blob>('/attendance/absentees/report/download', {
+        params: { class: activeClassValue },
+        responseType: 'blob',
+        timeout: 180000,
+      })
+      const blob = response.data
+      const contentType = response.headers['content-type'] || ''
+
+      if (typeof blob === 'object' && blob !== null && contentType.toLowerCase().includes('application/pdf')) {
+        const objectUrl = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob]))
+        setPreviewUrl(objectUrl)
+      } else {
+        const text = await (blob instanceof Blob ? blob.text() : Promise.resolve(String(blob)))
+        let message = 'Failed to generate preview'
+        try {
+          const json = JSON.parse(text)
+          if (typeof json?.error === 'string') message = json.error
+        } catch (_) {
+          // Ignore invalid JSON error bodies here.
+        }
+        setPreviewError(message)
+      }
+    } catch (error: any) {
+      console.error('Failed to load absentee report preview:', error)
+      if (error?.response?.data instanceof Blob) {
+        try {
+          const text = await error.response.data.text()
+          const json = JSON.parse(text)
+          if (typeof json?.error === 'string') {
+            setPreviewError(json.error)
+            return
+          }
+        } catch (_) {
+          // Ignore invalid JSON error bodies here.
+        }
+      }
+      setPreviewError(error?.serverMessage ?? error?.message ?? 'Failed to load absentee report preview')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }, [activeClassValue])
+
   // Toggle absent status
   const toggleAbsent = (candidateId: string, colKey: string) => {
     setAbsentees(prev => ({
@@ -143,9 +212,7 @@ const Attendance: React.FC = () => {
       })
 
       await api.post('/attendance/absentees', { absentees: payload })
-      toast.success('Attendance saved successfully')
     } catch {
-      toast.error('Failed to save attendance')
     } finally {
       setSaving(false)
     }
@@ -156,10 +223,8 @@ const Attendance: React.FC = () => {
     const classValue = activeTab === 'classX' ? 'X' : 'XII'
     setUploading(true)
     try {
-      const response = await uploadFile('/attendance/upload', file, { class: classValue })
-      toast.success(response.data?.message || `Attendance sheet uploaded for Class ${classValue}`)
+      await uploadFile('/attendance/upload', file, { class: classValue })
     } catch {
-      toast.error('Failed to upload attendance sheet')
     } finally {
       setUploading(false)
       // Reset file input
@@ -226,6 +291,26 @@ const Attendance: React.FC = () => {
 
           {/* Action buttons + search */}
           <div className="flex items-center gap-2">
+            <button
+              onClick={openPreview}
+              disabled={previewLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              title={`Preview absentee list PDF for ${activeClassValue}`}
+            >
+              {previewLoading ? (
+                <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16V4m0 12l-4-4m4 4l4-4" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 20h16" />
+                </svg>
+              )}
+              Download
+            </button>
+
             {/* Upload button */}
             <input
               ref={fileInputRef}
@@ -446,6 +531,70 @@ const Attendance: React.FC = () => {
           )}
         </div>
       </div>
+
+      {previewOpen && (previewUrl || previewLoading || previewError) && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-6xl h-[88vh] bg-white dark:bg-gray-900 rounded-xl shadow-xl overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate pr-4">
+                Absentee List PDF Preview
+                <span className="ml-2 text-gray-500 dark:text-gray-400 font-normal">
+                  Class {activeClassValue}
+                </span>
+              </h4>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {previewUrl && (
+                  <>
+                    <a
+                      href={previewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    >
+                      Open in New Tab
+                    </a>
+                    <a
+                      href={previewUrl}
+                      download={getAbsenteeReportFilename()}
+                      className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Download PDF
+                    </a>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={closePreview}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="w-full flex-1 overflow-auto bg-gray-100 dark:bg-gray-800 p-4 min-h-0">
+              {previewLoading ? (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                  <p>Generating preview...</p>
+                </div>
+              ) : previewError ? (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-2 p-6 text-center text-sm text-gray-600 dark:text-gray-300">
+                  <svg className="w-12 h-12 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p>{previewError}</p>
+                </div>
+              ) : previewUrl ? (
+                <iframe
+                  src={`${previewUrl}#toolbar=0`}
+                  className="w-full h-full min-h-[60vh] border-0 rounded-lg bg-white dark:bg-gray-900"
+                  title="Absentee list PDF preview"
+                />
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

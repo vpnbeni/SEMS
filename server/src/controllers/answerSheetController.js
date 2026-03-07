@@ -4,6 +4,13 @@ const AnswerSheetsExcelParser = require('../utils/answerSheetsExcelParser')
 const { ANSWER_SHEET_TYPES } = require('../utils/answerSheetTypes')
 const pdfGenerator = require('../utils/pdfGenerator')
 const seatingPlanBuilder = require('../utils/seatingPlanBuilder')
+const {
+  normalizeAnswerSheetSerialRanges,
+  getConfiguredSerialRanges,
+  isSerialWithinAnswerSheetRanges,
+  normalizeSerialValue
+} = require('../utils/answerSheetSerialRanges')
+const { compareRoomNo } = require('../utils/roomSort')
 const cloudinary = require('cloudinary').v2
 const fs = require('fs')
 const path = require('path')
@@ -12,25 +19,61 @@ const ACTIVE_CANDIDATE_FILTER = {
   $or: [{ status: 'active' }, { status: { $exists: false } }],
 }
 
-const calculateTotalFromSerialRange = (serialFrom, serialTo) => {
-  if (!serialFrom || !serialTo) return null
+const resolveSerialRangePayload = (payload = {}, existingAnswerSheet = null) => {
+  const hasSerialRanges = Object.prototype.hasOwnProperty.call(payload, 'serialRanges')
+  const hasSerialFrom = Object.prototype.hasOwnProperty.call(payload, 'serialFrom')
+  const hasSerialTo = Object.prototype.hasOwnProperty.call(payload, 'serialTo')
 
-  const from = parseInt(String(serialFrom).replace(/\D/g, ''), 10)
-  const to = parseInt(String(serialTo).replace(/\D/g, ''), 10)
+  if (hasSerialRanges) {
+    return normalizeAnswerSheetSerialRanges({ serialRanges: payload.serialRanges })
+  }
 
-  if (Number.isNaN(from) || Number.isNaN(to) || to < from) return null
-  return to - from + 1
+  if (hasSerialFrom || hasSerialTo) {
+    return normalizeAnswerSheetSerialRanges({
+      serialFrom: hasSerialFrom ? payload.serialFrom : existingAnswerSheet?.serialFrom,
+      serialTo: hasSerialTo ? payload.serialTo : existingAnswerSheet?.serialTo
+    })
+  }
+
+  if (existingAnswerSheet) {
+    return normalizeAnswerSheetSerialRanges({
+      serialRanges: existingAnswerSheet.serialRanges,
+      serialFrom: existingAnswerSheet.serialFrom,
+      serialTo: existingAnswerSheet.serialTo
+    })
+  }
+
+  return normalizeAnswerSheetSerialRanges({
+    serialRanges: payload.serialRanges,
+    serialFrom: payload.serialFrom,
+    serialTo: payload.serialTo
+  })
 }
 
 const syncAnswerSheetTotals = async () => {
   const sheets = await AnswerSheet.find({ isActive: true })
-    .select('_id serialFrom serialTo total used discarded')
+    .select('_id serialRanges serialFrom serialTo total used discarded')
 
   const updates = []
 
   sheets.forEach(sheet => {
-    const recalculatedTotal = calculateTotalFromSerialRange(sheet.serialFrom, sheet.serialTo)
-    if (recalculatedTotal === null || recalculatedTotal === sheet.total) return
+    let normalizedSerials
+
+    try {
+      normalizedSerials = resolveSerialRangePayload({}, sheet)
+    } catch (error) {
+      console.warn(`Skipping total sync for sheet ${sheet._id}: ${error.message}`)
+      return
+    }
+
+    const { total: recalculatedTotal } = normalizedSerials
+    const hasSameSerialState = (
+      JSON.stringify(sheet.serialRanges || []) === JSON.stringify(normalizedSerials.serialRanges)
+      && sheet.serialFrom === normalizedSerials.serialFrom
+      && sheet.serialTo === normalizedSerials.serialTo
+    )
+
+    if (recalculatedTotal === sheet.total && hasSameSerialState) return
 
     const consumed = (sheet.used || 0) + (sheet.discarded || 0)
     if (consumed > recalculatedTotal) {
@@ -43,7 +86,14 @@ const syncAnswerSheetTotals = async () => {
     updates.push({
       updateOne: {
         filter: { _id: sheet._id },
-        update: { $set: { total: recalculatedTotal } }
+        update: {
+          $set: {
+            serialRanges: normalizedSerials.serialRanges,
+            serialFrom: normalizedSerials.serialFrom,
+            serialTo: normalizedSerials.serialTo,
+            total: recalculatedTotal
+          }
+        }
       }
     })
   })
@@ -58,7 +108,7 @@ const syncAnswerSheetTotals = async () => {
 const getExpectedDatesheetAnswerSheetType = (answerSheet) => {
   let expectedAnswerSheetType = null
 
-  if (answerSheet.answerSheetType === 'Main' || answerSheet.answerSheetType === 'Supplementary') {
+  if (answerSheet.answerSheetType === 'Main') {
     if (answerSheet.pages === 32) {
       expectedAnswerSheetType = '32_pages'
     } else if (answerSheet.pages === 20) {
@@ -73,8 +123,198 @@ const getExpectedDatesheetAnswerSheetType = (answerSheet) => {
   return expectedAnswerSheetType
 }
 
+const getSeatPlanOptionsForRequest = async (req) => {
+  const SeatingPlanTemplateSetting = req.models?.SeatingPlanTemplateSetting
+  const CentreDetail = req.models?.CentreDetail
+
+  let roomAllocationMode = 'auto'
+  if (SeatingPlanTemplateSetting) {
+    const settingsDoc = await SeatingPlanTemplateSetting.findOne({}).sort({ updatedAt: -1 })
+    if (String(settingsDoc?.roomAllocationMode || '').toLowerCase() === 'manual') {
+      roomAllocationMode = 'manual'
+    }
+  }
+
+  const centreDetails = CentreDetail
+    ? await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean()
+    : null
+
+  return { roomAllocationMode, centreDetails }
+}
+
+const getRoomRollOptionsForEntry = async (entryId, req) => {
+  const SeatingPlanAllocation = require('../models/SeatingPlanAllocation')
+
+  let allocations = await SeatingPlanAllocation.find({ datesheetEntryId: entryId })
+    .select('roomNo rollNo')
+    .lean()
+
+  if (!allocations.length) {
+    try {
+      const seatingOptions = await getSeatPlanOptionsForRequest(req)
+      await seatingPlanBuilder.buildSeatingData(entryId, seatingOptions)
+      allocations = await SeatingPlanAllocation.find({ datesheetEntryId: entryId })
+        .select('roomNo rollNo')
+        .lean()
+    } catch (error) {
+      return {
+        roomOptions: [],
+        roomError: error?.message || 'Failed to load seating plan'
+      }
+    }
+  }
+
+  const roomMap = new Map()
+
+  allocations.forEach((allocation) => {
+    const roomNo = String(allocation.roomNo || '').trim()
+    const rollNo = String(allocation.rollNo || '').trim()
+    if (!roomNo || !rollNo) return
+
+    if (!roomMap.has(roomNo)) {
+      roomMap.set(roomNo, new Set())
+    }
+
+    roomMap.get(roomNo).add(rollNo)
+  })
+
+  const roomOptions = Array.from(roomMap.entries())
+    .map(([roomNo, rollNoSet]) => ({
+      roomNo,
+      rollNos: Array.from(rollNoSet).sort((left, right) =>
+        left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
+      )
+    }))
+    .sort(compareRoomNo)
+
+  return {
+    roomOptions
+  }
+}
+
+const getRelatedExamsForAnswerSheet = async (answerSheet) => {
+  const CBSEDatesheet = require('../models/CBSEDatesheet')
+  const Candidate = require('../models/Candidate')
+
+  const cbseDatesheet = await CBSEDatesheet.getActive()
+  if (!cbseDatesheet) return []
+
+  const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
+    .populate('subjects', 'code name class')
+    .lean()
+
+  const subjectFrequency = new Map()
+
+  candidates.forEach(candidate => {
+    if (candidate.subjects && candidate.subjects.length > 0) {
+      candidate.subjects.forEach(subject => {
+        if (subject && subject.code && subject.class) {
+          const key = `${subject.code}-${subject.class}`
+          const count = subjectFrequency.get(key) || 0
+          subjectFrequency.set(key, count + 1)
+        }
+      })
+    }
+  })
+
+  const normalizedClass = answerSheet.class.includes('th') ? answerSheet.class : `${answerSheet.class}th`
+  const expectedAnswerSheetType = getExpectedDatesheetAnswerSheetType(answerSheet)
+  const isSupplementary = answerSheet.answerSheetType === 'Supplementary'
+
+  return cbseDatesheet.entries
+    .filter(entry => {
+      if (entry.subject.class !== normalizedClass) return false
+      if (!isSupplementary && expectedAnswerSheetType && entry.answerSheet !== expectedAnswerSheetType) return false
+      return true
+    })
+    .map(entry => {
+      const key = `${entry.subject.code}-${entry.subject.class}`
+      const normalizedKey = `${entry.subject.code}-${entry.subject.class.replace(/th$/i, '')}`
+      const candidateCount = subjectFrequency.get(key) || subjectFrequency.get(normalizedKey) || 0
+
+      return {
+        _id: entry._id,
+        examDate: entry.examDate,
+        dayName: entry.dayName,
+        subjectCode: entry.subject.code,
+        subjectName: entry.subject.name,
+        class: entry.subject.class,
+        timeSlot: entry.timeSlot,
+        duration: entry.subject.duration,
+        candidateCount,
+        answerSheetType: entry.answerSheet
+      }
+    })
+    .filter(exam => exam.candidateCount > 0)
+    .sort((a, b) => {
+      const dateDiff = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
+      if (dateDiff !== 0) return dateDiff
+      return b.candidateCount - a.candidateCount
+    })
+}
+
+const getSupplementaryUsedSerials = (answerSheet) => {
+  const serialSet = new Set()
+  ;(answerSheet?.supplementaryUsages || []).forEach((usage) => {
+    ;(usage.serials || []).forEach((serial) => {
+      const normalized = normalizeSerialValue(serial)
+      if (normalized) {
+        serialSet.add(normalized)
+      }
+    })
+  })
+  return serialSet
+}
+
+const buildSupplementaryUsageContext = async (answerSheet, req, relatedExams = null) => {
+  const exams = Array.isArray(relatedExams)
+    ? relatedExams
+    : await getRelatedExamsForAnswerSheet(answerSheet)
+
+  const usedSerialSet = getSupplementaryUsedSerials(answerSheet)
+  const discardedCount = (answerSheet.discardedSerials || []).length
+  const subjects = await Promise.all(exams.map(async (exam) => {
+    const { roomOptions, roomError } = await getRoomRollOptionsForEntry(exam._id, req)
+    const usages = (answerSheet.supplementaryUsages || [])
+      .filter((usage) => String(usage.centreDatesheetEntry) === String(exam._id))
+      .map((usage) => ({
+        _id: usage._id,
+        centreDatesheetEntryId: usage.centreDatesheetEntry,
+        examDate: usage.examDate,
+        subjectCode: usage.subjectCode,
+        subjectName: usage.subjectName,
+        roomNo: usage.roomNo,
+        rollNo: usage.rollNo,
+        serials: usage.serials || [],
+        createdAt: usage.createdAt
+      }))
+      .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
+
+    return {
+      ...exam,
+      roomOptions,
+      roomError,
+      usages,
+      usedCount: usages.reduce((sum, usage) => sum + (usage.serials?.length || 0), 0)
+    }
+  }))
+
+  return {
+    totalUsed: usedSerialSet.size,
+    availableCount: Math.max(0, (answerSheet.total || 0) - discardedCount - usedSerialSet.size),
+    discardedCount,
+    usedSerials: Array.from(usedSerialSet).sort((left, right) =>
+      left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
+    ),
+    subjects
+  }
+}
+
 const getSerialAllocationDataForAnswerSheet = async (answerSheet) => {
-  if (!answerSheet.serialFrom || !answerSheet.serialTo) {
+  const configuredRanges = getConfiguredSerialRanges(answerSheet)
+  const discardedCount = (answerSheet.discardedSerials || []).length
+
+  if (configuredRanges.length === 0 || !answerSheet.serialFrom || !answerSheet.serialTo) {
     return {
       hasSerialNumbers: false,
       allocations: []
@@ -89,10 +329,31 @@ const getSerialAllocationDataForAnswerSheet = async (answerSheet) => {
   if (!cbseDatesheet) {
     return {
       hasSerialNumbers: true,
+      serialRanges: configuredRanges,
       serialFrom: answerSheet.serialFrom,
       serialTo: answerSheet.serialTo,
       total: answerSheet.total,
       allocations: []
+    }
+  }
+
+  if (answerSheet.answerSheetType === 'Supplementary') {
+    const usedSerialCount = getSupplementaryUsedSerials(answerSheet).size
+    const usableTotal = answerSheet.total - discardedCount
+
+    return {
+      hasSerialNumbers: true,
+      serialRanges: configuredRanges,
+      serialFrom: answerSheet.serialFrom,
+      serialTo: answerSheet.serialTo,
+      total: answerSheet.total,
+      discardedCount,
+      discardedSerials: answerSheet.discardedSerials || [],
+      usableTotal,
+      allocations: [],
+      totalAllocated: usedSerialCount,
+      remaining: usableTotal - usedSerialCount,
+      manualSupplementary: true
     }
   }
 
@@ -210,11 +471,11 @@ const getSerialAllocationDataForAnswerSheet = async (answerSheet) => {
   })
 
   const totalAllocated = allocations.reduce((sum, alloc) => sum + alloc.sheetsAllocated, 0)
-  const discardedCount = (answerSheet.discardedSerials || []).length
   const usableTotal = answerSheet.total - discardedCount
 
   return {
     hasSerialNumbers: true,
+    serialRanges: configuredRanges,
     serialFrom: answerSheet.serialFrom,
     serialTo: answerSheet.serialTo,
     total: answerSheet.total,
@@ -253,6 +514,327 @@ const formatDispatchDateWithDay = (dateValue) => {
   const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
 
   return `${day}.${month}.${year} (${dayName})`
+}
+
+const formatRecordDate = (dateValue) => {
+  const date = new Date(dateValue)
+
+  if (Number.isNaN(date.getTime())) {
+    return String(dateValue || '')
+  }
+
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+
+  return `${day}.${month}.${year}`
+}
+
+const getRecordDayName = (dateValue) => {
+  const date = new Date(dateValue)
+
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return date.toLocaleDateString('en-US', { weekday: 'long' })
+}
+
+const getEndOfDay = (dateValue) => {
+  const date = new Date(dateValue)
+  if (Number.isNaN(date.getTime())) return null
+  date.setHours(23, 59, 59, 999)
+  return date
+}
+
+const getRangeCount = (range) => {
+  try {
+    return normalizeAnswerSheetSerialRanges({ serialRanges: [range] }).total
+  } catch (_) {
+    return 0
+  }
+}
+
+const buildReceivedRangeRows = (answerSheet) => {
+  const configuredRanges = getConfiguredSerialRanges(answerSheet)
+
+  if (!configuredRanges.length) {
+    return [{
+      srNo: 1,
+      serialFrom: answerSheet.serialFrom || 'N/A',
+      serialTo: answerSheet.serialTo || 'N/A',
+      count: answerSheet.total || 0
+    }]
+  }
+
+  return configuredRanges.map((range, index) => ({
+    srNo: index + 1,
+    serialFrom: range.serialFrom || 'N/A',
+    serialTo: range.serialTo || 'N/A',
+    count: getRangeCount(range)
+  }))
+}
+
+const getRoomCountForRecord = (roomOptions = []) => {
+  const uniqueRoomNos = new Set(
+    roomOptions
+      .map((room) => String(room?.roomNo || '').trim())
+      .filter(Boolean)
+  )
+
+  return uniqueRoomNos.size
+}
+
+const getSerialSortValue = (serialValue) => {
+  const numericValue = parseInt(String(serialValue || '').replace(/\D/g, ''), 10)
+  return Number.isNaN(numericValue) ? Number.MAX_SAFE_INTEGER : numericValue
+}
+
+const formatDiscardedLabel = (serials = []) => {
+  if (!serials.length) return '0'
+  return `${serials.length} (${serials.join(', ')})`
+}
+
+const buildConsolidatedRecordTemplateData = async (answerSheet, req) => {
+  const CentreDetail = req.models?.CentreDetail
+  const centreDetails = CentreDetail
+    ? await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean()
+    : null
+
+  const schoolName = (centreDetails?.centreName && String(centreDetails.centreName).trim())
+    || seatingPlanBuilder.schoolName
+    || 'EXAMINATION CENTRE'
+  const centreNo = (centreDetails?.centreNo && String(centreDetails.centreNo).trim())
+    || seatingPlanBuilder.centreNo
+    || ''
+  const signedBy = 'Centre Superintendent'
+  const receivedRanges = buildReceivedRangeRows(answerSheet)
+  const totalReceived = Number(answerSheet.total || 0)
+  const totalDiscarded = (answerSheet.discardedSerials || []).length
+  const notes = []
+  let rows = []
+  let totalUsed = 0
+
+  if (answerSheet.answerSheetType === 'Supplementary') {
+    const relatedExams = await getRelatedExamsForAnswerSheet(answerSheet)
+    const examById = new Map(relatedExams.map((exam) => [String(exam._id), exam]))
+    const groupedUsages = new Map()
+
+    ;(answerSheet.supplementaryUsages || []).forEach((usage) => {
+      const key = String(usage.centreDatesheetEntry || '')
+      if (!groupedUsages.has(key)) {
+        groupedUsages.set(key, {
+          examDate: usage.examDate,
+          subjectCode: usage.subjectCode,
+          subjectName: usage.subjectName,
+          serials: []
+        })
+      }
+
+      groupedUsages.get(key).serials.push(...(usage.serials || []))
+    })
+
+    const usedSerialSet = getSupplementaryUsedSerials(answerSheet)
+    totalUsed = usedSerialSet.size
+
+    let runningUsed = 0
+    let previousDiscardedCount = 0
+    let previousDiscardedSerialSet = new Set()
+
+    rows = await Promise.all(
+      Array.from(groupedUsages.entries()).map(async ([entryId, usageGroup]) => {
+        const exam = examById.get(entryId)
+        const examDate = usageGroup.examDate || exam?.examDate
+        const roomContext = entryId
+          ? await getRoomRollOptionsForEntry(entryId, req)
+          : { roomOptions: [] }
+        const uniqueSerials = Array.from(new Set(
+          (usageGroup.serials || [])
+            .map((serial) => normalizeSerialValue(serial))
+            .filter(Boolean)
+        )).sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
+        const discardedToDateItems = (answerSheet.discardedSerials || []).filter((item) => {
+          const endOfDay = getEndOfDay(examDate)
+          const discardedAt = new Date(item.discardedAt)
+          return endOfDay && !Number.isNaN(discardedAt.getTime()) && discardedAt <= endOfDay
+        })
+        const discardedToDateSerials = discardedToDateItems
+          .map((item) => normalizeSerialValue(item.serial))
+          .filter(Boolean)
+          .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
+
+        return {
+          sortTime: new Date(examDate || 0).getTime(),
+          serialSort: getSerialSortValue(uniqueSerials[0]),
+          examDate,
+          dayName: exam?.dayName || getRecordDayName(examDate),
+          subjectName: String(usageGroup.subjectName || exam?.subjectName || ''),
+          subjectCode: String(usageGroup.subjectCode || exam?.subjectCode || ''),
+          roomCount: getRoomCountForRecord(roomContext.roomOptions),
+          candidateCount: Number(exam?.candidateCount || 0),
+          serialNo: uniqueSerials.join(', ') || 'N/A',
+          usedCount: uniqueSerials.length,
+          discardedToDate: discardedToDateSerials.length,
+          discardedToDateSerials
+        }
+      })
+    )
+      .sort((left, right) => {
+        const dateDiff = (Number.isNaN(left.sortTime) ? 0 : left.sortTime) - (Number.isNaN(right.sortTime) ? 0 : right.sortTime)
+        if (dateDiff !== 0) return dateDiff
+        const serialDiff = left.serialSort - right.serialSort
+        if (serialDiff !== 0) return serialDiff
+        return left.subjectName.localeCompare(right.subjectName)
+      })
+      .map((row, index) => {
+        runningUsed += row.usedCount
+        const currentDiscardedCount = Math.max(previousDiscardedCount, row.discardedToDate)
+        const discardedCount = Math.max(0, currentDiscardedCount - previousDiscardedCount)
+        const currentDiscardedSerialSet = new Set(row.discardedToDateSerials || [])
+        const discardedSerials = Array.from(currentDiscardedSerialSet)
+          .filter((serial) => !previousDiscardedSerialSet.has(serial))
+          .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
+        previousDiscardedCount = currentDiscardedCount
+        previousDiscardedSerialSet = currentDiscardedSerialSet
+
+        return {
+          srNo: index + 1,
+          dateLabel: formatRecordDate(row.examDate),
+          dayName: row.dayName || '-',
+          subjectName: row.subjectName || '-',
+          subjectCode: row.subjectCode || '-',
+          roomCount: row.roomCount || 0,
+          candidateCount: row.candidateCount || 0,
+          serialNo: row.serialNo,
+          usedCount: row.usedCount,
+          discardedCount,
+          discardedLabel: formatDiscardedLabel(discardedSerials),
+          balanceCount: Math.max(0, totalReceived - runningUsed - currentDiscardedCount)
+        }
+      })
+
+    if (!rows.length) {
+      notes.push('Supplementary sheet usage has not been recorded for any subject yet.')
+    }
+  } else {
+    const allocationData = await getSerialAllocationDataForAnswerSheet(answerSheet)
+    const discardedEntries = (answerSheet.discardedSerials || [])
+      .map((item) => ({
+        serial: item.serial,
+        number: parseInt(String(item.serial || '').replace(/\D/g, ''), 10)
+      }))
+      .filter((item) => !Number.isNaN(item.number))
+
+    totalUsed = Number(allocationData.totalAllocated || 0)
+    const rawRows = await Promise.all(
+      (allocationData.allocations || [])
+        .filter((allocation) => Number(allocation.candidateCount || 0) > 0 || Number(allocation.sheetsAllocated || 0) > 0)
+        .map(async (allocation, index) => {
+        const roomContext = allocation._id
+          ? await getRoomRollOptionsForEntry(allocation._id, req)
+          : { roomOptions: [] }
+        let discardedCount = 0
+        let serialNo = 'N/A'
+        let discardedSerials = []
+        let serialSort = Number.MAX_SAFE_INTEGER
+
+        if (allocation.serialFrom !== 'N/A' && allocation.serialTo !== 'N/A') {
+          serialNo = allocation.serialFrom === allocation.serialTo
+            ? allocation.serialFrom
+            : `${allocation.serialFrom} - ${allocation.serialTo}`
+          serialSort = getSerialSortValue(allocation.serialFrom)
+
+          const startNum = parseInt(String(allocation.serialFrom).replace(/\D/g, ''), 10)
+          const endNum = parseInt(String(allocation.serialTo).replace(/\D/g, ''), 10)
+
+          if (!Number.isNaN(startNum) && !Number.isNaN(endNum)) {
+            discardedSerials = discardedEntries
+              .filter(
+              (entry) => entry.number >= startNum && entry.number <= endNum
+              )
+              .map((entry) => normalizeSerialValue(entry.serial))
+              .filter(Boolean)
+              .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
+            discardedCount = discardedSerials.length
+          }
+        }
+
+        return {
+          srNo: index + 1,
+          sortTime: new Date(allocation.examDate || 0).getTime(),
+          serialSort,
+          dateLabel: formatRecordDate(allocation.examDate),
+          dayName: allocation.dayName || getRecordDayName(allocation.examDate) || '-',
+          subjectName: String(allocation.subjectName || ''),
+          subjectCode: String(allocation.subjectCode || ''),
+          roomCount: getRoomCountForRecord(roomContext.roomOptions),
+          candidateCount: Number(allocation.candidateCount || 0),
+          serialNo,
+          usedCount: Number(allocation.sheetsAllocated || 0),
+          discardedCount,
+          discardedLabel: formatDiscardedLabel(discardedSerials),
+          balanceCount: 0
+        }
+      })
+    )
+
+    let runningUsed = 0
+    let runningDiscarded = 0
+
+    rows = rawRows
+      .sort((left, right) => {
+        const dateDiff = (Number.isNaN(left.sortTime) ? 0 : left.sortTime) - (Number.isNaN(right.sortTime) ? 0 : right.sortTime)
+        if (dateDiff !== 0) return dateDiff
+        const serialDiff = left.serialSort - right.serialSort
+        if (serialDiff !== 0) return serialDiff
+        return left.subjectName.localeCompare(right.subjectName)
+      })
+      .map((row, index) => {
+        runningUsed += row.usedCount
+        runningDiscarded += row.discardedCount
+
+        return {
+          ...row,
+          srNo: index + 1,
+          balanceCount: Math.max(0, totalReceived - runningUsed - runningDiscarded)
+        }
+      })
+
+    if (!rows.length) {
+      notes.push('No allocation/usage record is available for this answer sheet.')
+    }
+
+    if (totalDiscarded > runningDiscarded) {
+      notes.push(
+        `${totalDiscarded - runningDiscarded} discarded serial(s) fall outside allocated exam ranges and are included only in the summary totals.`
+      )
+    }
+  }
+
+  const referenceDate = rows[0]?.dateLabel
+    ? rows[0].dateLabel.split('.').reverse().join('-')
+    : answerSheet.receivedDate
+  const examSession = getAcademicSession(referenceDate || new Date())
+
+  return {
+    schoolName,
+    centreNo,
+    examSession,
+    classLabel: String(answerSheet.class || ''),
+    typeLabel: `${answerSheet.answerSheetType}${answerSheet.pages ? ` (${answerSheet.pages} Pages)` : ''}`,
+    colour: String(answerSheet.colour || ''),
+    series: String(answerSheet.series || 'N/A'),
+    receivedRanges,
+    rows,
+    hasRows: rows.length > 0,
+    totalReceived,
+    totalUsed,
+    totalDiscarded,
+    totalBalance: Math.max(0, totalReceived - totalUsed - totalDiscarded),
+    summaryNotes: notes,
+    hasSummaryNotes: notes.length > 0,
+    signedBy
+  }
 }
 
 /**
@@ -302,6 +884,7 @@ exports.getAnswerSheets = async (req, res) => {
         // Return fixed type with zero quantities
         return [{
           ...fixedType,
+          serialRanges: [],
           serialFrom: null,
           serialTo: null,
           total: 0,
@@ -384,7 +967,11 @@ exports.getAnswerSheetById = async (req, res) => {
  */
 exports.createAnswerSheet = async (req, res) => {
   try {
-    const answerSheet = await AnswerSheet.create(req.body)
+    const normalizedSerials = resolveSerialRangePayload(req.body)
+    const answerSheet = await AnswerSheet.create({
+      ...req.body,
+      ...normalizedSerials
+    })
 
     res.status(201).json({
       success: true,
@@ -416,20 +1003,12 @@ exports.updateAnswerSheet = async (req, res) => {
     }
 
     const updateData = { ...req.body }
+    const hasSerialRanges = Object.prototype.hasOwnProperty.call(updateData, 'serialRanges')
     const hasSerialFrom = Object.prototype.hasOwnProperty.call(updateData, 'serialFrom')
     const hasSerialTo = Object.prototype.hasOwnProperty.call(updateData, 'serialTo')
 
-    if (hasSerialFrom || hasSerialTo) {
-      const nextSerialFrom = hasSerialFrom ? updateData.serialFrom : existingAnswerSheet.serialFrom
-      const nextSerialTo = hasSerialTo ? updateData.serialTo : existingAnswerSheet.serialTo
-      const recalculatedTotal = calculateTotalFromSerialRange(nextSerialFrom, nextSerialTo)
-
-      if (recalculatedTotal === null) {
-        return res.status(400).json({
-          success: false,
-          error: 'Invalid serial range. Serial No To must be greater than or equal to Serial No From.'
-        })
-      }
+    if (hasSerialRanges || hasSerialFrom || hasSerialTo) {
+      const normalizedSerials = resolveSerialRangePayload(updateData, existingAnswerSheet)
 
       const nextUsedRaw = Object.prototype.hasOwnProperty.call(updateData, 'used')
         ? updateData.used
@@ -447,14 +1026,43 @@ exports.updateAnswerSheet = async (req, res) => {
         })
       }
 
-      if (nextUsed + nextDiscarded > recalculatedTotal) {
+      if (nextUsed + nextDiscarded > normalizedSerials.total) {
         return res.status(400).json({
           success: false,
-          error: `Invalid serial range. Total sheets (${recalculatedTotal}) cannot be less than used + discarded (${nextUsed + nextDiscarded}).`
+          error: `Invalid serial range. Total sheets (${normalizedSerials.total}) cannot be less than used + discarded (${nextUsed + nextDiscarded}).`
         })
       }
 
-      updateData.total = recalculatedTotal
+      const nextRangeState = {
+        serialRanges: normalizedSerials.serialRanges,
+        serialFrom: normalizedSerials.serialFrom,
+        serialTo: normalizedSerials.serialTo
+      }
+
+      const discardedOutsideRange = (existingAnswerSheet.discardedSerials || []).find(
+        item => !isSerialWithinAnswerSheetRanges(nextRangeState, item.serial)
+      )
+      if (discardedOutsideRange) {
+        return res.status(400).json({
+          success: false,
+          error: `Discarded serial ${discardedOutsideRange.serial} falls outside the updated serial ranges`
+        })
+      }
+
+      const supplementaryUsageOutsideRange = (existingAnswerSheet.supplementaryUsages || []).find((usage) =>
+        (usage.serials || []).some(serial => !isSerialWithinAnswerSheetRanges(nextRangeState, serial))
+      )
+      if (supplementaryUsageOutsideRange) {
+        return res.status(400).json({
+          success: false,
+          error: 'One or more saved supplementary serial numbers fall outside the updated serial ranges'
+        })
+      }
+
+      updateData.serialRanges = normalizedSerials.serialRanges
+      updateData.serialFrom = normalizedSerials.serialFrom
+      updateData.serialTo = normalizedSerials.serialTo
+      updateData.total = normalizedSerials.total
     }
 
     const answerSheet = await AnswerSheet.findByIdAndUpdate(
@@ -907,102 +1515,7 @@ exports.getAnswerSheetDetails = async (req, res) => {
       })
     }
 
-    // Get centre datesheet data to find related exams
-    const CBSEDatesheet = require('../models/CBSEDatesheet')
-    const Candidate = require('../models/Candidate')
-    const Subject = require('../models/Subject')
-
-    const cbseDatesheet = await CBSEDatesheet.getActive()
-    let relatedExams = []
-
-    if (cbseDatesheet) {
-      // Get all candidates with their subjects
-      const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
-        .populate('subjects', 'code name class')
-        .lean()
-
-      // Get all subjects to fetch answer sheet types
-      const subjects = await Subject.find({ isActive: true }).lean()
-
-      // Create a map of subject code+class to answer sheet type
-      const subjectAnswerSheetMap = new Map()
-      subjects.forEach(subject => {
-        const key = `${subject.code}-${subject.class}`
-        subjectAnswerSheetMap.set(key, subject.answerSheet || 'none')
-      })
-
-      // Calculate candidate count per subject
-      const subjectFrequency = new Map()
-
-      candidates.forEach(candidate => {
-        if (candidate.subjects && candidate.subjects.length > 0) {
-          candidate.subjects.forEach(subject => {
-            if (subject && subject.code && subject.class) {
-              const key = `${subject.code}-${subject.class}`
-              const count = subjectFrequency.get(key) || 0
-              subjectFrequency.set(key, count + 1)
-            }
-          })
-        }
-      })
-
-      // Normalize answer sheet class for comparison (10 -> 10th, 12 -> 12th)
-      const normalizedClass = answerSheet.class.includes('th') ? answerSheet.class : `${answerSheet.class}th`
-
-      // Determine the expected answer sheet type based on BOTH answerSheetType AND pages
-      // This ensures 32-page Main sheets only match 32_pages subjects,
-      // and 20-page Main sheets only match 20_pages subjects
-      let expectedAnswerSheetType = null
-      
-      if (answerSheet.answerSheetType === 'Main' || answerSheet.answerSheetType === 'Supplementary') {
-        // Main/Supplementary sheets come in different page counts
-        if (answerSheet.pages === 32) {
-          expectedAnswerSheetType = '32_pages'
-        } else if (answerSheet.pages === 20) {
-          expectedAnswerSheetType = '20_pages'
-        }
-      } else if (answerSheet.answerSheetType === 'Graph') {
-        expectedAnswerSheetType = '40_graph'
-      } else if (answerSheet.answerSheetType === 'Drawing Sheets') {
-        expectedAnswerSheetType = 'drawing_sheets'
-      }
-
-      // Find related exam entries
-      relatedExams = cbseDatesheet.entries
-        .filter(entry => {
-          // Match by class
-          if (entry.subject.class !== normalizedClass) return false
-
-          // Match on the specific answer sheet type (including page count)
-          if (expectedAnswerSheetType && entry.answerSheet !== expectedAnswerSheetType) return false
-
-          return true
-        })
-        .map(entry => {
-          const key = `${entry.subject.code}-${entry.subject.class}`
-          const normalizedKey = `${entry.subject.code}-${entry.subject.class.replace(/th$/i, '')}`
-          const candidateCount = subjectFrequency.get(key) || subjectFrequency.get(normalizedKey) || 0
-
-          return {
-            _id: entry._id,
-            examDate: entry.examDate,
-            dayName: entry.dayName,
-            subjectCode: entry.subject.code,
-            subjectName: entry.subject.name,
-            class: entry.subject.class,
-            timeSlot: entry.timeSlot,
-            duration: entry.subject.duration,
-            candidateCount,
-            answerSheetType: entry.answerSheet
-          }
-        })
-        .filter(exam => exam.candidateCount > 0)
-        .sort((a, b) => {
-          const dateDiff = new Date(a.examDate).getTime() - new Date(b.examDate).getTime()
-          if (dateDiff !== 0) return dateDiff
-          return b.candidateCount - a.candidateCount
-        })
-    }
+    const relatedExams = await getRelatedExamsForAnswerSheet(answerSheet)
 
     res.status(200).json({
       success: true,
@@ -1016,6 +1529,225 @@ exports.getAnswerSheetDetails = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch answer sheet details'
+    })
+  }
+}
+
+/**
+ * @desc    Get manual supplementary usage context
+ * @route   GET /api/answersheets/:id/supplementary-context
+ * @access  Private
+ */
+exports.getSupplementaryUsageContext = async (req, res) => {
+  try {
+    const answerSheet = await AnswerSheet.findById(req.params.id)
+
+    if (!answerSheet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Answer sheet not found'
+      })
+    }
+
+    if (answerSheet.answerSheetType !== 'Supplementary') {
+      return res.status(400).json({
+        success: false,
+        error: 'Manual supplementary usage is only available for supplementary answer sheets'
+      })
+    }
+
+    const relatedExams = await getRelatedExamsForAnswerSheet(answerSheet)
+    const context = await buildSupplementaryUsageContext(answerSheet, req, relatedExams)
+
+    return res.status(200).json({
+      success: true,
+      data: context
+    })
+  } catch (error) {
+    console.error('Error fetching supplementary usage context:', error)
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to fetch supplementary usage context'
+    })
+  }
+}
+
+/**
+ * @desc    Save manual supplementary usage for a subject
+ * @route   POST /api/answersheets/:id/supplementary-usage
+ * @access  Private
+ */
+exports.saveSupplementaryUsage = async (req, res) => {
+  try {
+    const answerSheet = await AnswerSheet.findById(req.params.id)
+
+    if (!answerSheet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Answer sheet not found'
+      })
+    }
+
+    if (answerSheet.answerSheetType !== 'Supplementary') {
+      return res.status(400).json({
+        success: false,
+        error: 'Manual supplementary usage is only available for supplementary answer sheets'
+      })
+    }
+
+    const { centreDatesheetEntryId, roomNo, rollNo } = req.body
+    const serialList = Array.isArray(req.body.serials) ? req.body.serials : []
+    const serials = Array.from(new Set(serialList.map(normalizeSerialValue).filter(Boolean)))
+
+    if (!centreDatesheetEntryId || !roomNo || !rollNo || serials.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Subject, room number, roll number, and at least one serial number are required'
+      })
+    }
+
+    const relatedExams = await getRelatedExamsForAnswerSheet(answerSheet)
+    const selectedExam = relatedExams.find(exam => String(exam._id) === String(centreDatesheetEntryId))
+
+    if (!selectedExam) {
+      return res.status(400).json({
+        success: false,
+        error: 'Selected subject is not valid for this supplementary answer sheet'
+      })
+    }
+
+    const { roomOptions, roomError } = await getRoomRollOptionsForEntry(centreDatesheetEntryId, req)
+    if (roomError) {
+      return res.status(400).json({
+        success: false,
+        error: roomError
+      })
+    }
+
+    const selectedRoom = roomOptions.find(option => String(option.roomNo) === String(roomNo).trim())
+    if (!selectedRoom) {
+      return res.status(400).json({
+        success: false,
+        error: 'Selected room number is not available in the seating plan for this subject'
+      })
+    }
+
+    const normalizedRollNo = String(rollNo).trim()
+    if (!selectedRoom.rollNos.includes(normalizedRollNo)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Selected roll number does not belong to the chosen room'
+      })
+    }
+
+    const discardedSet = new Set(
+      (answerSheet.discardedSerials || []).map(item => normalizeSerialValue(item.serial)).filter(Boolean)
+    )
+    const usedSerialSet = getSupplementaryUsedSerials(answerSheet)
+
+    for (const serial of serials) {
+      if (!isSerialWithinAnswerSheetRanges(answerSheet, serial)) {
+        return res.status(400).json({
+          success: false,
+          error: `Serial ${serial} is outside the configured serial ranges`
+        })
+      }
+
+      if (discardedSet.has(serial)) {
+        return res.status(400).json({
+          success: false,
+          error: `Serial ${serial} is marked as discarded`
+        })
+      }
+
+      if (usedSerialSet.has(serial)) {
+        return res.status(400).json({
+          success: false,
+          error: `Serial ${serial} is already used for another supplementary record`
+        })
+      }
+    }
+
+    answerSheet.supplementaryUsages = answerSheet.supplementaryUsages || []
+    answerSheet.supplementaryUsages.push({
+      centreDatesheetEntry: centreDatesheetEntryId,
+      examDate: selectedExam.examDate,
+      subjectCode: selectedExam.subjectCode,
+      subjectName: selectedExam.subjectName,
+      roomNo: String(roomNo).trim(),
+      rollNo: normalizedRollNo,
+      serials
+    })
+
+    answerSheet.used = getSupplementaryUsedSerials(answerSheet).size
+    await answerSheet.save()
+
+    const context = await buildSupplementaryUsageContext(answerSheet, req, relatedExams)
+
+    return res.status(200).json({
+      success: true,
+      data: context
+    })
+  } catch (error) {
+    console.error('Error saving supplementary usage:', error)
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to save supplementary usage'
+    })
+  }
+}
+
+/**
+ * @desc    Remove a manual supplementary usage entry
+ * @route   DELETE /api/answersheets/:id/supplementary-usage/:usageId
+ * @access  Private
+ */
+exports.removeSupplementaryUsage = async (req, res) => {
+  try {
+    const answerSheet = await AnswerSheet.findById(req.params.id)
+
+    if (!answerSheet) {
+      return res.status(404).json({
+        success: false,
+        error: 'Answer sheet not found'
+      })
+    }
+
+    if (answerSheet.answerSheetType !== 'Supplementary') {
+      return res.status(400).json({
+        success: false,
+        error: 'Manual supplementary usage is only available for supplementary answer sheets'
+      })
+    }
+
+    const usageId = String(req.params.usageId)
+    const nextUsages = (answerSheet.supplementaryUsages || []).filter(
+      usage => String(usage._id) !== usageId
+    )
+
+    if (nextUsages.length === (answerSheet.supplementaryUsages || []).length) {
+      return res.status(404).json({
+        success: false,
+        error: 'Supplementary usage record not found'
+      })
+    }
+
+    answerSheet.supplementaryUsages = nextUsages
+    answerSheet.used = getSupplementaryUsedSerials(answerSheet).size
+    await answerSheet.save()
+
+    const relatedExams = await getRelatedExamsForAnswerSheet(answerSheet)
+    const context = await buildSupplementaryUsageContext(answerSheet, req, relatedExams)
+
+    return res.status(200).json({
+      success: true,
+      data: context
+    })
+  } catch (error) {
+    console.error('Error removing supplementary usage:', error)
+    return res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to remove supplementary usage'
     })
   }
 }
@@ -1385,6 +2117,7 @@ exports.getDiscardedSerials = async (req, res) => {
       data: {
         discardedSerials: answerSheet.discardedSerials || [],
         discardedCount: (answerSheet.discardedSerials || []).length,
+        serialRanges: getConfiguredSerialRanges(answerSheet),
         serialRange: {
           from: answerSheet.serialFrom,
           to: answerSheet.serialTo
@@ -1448,6 +2181,46 @@ exports.updateSeries = async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to update series'
+    })
+  }
+}
+
+/**
+ * @desc    Download consolidated answer-sheet record PDF
+ * @route   GET /api/answersheets/:id/consolidated-record/download
+ * @access  Private
+ */
+exports.downloadConsolidatedRecord = async (req, res) => {
+  try {
+    const answerSheet = await AnswerSheet.findById(req.params.id).lean()
+
+    if (!answerSheet || !answerSheet.isActive) {
+      return res.status(404).json({
+        success: false,
+        error: 'Answer sheet not found'
+      })
+    }
+
+    const templateData = await buildConsolidatedRecordTemplateData(answerSheet, req)
+    const pdfBuffer = await pdfGenerator.generateAnswerSheetConsolidatedRecord(templateData)
+    const buffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer)
+    const safeType = String(answerSheet.answerSheetType || 'answer-sheet').replace(/[^a-z0-9_-]/gi, '-').toLowerCase()
+    const safeClass = String(answerSheet.class || '').replace(/[^a-z0-9_-]/gi, '-').toLowerCase()
+    const safeColour = String(answerSheet.colour || '').replace(/[^a-z0-9_-]/gi, '-').toLowerCase()
+    const filename = `answer-sheet-consolidated-record-${safeType}-${safeClass}-${safeColour}.pdf`
+
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.setHeader('Content-Length', buffer.length)
+    res.end(buffer)
+  } catch (error) {
+    console.error('Error generating consolidated answer sheet PDF:', error)
+    const message = error?.message && typeof error.message === 'string'
+      ? error.message
+      : 'Failed to generate consolidated answer sheet PDF'
+    res.status(500).json({
+      success: false,
+      error: message
     })
   }
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import toast from 'react-hot-toast'
 import { seatingPlanService, Room } from '../services/seatingPlanService'
-import centreDatesheetService from '../services/centreDatesheetService'
+import centreDatesheetService, { type CentreDatesheetEntry } from '../services/centreDatesheetService'
 import './RoomAllocation.css'
 
 const RoomAllocation: React.FC = () => {
@@ -19,6 +19,7 @@ const RoomAllocation: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false)
   const [examDates, setExamDates] = useState<string[]>([])
   const [loadingExamDates, setLoadingExamDates] = useState(false)
+  const [centreDatesheetEntries, setCentreDatesheetEntries] = useState<CentreDatesheetEntry[]>([])
   const [allocationMode, setAllocationMode] = useState<'auto' | 'manual'>('auto')
   const [loadingAllocationMode, setLoadingAllocationMode] = useState(false)
   const [dateRoomOrderDraft, setDateRoomOrderDraft] = useState<Record<string, string[]>>({})
@@ -71,6 +72,12 @@ const RoomAllocation: React.FC = () => {
     ).sort()
   )
 
+  const compareRoomNo = (left: Room, right: Room) =>
+    String(left?.roomNo || '').localeCompare(String(right?.roomNo || ''), undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    })
+
   const fetchRooms = async () => {
     try {
       setLoading(true)
@@ -88,10 +95,14 @@ const RoomAllocation: React.FC = () => {
       setLoadingExamDates(true)
       const response = await centreDatesheetService.getEntries()
       const entries = Array.isArray(response?.data) ? response.data : []
+      const filteredEntries = entries.filter(
+        (entry) => Number(entry?.candidateCount ?? 0) > 0
+      )
+      setCentreDatesheetEntries(filteredEntries)
       const nextRequiredRooms: Record<string, number> = {}
       const uniqueDates = Array.from(
         new Set(
-          entries
+          filteredEntries
             .map((entry) => {
               const dateKey = normalizeDateKey(entry.examDate)
               if (dateKey) {
@@ -109,7 +120,7 @@ const RoomAllocation: React.FC = () => {
       setRequiredRoomsByDate(nextRequiredRooms)
 
       const nextSharedPositions: Record<string, Set<number>> = {}
-      entries.forEach((entry) => {
+      filteredEntries.forEach((entry) => {
         const dateKey = normalizeDateKey(entry.examDate)
         if (dateKey && entry.sharedRoomPosition) {
           if (!nextSharedPositions[dateKey]) nextSharedPositions[dateKey] = new Set()
@@ -120,6 +131,7 @@ const RoomAllocation: React.FC = () => {
     } catch (error) {
       console.error('Failed to fetch exam dates for allocation:', error)
       setExamDates([])
+      setCentreDatesheetEntries([])
       setRequiredRoomsByDate({})
       setSharedPositionsByDate({})
     } finally {
@@ -172,6 +184,62 @@ const RoomAllocation: React.FC = () => {
     setDateRoomOrderDraft(draft)
   }, [rooms, examDates])
 
+  const sortedRoomsForAuto = React.useMemo(
+    () => [...rooms].sort(compareRoomNo),
+    [rooms]
+  )
+
+  const autoRoomOrderByDate = React.useMemo(() => {
+    const sortedEntries = [...centreDatesheetEntries].sort((a, b) => {
+      const dateCompare = normalizeDateKey(a.examDate).localeCompare(normalizeDateKey(b.examDate))
+      if (dateCompare !== 0) return dateCompare
+
+      const classA = parseInt(String(a?.class || '').replace(/th$/i, ''), 10) || 0
+      const classB = parseInt(String(b?.class || '').replace(/th$/i, ''), 10) || 0
+      if (classA !== classB) return classA - classB
+
+      return String(a?.subjectCode || '').localeCompare(String(b?.subjectCode || ''), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      })
+    })
+
+    const dateKeys = [...new Set(sortedEntries.map((entry) => normalizeDateKey(entry.examDate)).filter(Boolean))]
+    const firstClassByDate: Record<string, string> = {}
+    dateKeys.forEach((dateKey) => {
+      const firstEntry = sortedEntries.find((entry) => normalizeDateKey(entry.examDate) === dateKey)
+      firstClassByDate[dateKey] = String(firstEntry?.class || '')
+    })
+
+    const result: Record<string, string[]> = {}
+    examDates.forEach((dateKey) => {
+      const requiredRooms = Number(requiredRoomsByDate[dateKey] || 0)
+      if (requiredRooms <= 0 || sortedRoomsForAuto.length === 0) {
+        result[dateKey] = []
+        return
+      }
+
+      const dayIndex = dateKeys.indexOf(dateKey)
+      let startIndex = 0
+      if (dayIndex > 0) {
+        const previousDateKey = dateKeys[dayIndex - 1]
+        startIndex = firstClassByDate[dateKey] !== firstClassByDate[previousDateKey] ? 0 : 1
+      }
+      startIndex = Math.min(startIndex, Math.max(sortedRoomsForAuto.length - 1, 0))
+
+      const totalToSelect = Math.min(requiredRooms, sortedRoomsForAuto.length)
+      result[dateKey] = Array.from({ length: totalToSelect }, (_, offset) => {
+        const room = sortedRoomsForAuto[(startIndex + offset) % sortedRoomsForAuto.length]
+        return room?._id || ''
+      }).filter(Boolean)
+    })
+
+    return result
+  }, [centreDatesheetEntries, examDates, requiredRoomsByDate, sortedRoomsForAuto])
+
+  const getDisplayedRoomOrderList = (dateKey: string) =>
+    allocationMode === 'auto' ? (autoRoomOrderByDate[dateKey] || []) : (dateRoomOrderDraft[dateKey] || [])
+
   const toggleRoomDateAllocation = (roomId: string, dateKey: string) => {
     if (allocationMode !== 'manual') return
 
@@ -223,14 +291,14 @@ const RoomAllocation: React.FC = () => {
   }
 
   const isRoomSelectedForDate = (roomId: string, dateKey: string) =>
-    (dateRoomOrderDraft[dateKey] || []).includes(roomId)
+    getDisplayedRoomOrderList(dateKey).includes(roomId)
 
   const getSelectionOrder = (roomId: string, dateKey: string) => {
-    const index = (dateRoomOrderDraft[dateKey] || []).indexOf(roomId)
+    const index = getDisplayedRoomOrderList(dateKey).indexOf(roomId)
     return index >= 0 ? index + 1 : null
   }
 
-  const getAllocatedRoomsCountForDate = (dateKey: string) => (dateRoomOrderDraft[dateKey] || []).length
+  const getAllocatedRoomsCountForDate = (dateKey: string) => getDisplayedRoomOrderList(dateKey).length
 
   const handleModeChange = async (mode: 'auto' | 'manual') => {
     if (mode === allocationMode) return
@@ -1364,17 +1432,17 @@ const RoomAllocation: React.FC = () => {
           </div>
           <div className="ra-btn-group">
             <div className="ra-mode-switch-wrap">
-              <span className="ra-mode-switch-label">Auto</span>
+              <span className="ra-mode-switch-label">Manual</span>
               <button
                 type="button"
-                aria-label={allocationMode === 'auto' ? 'Allocation mode: Auto. Click to switch to Manual.' : 'Allocation mode: Manual. Click to switch to Auto.'}
+                aria-label={allocationMode === 'manual' ? 'Allocation mode: Manual. Click to switch to Auto.' : 'Allocation mode: Auto. Click to switch to Manual.'}
                 disabled={loadingAllocationMode}
                 onClick={() => handleModeChange(allocationMode === 'auto' ? 'manual' : 'auto')}
-                className={`ra-mode-switch ${allocationMode === 'manual' ? 'ra-mode-switch-on' : ''}`}
+                className={`ra-mode-switch ${allocationMode === 'auto' ? 'ra-mode-switch-on' : ''}`}
               >
-                <span className={`ra-mode-switch-thumb ${allocationMode === 'manual' ? 'ra-mode-switch-thumb-right' : ''}`} />
+                <span className={`ra-mode-switch-thumb ${allocationMode === 'auto' ? 'ra-mode-switch-thumb-right' : ''}`} />
               </button>
-              <span className="ra-mode-switch-label">Manual</span>
+              <span className="ra-mode-switch-label">Auto</span>
             </div>
             {allocationMode === 'manual' && (
               <button
@@ -1397,13 +1465,6 @@ const RoomAllocation: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             Loading exam dates...
-          </div>
-        ) : allocationMode === 'auto' ? (
-          <div className="ra-msg">
-            <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-            </svg>
-            Auto mode is enabled. Switch to Manual mode to configure room allocation per date.
           </div>
         ) : examDates.length === 0 ? (
           <div className="ra-msg">
@@ -1459,7 +1520,7 @@ const RoomAllocation: React.FC = () => {
                             disabled={!canToggleRoomDateAllocation(room._id, dateKey)}
                             title={`${room.roomNo} - ${formatDateLabel(dateKey)}${allocationMode === 'manual' ? '' : ' (disabled in auto mode)'}`}
                           />
-                          {allocationMode === 'manual' && getSelectionOrder(room._id, dateKey) !== null && (
+                          {getSelectionOrder(room._id, dateKey) !== null && (
                             <span className="ra-alloc-order">
                               #{getSelectionOrder(room._id, dateKey)}
                             </span>

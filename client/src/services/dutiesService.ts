@@ -30,6 +30,7 @@ export interface DailyDutiesResponse {
   totalAssigned: number
   totalRooms?: number
   roomCandidateSchoolCodes?: Record<string, string[]>
+  roomSubjectCodes?: Record<string, string[]>
   roomSchoolNames?: Record<string, string[]>
 }
 

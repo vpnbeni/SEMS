@@ -195,6 +195,9 @@ const Duties: React.FC = () => {
   const [roomCandidateSchoolCodesByDate, setRoomCandidateSchoolCodesByDate] = useState<
     Record<string, Record<string, string[]>>
   >({})
+  const [roomSubjectCodesByDate, setRoomSubjectCodesByDate] = useState<
+    Record<string, Record<string, string[]>>
+  >({})
   const [loadingRoomAssignments, setLoadingRoomAssignments] = useState(false)
   const [savingRoomAssignments, setSavingRoomAssignments] = useState(false)
   const [functionaryDutyListFormat, setFunctionaryDutyListFormat] = useState<{
@@ -529,7 +532,24 @@ const Duties: React.FC = () => {
     return Array.from(codes)
   }, [])
 
-  const getInvigilatorConflict = useCallback((functionaryId: string, dateKey: string) => {
+  const getRoomSubjectConflict = useCallback((roomId: string, functionaryId: string, dateKey: string) => {
+    const roomCodes = (roomSubjectCodesByDate[dateKey]?.[roomId] || []).map((code) => normalizeSubjectCode(code))
+    if (roomCodes.length === 0) return null
+    const functionary = functionaryById[functionaryId]
+    const teacherCodes = getFunctionarySubjectCodes(functionary)
+    if (teacherCodes.length === 0) return null
+
+    const roomCodeSet = new Set(roomCodes)
+    const conflictingCodes = teacherCodes.filter((code) => roomCodeSet.has(code))
+    if (conflictingCodes.length === 0) return null
+
+    return {
+      functionaryName: functionary?.name || 'Selected functionary',
+      conflictingCodes,
+    }
+  }, [roomSubjectCodesByDate, functionaryById, getFunctionarySubjectCodes])
+
+  const getDateSubjectConflict = useCallback((functionaryId: string, dateKey: string) => {
     const examCodes = (examSubjectCodesByDate[dateKey] || []).map((code) => normalizeSubjectCode(code))
     if (examCodes.length === 0) return null
     const functionary = functionaryById[functionaryId]
@@ -566,10 +586,10 @@ const Duties: React.FC = () => {
 
   const isInvigilatorAllowedForRoom = useCallback((roomId: string, functionaryId: string, dateKey: string) => {
     if (!functionaryId || !dateKey) return true
-    if (getInvigilatorConflict(functionaryId, dateKey)) return false
+    if (getRoomSubjectConflict(roomId, functionaryId, dateKey)) return false
     if (getRoomSchoolConflict(roomId, functionaryId, dateKey)) return false
     return true
-  }, [getInvigilatorConflict, getRoomSchoolConflict])
+  }, [getRoomSubjectConflict, getRoomSchoolConflict])
 
   const toggleDuty = (funcId: string, dateKey: string) => {
     const key = `${funcId}::${dateKey}`
@@ -581,17 +601,18 @@ const Duties: React.FC = () => {
       const maxDuties = computeMaxDuties(activeTab, roomsForDate, candidatesForDate)
       const currentCount = checkedCountByDate[dateKey] || 0
       if (maxDuties > 0 && currentCount >= maxDuties) {
-        alert(`Maximum ${maxDuties} functionar${maxDuties === 1 ? 'y' : 'ies'} already assigned for ${formatDateLabel(dateKey)}.`)
+        toast.error(`Maximum ${maxDuties} functionar${maxDuties === 1 ? 'y' : 'ies'} already assigned for ${formatDateLabel(dateKey)}.`)
         return
       }
-      // Invigilator subject-conflict check
       if (activeTab === 'ASI') {
-        const conflict = getInvigilatorConflict(funcId, dateKey)
+        const conflict = getDateSubjectConflict(funcId, dateKey)
         if (conflict) {
-          alert(
-            `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches ${conflict.conflictingCodes.join(', ')}`
+          toast(
+            `${conflict.functionaryName} matches subject ${conflict.conflictingCodes.join(', ')}. Assign only in rooms other than this subject.`,
+            {
+              icon: 'i',
+            }
           )
-          return
         }
       }
     }
@@ -806,6 +827,10 @@ const Duties: React.FC = () => {
           ...prev,
           [selectedRoomDate]: response?.roomCandidateSchoolCodes || {},
         }))
+        setRoomSubjectCodesByDate((prev) => ({
+          ...prev,
+          [selectedRoomDate]: response?.roomSubjectCodes || {},
+        }))
       } catch (error) {
         console.error('Failed to load room assignments:', error)
       } finally {
@@ -917,6 +942,10 @@ const Duties: React.FC = () => {
         ...prev,
         [selectedRoomDate]: response?.roomCandidateSchoolCodes || prev[selectedRoomDate] || {},
       }))
+      setRoomSubjectCodesByDate((prev) => ({
+        ...prev,
+        [selectedRoomDate]: response?.roomSubjectCodes || prev[selectedRoomDate] || {},
+      }))
 
       if (showSuccessToast) {
         toast.success(`Auto-assigned invigilators for ${formatDateLabel(selectedRoomDate)}`)
@@ -964,10 +993,10 @@ const Duties: React.FC = () => {
   const handleRoomAssignmentChange = useCallback((roomId: string, functionaryId: string) => {
     if (!selectedRoomDate) return
     if (functionaryId) {
-      const conflict = getInvigilatorConflict(functionaryId, selectedRoomDate)
+      const conflict = getRoomSubjectConflict(roomId, functionaryId, selectedRoomDate)
       if (conflict) {
         toast.error(
-          `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches ${conflict.conflictingCodes.join(', ')}`
+          `Subject teacher cannot be on invigilation duty in this room. ${conflict.functionaryName} matches ${conflict.conflictingCodes.join(', ')}`
         )
         return
       }
@@ -986,7 +1015,7 @@ const Duties: React.FC = () => {
         [roomId]: functionaryId,
       },
     }))
-  }, [selectedRoomDate, getInvigilatorConflict, getRoomSchoolConflict])
+  }, [selectedRoomDate, getRoomSubjectConflict, getRoomSchoolConflict])
 
   const handleRoomAssignmentSecondChange = useCallback((roomId: string, functionaryId: string) => {
     if (!selectedRoomDate) return
@@ -996,10 +1025,10 @@ const Duties: React.FC = () => {
       return
     }
     if (functionaryId) {
-      const conflict = getInvigilatorConflict(functionaryId, selectedRoomDate)
+      const conflict = getRoomSubjectConflict(roomId, functionaryId, selectedRoomDate)
       if (conflict) {
         toast.error(
-          `Subject teacher cannot be on invigilation duty. ${conflict.functionaryName} matches ${conflict.conflictingCodes.join(', ')}`
+          `Subject teacher cannot be on invigilation duty in this room. ${conflict.functionaryName} matches ${conflict.conflictingCodes.join(', ')}`
         )
         return
       }
@@ -1018,7 +1047,7 @@ const Duties: React.FC = () => {
         [roomId]: functionaryId,
       },
     }))
-  }, [selectedRoomDate, roomAssignmentsByDate, getInvigilatorConflict, getRoomSchoolConflict])
+  }, [selectedRoomDate, roomAssignmentsByDate, getRoomSubjectConflict, getRoomSchoolConflict])
 
   const selectedRoomDateIndex = useMemo(() => {
     if (!selectedRoomDate) return -1
@@ -1108,6 +1137,10 @@ const Duties: React.FC = () => {
       setRoomCandidateSchoolCodesByDate((prev) => ({
         ...prev,
         [selectedRoomDate]: response?.roomCandidateSchoolCodes || prev[selectedRoomDate] || {},
+      }))
+      setRoomSubjectCodesByDate((prev) => ({
+        ...prev,
+        [selectedRoomDate]: response?.roomSubjectCodes || prev[selectedRoomDate] || {},
       }))
 
       toast.success(`Room assignments saved for ${formatDateLabel(selectedRoomDate)}`)
@@ -1566,6 +1599,7 @@ const Duties: React.FC = () => {
                       if (!candidateId) return false
                       if (!remainingForFirst.has(candidateId)) return false
                       if (candidateId === String(selectedFunctionarySecondId || '').trim()) return false
+                      if (!isInvigilatorAllowedForRoom(room._id, candidateId, selectedRoomDate)) return false
                       if (isFunctionaryAssignedElsewhere(selectedRoomDate, candidateId, room._id, 'first')) return false
                       return true
                     })
@@ -1575,12 +1609,14 @@ const Duties: React.FC = () => {
                       if (!candidateId) return false
                       if (!remainingForSecond.has(candidateId)) return false
                       if (candidateId === String(selectedFunctionaryId || '').trim()) return false
+                      if (!isInvigilatorAllowedForRoom(room._id, candidateId, selectedRoomDate)) return false
                       if (isFunctionaryAssignedElsewhere(selectedRoomDate, candidateId, room._id, 'second')) return false
                       return true
                     })
                     if (
                       selectedFunctionaryId &&
                       selectedFunctionary &&
+                      isInvigilatorAllowedForRoom(room._id, selectedFunctionaryId, selectedRoomDate) &&
                       !isFunctionaryAssignedElsewhere(selectedRoomDate, selectedFunctionaryId, room._id, 'first') &&
                       !options.some((func) => func._id === selectedFunctionaryId)
                     ) {
@@ -1590,6 +1626,7 @@ const Duties: React.FC = () => {
                       selectedFunctionarySecondId &&
                       selectedFunctionarySecond &&
                       String(selectedFunctionarySecondId) !== String(selectedFunctionaryId) &&
+                      isInvigilatorAllowedForRoom(room._id, selectedFunctionarySecondId, selectedRoomDate) &&
                       !isFunctionaryAssignedElsewhere(selectedRoomDate, selectedFunctionarySecondId, room._id, 'second') &&
                       !secondOptions.some((func) => func._id === selectedFunctionarySecondId)
                     ) {

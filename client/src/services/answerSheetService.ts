@@ -6,6 +6,50 @@ export interface DiscardedSerial {
   discardedAt: string
 }
 
+export interface AnswerSheetSerialRange {
+  serialFrom: string
+  serialTo: string
+}
+
+export interface SupplementaryUsageRecord {
+  _id: string
+  centreDatesheetEntryId: string
+  examDate: string
+  subjectCode: string
+  subjectName: string
+  roomNo: string
+  rollNo: string
+  serials: string[]
+  createdAt: string
+}
+
+export interface SupplementaryRoomOption {
+  roomNo: string
+  rollNos: string[]
+}
+
+export interface SupplementarySubjectContext {
+  _id: string
+  examDate: string
+  dayName: string
+  subjectCode: string
+  subjectName: string
+  class: string
+  candidateCount: number
+  roomOptions: SupplementaryRoomOption[]
+  roomError?: string
+  usages: SupplementaryUsageRecord[]
+  usedCount: number
+}
+
+export interface SupplementaryUsageContextResponse {
+  totalUsed: number
+  availableCount: number
+  discardedCount: number
+  usedSerials: string[]
+  subjects: SupplementarySubjectContext[]
+}
+
 export interface AnswerSheetEntry {
   _id?: string
   answerSheetType: string
@@ -14,12 +58,14 @@ export interface AnswerSheetEntry {
   class: string
   suffix?: string
   series?: string
+  serialRanges?: AnswerSheetSerialRange[]
   serialFrom: string
   serialTo: string
   total: number
   used: number
   discarded: number
   discardedSerials?: DiscardedSerial[]
+  supplementaryUsages?: SupplementaryUsageRecord[]
   balance?: number
   sortOrder?: number
   receivedDate?: string
@@ -220,6 +266,29 @@ class AnswerSheetService {
    */
   async getSerialAllocation(id: string) {
     const response = await api.get(`/answersheets/${id}/allocation`)
+    return response.data
+  }
+
+  async getSupplementaryUsageContext(id: string): Promise<{ success: boolean; data: SupplementaryUsageContextResponse }> {
+    const response = await api.get(`/answersheets/${id}/supplementary-context`)
+    return response.data
+  }
+
+  async saveSupplementaryUsage(id: string, data: {
+    centreDatesheetEntryId: string
+    roomNo: string
+    rollNo: string
+    serials: string[]
+  }): Promise<{ success: boolean; data: SupplementaryUsageContextResponse }> {
+    const response = await api.post(`/answersheets/${id}/supplementary-usage`, data)
+    return response.data
+  }
+
+  async removeSupplementaryUsage(
+    id: string,
+    usageId: string
+  ): Promise<{ success: boolean; data: SupplementaryUsageContextResponse }> {
+    const response = await api.delete(`/answersheets/${id}/supplementary-usage/${usageId}`)
     return response.data
   }
 
