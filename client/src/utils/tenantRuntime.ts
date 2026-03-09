@@ -2,7 +2,6 @@ import { getAuthToken } from './authStorage';
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '0.0.0.0']);
 const TENANT_SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
-const RESERVED_PLATFORM_SUBDOMAINS = new Set(['www']);
 
 const getHostname = () => {
   if (typeof window === 'undefined') {
@@ -43,29 +42,21 @@ const decodeJwtPayload = (token: string | null): Record<string, any> | null => {
   }
 };
 
-export const getRootAppDomain = () => import.meta.env.VITE_ROOT_APP_DOMAIN || 'becms.vpnbeni.com';
-export const getRootApiDomain = () => import.meta.env.VITE_ROOT_API_DOMAIN || 'api.vpnbeni.com';
+export const getRootAppDomain = () => import.meta.env.VITE_ROOT_APP_DOMAIN || 'capabble.cloud';
+export const getRootApiDomain = () => import.meta.env.VITE_ROOT_API_DOMAIN || 'api.capabble.cloud';
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, '');
-
-const isRootHostAlias = (hostname: string, rootAppDomain: string) => {
-  if (hostname === rootAppDomain) {
-    return true;
-  }
-
-  if (rootAppDomain.startsWith('www.')) {
-    return hostname === rootAppDomain.slice(4);
-  }
-
-  return hostname === `www.${rootAppDomain}`;
-};
 
 export const isLocalRuntime = () => {
   const hostname = getHostname();
   return LOCAL_HOSTS.has(hostname) || hostname.endsWith('.localhost');
 };
 
+// Resolves tenant slug from (in priority order):
+// 1. URL query param (?tenant=slug) — highest priority, works everywhere
+// 2. localStorage — persisted after first login or email resolution
+// 3. JWT payload — populated after successful login
+// Subdomain-based resolution is no longer used (single-URL model: sems.capabble.cloud).
 export const resolveTenantSlug = (): string | null => {
-  const hostname = getHostname();
   const params = getSearchParams();
   const fromQuery = sanitizeTenantSlug(params.get('tenant'));
 
@@ -74,35 +65,16 @@ export const resolveTenantSlug = (): string | null => {
     return fromQuery;
   }
 
-  if (!hostname) {
-    return null;
+  const fromStorage = sanitizeTenantSlug(localStorage.getItem('tenantSlug'));
+  if (fromStorage) {
+    return fromStorage;
   }
 
-  if (isLocalRuntime()) {
-    const fromStorage = sanitizeTenantSlug(localStorage.getItem('tenantSlug'));
-    if (fromStorage) {
-      return fromStorage;
-    }
-
-    const tokenPayload = decodeJwtPayload(getAuthToken());
-    const fromToken = sanitizeTenantSlug(tokenPayload?.tenantSlug);
-    if (fromToken) {
-      localStorage.setItem('tenantSlug', fromToken);
-      return fromToken;
-    }
-
-    return null;
-  }
-
-  const rootAppDomain = getRootAppDomain().toLowerCase();
-
-  if (isRootHostAlias(hostname, rootAppDomain)) {
-    return null;
-  }
-
-  if (hostname.endsWith(`.${rootAppDomain}`)) {
-    const subdomain = sanitizeTenantSlug(hostname.replace(`.${rootAppDomain}`, ''));
-    return subdomain && RESERVED_PLATFORM_SUBDOMAINS.has(subdomain) ? null : subdomain;
+  const tokenPayload = decodeJwtPayload(getAuthToken());
+  const fromToken = sanitizeTenantSlug(tokenPayload?.tenantSlug);
+  if (fromToken) {
+    localStorage.setItem('tenantSlug', fromToken);
+    return fromToken;
   }
 
   return null;
@@ -137,11 +109,8 @@ export const buildTenantAppRedirectUrl = (tenantSlug: string, ticket: string): s
   const encodedSlug = encodeURIComponent(tenantSlug);
   const encodedTicket = encodeURIComponent(ticket);
 
-  if (isLocalRuntime()) {
-    return `${window.location.origin}/?tenant=${encodedSlug}#/signup/complete?ticket=${encodedTicket}`;
-  }
-
-  return `https://${tenantSlug}.${getRootAppDomain()}/#/signup/complete?ticket=${encodedTicket}`;
+  // Single-URL model: always use current origin (sems.capabble.cloud in production)
+  return `${window.location.origin}/?tenant=${encodedSlug}#/signup/complete?ticket=${encodedTicket}`;
 };
 
 export const getTenantHeader = (): string | null => {

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, ChevronRight, Eye, EyeOff, Globe, Lock, Mail, Shield, BookOpen } from 'lucide-react'
+import { Activity, ChevronRight, Eye, EyeOff, Globe, Lock, Mail, Shield, BookOpen, Building2 } from 'lucide-react'
 import { clearError, login, selectAuth } from '../redux/slices/authSlice'
 import authService from '../services/authService'
 import { useAcademicSession } from '../contexts/AcademicSessionContext'
@@ -41,6 +41,8 @@ const Login: React.FC = () => {
   const [resolvingTenant, setResolvingTenant] = useState(false)
   const [rememberMe, setRememberMe] = useState<boolean>(getRememberPreference())
   const [tenantLookupError, setTenantLookupError] = useState<string | null>(null)
+  const [schoolCode, setSchoolCode] = useState('')
+  const [showSchoolCode, setShowSchoolCode] = useState(false)
   const [formData, setFormData] = useState<LoginCredentials>({
     email: '',
     password: '',
@@ -73,6 +75,12 @@ const Login: React.FC = () => {
     }))
   }
 
+  const handleSchoolCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSchoolCode(e.target.value)
+    setTenantLookupError(null)
+    dispatch(clearError())
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -93,10 +101,17 @@ const Login: React.FC = () => {
         localStorage.setItem('tenantSlug', tenant.slug)
         syncTenantInUrl(tenant.slug)
       } else {
+        // Username login: resolve tenant from localStorage/JWT, or from the school code field.
         const tenantSlug = resolveTenantSlug()
         if (!tenantSlug) {
-          setTenantLookupError('Use your full work email here, or open your tenant login URL to sign in with a username.')
-          return
+          const code = schoolCode.trim().toLowerCase()
+          if (!code) {
+            setShowSchoolCode(true)
+            setTenantLookupError('Enter your School Code to sign in with a username.')
+            return
+          }
+          localStorage.setItem('tenantSlug', code)
+          syncTenantInUrl(code)
         }
       }
 
@@ -271,6 +286,35 @@ const Login: React.FC = () => {
                   />
                 </div>
               </div>
+
+              <AnimatePresence>
+                {showSchoolCode && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="space-y-2 overflow-hidden"
+                  >
+                    <label htmlFor="schoolCode" className="text-sm font-medium text-gray-300 ml-1 block">School Code</label>
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 transition-colors group-focus-within:text-primary-400">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <input
+                        id="schoolCode"
+                        name="schoolCode"
+                        type="text"
+                        value={schoolCode}
+                        onChange={handleSchoolCodeChange}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                        placeholder="e.g. ib, springdale"
+                        autoFocus
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 ml-1">Your school or institution code, provided by your administrator.</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="space-y-2">
                 <div className="flex justify-between items-center ml-1">

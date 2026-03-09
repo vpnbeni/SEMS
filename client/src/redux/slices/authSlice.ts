@@ -75,10 +75,12 @@ export const logout = createAsyncThunk(
       await authService.logout();
       clearAuthData();
       localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
+      localStorage.removeItem('tenantSlug');
       return null;
     } catch (error: any) {
       clearAuthData();
       localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
+      localStorage.removeItem('tenantSlug');
       return rejectWithValue(error.response?.data?.message || "Logout failed");
     }
   }
@@ -118,6 +120,7 @@ export const changePassword = createAsyncThunk<ApiResponse<null>, PasswordChange
       const response = await authService.changePassword(passwordData);
       clearAuthData();
       localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
+      localStorage.removeItem('tenantSlug');
       return response;
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || "Password change failed");
@@ -150,6 +153,7 @@ const authSlice = createSlice({
       state.error = null;
       clearAuthData();
       localStorage.removeItem(ACADEMIC_SESSION_STORAGE_KEY);
+      localStorage.removeItem('tenantSlug');
     },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
