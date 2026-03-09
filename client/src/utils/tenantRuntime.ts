@@ -114,6 +114,6 @@ export const buildTenantAppRedirectUrl = (tenantSlug: string, ticket: string): s
 };
 
 export const getTenantHeader = (): string | null => {
-  // Always send tenant slug when on a tenant subdomain.
+  // Returns the active tenant slug for the x-tenant-slug request header.
   return resolveTenantSlug();
 };

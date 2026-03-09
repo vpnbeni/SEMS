@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bot, Building2, CheckCircle2, ChevronRight, Sparkles, UserRoundPlus } from 'lucide-react'
 import tenantSignupService from '@/services/tenantSignupService'
-import { buildTenantAppRedirectUrl, isLocalRuntime, resolveTenantSlug } from '@/utils/tenantRuntime'
+import { buildTenantAppRedirectUrl } from '@/utils/tenantRuntime'
 
 type StepId = 'name' | 'slug' | 'adminEmail' | 'adminPassword' | 'confirmPassword'
 
@@ -45,7 +45,7 @@ const STEPS: Array<{
   },
   {
     id: 'slug',
-    prompt: 'Choose a workspace slug. This becomes your app URL.',
+    prompt: 'Choose a workspace slug. This will be your School Code for logging in at sems.capabble.cloud.',
     placeholder: 'Example: sunrise-public-school',
     inputType: 'text',
   },
@@ -93,7 +93,7 @@ const buildReviewMessage = (draft: DraftState) => {
   return [
     'Perfect, here is what I captured:',
     `Centre name: ${draft.name}`,
-    `Centre slug: ${draft.slug}`,
+    `School code: ${draft.slug}`,
     `Admin email: ${draft.adminEmail}`,
     'Reply with edits or tap "Create Centre" to finish.',
   ].join('\n')
@@ -111,7 +111,7 @@ const validateStepValue = (stepId: StepId, value: string, draft: DraftState) => 
   if (stepId === 'slug') {
     const normalized = toSlug(value)
     if (!slugRegex.test(normalized)) {
-      return { error: 'Slug can use lowercase letters, numbers, and hyphens only.' }
+      return { error: 'School code can use lowercase letters, numbers, and hyphens only.' }
     }
     return { value: normalized }
   }
@@ -191,11 +191,8 @@ const TenantSignupChat: React.FC = () => {
   const [input, setInput] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isTyping, setIsTyping] = useState(false)
-  const [allowOnTenantHost, setAllowOnTenantHost] = useState(false)
   const typingTimeoutRef = useRef<number | null>(null)
 
-  const tenantSlugOnHost = resolveTenantSlug()
-  const isTenantHost = !isLocalRuntime() && Boolean(tenantSlugOnHost)
   const isReviewStep = currentStep >= STEPS.length
   const activeStep = STEPS[Math.min(currentStep, STEPS.length - 1)]
 
@@ -302,7 +299,7 @@ const TenantSignupChat: React.FC = () => {
     } catch (error: any) {
       const errorCode = error?.response?.data?.errorCode
       if (errorCode === 'slug_taken') {
-        pushAssistantMessage('That slug is already taken. Please choose another slug.')
+        pushAssistantMessage('That school code is already taken. Please choose a different one.')
         setCurrentStep(1)
         setInput(draft.slug)
       } else if (errorCode === 'admin_email_taken') {
@@ -326,31 +323,6 @@ const TenantSignupChat: React.FC = () => {
     }
     return [base, `${base}-school`, `${base}-campus`].filter((value, index, array) => array.indexOf(value) === index)
   }, [draft.name])
-
-  if (isTenantHost && !allowOnTenantHost) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-6">
-        <div className="max-w-xl w-full rounded-3xl border border-white/10 bg-white/5 p-8">
-          <h1 className="text-2xl font-semibold mb-3">You are already on a centre subdomain</h1>
-          <p className="text-slate-300 mb-6">
-            New centre signup is usually started from the root host. You can still continue here if needed.
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => setAllowOnTenantHost(true)}
-              className="px-4 py-2 rounded-xl bg-primary-600 hover:bg-primary-500 transition-colors"
-            >
-              Continue Anyway
-            </button>
-            <Link to="/" className="px-4 py-2 rounded-xl border border-white/20 hover:bg-white/10 transition-colors">
-              Back to Login
-            </Link>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-slate-950 text-white px-4 py-10 md:px-8">
@@ -418,7 +390,9 @@ const TenantSignupChat: React.FC = () => {
 
           {!isReviewStep && (
             <form onSubmit={handleStepSubmit} className="mt-5">
-              <label className="block text-xs text-slate-400 mb-2">{activeStep.id === 'name' ? 'Centre Name:' : activeStep.prompt}</label>
+              <label className="block text-xs text-slate-400 mb-2">
+                {activeStep.id === 'name' ? 'Centre Name:' : activeStep.id === 'slug' ? 'School Code:' : activeStep.prompt}
+              </label>
               <div className="flex gap-3">
                 <input
                   type={activeStep.inputType}
@@ -473,7 +447,7 @@ const TenantSignupChat: React.FC = () => {
                   onClick={() => jumpToStep(1)}
                   className="rounded-xl border border-white/20 px-4 py-3 hover:bg-white/10"
                 >
-                  Edit Slug
+                  Edit School Code
                 </button>
               </div>
               <button
