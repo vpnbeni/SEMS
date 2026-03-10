@@ -37,6 +37,11 @@ export interface Teacher {
   notes?: string
   dutyType?: string
   dutyHistory?: string[]
+  supervisionHistory?: Array<{
+    examDate: string
+    roomNo: string
+    rollNumbers: string[]
+  }>
   createdAt?: string
   updatedAt?: string
   status?: 'active' | 'inactive'
