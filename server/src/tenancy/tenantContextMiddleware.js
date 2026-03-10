@@ -2,6 +2,7 @@ const { resolveTenantFromRequest } = require('./resolveTenantFromRequest');
 const { getTenantConnectionAndModels } = require('./tenantConnectionManager');
 const { setRequestContext } = require('./requestContext');
 const { getPlatformModels } = require('./platformModels');
+const { connectPlatformDB } = require('../config/platformDatabase');
 const { TENANT_STATUS } = require('../models/platform/Tenant');
 const { normalizeTenantFeatureToggles } = require('../constants/tenantFeatures');
 
@@ -42,6 +43,7 @@ const platformContextMiddleware = async (req, res, next) => {
       });
     }
 
+    await connectPlatformDB();
     req.platformModels = getPlatformModels();
 
     setRequestContext({
@@ -72,6 +74,7 @@ const tenantContextMiddleware = async (req, res, next) => {
       });
     }
 
+    await connectPlatformDB();
     const { Tenant } = getPlatformModels();
     const tenantRecord = await Tenant.findOne({ slug: resolution.tenantSlug }).lean();
 
