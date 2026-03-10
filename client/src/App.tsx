@@ -10,6 +10,7 @@ import type { AppDispatch } from './redux/store'
 import Dashboard from './pages/Dashboard'
 import CentreDetails from './pages/CentreDetails'
 import Login from './pages/Login'
+import ForgotPassword from './pages/ForgotPassword'
 import TenantSignupChat from './pages/TenantSignupChat'
 import TenantSignupComplete from './pages/TenantSignupComplete'
 import Teachers from './pages/Teachers'
@@ -108,6 +109,16 @@ function App() {
                 hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
               ) : (
                 <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/forgot-password"
+            element={
+              isAuthenticated ? (
+                hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
+              ) : (
+                <ForgotPassword />
               )
             }
           />

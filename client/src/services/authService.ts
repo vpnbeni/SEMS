@@ -9,6 +9,7 @@ import type {
   AuthResponse, 
   ProfileUpdateData, 
   PasswordChangeData,
+  ResetPasswordData,
   ApiResponse 
 } from '../types/auth'
 
@@ -117,13 +118,14 @@ class AuthService {
     return response.data
   }
 
+  async resendForgotPasswordOtp(email: string): Promise<ApiResponse> {
+    const response = await api.post('/auth/forgot-password/resend-otp', { email })
+    return response.data
+  }
+
   // Reset password
-  async resetPassword(token: string, newPassword: string): Promise<ApiResponse> {
-    const response = await api.post('/auth/reset-password', {
-      token,
-      newPassword,
-      confirmNewPassword: newPassword
-    })
+  async resetPassword(payload: ResetPasswordData): Promise<ApiResponse> {
+    const response = await api.post('/auth/reset-password', payload)
     return response.data
   }
 

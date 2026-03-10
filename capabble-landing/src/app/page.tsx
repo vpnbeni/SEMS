@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import {
   ArrowRight,
   CheckCircle2,
@@ -10,9 +11,10 @@ import {
   Workflow,
 } from "lucide-react";
 
-const appOrigin = (process.env.NEXT_PUBLIC_APP_ORIGIN || "https://app.capabble.cloud").replace(/\/+$/, "");
-const loginUrl = `${appOrigin}/login`;
-const signupUrl = "/signup";
+function getAppOrigin(host: string): string {
+  if (host.startsWith("stage.")) return "https://stagesems.capabble.cloud";
+  return "https://sems.capabble.cloud";
+}
 
 const workflowSteps = [
   {
@@ -50,7 +52,13 @@ const benefits = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const headersList = await headers();
+  const host = headersList.get("host") || "";
+  const appOrigin = getAppOrigin(host);
+  const loginUrl = `${appOrigin}/login`;
+  const signupUrl = "/signup";
+
   return (
     <main className="landing-shell relative min-h-screen overflow-hidden">
       <div className="landing-orb landing-orb-a" />

@@ -731,6 +731,15 @@ class SeatingPlanBuilder {
     await SeatingPlanAllocation.deleteMany({ datesheetEntryId: entry._id });
     if (docs.length === 0) return;
     await SeatingPlanAllocation.insertMany(docs, { ordered: false });
+
+    // Rebuild supervisionHistory for teachers assigned to this exam date,
+    // since roll-number-to-room mappings may have changed.
+    try {
+      const { rebuildSupervisionHistoryForDate } = require('../controllers/dutiesController');
+      await rebuildSupervisionHistoryForDate(examDate);
+    } catch (_err) {
+      // Non-critical: supervision history rebuild failure should not block seating plan generation
+    }
   }
 
   /** Count how many candidates would repeat a room they had on a previous exam (Rule 1). */

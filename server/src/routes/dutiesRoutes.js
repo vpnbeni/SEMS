@@ -4,6 +4,7 @@ const {
   getDailyDuties,
   assignDailyDuties,
   downloadFunctionaryDutyRecord,
+  rebuildAllSupervisionHistory,
 } = require('../controllers/dutiesController');
 const {
   getDutySelections,
@@ -27,5 +28,8 @@ router.get('/selections', getDutySelections);
 router.post('/selections', authorize('admin', 'staff'), saveDutySelections);
 router.get('/allocation-mode', getDutyAllocationMode);
 router.put('/allocation-mode', authorize('admin', 'staff'), updateDutyAllocationMode);
+
+// Rebuild supervision history from existing duty assignments (migration/recovery)
+router.post('/rebuild-supervision-history', authorize('admin'), rebuildAllSupervisionHistory);
 
 module.exports = router;

@@ -11,6 +11,22 @@ const { runTenantModelStartupSanityCheck } = require('./tenancy/startupTenantMod
 // Import app
 const app = require('./app');
 
+// Vercel serverless: export the Express app and run DB init in background (no listen)
+if (process.env.VERCEL) {
+  const init = async () => {
+    try {
+      await connectPlatformDB();
+      console.log(`✅ Platform database '${getCentralDbName()}' connected (Vercel)`.green.bold);
+      await runTenantModelStartupSanityCheck();
+    } catch (error) {
+      console.error('❌ Server initialization failed (Vercel):'.red.bold, error.message);
+    }
+  };
+  init();
+  module.exports = app;
+  return;
+}
+
 // Import calendar seeder (temporarily disabled for debugging)
 // const { initializeCurrentYearCalendar } = require('./utils/calendarSeeder');
 

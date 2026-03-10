@@ -474,11 +474,17 @@ const getDailyDuties = asyncHandler(async (req, res) => {
   const sortedDuties = [...duties].sort((a, b) => compareRoomNo(a?.room, b?.room));
   const activeRooms = await Room.find({ isActive: true }).select('_id roomNo').lean();
   const examDateKey = examDate.toISOString().slice(0, 10);
-  const [roomCandidateSchoolCodes, roomSubjectCodes, roomSchoolNames] = await Promise.all([
+  const [roomCandidateSchoolCodes, roomSubjectCodes, roomSchoolNames, rollNosByRoomMap] = await Promise.all([
     buildRoomCandidateSchoolCodes(examDateKey, activeRooms),
     buildRoomSubjectCodes(examDateKey, activeRooms),
     buildRoomSchoolNames(examDateKey, activeRooms),
+    buildRollNosByRoomForDate(examDateKey, activeRooms),
   ]);
+
+  // Convert Map<roomId, Set<rollNo>> to plain object for API response
+  const roomRollNumbers = Object.fromEntries(
+    Array.from(rollNosByRoomMap.entries()).map(([roomId, rollNos]) => [roomId, Array.from(rollNos)])
+  );
 
   return res.status(200).json({
     success: true,
@@ -489,6 +495,7 @@ const getDailyDuties = asyncHandler(async (req, res) => {
       roomCandidateSchoolCodes,
       roomSubjectCodes,
       roomSchoolNames,
+      roomRollNumbers,
     },
   });
 });
@@ -519,7 +526,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
   const allocationMode = await getDutyAllocationMode();
   const lookupIds = Array.from(new Set([...firstFunctionaryIds, ...secondFunctionaryIds]));
   const functionaries = await Teacher.find({ _id: { $in: lookupIds }, isActive: true })
-    .select('name employeeId department designation schoolCode subjectCode')
+    .select('name employeeId department designation schoolCode subjectCode supervisionHistory')
     .lean();
   if (functionaries.length !== lookupIds.length) {
     return res.status(400).json({ success: false, message: 'Some selected functionaries are invalid or inactive.' });
@@ -547,6 +554,28 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
   };
   const hasSubjectConflict = (roomId, functionary) => getSubjectConflictCodes(roomId, functionary).length > 0;
 
+  // Candidate roll numbers seated in each room TODAY — needed by both modes
+  const rollNosByRoom = await buildRollNosByRoomForDate(examDateKey, sortedRooms);
+
+  // Helper: check if functionary has supervised any candidate in the given room on a previous date.
+  // Returns the first overlapping roll number, or null if no overlap.
+  const checkCandidateOverlap = (functionary, roomId) => {
+    const supervisedRollNos = new Set();
+    for (const entry of (functionary?.supervisionHistory || [])) {
+      if (entry.examDate === examDateKey) continue;
+      for (const r of (entry.rollNumbers || [])) {
+        supervisedRollNos.add(normalizeRollNo(r));
+      }
+    }
+    if (supervisedRollNos.size === 0) return null;
+    const roomRollNos = rollNosByRoom.get(String(roomId));
+    if (!roomRollNos) return null;
+    for (const rollNo of roomRollNos) {
+      if (supervisedRollNos.has(rollNo)) return rollNo;
+    }
+    return null;
+  };
+
   let orderedFirst = [];
   let orderedSecond = [];
 
@@ -559,13 +588,19 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
       });
     }
 
-    // ── Batch pre-compute all data needed for the eligibility matrix ────
-    // 1. Candidate roll numbers seated in each room TODAY
-    const rollNosByRoom = await buildRollNosByRoomForDate(examDateKey, sortedRooms);
-
-    // 2. Roll numbers each invigilator (OASIS ID) already supervised on OTHER dates
-    const poolIds = pool.map((fn) => fn._id);
-    const supervisedByFunc = await buildSupervisedRollNosByFunctionary(poolIds, examDateKey);
+    // ── Build supervised-roll-numbers map from denormalized supervisionHistory ──
+    // This replaces the expensive buildSupervisedRollNosByFunctionary() call.
+    const supervisedByFunc = new Map();
+    for (const fn of pool) {
+      const rollNos = new Set();
+      for (const entry of (fn.supervisionHistory || [])) {
+        if (entry.examDate === examDateKey) continue;
+        for (const r of (entry.rollNumbers || [])) {
+          rollNos.add(normalizeRollNo(r));
+        }
+      }
+      supervisedByFunc.set(String(fn._id), rollNos);
+    }
 
     // ── Build eligibility matrix purely in-memory ───────────────────────
     // eligible[funcIdx][roomIdx] = true means this invigilator can be placed in that room.
@@ -680,6 +715,34 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
           message: `Subject teacher cannot be assigned to room ${room.roomNo}. ${second.name || 'Selected invigilator'} matches ${secondSubjectConflicts.join(', ')}.`,
         });
       }
+      // School conflict checks
+      if (hasSchoolConflict(room._id, first)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invigilator cannot be of candidate school. ${first.name || 'Selected invigilator'} (school code: ${normalizeSchoolCode(first.schoolCode)}) matches candidates in room ${room.roomNo}.`,
+        });
+      }
+      if (hasSchoolConflict(room._id, second)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invigilator cannot be of candidate school. ${second.name || 'Selected invigilator'} (school code: ${normalizeSchoolCode(second.schoolCode)}) matches candidates in room ${room.roomNo}.`,
+        });
+      }
+      // Candidate overlap checks (CBSE rule: no invigilator supervises same candidate on two dates)
+      const firstOverlap = checkCandidateOverlap(first, room._id);
+      if (firstOverlap) {
+        return res.status(400).json({
+          success: false,
+          message: `Candidate overlap: ${first.name || 'Selected invigilator'} already supervised candidate ${firstOverlap} on a previous date. Cannot assign to room ${room.roomNo}.`,
+        });
+      }
+      const secondOverlap = checkCandidateOverlap(second, room._id);
+      if (secondOverlap) {
+        return res.status(400).json({
+          success: false,
+          message: `Candidate overlap: ${second.name || 'Selected invigilator'} already supervised candidate ${secondOverlap} on a previous date. Cannot assign to room ${room.roomNo}.`,
+        });
+      }
       if (String(first._id) === String(second._id)) {
         return res.status(400).json({ success: false, message: `Invigilator 1 and 2 cannot be same for room ${room.roomNo}.` });
       }
@@ -713,6 +776,40 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
     }))
   );
 
+  // ── Persist supervisionHistory on each assigned teacher ──
+  // For each teacher, remove any existing entry for this date (handles re-assignment)
+  // then push a new entry with the current room's roll numbers.
+  const historyOps = [];
+  for (let idx = 0; idx < sortedRooms.length; idx++) {
+    const room = sortedRooms[idx];
+    const roomId = String(room._id);
+    const roomNo = normalizeRoomNo(room.roomNo);
+    const rollNumbers = Array.from(rollNosByRoom.get(roomId) || []);
+
+    for (const teacher of [orderedFirst[idx], orderedSecond[idx]]) {
+      if (!teacher) continue;
+      historyOps.push({
+        updateOne: {
+          filter: { _id: teacher._id },
+          update: { $pull: { supervisionHistory: { examDate: examDateKey } } },
+        },
+      });
+      historyOps.push({
+        updateOne: {
+          filter: { _id: teacher._id },
+          update: {
+            $push: {
+              supervisionHistory: { examDate: examDateKey, roomNo, rollNumbers },
+            },
+          },
+        },
+      });
+    }
+  }
+  if (historyOps.length > 0) {
+    await Teacher.bulkWrite(historyOps, { ordered: true });
+  }
+
   const duties = await DutyAssignment.find({ examDate, isActive: true })
     .populate('room', 'roomNo roomName floor')
     .populate('functionary', 'name employeeId department designation')
@@ -731,6 +828,9 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
       totalRooms: sortedRooms.length,
       roomCandidateSchoolCodes,
       roomSubjectCodes,
+      roomRollNumbers: Object.fromEntries(
+        Array.from(rollNosByRoom.entries()).map(([roomId, rollNos]) => [roomId, Array.from(rollNos)])
+      ),
     },
   });
 });
@@ -835,8 +935,169 @@ const downloadFunctionaryDutyRecord = asyncHandler(async (req, res) => {
     .send(pdfBuffer);
 });
 
+/**
+ * Rebuild supervisionHistory for a single exam date.
+ * Called when seating plan is regenerated (roll numbers in rooms may change).
+ */
+const rebuildSupervisionHistoryForDate = async (examDateKey) => {
+  if (!examDateKey) return;
+
+  const examDate = normalizeExamDate(examDateKey);
+  if (!examDate) return;
+
+  const assignments = await DutyAssignment.find({ examDate, isActive: true })
+    .select('room functionary functionary2')
+    .lean();
+  if (!assignments.length) return;
+
+  const roomIds = [...new Set(assignments.map((a) => String(a?.room)).filter(Boolean))];
+  const rooms = await Room.find({ _id: { $in: roomIds } }).select('_id roomNo').lean();
+  const roomNoById = new Map(rooms.map((r) => [String(r._id), normalizeRoomNo(r.roomNo)]));
+
+  const allocations = await SeatingPlanAllocation.find({ examDate: examDateKey })
+    .select('roomNo rollNo')
+    .lean();
+
+  const rollNosByRoomNo = new Map();
+  for (const alloc of allocations) {
+    const roomNo = normalizeRoomNo(alloc?.roomNo);
+    if (!roomNo) continue;
+    if (!rollNosByRoomNo.has(roomNo)) rollNosByRoomNo.set(roomNo, []);
+    rollNosByRoomNo.get(roomNo).push(normalizeRollNo(alloc?.rollNo));
+  }
+
+  const ops = [];
+  const processedTeachers = new Set();
+
+  for (const assignment of assignments) {
+    const roomNo = roomNoById.get(String(assignment.room));
+    if (!roomNo) continue;
+    const rollNumbers = rollNosByRoomNo.get(roomNo) || [];
+
+    for (const funcField of ['functionary', 'functionary2']) {
+      const funcId = assignment[funcField];
+      if (!funcId || processedTeachers.has(String(funcId))) continue;
+      processedTeachers.add(String(funcId));
+
+      ops.push({
+        updateOne: {
+          filter: { _id: funcId },
+          update: { $pull: { supervisionHistory: { examDate: examDateKey } } },
+        },
+      });
+      ops.push({
+        updateOne: {
+          filter: { _id: funcId },
+          update: {
+            $push: {
+              supervisionHistory: { examDate: examDateKey, roomNo, rollNumbers },
+            },
+          },
+        },
+      });
+    }
+  }
+
+  if (ops.length > 0) {
+    await Teacher.bulkWrite(ops, { ordered: true });
+  }
+};
+
+/**
+ * Rebuild supervisionHistory for ALL teachers from existing DutyAssignment + SeatingPlanAllocation.
+ * Used for initial migration and emergency recovery.
+ */
+const rebuildAllSupervisionHistory = asyncHandler(async (req, res) => {
+  const assignments = await DutyAssignment.find({ isActive: true })
+    .select('examDate room functionary functionary2')
+    .lean();
+
+  if (!assignments.length) {
+    await Teacher.updateMany({}, { $set: { supervisionHistory: [] } });
+    return res.status(200).json({
+      success: true,
+      message: 'No duty assignments found. Cleared supervisionHistory for all teachers.',
+      data: { teachersUpdated: 0 },
+    });
+  }
+
+  const roomIds = [...new Set(assignments.map((a) => String(a?.room)).filter(Boolean))];
+  const rooms = await Room.find({ _id: { $in: roomIds } }).select('_id roomNo').lean();
+  const roomNoById = new Map(rooms.map((r) => [String(r._id), normalizeRoomNo(r.roomNo)]));
+
+  const examDates = [...new Set(
+    assignments.map((a) => {
+      const d = a.examDate instanceof Date ? a.examDate.toISOString().slice(0, 10) : String(a.examDate).slice(0, 10);
+      return d;
+    }).filter(Boolean)
+  )];
+
+  const allocations = await SeatingPlanAllocation.find({ examDate: { $in: examDates } })
+    .select('examDate roomNo rollNo')
+    .lean();
+
+  const rollNosByDateRoom = new Map();
+  for (const alloc of allocations) {
+    const key = `${alloc.examDate}::${normalizeRoomNo(alloc?.roomNo)}`;
+    if (!rollNosByDateRoom.has(key)) rollNosByDateRoom.set(key, []);
+    rollNosByDateRoom.get(key).push(normalizeRollNo(alloc?.rollNo));
+  }
+
+  const historyByTeacher = new Map();
+  for (const assignment of assignments) {
+    const dateKey = assignment.examDate instanceof Date
+      ? assignment.examDate.toISOString().slice(0, 10)
+      : String(assignment.examDate).slice(0, 10);
+    const roomNo = roomNoById.get(String(assignment.room));
+    if (!roomNo || !dateKey) continue;
+
+    const lookupKey = `${dateKey}::${roomNo}`;
+    const rollNumbers = rollNosByDateRoom.get(lookupKey) || [];
+
+    for (const funcField of ['functionary', 'functionary2']) {
+      const funcId = String(assignment[funcField] || '');
+      if (!funcId) continue;
+      if (!historyByTeacher.has(funcId)) historyByTeacher.set(funcId, []);
+      historyByTeacher.get(funcId).push({ examDate: dateKey, roomNo, rollNumbers });
+    }
+  }
+
+  const ops = [];
+  for (const [teacherId, history] of historyByTeacher) {
+    ops.push({
+      updateOne: {
+        filter: { _id: teacherId },
+        update: { $set: { supervisionHistory: history } },
+      },
+    });
+  }
+
+  // Clear supervisionHistory for teachers not in the map
+  const teacherIdsWithHistory = [...historyByTeacher.keys()];
+  ops.push({
+    updateMany: {
+      filter: teacherIdsWithHistory.length > 0
+        ? { _id: { $nin: teacherIdsWithHistory } }
+        : {},
+      update: { $set: { supervisionHistory: [] } },
+    },
+  });
+
+  if (ops.length > 0) {
+    await Teacher.bulkWrite(ops);
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: `Rebuilt supervisionHistory for ${historyByTeacher.size} teacher(s).`,
+    data: { teachersUpdated: historyByTeacher.size },
+  });
+});
+
 module.exports = {
   getDailyDuties,
   assignDailyDuties,
   downloadFunctionaryDutyRecord,
+  rebuildAllSupervisionHistory,
+  rebuildSupervisionHistoryForDate,
 };

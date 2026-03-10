@@ -204,6 +204,14 @@ const teacherSchema = new mongoose.Schema({
       ],
       message: '{VALUE} is not a valid duty type'
     }
+  }],
+  // Denormalized record of candidates supervised by this teacher per exam date.
+  // Used for fast candidate-overlap eligibility checks during duty assignment.
+  supervisionHistory: [{
+    examDate: { type: String, required: true },
+    roomNo: { type: String, required: true },
+    rollNumbers: [{ type: String }],
+    _id: false,
   }]
 }, {
   timestamps: true,

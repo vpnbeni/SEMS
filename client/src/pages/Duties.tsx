@@ -198,6 +198,9 @@ const Duties: React.FC = () => {
   const [roomSubjectCodesByDate, setRoomSubjectCodesByDate] = useState<
     Record<string, Record<string, string[]>>
   >({})
+  const [roomRollNumbersByDate, setRoomRollNumbersByDate] = useState<
+    Record<string, Record<string, string[]>>
+  >({})
   const [loadingRoomAssignments, setLoadingRoomAssignments] = useState(false)
   const [savingRoomAssignments, setSavingRoomAssignments] = useState(false)
   const [functionaryDutyListFormat, setFunctionaryDutyListFormat] = useState<{
@@ -584,12 +587,40 @@ const Duties: React.FC = () => {
     }
   }, [functionaryById, roomCandidateSchoolCodesByDate])
 
+  const getCandidateOverlapConflict = useCallback((roomId: string, functionaryId: string, dateKey: string) => {
+    const functionary = functionaryById[functionaryId]
+    if (!functionary?.supervisionHistory?.length) return null
+
+    const supervisedRollNos = new Set<string>()
+    for (const entry of functionary.supervisionHistory) {
+      if (entry.examDate === dateKey) continue
+      for (const r of (entry.rollNumbers || [])) {
+        supervisedRollNos.add(String(r).trim().toUpperCase())
+      }
+    }
+    if (supervisedRollNos.size === 0) return null
+
+    const roomRollNos = roomRollNumbersByDate[dateKey]?.[roomId]
+    if (!roomRollNos?.length) return null
+
+    for (const rollNo of roomRollNos) {
+      if (supervisedRollNos.has(String(rollNo).trim().toUpperCase())) {
+        return {
+          functionaryName: functionary?.name || 'Selected functionary',
+          overlappingRollNo: rollNo,
+        }
+      }
+    }
+    return null
+  }, [functionaryById, roomRollNumbersByDate])
+
   const isInvigilatorAllowedForRoom = useCallback((roomId: string, functionaryId: string, dateKey: string) => {
     if (!functionaryId || !dateKey) return true
     if (getRoomSubjectConflict(roomId, functionaryId, dateKey)) return false
     if (getRoomSchoolConflict(roomId, functionaryId, dateKey)) return false
+    if (getCandidateOverlapConflict(roomId, functionaryId, dateKey)) return false
     return true
-  }, [getRoomSubjectConflict, getRoomSchoolConflict])
+  }, [getRoomSubjectConflict, getRoomSchoolConflict, getCandidateOverlapConflict])
 
   const toggleDuty = (funcId: string, dateKey: string) => {
     const key = `${funcId}::${dateKey}`
@@ -831,6 +862,10 @@ const Duties: React.FC = () => {
           ...prev,
           [selectedRoomDate]: response?.roomSubjectCodes || {},
         }))
+        setRoomRollNumbersByDate((prev) => ({
+          ...prev,
+          [selectedRoomDate]: response?.roomRollNumbers || {},
+        }))
       } catch (error) {
         console.error('Failed to load room assignments:', error)
       } finally {
@@ -946,6 +981,10 @@ const Duties: React.FC = () => {
         ...prev,
         [selectedRoomDate]: response?.roomSubjectCodes || prev[selectedRoomDate] || {},
       }))
+      setRoomRollNumbersByDate((prev) => ({
+        ...prev,
+        [selectedRoomDate]: response?.roomRollNumbers || prev[selectedRoomDate] || {},
+      }))
 
       if (showSuccessToast) {
         toast.success(`Auto-assigned invigilators for ${formatDateLabel(selectedRoomDate)}`)
@@ -1007,6 +1046,13 @@ const Duties: React.FC = () => {
         )
         return
       }
+      const candidateOverlap = getCandidateOverlapConflict(roomId, functionaryId, selectedRoomDate)
+      if (candidateOverlap) {
+        toast.error(
+          `Candidate overlap: ${candidateOverlap.functionaryName} already supervised candidate ${candidateOverlap.overlappingRollNo} on a previous date.`
+        )
+        return
+      }
     }
     setRoomAssignmentsByDate((prev) => ({
       ...prev,
@@ -1015,7 +1061,7 @@ const Duties: React.FC = () => {
         [roomId]: functionaryId,
       },
     }))
-  }, [selectedRoomDate, getRoomSubjectConflict, getRoomSchoolConflict])
+  }, [selectedRoomDate, getRoomSubjectConflict, getRoomSchoolConflict, getCandidateOverlapConflict])
 
   const handleRoomAssignmentSecondChange = useCallback((roomId: string, functionaryId: string) => {
     if (!selectedRoomDate) return
@@ -1039,6 +1085,13 @@ const Duties: React.FC = () => {
         )
         return
       }
+      const candidateOverlap = getCandidateOverlapConflict(roomId, functionaryId, selectedRoomDate)
+      if (candidateOverlap) {
+        toast.error(
+          `Candidate overlap: ${candidateOverlap.functionaryName} already supervised candidate ${candidateOverlap.overlappingRollNo} on a previous date.`
+        )
+        return
+      }
     }
     setRoomAssignmentsByDateSecond((prev) => ({
       ...prev,
@@ -1047,7 +1100,7 @@ const Duties: React.FC = () => {
         [roomId]: functionaryId,
       },
     }))
-  }, [selectedRoomDate, roomAssignmentsByDate, getRoomSubjectConflict, getRoomSchoolConflict])
+  }, [selectedRoomDate, roomAssignmentsByDate, getRoomSubjectConflict, getRoomSchoolConflict, getCandidateOverlapConflict])
 
   const selectedRoomDateIndex = useMemo(() => {
     if (!selectedRoomDate) return -1
@@ -1141,6 +1194,10 @@ const Duties: React.FC = () => {
       setRoomSubjectCodesByDate((prev) => ({
         ...prev,
         [selectedRoomDate]: response?.roomSubjectCodes || prev[selectedRoomDate] || {},
+      }))
+      setRoomRollNumbersByDate((prev) => ({
+        ...prev,
+        [selectedRoomDate]: response?.roomRollNumbers || prev[selectedRoomDate] || {},
       }))
 
       toast.success(`Room assignments saved for ${formatDateLabel(selectedRoomDate)}`)
