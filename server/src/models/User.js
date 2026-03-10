@@ -41,6 +41,27 @@ const userSchema = new mongoose.Schema({
   passwordChangedAt: {
     type: Date
   },
+  passwordResetOtpHash: {
+    type: String,
+    default: null,
+  },
+  passwordResetOtpExpiresAt: {
+    type: Date,
+    default: null,
+  },
+  passwordResetOtpSentAt: {
+    type: Date,
+    default: null,
+  },
+  passwordResetOtpAttemptCount: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  passwordResetOtpLastAttemptAt: {
+    type: Date,
+    default: null,
+  },
   refreshTokens: [{
     token: String,
     createdAt: {

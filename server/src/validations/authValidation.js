@@ -92,20 +92,40 @@ const forgotPasswordSchema = Joi.object({
     })
 });
 
-// Reset password validation schema
-const resetPasswordSchema = Joi.object({
-  token: Joi.string()
+// Forgot password resend OTP validation schema
+const forgotPasswordResendOtpSchema = Joi.object({
+  email: Joi.string()
+    .email()
     .required()
     .messages({
-      'any.required': 'Reset token is required'
+      'string.email': 'Please provide a valid email address',
+      'any.required': 'Email is required'
+    })
+});
+
+// Reset password validation schema
+const resetPasswordSchema = Joi.object({
+  email: Joi.string()
+    .email()
+    .required()
+    .messages({
+      'string.email': 'Please provide a valid email address',
+      'any.required': 'Email is required'
+    }),
+  otp: Joi.string()
+    .pattern(/^\d{6}$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'OTP must be a valid 6-digit code',
+      'any.required': 'OTP is required'
     }),
   newPassword: Joi.string()
-    .min(6)
+    .min(8)
     .max(128)
     .pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#\$%\^&\*])'))
     .required()
     .messages({
-      'string.min': 'New password must be at least 6 characters long',
+      'string.min': 'New password must be at least 8 characters long',
       'string.max': 'New password cannot exceed 128 characters',
       'string.pattern.base': 'New password must contain at least one lowercase letter, one uppercase letter, one number, and one special character',
       'any.required': 'New password is required'
@@ -216,6 +236,7 @@ module.exports = {
   registerSchema,
   changePasswordSchema,
   forgotPasswordSchema,
+  forgotPasswordResendOtpSchema,
   resetPasswordSchema,
   refreshTokenSchema,
   updateProfileSchema,

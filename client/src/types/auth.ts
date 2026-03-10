@@ -58,6 +58,17 @@ export interface PasswordChangeData {
   confirmNewPassword: string
 }
 
+export interface ForgotPasswordData {
+  email: string
+}
+
+export interface ResetPasswordData {
+  email: string
+  otp: string
+  newPassword: string
+  confirmNewPassword: string
+}
+
 // API response interface
 export interface ApiResponse<T = any> {
   success: boolean

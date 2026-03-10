@@ -1,11 +1,83 @@
+const crypto = require('crypto');
 const asyncHandler = require('../middleware/asyncHandler');
 const User = require('../models/User');
 const { createTokenResponse, clearTokenCookies, verifyRefreshToken, generateToken } = require('../utils/jwt');
-const { generateResponse, errorResponse } = require('../utils/helpers');
+const { generateResponse } = require('../utils/helpers');
 const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/constants');
 const { getTenantEntitlement } = require('../services/billingServiceClient');
+const { sendMail } = require('../utils/mailer');
 
 const escapeRegex = (value = '') => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const PASSWORD_RESET_ERROR_CODES = {
+  USER_NOT_FOUND: 'user_not_found',
+  USER_INACTIVE: 'user_inactive',
+  OTP_REQUIRED: 'otp_required',
+  OTP_INVALID: 'invalid_otp',
+  OTP_EXPIRED: 'otp_expired',
+  OTP_ATTEMPTS_EXCEEDED: 'otp_attempts_exceeded',
+  OTP_NOT_REQUESTED: 'otp_not_requested',
+};
+
+const parsePositiveInt = (value, fallback) => {
+  const parsed = parseInt(value, 10);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed;
+  }
+  return fallback;
+};
+
+const resolvePasswordResetOtpTtlMinutes = () => parsePositiveInt(process.env.PASSWORD_RESET_OTP_TTL_MINUTES, 10);
+const resolvePasswordResetOtpMaxAttempts = () => parsePositiveInt(process.env.PASSWORD_RESET_OTP_MAX_ATTEMPTS, 5);
+const hashValue = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
+const generatePasswordResetOtp = () => crypto.randomInt(0, 1000000).toString().padStart(6, '0');
+
+const clearPasswordResetOtpState = (user) => {
+  user.passwordResetOtpHash = null;
+  user.passwordResetOtpExpiresAt = null;
+  user.passwordResetOtpSentAt = null;
+  user.passwordResetOtpAttemptCount = 0;
+  user.passwordResetOtpLastAttemptAt = null;
+};
+
+const getOtpExpiryMinutes = (otpExpiresAt) => {
+  if (!otpExpiresAt) return null;
+  const diffMs = new Date(otpExpiresAt).getTime() - Date.now();
+  if (!Number.isFinite(diffMs) || diffMs <= 0) {
+    return 0;
+  }
+  return Math.ceil(diffMs / (60 * 1000));
+};
+
+const sendPasswordResetOtpEmail = async ({ email, otp, otpExpiresAt }) => {
+  const expiresInMinutes = getOtpExpiryMinutes(otpExpiresAt);
+  const expiryLine = expiresInMinutes && expiresInMinutes > 0
+    ? `This code expires in ${expiresInMinutes} minute${expiresInMinutes === 1 ? '' : 's'}.`
+    : 'Use this code as soon as possible.';
+
+  const subject = 'BECMS Password Reset Verification Code';
+  const text = [
+    `Your BECMS password reset verification code is ${otp}.`,
+    expiryLine,
+    'If you did not request this reset, you can safely ignore this email.',
+  ].join('\n');
+
+  const html = [
+    '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;">',
+    '<h2 style="margin:0 0 12px;">BECMS Password Reset</h2>',
+    '<p style="margin:0 0 12px;">Use the OTP below to reset your password:</p>',
+    `<p style="margin:0 0 12px;font-size:28px;letter-spacing:6px;font-weight:700;">${otp}</p>`,
+    `<p style="margin:0 0 12px;">${expiryLine}</p>`,
+    '<p style="margin:0;">If you did not request this reset, you can safely ignore this email.</p>',
+    '</div>',
+  ].join('');
+
+  await sendMail({
+    to: email,
+    subject,
+    text,
+    html,
+  });
+};
 
 const buildBillingSnapshot = async (tenantSlug) => {
   if (!tenantSlug) {
@@ -301,23 +373,118 @@ const changePassword = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/forgot-password
 // @access  Public
 const forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
+  const email = String(req.body.email || '').trim().toLowerCase();
 
   const user = await User.findOne({ email });
   if (!user) {
     return res.status(HTTP_STATUS.NOT_FOUND).json(
-      generateResponse(false, ERROR_MESSAGES.USER_NOT_FOUND)
+      {
+        ...generateResponse(false, 'No account associated with this email'),
+        errorCode: PASSWORD_RESET_ERROR_CODES.USER_NOT_FOUND,
+      }
     );
   }
 
-  // In a real application, you would:
-  // 1. Generate a reset token
-  // 2. Save it to the user with expiry
-  // 3. Send email with reset link
-  
-  // For now, just return success message
+  if (!user.isActive) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json(
+      {
+        ...generateResponse(false, ERROR_MESSAGES.USER_INACTIVE),
+        errorCode: PASSWORD_RESET_ERROR_CODES.USER_INACTIVE,
+      }
+    );
+  }
+
+  const otp = generatePasswordResetOtp();
+  const ttlMinutes = resolvePasswordResetOtpTtlMinutes();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
+
+  user.passwordResetOtpHash = hashValue(otp);
+  user.passwordResetOtpExpiresAt = expiresAt;
+  user.passwordResetOtpSentAt = now;
+  user.passwordResetOtpAttemptCount = 0;
+  user.passwordResetOtpLastAttemptAt = null;
+  await user.save({ validateBeforeSave: false });
+
+  try {
+    await sendPasswordResetOtpEmail({
+      email: user.email,
+      otp,
+      otpExpiresAt: expiresAt,
+    });
+  } catch (error) {
+    console.error(`[auth:forgot-password] otp_delivery_failed email=${user.email} message=${error.message}`);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      ...generateResponse(false, 'Unable to send verification code right now. Please try again.'),
+      errorCode: 'otp_delivery_failed',
+    });
+  }
+
   res.status(HTTP_STATUS.OK).json(
-    generateResponse(true, 'Password reset instructions sent to your email')
+    generateResponse(true, 'Verification code sent to your email', {
+      otpExpiresAt: expiresAt,
+    })
+  );
+});
+
+// @desc    Resend forgot password OTP
+// @route   POST /api/auth/forgot-password/resend-otp
+// @access  Public
+const resendForgotPasswordOtp = asyncHandler(async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      ...generateResponse(false, 'No account associated with this email'),
+      errorCode: PASSWORD_RESET_ERROR_CODES.USER_NOT_FOUND,
+    });
+  }
+
+  if (!user.isActive) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      ...generateResponse(false, ERROR_MESSAGES.USER_INACTIVE),
+      errorCode: PASSWORD_RESET_ERROR_CODES.USER_INACTIVE,
+    });
+  }
+
+  if (!user.passwordResetOtpHash || !user.passwordResetOtpSentAt) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'Request password reset first to get an OTP'),
+      errorCode: PASSWORD_RESET_ERROR_CODES.OTP_NOT_REQUESTED,
+    });
+  }
+
+  const otp = generatePasswordResetOtp();
+  const ttlMinutes = resolvePasswordResetOtpTtlMinutes();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
+
+  user.passwordResetOtpHash = hashValue(otp);
+  user.passwordResetOtpExpiresAt = expiresAt;
+  user.passwordResetOtpSentAt = now;
+  user.passwordResetOtpAttemptCount = 0;
+  user.passwordResetOtpLastAttemptAt = null;
+  await user.save({ validateBeforeSave: false });
+
+  try {
+    await sendPasswordResetOtpEmail({
+      email: user.email,
+      otp,
+      otpExpiresAt: expiresAt,
+    });
+  } catch (error) {
+    console.error(`[auth:forgot-password:resend] otp_delivery_failed email=${user.email} message=${error.message}`);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      ...generateResponse(false, 'Unable to send verification code right now. Please try again.'),
+      errorCode: 'otp_delivery_failed',
+    });
+  }
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, 'A new verification code has been sent to your email', {
+      otpExpiresAt: expiresAt,
+    })
   );
 });
 
@@ -325,16 +492,84 @@ const forgotPassword = asyncHandler(async (req, res) => {
 // @route   POST /api/auth/reset-password
 // @access  Public
 const resetPassword = asyncHandler(async (req, res) => {
-  const { token, newPassword } = req.body;
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const otp = String(req.body.otp || '').trim();
+  const { newPassword } = req.body;
+  const now = new Date();
+  const maxOtpAttempts = resolvePasswordResetOtpMaxAttempts();
 
-  // In a real application, you would:
-  // 1. Hash the token
-  // 2. Find user with matching reset token and valid expiry
-  // 3. Update password and clear reset token
-  
-  // For now, just return success message
+  const user = await User.findOne({ email }).select('+password');
+  if (!user) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      ...generateResponse(false, 'No account associated with this email'),
+      errorCode: PASSWORD_RESET_ERROR_CODES.USER_NOT_FOUND,
+    });
+  }
+
+  if (!user.isActive) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      ...generateResponse(false, ERROR_MESSAGES.USER_INACTIVE),
+      errorCode: PASSWORD_RESET_ERROR_CODES.USER_INACTIVE,
+    });
+  }
+
+  if (!user.passwordResetOtpHash || !user.passwordResetOtpExpiresAt) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'Password reset OTP has not been requested'),
+      errorCode: PASSWORD_RESET_ERROR_CODES.OTP_NOT_REQUESTED,
+    });
+  }
+
+  if ((user.passwordResetOtpAttemptCount || 0) >= maxOtpAttempts) {
+    return res.status(HTTP_STATUS.TOO_MANY_REQUESTS).json({
+      ...generateResponse(false, 'Too many incorrect OTP attempts. Please request a new code.'),
+      errorCode: PASSWORD_RESET_ERROR_CODES.OTP_ATTEMPTS_EXCEEDED,
+    });
+  }
+
+  if (new Date(user.passwordResetOtpExpiresAt) <= now) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'OTP has expired. Please request a new code.'),
+      errorCode: PASSWORD_RESET_ERROR_CODES.OTP_EXPIRED,
+    });
+  }
+
+  if (!otp) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'OTP is required'),
+      errorCode: PASSWORD_RESET_ERROR_CODES.OTP_REQUIRED,
+    });
+  }
+
+  const otpHash = hashValue(otp);
+  if (otpHash !== user.passwordResetOtpHash) {
+    const nextAttemptCount = (user.passwordResetOtpAttemptCount || 0) + 1;
+    user.passwordResetOtpAttemptCount = nextAttemptCount;
+    user.passwordResetOtpLastAttemptAt = now;
+    await user.save({ validateBeforeSave: false });
+
+    if (nextAttemptCount >= maxOtpAttempts) {
+      return res.status(HTTP_STATUS.TOO_MANY_REQUESTS).json({
+        ...generateResponse(false, 'Too many incorrect OTP attempts. Please request a new code.'),
+        errorCode: PASSWORD_RESET_ERROR_CODES.OTP_ATTEMPTS_EXCEEDED,
+      });
+    }
+
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'Invalid verification code'),
+      errorCode: PASSWORD_RESET_ERROR_CODES.OTP_INVALID,
+    });
+  }
+
+  user.password = newPassword;
+  user.refreshTokens = [];
+  clearPasswordResetOtpState(user);
+  await user.save();
+
+  clearTokenCookies(res);
+
   res.status(HTTP_STATUS.OK).json(
-    generateResponse(true, 'Password reset successfully')
+    generateResponse(true, 'Password reset successfully. Please login with your new password.')
   );
 });
 
@@ -467,6 +702,7 @@ module.exports = {
   updateProfile,
   changePassword,
   forgotPassword,
+  resendForgotPasswordOtp,
   resetPassword,
   getUsers,
   updateUser,
