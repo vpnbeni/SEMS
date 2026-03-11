@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { selectUser } from '@/redux/slices/authSlice'
 import { useAcademicSession } from '@/contexts/AcademicSessionContext'
+import { useTimetable } from '@/contexts/TimetableContext'
 import { isFeatureEnabledForPath } from '@/constants/featureAccess'
 import { useCentreDetails } from '@/hooks/useCentreDetails'
 
@@ -15,6 +16,17 @@ const Header: React.FC = () => {
   const canAccessCentreDetails = isFeatureEnabledForPath('/centre-details', user?.featureToggles)
   const defaultDashboardCentreLabel = '829261 - International Bharti School, Rohtak'
   const { currentSession } = useAcademicSession()
+  const { periodsPerWeek, setPeriodsPerWeek } = useTimetable()
+  const [editingPeriodsPerWeek, setEditingPeriodsPerWeek] = useState(false)
+  const [draftPeriodsPerWeek, setDraftPeriodsPerWeek] = useState(periodsPerWeek)
+
+  const isDistributionRoute = useMemo(() => {
+    const segments = location.pathname.split('/').filter(Boolean)
+    return (
+      segments[0] === 'time-table' &&
+      (segments[1] === 'period-distribution' || segments[1] === 'distribution' || segments[1] === 'period-allocation')
+    )
+  }, [location.pathname])
 
   const { pageTitle, pageSubtitle, showBackButton, backTo } = useMemo(() => {
     const path = location.pathname
@@ -82,7 +94,7 @@ const Header: React.FC = () => {
       case 'subjects':
         return {
           pageTitle: 'Subjects',
-          pageSubtitle: 'Manage subjects, codes, and related settings',
+          pageSubtitle: 'Manage subjects taught in the classes.',
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
@@ -149,15 +161,26 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
+      case 'staff':
+        return {
+          pageTitle: 'Staff',
+          pageSubtitle: 'Details of staff members working in your school',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
       case 'time-table': {
         const subPage = segments[1] || ''
         const titleMap: Record<string, { title: string; subtitle: string }> = {
           'classes': { title: 'Classes', subtitle: 'Manage classes and sections for timetable scheduling' },
-          'subjects': { title: 'Subjects', subtitle: 'Manage subjects and their weekly period requirements' },
+          'subjects': { title: 'Subjects', subtitle: 'Manage subjects taught in the classes.' },
+          'departments': { title: 'Departments', subtitle: 'Map staff with subjects and assign subject workload by class-section' },
           'bell-timings': { title: 'Bell Timings', subtitle: 'Configure school bell timings, period durations, and break schedules' },
           'class-wise': { title: 'Class Wise Timetable', subtitle: 'View and manage timetables organized by class and section' },
           'teacher-wise': { title: 'Teacher Wise Timetable', subtitle: 'View and manage timetables organized by teacher' },
-          'period-allocation': { title: 'Period Allocation', subtitle: 'Allocate subjects and teachers to periods across classes' },
+          'period-distribution': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
+          'distribution': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
+          'period-allocation': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
+          'subject-allocation': { title: 'Subject Allocation', subtitle: 'Assign classes and subjects to exam functionaries' },
         }
         const info = titleMap[subPage] || { title: 'Time Table', subtitle: 'School timetable management' }
         return {
@@ -205,6 +228,23 @@ const Header: React.FC = () => {
 
   const dashboardHeaderLabel = (dashboardCentreLabel || defaultDashboardCentreLabel).trim()
 
+  useEffect(() => {
+    setDraftPeriodsPerWeek(periodsPerWeek)
+  }, [periodsPerWeek])
+
+  useEffect(() => {
+    if (!isDistributionRoute) {
+      setEditingPeriodsPerWeek(false)
+    }
+  }, [isDistributionRoute])
+
+  const handleSavePeriodsPerWeek = () => {
+    if (draftPeriodsPerWeek > 0) {
+      setPeriodsPerWeek(draftPeriodsPerWeek)
+    }
+    setEditingPeriodsPerWeek(false)
+  }
+
   return (
     <header className="h-20 flex-shrink-0 sticky top-0 z-40 glass border-b border-gray-100/80 dark:border-gray-800/80 transition-all duration-300">
       <div className="h-full px-4 md:px-8 flex items-center">
@@ -244,6 +284,65 @@ const Header: React.FC = () => {
 
           {/* Actions */}
           <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+            {isDistributionRoute && (
+              <div className="hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-white dark:bg-secondary-800/60 border border-secondary-200 dark:border-secondary-700 shadow-sm">
+                <span className="text-xs font-semibold text-secondary-700 dark:text-secondary-300 whitespace-nowrap">
+                  Periods / Week
+                </span>
+                {editingPeriodsPerWeek ? (
+                  <>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={draftPeriodsPerWeek}
+                      aria-label="Periods per week"
+                      title="Periods per week"
+                      onChange={(e) => setDraftPeriodsPerWeek(parseInt(e.target.value, 10) || 0)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSavePeriodsPerWeek()
+                        if (e.key === 'Escape') setEditingPeriodsPerWeek(false)
+                      }}
+                      className="w-14 px-2 py-1 text-xs font-semibold text-center rounded-md border border-secondary-300 dark:border-secondary-600 bg-white dark:bg-secondary-900 text-secondary-800 dark:text-secondary-100 outline-none focus:border-primary-500"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSavePeriodsPerWeek}
+                      className="text-[11px] font-semibold text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300"
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPeriodsPerWeek(false)}
+                      className="text-[11px] font-semibold text-secondary-500 dark:text-secondary-400 hover:text-secondary-700 dark:hover:text-secondary-200"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xl leading-none font-bold text-primary-600 dark:text-primary-400 min-w-7 text-center">
+                      {periodsPerWeek}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDraftPeriodsPerWeek(periodsPerWeek)
+                        setEditingPeriodsPerWeek(true)
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-secondary-200 dark:border-secondary-600 text-[11px] font-semibold text-secondary-700 dark:text-secondary-300 hover:bg-secondary-50 dark:hover:bg-secondary-700/50"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                      </svg>
+                      Edit
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             {/* Academic Session Badge */}
             {currentSession && (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200/60 dark:border-primary-800/40">

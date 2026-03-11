@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useMemo } from 'react'
 import { useTimetable, type TimetableClass } from '@/contexts/TimetableContext'
 
 /* ══════════════════════════════ Helpers ══════════════════════════════ */
@@ -16,14 +16,11 @@ interface ClassGroup {
 const PeriodAllocation: React.FC = () => {
   const {
     classes,
+    parallelSubjectPairs,
     periodsPerWeek,
-    setPeriodsPerWeek,
     periodAllocation,
     setPeriodCount,
   } = useTimetable()
-
-  const [editingPeriodsPerWeek, setEditingPeriodsPerWeek] = useState(false)
-  const [draftPeriodsPerWeek, setDraftPeriodsPerWeek] = useState(periodsPerWeek)
 
   // Group classes by subject set
   const groups: ClassGroup[] = useMemo(() => {
@@ -42,6 +39,42 @@ const PeriodAllocation: React.FC = () => {
   // Classes without subjects
   const unassigned = useMemo(() => classes.filter((c) => c.subjects.length === 0), [classes])
 
+  const parallelPairsByClass = useMemo(() => {
+    const map = new Map<string, Array<[string, string]>>()
+    parallelSubjectPairs.forEach((pair) => {
+      const classKey = pair.className.trim().toLowerCase()
+      if (!classKey) return
+      const subjectA = pair.subjectA.trim().toLowerCase()
+      const subjectB = pair.subjectB.trim().toLowerCase()
+      if (!subjectA || !subjectB || subjectA === subjectB) return
+
+      if (!map.has(classKey)) {
+        map.set(classKey, [])
+      }
+      map.get(classKey)!.push([subjectA, subjectB])
+    })
+    return map
+  }, [parallelSubjectPairs])
+
+  const parallelSubjectsByClass = useMemo(() => {
+    const map = new Map<string, Set<string>>()
+    parallelSubjectPairs.forEach((pair) => {
+      const classKey = pair.className.trim().toLowerCase()
+      if (!classKey) return
+      const subjectA = pair.subjectA.trim().toLowerCase()
+      const subjectB = pair.subjectB.trim().toLowerCase()
+      if (!subjectA || !subjectB) return
+
+      if (!map.has(classKey)) {
+        map.set(classKey, new Set<string>())
+      }
+      const subjectSet = map.get(classKey)!
+      subjectSet.add(subjectA)
+      subjectSet.add(subjectB)
+    })
+    return map
+  }, [parallelSubjectPairs])
+
   /** Get period count for a class-subject cell */
   const getCount = (classId: string, subject: string): number => {
     return periodAllocation[classId]?.[subject] ?? 0
@@ -50,7 +83,35 @@ const PeriodAllocation: React.FC = () => {
   /** Get row total for a class */
   const getRowTotal = (cls: TimetableClass): number => {
     const alloc = periodAllocation[cls.id] || {}
-    return cls.subjects.reduce((sum, subj) => sum + (alloc[subj] || 0), 0)
+    const countsBySubject = new Map<string, number>()
+
+    cls.subjects.forEach((subject) => {
+      countsBySubject.set(subject.trim().toLowerCase(), alloc[subject] || 0)
+    })
+
+    let total = 0
+    countsBySubject.forEach((value) => {
+      total += value
+    })
+
+    const classKey = cls.className.trim().toLowerCase()
+    const classPairs = parallelPairsByClass.get(classKey) || []
+    const seenPairs = new Set<string>()
+    let overlap = 0
+
+    classPairs.forEach(([subjectA, subjectB]) => {
+      const pairKey = subjectA < subjectB ? `${subjectA}|${subjectB}` : `${subjectB}|${subjectA}`
+      if (seenPairs.has(pairKey)) return
+      seenPairs.add(pairKey)
+
+      const countA = countsBySubject.get(subjectA) || 0
+      const countB = countsBySubject.get(subjectB) || 0
+      if (countA <= 0 || countB <= 0) return
+
+      overlap += Math.min(countA, countB)
+    })
+
+    return Math.max(0, total - overlap)
   }
 
   /** Handle cell value change */
@@ -58,14 +119,6 @@ const PeriodAllocation: React.FC = () => {
     const num = value === '' ? 0 : parseInt(value, 10)
     if (isNaN(num) || num < 0) return
     setPeriodCount(classId, subject, num)
-  }
-
-  /** Save new periods per week */
-  const handleSavePeriodsPerWeek = () => {
-    if (draftPeriodsPerWeek > 0) {
-      setPeriodsPerWeek(draftPeriodsPerWeek)
-    }
-    setEditingPeriodsPerWeek(false)
   }
 
   return (
@@ -76,70 +129,6 @@ const PeriodAllocation: React.FC = () => {
           padding: 12px 32px 32px;
           max-width: 1600px;
           margin: 0 auto;
-        }
-
-        /* ───────── Top bar ───────── */
-        .pa-top-bar {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          margin-bottom: 24px;
-          gap: 16px;
-          flex-wrap: wrap;
-        }
-        .pa-top-bar p {
-          font-size: 0.88rem;
-          color: #64748b;
-          margin: 0;
-        }
-        .dark .pa-top-bar p { color: #94a3b8; }
-        .pa-periods-config {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          background: #fff;
-          border: 1px solid #e2e8f0;
-          border-radius: 12px;
-          padding: 8px 16px;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-        }
-        .dark .pa-periods-config {
-          background: #1e293b;
-          border-color: #334155;
-        }
-        .pa-periods-label {
-          font-size: 0.82rem;
-          font-weight: 600;
-          color: #475569;
-        }
-        .dark .pa-periods-label { color: #cbd5e1; }
-        .pa-periods-value {
-          font-size: 1.1rem;
-          font-weight: 800;
-          color: #6366f1;
-          min-width: 28px;
-          text-align: center;
-        }
-        .pa-periods-input {
-          width: 60px;
-          padding: 4px 8px;
-          border: 1.5px solid #e2e8f0;
-          border-radius: 8px;
-          font-size: 0.9rem;
-          font-weight: 700;
-          text-align: center;
-          outline: none;
-          background: #fff;
-          color: #334155;
-        }
-        .dark .pa-periods-input {
-          background: #0f172a;
-          border-color: #475569;
-          color: #e2e8f0;
-        }
-        .pa-periods-input:focus {
-          border-color: #6366f1;
-          box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
         }
 
         /* ───────── Card ───────── */
@@ -273,6 +262,14 @@ const PeriodAllocation: React.FC = () => {
           background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
           color: #166534;
         }
+        .pa-table thead th.pa-th-parallel {
+          background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 100%);
+          color: #9a3412;
+        }
+        .dark .pa-table thead th.pa-th-parallel {
+          background: linear-gradient(180deg, #7c2d1233 0%, #9a341233 100%);
+          color: #fdba74;
+        }
         .dark .pa-table thead th.pa-th-total {
           background: linear-gradient(180deg, #14532d44 0%, #16653444 100%);
           color: #86efac;
@@ -294,6 +291,12 @@ const PeriodAllocation: React.FC = () => {
         }
         .dark .pa-table tbody tr:hover td {
           background: #283548;
+        }
+        .pa-table tbody td.pa-td-parallel {
+          background: #fffaf0;
+        }
+        .dark .pa-table tbody td.pa-td-parallel {
+          background: #9a341214;
         }
         .pa-table tbody td.pa-td-class {
           text-align: left;
@@ -321,27 +324,21 @@ const PeriodAllocation: React.FC = () => {
           font-size: 0.9rem;
         }
         .pa-total-ok {
-          background: #f0fdf4;
-          color: #166534;
+          color: #16a34a; /* green text for fully allocated */
         }
         .dark .pa-total-ok {
-          background: #14532d44;
-          color: #86efac;
+          color: #4ade80;
         }
         .pa-total-under {
-          background: #fef3c7;
-          color: #92400e;
+          color: #ef4444; /* red text when not fully allocated */
         }
         .dark .pa-total-under {
-          background: #78350f33;
-          color: #fbbf24;
+          color: #fca5a5;
         }
         .pa-total-over {
-          background: #fee2e2;
-          color: #991b1b;
+          color: #ef4444;
         }
         .dark .pa-total-over {
-          background: #7f1d1d44;
           color: #fca5a5;
         }
 
@@ -385,6 +382,22 @@ const PeriodAllocation: React.FC = () => {
         }
         .dark .pa-cell-input-filled {
           color: #f1f5f9;
+        }
+        .pa-cell-input-parallel {
+          border-color: #fdba74;
+          background: #fff7ed;
+        }
+        .dark .pa-cell-input-parallel {
+          border-color: #fb923c;
+          background: #7c2d1226;
+        }
+        .pa-cell-input-parallel:hover {
+          border-color: #fb923c;
+          background: #ffedd5;
+        }
+        .dark .pa-cell-input-parallel:hover {
+          border-color: #fdba74;
+          background: #9a341233;
         }
 
         /* ───────── Buttons ───────── */
@@ -513,55 +526,6 @@ const PeriodAllocation: React.FC = () => {
         }
       `}</style>
 
-      {/* ── Top bar ── */}
-      <div className="pa-top-bar">
-        <p>Distribute periods among subjects for each class</p>
-        <div className="pa-periods-config">
-          <span className="pa-periods-label">Periods / Week</span>
-          {editingPeriodsPerWeek ? (
-            <>
-              <input
-                type="number"
-                className="pa-periods-input"
-                value={draftPeriodsPerWeek}
-                min={1}
-                max={100}
-                onChange={(e) => setDraftPeriodsPerWeek(parseInt(e.target.value, 10) || 0)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSavePeriodsPerWeek()
-                  if (e.key === 'Escape') setEditingPeriodsPerWeek(false)
-                }}
-                autoFocus
-              />
-              <button className="pa-btn pa-btn-save" onClick={handleSavePeriodsPerWeek}>
-                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                </svg>
-              </button>
-              <button className="pa-btn pa-btn-cancel" onClick={() => setEditingPeriodsPerWeek(false)}>
-                Cancel
-              </button>
-            </>
-          ) : (
-            <>
-              <span className="pa-periods-value">{periodsPerWeek}</span>
-              <button
-                className="pa-btn pa-btn-secondary"
-                onClick={() => {
-                  setDraftPeriodsPerWeek(periodsPerWeek)
-                  setEditingPeriodsPerWeek(true)
-                }}
-              >
-                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                </svg>
-                Edit
-              </button>
-            </>
-          )}
-        </div>
-      </div>
-
       {/* ── Unassigned classes notice ── */}
       {unassigned.length > 0 && (
         <div className="pa-notice">
@@ -606,7 +570,19 @@ const PeriodAllocation: React.FC = () => {
 
       {/* ── Group cards ── */}
       {groups.map((group, groupIdx) => {
-        const groupLabel = group.classes.map((c) => `${c.className}`).join(', ')
+        const groupLabel = Array.from(
+          new Set(group.classes.map((c) => c.className))
+        ).join(', ')
+        const groupClassKeys = new Set(group.classes.map((item) => item.className.trim().toLowerCase()))
+        const isGroupParallelSubject = (subject: string) => {
+          const subjectKey = subject.trim().toLowerCase()
+          for (const classKey of groupClassKeys) {
+            if (parallelSubjectsByClass.get(classKey)?.has(subjectKey)) {
+              return true
+            }
+          }
+          return false
+        }
 
         return (
           <div key={group.key} className="pa-card">
@@ -637,7 +613,7 @@ const PeriodAllocation: React.FC = () => {
                     <th className="pa-th-class">Class</th>
                     <th className="pa-th-section">Section</th>
                     {group.subjects.map((subj) => (
-                      <th key={subj}>{subj}</th>
+                      <th key={subj} className={isGroupParallelSubject(subj) ? 'pa-th-parallel' : ''}>{subj}</th>
                     ))}
                     <th className="pa-th-total">Total</th>
                   </tr>
@@ -646,9 +622,11 @@ const PeriodAllocation: React.FC = () => {
                   {group.classes.map((cls, rowIdx) => {
                     const rowTotal = getRowTotal(cls)
                     const totalClass =
-                      rowTotal === periodsPerWeek ? 'pa-total-ok' :
-                      rowTotal > periodsPerWeek ? 'pa-total-over' :
-                      rowTotal > 0 ? 'pa-total-under' : ''
+                      rowTotal === periodsPerWeek
+                        ? 'pa-total-ok'
+                        : rowTotal > 0
+                        ? 'pa-total-under'
+                        : ''
 
                     return (
                       <tr key={cls.id}>
@@ -657,11 +635,13 @@ const PeriodAllocation: React.FC = () => {
                         <td className="pa-td-section">{cls.section}</td>
                         {group.subjects.map((subj) => {
                           const val = getCount(cls.id, subj)
+                          const classKey = cls.className.trim().toLowerCase()
+                          const isParallel = parallelSubjectsByClass.get(classKey)?.has(subj.trim().toLowerCase()) || false
                           return (
-                            <td key={subj}>
+                            <td key={subj} className={isParallel ? 'pa-td-parallel' : ''}>
                               <input
                                 type="number"
-                                className={`pa-cell-input ${val > 0 ? 'pa-cell-input-filled' : ''}`}
+                                className={`pa-cell-input ${val > 0 ? 'pa-cell-input-filled' : ''} ${isParallel ? 'pa-cell-input-parallel' : ''}`}
                                 value={val || ''}
                                 min={0}
                                 placeholder="0"
