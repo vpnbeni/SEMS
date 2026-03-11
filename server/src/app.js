@@ -45,7 +45,6 @@ const billingRoutes = require('./routes/billingRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
-const timetableRoutes = require('./routes/timetableRoutes');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -181,13 +180,7 @@ app.use(fileUpload({
 }));
 
 // Data sanitization against NoSQL query injection
-// We allow dots in keys so that features which rely on user-visible names
-// containing dots (e.g. subject names like "I.T.") continue to work.
-// MongoDB itself still never sees raw dots in dynamic keys because we
-// encode/decode such keys at the model/controller layer.
-app.use(mongoSanitize({
-  allowDots: true,
-}));
+app.use(mongoSanitize());
 
 // Data sanitization against XSS
 app.use(xss());
@@ -242,7 +235,6 @@ app.get('/api', (req, res) => {
       support: '/api/support',
       sessions: '/api/sessions',
       attendance: '/api/attendance',
-      timetable: '/api/timetable',
       admin: '/api/admin'
       // calendar: '/api/calendar' // Temporarily disabled for debugging
     },
@@ -281,7 +273,6 @@ tenantScopedRouter.use('/centre-details', requireTenantFeature('centre_details')
 tenantScopedRouter.use('/billing', requireTenantFeature('billing'), billingRoutes);
 tenantScopedRouter.use('/sessions', sessionRoutes);
 tenantScopedRouter.use('/attendance', requireTenantFeature('attendance'), attendanceRoutes);
-tenantScopedRouter.use('/timetable', requireTenantFeature('timetable_classes'), timetableRoutes);
 // tenantScopedRouter.use('/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 app.use('/api', tenantScopedRouter);

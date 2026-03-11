@@ -5,7 +5,6 @@ const asyncHandler = require('../middleware/asyncHandler')
 const CBSEDatesheet = require('../models/CBSEDatesheet')
 const Candidate = require('../models/Candidate')
 const { calculateRoomsGroupedByDate } = require('../utils/roomCalculator')
-const { ensureTenantActiveDatesheet } = require('../services/cbseDatesheetRolloutService')
 
 const ACTIVE_CANDIDATE_FILTER = {
   $or: [{ status: 'active' }, { status: { $exists: false } }],
@@ -43,7 +42,7 @@ router.get('/entries', protect, asyncHandler(async (req, res) => {
     console.log('📄 Fetching centre datesheet entries for answer sheet linking...')
     
     // Get active CBSE datesheet
-    const { datesheet: cbseDatesheet } = await ensureTenantActiveDatesheet(CBSEDatesheet)
+    const cbseDatesheet = await CBSEDatesheet.getActive()
     
     if (!cbseDatesheet) {
       return res.status(404).json({

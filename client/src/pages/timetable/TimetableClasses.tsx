@@ -1,34 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useState } from 'react'
 import { useTimetable, type TimetableClass } from '@/contexts/TimetableContext'
 
 const FLOOR_OPTIONS = ['Ground Floor', 'First Floor', 'Second Floor', 'Third Floor']
-
-/** Per-subject colour palette — same subject always gets same colour across timetable pages */
-const SUBJECT_COLORS: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {}
-const SUBJECT_PALETTE = [
-  { bg: '#eef2ff', text: '#4338ca', darkBg: '#312e8144', darkText: '#a5b4fc' },
-  { bg: '#f0fdf4', text: '#166534', darkBg: '#14532d44', darkText: '#86efac' },
-  { bg: '#fef3c7', text: '#92400e', darkBg: '#78350f44', darkText: '#fcd34d' },
-  { bg: '#fce7f3', text: '#9d174d', darkBg: '#831843aa', darkText: '#f9a8d4' },
-  { bg: '#e0f2fe', text: '#075985', darkBg: '#0c4a6e44', darkText: '#7dd3fc' },
-  { bg: '#fae8ff', text: '#6b21a8', darkBg: '#581c8744', darkText: '#d8b4fe' },
-  { bg: '#fff7ed', text: '#9a3412', darkBg: '#7c2d1244', darkText: '#fdba74' },
-  { bg: '#f1f5f9', text: '#334155', darkBg: '#33415544', darkText: '#cbd5e1' },
-  { bg: '#ecfdf5', text: '#065f46', darkBg: '#064e3b44', darkText: '#6ee7b7' },
-  { bg: '#fef2f2', text: '#991b1b', darkBg: '#7f1d1d44', darkText: '#fca5a5' },
-  { bg: '#eff6ff', text: '#1e40af', darkBg: '#1e3a5f44', darkText: '#93c5fd' },
-  { bg: '#f5f3ff', text: '#5b21b6', darkBg: '#4c1d9544', darkText: '#c4b5fd' },
+const SUBJECT_OPTIONS = [
+  'English', 'Hindi', 'Mathematics', 'Science', 'Social Science',
+  'Computer Science', 'Physical Education', 'Art', 'Music',
+  'Sanskrit', 'Environmental Studies', 'General Knowledge',
 ]
-let _subjectColorIdx = 0
-const getSubjectColor = (subject: string) => {
-  const key = subject.trim().toLowerCase()
-  if (!key) return SUBJECT_PALETTE[0]
-  if (!SUBJECT_COLORS[key]) {
-    SUBJECT_COLORS[key] = SUBJECT_PALETTE[_subjectColorIdx % SUBJECT_PALETTE.length]
-    _subjectColorIdx++
-  }
-  return SUBJECT_COLORS[key]
-}
 
 const EMPTY_FORM = {
   className: '',
@@ -38,71 +16,12 @@ const EMPTY_FORM = {
   incharge: '',
 }
 
-interface MatrixClassRow {
-  id: string
-  name: string
-}
-
-interface MatrixSectionColumn {
-  id: string
-  name: string
-}
-
-let matrixSeq = 0
-const genMatrixId = (prefix: string) => `${prefix}-${++matrixSeq}-${Date.now()}`
-const comboKey = (className: string, section: string) => `${className.trim().toLowerCase()}::${section.trim().toLowerCase()}`
-
 const TimetableClasses: React.FC = () => {
-  const {
-    classes,
-    addClass,
-    updateClass,
-    deleteClasses,
-    clearClasses,
-    subjects: allSubjects,
-    matrixClasses,
-    matrixSections,
-    matrixSelection,
-    setMatrixState,
-  } = useTimetable()
+  const { classes, addClass, updateClass, deleteClasses, subjects: allSubjects } = useTimetable()
 
-  // Subject dropdown is strictly sourced from Timetable > Subjects module.
-  const subjectNameMap = useMemo(() => {
-    const map = new Map<string, string>()
-    allSubjects.forEach((subject) => {
-      const trimmed = subject.name.trim()
-      if (!trimmed) return
-      const key = trimmed.toLowerCase()
-      if (!map.has(key)) {
-        map.set(key, trimmed)
-      }
-    })
-    return map
-  }, [allSubjects])
-
-  const subjectOptions = useMemo(() => {
-    return Array.from(subjectNameMap.values()).sort((a, b) =>
-      a.localeCompare(b, undefined, { sensitivity: 'base' })
-    )
-  }, [subjectNameMap])
-
-  const normalizeSelectedSubjects = (selected: string[]) => {
-    const deduped: string[] = []
-    const seen = new Set<string>()
-
-    selected.forEach((subjectName) => {
-      const key = subjectName.trim().toLowerCase()
-      if (!key) return
-      const canonical = subjectNameMap.get(key)
-      if (!canonical) return
-      const canonicalKey = canonical.toLowerCase()
-      if (seen.has(canonicalKey)) return
-      seen.add(canonicalKey)
-      deduped.push(canonical)
-    })
-
-    return deduped
-  }
+  // Derive subject options: combine hardcoded list with any subjects added on the Subjects page
+  const subjectNames = allSubjects.map((s) => s.name)
+  const mergedSubjectOptions = Array.from(new Set([...SUBJECT_OPTIONS, ...subjectNames]))
 
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [newItem, setNewItem] = useState({ ...EMPTY_FORM })
@@ -113,10 +32,7 @@ const TimetableClasses: React.FC = () => {
   // ── CRUD ──
   const handleAdd = () => {
     if (!newItem.className.trim() || !newItem.section.trim() || !newItem.floor) return
-    addClass({
-      ...newItem,
-      subjects: normalizeSelectedSubjects(newItem.subjects),
-    })
+    addClass(newItem)
     setNewItem({ ...EMPTY_FORM })
     setIsAddingNew(false)
   }
@@ -127,16 +43,13 @@ const TimetableClasses: React.FC = () => {
       className: item.className,
       section: item.section,
       floor: item.floor,
-      subjects: normalizeSelectedSubjects(item.subjects),
+      subjects: [...item.subjects],
       incharge: item.incharge,
     })
   }
 
   const handleSave = (id: string) => {
-    updateClass(id, {
-      ...editingData,
-      subjects: normalizeSelectedSubjects(editingData.subjects),
-    })
+    updateClass(id, editingData)
     setEditingId(null)
     setEditingData({ ...EMPTY_FORM })
   }
@@ -177,34 +90,9 @@ const TimetableClasses: React.FC = () => {
   }
 
   const handleDeleteSelected = () => {
-    const idsToDelete = classes.map((item) => item.id)
-
-    if (idsToDelete.length === 0) return
-
-    const confirmMessage = `Delete all ${idsToDelete.length} class-section combination(s)? This cannot be undone.`
-    if (!window.confirm(confirmMessage)) return
-
-    // Keep delete robust even if matrix metadata is inconsistent.
-    try {
-      if (matrixClasses.length > 0 && matrixSections.length > 0) {
-        const nextMatrixSelection: Record<string, Record<string, boolean>> = {}
-        matrixClasses.forEach((classItem) => {
-          nextMatrixSelection[classItem.id] = matrixSections.reduce<Record<string, boolean>>((acc, sectionItem) => {
-            acc[sectionItem.id] = false
-            return acc
-          }, {})
-        })
-        setMatrixState({
-          matrixClasses,
-          matrixSections,
-          matrixSelection: nextMatrixSelection,
-        })
-      }
-    } catch (error) {
-      console.error('Failed to sync matrix state during class deletion:', error)
-    }
-
-    clearClasses()
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Delete ${selectedIds.size} selected class(es)? This cannot be undone.`)) return
+    deleteClasses(Array.from(selectedIds))
     setSelectedIds(new Set())
   }
 
@@ -225,207 +113,8 @@ const TimetableClasses: React.FC = () => {
   // ── Stats ──
   const totalSections = classes.length
   const uniqueClasses = new Set(classes.map((c) => c.className)).size
-
-  const hasPersistedMatrix =
-    matrixClasses.length > 0 ||
-    matrixSections.length > 0 ||
-    Object.keys(matrixSelection).length > 0
-
-  // One-time bootstrap for tenants that already had lower-table class/section data.
-  useEffect(() => {
-    if (hasPersistedMatrix || classes.length === 0) return
-
-    const classNames = Array.from(
-      new Set(
-        classes
-          .map((item) => item.className.trim())
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
-
-    const sectionNames = Array.from(
-      new Set(
-        classes
-          .map((item) => item.section.trim())
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
-
-    const nextMatrixClasses: MatrixClassRow[] = classNames.map((name) => ({ id: genMatrixId('tmc'), name }))
-    const nextMatrixSections: MatrixSectionColumn[] = sectionNames.map((name) => ({ id: genMatrixId('tms'), name }))
-    const classIdByName = new Map(nextMatrixClasses.map((item) => [item.name, item.id]))
-    const sectionIdByName = new Map(nextMatrixSections.map((item) => [item.name, item.id]))
-    const nextSelection: Record<string, Record<string, boolean>> = {}
-
-    classes.forEach((entry) => {
-      const classId = classIdByName.get(entry.className.trim())
-      const sectionId = sectionIdByName.get(entry.section.trim())
-      if (!classId || !sectionId) return
-      if (!nextSelection[classId]) nextSelection[classId] = {}
-      nextSelection[classId][sectionId] = true
-    })
-
-    setMatrixState({
-      matrixClasses: nextMatrixClasses,
-      matrixSections: nextMatrixSections,
-      matrixSelection: nextSelection,
-    })
-  }, [hasPersistedMatrix, classes, setMatrixState])
-
-  const handleAddMatrixClass = () => {
-    const classId = genMatrixId('tmc')
-    const nextMatrixClasses = [...matrixClasses, { id: classId, name: '' }]
-    const nextMatrixSelection = {
-      ...matrixSelection,
-      [classId]: matrixSections.reduce<Record<string, boolean>>((acc, section) => {
-        acc[section.id] = false
-        return acc
-      }, {}),
-    }
-
-    setMatrixState({
-      matrixClasses: nextMatrixClasses,
-      matrixSections,
-      matrixSelection: nextMatrixSelection,
-    })
-  }
-
-  const handleAddMatrixSection = () => {
-    const sectionId = genMatrixId('tms')
-    const nextMatrixSections = [...matrixSections, { id: sectionId, name: '' }]
-    const nextMatrixSelection = { ...matrixSelection }
-
-    matrixClasses.forEach((item) => {
-      nextMatrixSelection[item.id] = { ...(nextMatrixSelection[item.id] || {}), [sectionId]: false }
-    })
-
-    setMatrixState({
-      matrixClasses,
-      matrixSections: nextMatrixSections,
-      matrixSelection: nextMatrixSelection,
-    })
-  }
-
-  const handleMatrixClassNameChange = (classId: string, name: string) => {
-    const nextMatrixClasses = matrixClasses.map((item) => (item.id === classId ? { ...item, name } : item))
-    setMatrixState({
-      matrixClasses: nextMatrixClasses,
-      matrixSections,
-      matrixSelection,
-    })
-  }
-
-  const handleMatrixSectionNameChange = (sectionId: string, name: string) => {
-    const nextMatrixSections = matrixSections.map((item) => (item.id === sectionId ? { ...item, name } : item))
-    setMatrixState({
-      matrixClasses,
-      matrixSections: nextMatrixSections,
-      matrixSelection,
-    })
-  }
-
-  const toggleMatrixSelection = (classId: string, sectionId: string) => {
-    const nextMatrixSelection = {
-      ...matrixSelection,
-      [classId]: {
-        ...(matrixSelection[classId] || {}),
-        [sectionId]: !matrixSelection[classId]?.[sectionId],
-      },
-    }
-    setMatrixState({
-      matrixClasses,
-      matrixSections,
-      matrixSelection: nextMatrixSelection,
-    })
-  }
-
-  const handleSaveMatrixToLowerTable = () => {
-    const classNames = matrixClasses.map((item) => item.name.trim())
-    const sectionNames = matrixSections.map((item) => item.name.trim())
-
-    if (classNames.some((name) => !name)) {
-      window.alert('Please enter a valid class name for each class row.')
-      return
-    }
-    if (sectionNames.some((name) => !name)) {
-      window.alert('Please enter a valid section name for each section column.')
-      return
-    }
-
-    const classNameSet = new Set(classNames.map((name) => name.toLowerCase()))
-    if (classNameSet.size !== classNames.length) {
-      window.alert('Duplicate class names are not allowed in the matrix.')
-      return
-    }
-
-    const sectionNameSet = new Set(sectionNames.map((name) => name.toLowerCase()))
-    if (sectionNameSet.size !== sectionNames.length) {
-      window.alert('Duplicate section names are not allowed in the matrix.')
-      return
-    }
-
-    const normalizedMatrixClasses = matrixClasses.map((item) => ({ ...item, name: item.name.trim() }))
-    const normalizedMatrixSections = matrixSections.map((item) => ({ ...item, name: item.name.trim() }))
-    const normalizedMatrixSelection: Record<string, Record<string, boolean>> = {}
-    normalizedMatrixClasses.forEach((classItem) => {
-      normalizedMatrixSelection[classItem.id] = normalizedMatrixSections.reduce<Record<string, boolean>>((acc, sectionItem) => {
-        acc[sectionItem.id] = Boolean(matrixSelection[classItem.id]?.[sectionItem.id])
-        return acc
-      }, {})
-    })
-
-    setMatrixState({
-      matrixClasses: normalizedMatrixClasses,
-      matrixSections: normalizedMatrixSections,
-      matrixSelection: normalizedMatrixSelection,
-    })
-
-    const desiredCombos: Array<{ className: string, section: string }> = []
-    normalizedMatrixClasses.forEach((classItem) => {
-      normalizedMatrixSections.forEach((sectionItem) => {
-        if (normalizedMatrixSelection[classItem.id]?.[sectionItem.id]) {
-          desiredCombos.push({
-            className: classItem.name,
-            section: sectionItem.name,
-          })
-        }
-      })
-    })
-
-    const desiredKeys = new Set(desiredCombos.map((item) => comboKey(item.className, item.section)))
-
-    const existingByKey = new Map<string, TimetableClass>()
-    classes.forEach((item) => existingByKey.set(comboKey(item.className, item.section), item))
-
-    const idsToDelete = classes
-      .filter((item) => !desiredKeys.has(comboKey(item.className, item.section)))
-      .map((item) => item.id)
-
-    if (idsToDelete.length > 0) {
-      const confirmed = window.confirm(
-        `${idsToDelete.length} existing class-section combination(s) are not selected in the matrix and will be removed. Continue?`
-      )
-      if (!confirmed) return
-    }
-
-    const combosToAdd = desiredCombos.filter((item) => !existingByKey.has(comboKey(item.className, item.section)))
-
-    if (idsToDelete.length > 0) {
-      deleteClasses(idsToDelete)
-    }
-
-    combosToAdd.forEach((item) => {
-      const sample = classes.find((entry) => entry.className.trim().toLowerCase() === item.className.toLowerCase())
-      addClass({
-        className: item.className,
-        section: item.section,
-        floor: sample?.floor || 'First Floor',
-        subjects: normalizeSelectedSubjects(sample?.subjects || []),
-        incharge: sample?.incharge || '',
-      })
-    })
-
-  }
+  const floorCounts: Record<string, number> = {}
+  classes.forEach((c) => { floorCounts[c.floor] = (floorCounts[c.floor] || 0) + 1 })
 
   // ── Subject multi-select helpers ──
   const toggleSubject = (
@@ -920,179 +609,12 @@ const TimetableClasses: React.FC = () => {
           font-size: 0.88rem;
           margin: 0 0 20px;
         }
-
-        /* ————————— Summary table ————————— */
-        .tc-summary-card {
-          margin-bottom: 20px;
-        }
-        .tc-summary-header {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          padding: 14px 24px;
-          border-bottom: 1px solid #e2e8f0;
-          background: linear-gradient(90deg, #f8fafc 0%, #eef2ff 100%);
-        }
-        .dark .tc-summary-header {
-          border-color: #334155;
-          background: linear-gradient(90deg, #1e293b 0%, #1e2a4a 100%);
-        }
-        .tc-summary-header h4 {
-          margin: 0;
-          font-size: 0.95rem;
-          font-weight: 700;
-          color: #1e293b;
-        }
-        .dark .tc-summary-header h4 {
-          color: #f1f5f9;
-        }
-        .tc-summary-actions {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .tc-summary-btn {
-          padding: 7px 12px;
-          font-size: 0.76rem;
-          border-radius: 8px;
-        }
-        .tc-summary-table thead th {
-          background: #f1f5f9;
-        }
-        .dark .tc-summary-table thead th {
-          background: #1f2c3f;
-        }
-        .tc-matrix-class-cell {
-          min-width: 130px;
-        }
-        .tc-matrix-class-input,
-        .tc-matrix-section-input {
-          width: 100%;
-          padding: 6px 10px;
-          border: 1.5px solid #dbe4f0;
-          border-radius: 8px;
-          font-size: 0.82rem;
-          background: #fff;
-          color: #334155;
-          outline: none;
-          transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-        .tc-matrix-class-input:focus,
-        .tc-matrix-section-input:focus {
-          border-color: #6366f1;
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
-        }
-        .dark .tc-matrix-class-input,
-        .dark .tc-matrix-section-input {
-          background: #1e293b;
-          border-color: #475569;
-          color: #e2e8f0;
-        }
-        .tc-matrix-cell {
-          text-align: center;
-        }
-        .tc-matrix-checkbox {
-          width: 16px;
-          height: 16px;
-          accent-color: #4f46e5;
-        }
-        .tc-summary-empty {
-          padding: 14px 18px;
-          color: #94a3b8;
-          font-size: 0.86rem;
-        }
       `}</style>
 
       <div className="mb-6">
         <p className="text-sm text-secondary-500 dark:text-secondary-400">
           Manage classes and sections for timetable scheduling
         </p>
-      </div>
-
-      <div className="tc-card tc-summary-card">
-        <div className="tc-summary-header">
-          <h4>Class Section Matrix</h4>
-          <div className="tc-summary-actions">
-            <button onClick={handleAddMatrixClass} className="tc-btn tc-btn-primary tc-summary-btn">
-              Add Class
-            </button>
-            <button onClick={handleAddMatrixSection} className="tc-btn tc-btn-primary tc-summary-btn">
-              Add Section
-            </button>
-            <button onClick={handleSaveMatrixToLowerTable} className="tc-btn tc-btn-primary tc-summary-btn">
-              Save
-            </button>
-          </div>
-        </div>
-        <div className="tc-table-wrap">
-          <table className="tc-table tc-summary-table">
-            <thead>
-              <tr>
-                <th>Sr No</th>
-                <th>Class</th>
-                {matrixSections.length > 0 ? (
-                  matrixSections.map((section, index) => (
-                    <th key={section.id}>
-                      <input
-                        type="text"
-                        value={section.name}
-                        placeholder={`Section ${index + 1}`}
-                        onChange={(e) => handleMatrixSectionNameChange(section.id, e.target.value)}
-                        className="tc-matrix-section-input"
-                      />
-                    </th>
-                  ))
-                ) : (
-                  <th>Sections</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {matrixClasses.length > 0 ? (
-                matrixClasses.map((row, index) => (
-                  <tr key={row.id}>
-                    <td><span className="tc-sr">{index + 1}</span></td>
-                    <td className="tc-matrix-class-cell">
-                      <input
-                        type="text"
-                        value={row.name}
-                        placeholder={`Class ${index + 1}`}
-                        onChange={(e) => handleMatrixClassNameChange(row.id, e.target.value)}
-                        className="tc-matrix-class-input"
-                      />
-                    </td>
-                    {matrixSections.length > 0 ? (
-                      matrixSections.map((section) => (
-                        <td key={section.id} className="tc-matrix-cell">
-                          <label className="tc-checkbox-label">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(matrixSelection[row.id]?.[section.id])}
-                              onChange={() => toggleMatrixSelection(row.id, section.id)}
-                              className="tc-matrix-checkbox"
-                            />
-                          </label>
-                        </td>
-                      ))
-                    ) : (
-                      <td>
-                        <span className="tc-no-subjects">Add section columns first</span>
-                      </td>
-                    )}
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={Math.max(2 + matrixSections.length, 3)}>
-                    <div className="tc-summary-empty">Add classes and sections, tick checkboxes, then click Save.</div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
       </div>
 
       <div className="tc-card">
@@ -1133,12 +655,12 @@ const TimetableClasses: React.FC = () => {
             </div>
           </div>
           <div className="tc-btn-group">
-            {classes.length > 0 && (
+            {selectedIds.size > 0 && (
               <button onClick={handleDeleteSelected} className="tc-btn tc-btn-danger">
                 <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                 </svg>
-                Delete All
+                Delete {selectedIds.size}
               </button>
             )}
             <button
@@ -1188,7 +710,7 @@ const TimetableClasses: React.FC = () => {
                 <NewOrEditRow
                   mode="new"
                   data={newItem}
-                  subjectOptions={subjectOptions}
+                  subjectOptions={mergedSubjectOptions}
                   onFieldChange={(field, value) => setNewItem((prev) => ({ ...prev, [field]: value }))}
                   onToggleSubject={(subj) =>
                     toggleSubject(newItem.subjects, subj, (subjects) =>
@@ -1203,7 +725,6 @@ const TimetableClasses: React.FC = () => {
               {/* Rows */}
               {classes.map((item, index) => {
                 const isEditing = editingId === item.id
-                const visibleSubjects = normalizeSelectedSubjects(item.subjects)
                 if (isEditing) {
                   return (
                     <NewOrEditRow
@@ -1213,7 +734,7 @@ const TimetableClasses: React.FC = () => {
                       selected={selectedIds.has(item.id)}
                       onToggleSelect={() => toggleSelection(item.id)}
                       data={editingData}
-                      subjectOptions={subjectOptions}
+                      subjectOptions={mergedSubjectOptions}
                       onFieldChange={(field, value) => setEditingData((prev) => ({ ...prev, [field]: value }))}
                       onToggleSubject={(subj) =>
                         toggleSubject(editingData.subjects, subj, (subjects) =>
@@ -1248,23 +769,11 @@ const TimetableClasses: React.FC = () => {
                       </span>
                     </td>
                     <td>
-                      {visibleSubjects.length > 0 ? (
+                      {item.subjects.length > 0 ? (
                         <div className="tc-subject-pills">
-                          {visibleSubjects.map((s) => {
-                            const color = getSubjectColor(s)
-                            return (
-                              <span
-                                key={s}
-                                className="tc-subject-pill"
-                                style={{
-                                  background: color.bg,
-                                  color: color.text,
-                                }}
-                              >
-                                {s}
-                              </span>
-                            )
-                          })}
+                          {item.subjects.map((s) => (
+                            <span key={s} className="tc-subject-pill">{s}</span>
+                          ))}
                         </div>
                       ) : (
                         <span className="tc-no-subjects">No subjects</span>

@@ -190,16 +190,7 @@
   box-shadow: 0 16px 48px rgba(102, 126, 234, 0.45);
 }
 
-/* 6. Staff – slate blue → steel cyan */
-.hub-card--staff {
-  background: linear-gradient(135deg, #4f6d9a 0%, #5da9c8 100%);
-  box-shadow: 0 8px 32px rgba(79, 109, 154, 0.35);
-}
-.hub-card--staff:hover {
-  box-shadow: 0 16px 48px rgba(79, 109, 154, 0.45);
-}
-
-/* 7. Activities – orchid → rose */
+/* 6. Activities – orchid → rose */
 .hub-card--activities {
   background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);
   box-shadow: 0 8px 32px rgba(161, 140, 209, 0.35);
@@ -208,7 +199,7 @@
   box-shadow: 0 16px 48px rgba(161, 140, 209, 0.45);
 }
 
-/* 8. BECMS – deep ocean blue → cyan */
+/* 7. BECMS – deep ocean blue → cyan */
 .hub-card--becms {
   background: linear-gradient(135deg, #0061ff 0%, #60efff 100%);
   box-shadow: 0 8px 32px rgba(0, 97, 255, 0.35);

@@ -25,7 +25,7 @@ const tiles: HubTile[] = [
   {
     id: 'time-table',
     name: 'Time Table',
-    description: 'Class schedules, period distribution, and teacher timetable management',
+    description: 'Class schedules, period allocation, and teacher timetable management',
     href: '/time-table/classes',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="hub-card-icon">
@@ -52,18 +52,6 @@ const tiles: HubTile[] = [
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="hub-card-icon">
         <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0H6.75m11.25 0h2.625c.621 0 1.125-.504 1.125-1.125v-4.875c0-.621-.504-1.125-1.125-1.125H18M2.25 14.25V6.375c0-.621.504-1.125 1.125-1.125h11.25c.621 0 1.125.504 1.125 1.125v8.25m0 0h3.75m-3.75 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m0-3.75h3.375c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125H18" />
-      </svg>
-    ),
-  },
-  {
-    id: 'staff',
-    name: 'Staff',
-    description: 'Details of all staff members currently working in the school',
-    href: '/staff',
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="hub-card-icon">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75a17.933 17.933 0 01-7.499-1.632z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M18.75 8.25a2.25 2.25 0 012.25 2.25v.75m-18 0v-.75a2.25 2.25 0 012.25-2.25" />
       </svg>
     ),
   },

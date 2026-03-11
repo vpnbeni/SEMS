@@ -3,7 +3,6 @@ const { getPlatformModels } = require('./platformModels');
 const { getTenantConnectionAndModels } = require('./tenantConnectionManager');
 const { syncTenantUserDirectoryEntry } = require('./tenantUserDirectoryService');
 const { isValidSlug } = require('./resolveTenantFromRequest');
-const { ensureTenantActiveDatesheet } = require('../services/cbseDatesheetRolloutService');
 
 const generateRandomPassword = () => crypto.randomBytes(12).toString('base64url');
 
@@ -72,7 +71,7 @@ const provisionTenant = async ({
   });
 
   try {
-    const { models } = getTenantConnectionAndModels(tenant.dbName, ['User', 'CBSEDatesheet']);
+    const { models } = getTenantConnectionAndModels(tenant.dbName, ['User']);
 
     const existingUser = await models.User.findOne({ email }).lean();
     if (existingUser) {
@@ -97,14 +96,6 @@ const provisionTenant = async ({
       role: tenantAdmin.role,
       isActive: tenantAdmin.isActive
     });
-
-    try {
-      await ensureTenantActiveDatesheet(models.CBSEDatesheet);
-    } catch (seedError) {
-      console.warn(
-        `Failed to seed CBSE datesheet for tenant ${tenant.slug}: ${seedError.message}`
-      );
-    }
 
     return {
       tenant,

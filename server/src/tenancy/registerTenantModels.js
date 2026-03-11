@@ -24,7 +24,6 @@ const Feedback = require('../models/Feedback');
 const SupportTicket = require('../models/SupportTicket');
 const AcademicSession = require('../models/AcademicSession');
 const { AttendanceRecord, AttendanceUpload } = require('../models/AttendanceRecord');
-const TimetableState = require('../models/TimetableState');
 
 const tenantModelExports = {
   User,
@@ -54,8 +53,7 @@ const tenantModelExports = {
   SupportTicket,
   AcademicSession,
   AttendanceRecord,
-  AttendanceUpload,
-  TimetableState
+  AttendanceUpload
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

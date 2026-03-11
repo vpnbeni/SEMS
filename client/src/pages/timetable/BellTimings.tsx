@@ -3,7 +3,6 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import toast from 'react-hot-toast'
 import { useAcademicSession } from '@/contexts/AcademicSessionContext'
-import bellTimingsService, { type BellTimingsPayload } from '@/services/bellTimingsService'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -79,29 +78,6 @@ const formatEffectiveDate = (iso: string): string => {
   const yyyy = d.getFullYear()
   const dayName = d.toLocaleDateString('en-US', { weekday: 'long' })
   return `${dd}.${mm}.${yyyy} (${dayName})`
-}
-
-const normalizeBellRows = (rowsInput: Array<Partial<BellRow>> | null | undefined): BellRow[] => {
-  if (!Array.isArray(rowsInput) || rowsInput.length === 0) {
-    return defaultRows.map((row) => ({ ...row }))
-  }
-
-  return rowsInput.map((row, index) => {
-    const type: PeriodType = row.type === 'break' ? 'break' : 'period'
-    const fallbackLabel = type === 'break' ? 'BREAK' : ordinal(index + 1)
-    const parsedDuration = Number.parseInt(String(row.duration ?? ''), 10)
-
-    return {
-      id: row.id?.trim() || `bt-loaded-${index + 1}-${Date.now()}`,
-      type,
-      label: String(row.label || '').trim() || fallbackLabel,
-      duration: Number.isFinite(parsedDuration) && parsedDuration > 0 && parsedDuration <= 480
-        ? parsedDuration
-        : type === 'break'
-          ? 15
-          : 40,
-    }
-  })
 }
 
 /* ──────────────────────────── Default data ──────────────────────────── */
@@ -232,8 +208,6 @@ const BellTimings: React.FC = () => {
   const [meta, setMeta] = useState<BellMeta>(defaultMeta)
   const [rows, setRows] = useState<BellRow[]>(defaultRows)
   const [startTime, setStartTime] = useState(defaultStartTime)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isLoadingSavedState, setIsLoadingSavedState] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
 
   /* ── PDF preview dialog state ── */
@@ -247,40 +221,6 @@ const BellTimings: React.FC = () => {
   useEffect(() => {
     if (currentSession) {
       setMeta(p => ({ ...p, session: currentSession }))
-    }
-  }, [currentSession])
-
-  useEffect(() => {
-    let mounted = true
-
-    const loadSavedBellTimings = async () => {
-      setIsLoadingSavedState(true)
-      try {
-        const saved = await bellTimingsService.getBellTimings()
-        if (!mounted) return
-
-        setMeta({
-          schoolName: saved.meta.schoolName || '',
-          title: saved.meta.title || defaultMeta.title,
-          session: currentSession || saved.meta.session || '',
-          effectiveDate: saved.meta.effectiveDate || '',
-        })
-        setStartTime(saved.startTime || defaultStartTime)
-        setRows(normalizeBellRows(saved.rows))
-      } catch {
-        if (!mounted) return
-        toast.error('Failed to load saved bell timings.')
-        setRows(defaultRows.map((row) => ({ ...row })))
-      } finally {
-        if (mounted) {
-          setIsLoadingSavedState(false)
-        }
-      }
-    }
-
-    loadSavedBellTimings()
-    return () => {
-      mounted = false
     }
   }, [currentSession])
 
@@ -379,56 +319,6 @@ const BellTimings: React.FC = () => {
     }
   }
 
-  const handleSaveBellTimings = async () => {
-    if (rows.length === 0) {
-      toast.error('Add at least one period before saving.')
-      return
-    }
-
-    setIsSaving(true)
-    try {
-      const payload: BellTimingsPayload = {
-        meta: {
-          schoolName: meta.schoolName.trim(),
-          title: meta.title.trim() || defaultMeta.title,
-          session: currentSession || meta.session || '',
-          effectiveDate: meta.effectiveDate,
-        },
-        startTime,
-        rows: rows.map((row, index) => {
-          const normalizedType: PeriodType = row.type === 'break' ? 'break' : 'period'
-          const parsedDuration = Number.parseInt(String(row.duration), 10)
-          const fallbackDuration = normalizedType === 'break' ? 15 : 40
-          const normalizedDuration = Number.isFinite(parsedDuration) && parsedDuration > 0
-            ? Math.min(480, parsedDuration)
-            : fallbackDuration
-
-          return {
-            id: row.id.trim() || `bt-row-${index + 1}`,
-            type: normalizedType,
-            label: row.label.trim() || (normalizedType === 'break' ? 'BREAK' : ordinal(index + 1)),
-            duration: normalizedDuration,
-          }
-        }),
-      }
-
-      const saved = await bellTimingsService.saveBellTimings(payload)
-      setMeta({
-        schoolName: saved.meta.schoolName || '',
-        title: saved.meta.title || defaultMeta.title,
-        session: currentSession || saved.meta.session || '',
-        effectiveDate: saved.meta.effectiveDate || '',
-      })
-      setStartTime(saved.startTime || defaultStartTime)
-      setRows(normalizeBellRows(saved.rows))
-      toast.success('Bell timings saved successfully.')
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || error?.message || 'Failed to save bell timings.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   const closePreviewDialog = () => {
     setShowPreviewDialog(false)
     setPreviewPageCount(0)
@@ -451,42 +341,23 @@ const BellTimings: React.FC = () => {
         <p className="text-sm text-secondary-500 dark:text-secondary-400">
           Configure school bell timings, period durations, and break schedules
         </p>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSaveBellTimings}
-            disabled={isSaving || isLoadingSavedState}
-            className="btn gap-2 bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60"
-          >
-            {isSaving ? (
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            )}
-            {isSaving ? 'Saving...' : 'Save Bell Timings'}
-          </button>
-          <button
-            onClick={handleDownload}
-            disabled={isGenerating || isLoadingSavedState}
-            className="btn btn-primary gap-2"
-          >
-            {isGenerating ? (
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            )}
-            {isGenerating ? 'Generating...' : 'Download PDF'}
-          </button>
-        </div>
+        <button
+          onClick={handleDownload}
+          disabled={isGenerating}
+          className="btn btn-primary gap-2"
+        >
+          {isGenerating ? (
+            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          )}
+          {isGenerating ? 'Generating...' : 'Download PDF'}
+        </button>
       </div>
 
       {/* ── Meta fields card ── */}

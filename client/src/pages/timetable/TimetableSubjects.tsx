@@ -1,17 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useState } from 'react'
 import { useTimetable, type TimetableSubject } from '@/contexts/TimetableContext'
 
 const SUBJECT_TYPES = ['Language', 'Skill', 'Core', 'Elective', 'Co-Curricular', 'Other']
 
 const EMPTY_FORM = {
   name: '',
-  type: 'Other',
-}
-
-const EMPTY_PAIR_FORM = {
-  className: '',
-  subjectA: '',
-  subjectB: '',
+  type: '',
 }
 
 const TYPE_COLORS: Record<string, { bg: string; color: string; darkBg: string; darkColor: string }> = {
@@ -23,91 +17,18 @@ const TYPE_COLORS: Record<string, { bg: string; color: string; darkBg: string; d
   Other: { bg: '#f1f5f9', color: '#475569', darkBg: '#33415533', darkColor: '#94a3b8' },
 }
 
-const ROMAN_CLASS_LEVELS: Record<string, number> = {
-  i: 1,
-  ii: 2,
-  iii: 3,
-  iv: 4,
-  v: 5,
-  vi: 6,
-  vii: 7,
-  viii: 8,
-  ix: 9,
-  x: 10,
-  xi: 11,
-  xii: 12,
-}
-
-const parseClassLevel = (className: string): number | null => {
-  const normalized = className.trim().toLowerCase().replace(/^class\s*/i, '')
-  if (!normalized) return null
-
-  const numericMatch = normalized.match(/\d+/)
-  if (numericMatch?.[0]) {
-    const parsed = Number.parseInt(numericMatch[0], 10)
-    if (Number.isFinite(parsed)) return parsed
-  }
-
-  return ROMAN_CLASS_LEVELS[normalized] ?? null
-}
-
-const compareClassNames = (a: string, b: string) => {
-  const aLevel = parseClassLevel(a)
-  const bLevel = parseClassLevel(b)
-
-  if (aLevel !== null && bLevel !== null && aLevel !== bLevel) return aLevel - bLevel
-  if (aLevel !== null && bLevel === null) return -1
-  if (aLevel === null && bLevel !== null) return 1
-  return a.localeCompare(b, undefined, { numeric: true })
-}
-
-const getSeniorSectionOrder = (section: string) => {
-  const normalized = section.trim().toLowerCase().replace(/\./g, '')
-  if (normalized.startsWith('sci') || normalized.startsWith('science')) return 0
-  if (normalized.startsWith('comm') || normalized.startsWith('commerce')) return 1
-  if (normalized.startsWith('hum') || normalized.startsWith('humanities')) return 2
-  return 99
-}
-
-interface SubjectMatrixColumn {
-  key: string
-  label: string
-  classIds: string[]
-  className: string
-  section: string
-  sectionSpecific: boolean
-}
-
 const TimetableSubjects: React.FC = () => {
-  const {
-    classes,
-    subjects,
-    parallelSubjectPairs,
-    setParallelSubjectPairs,
-    addSubject,
-    updateSubject,
-    deleteSubjects,
-    applyClassSubjectAssignments,
-  } = useTimetable()
+  const { subjects, addSubject, updateSubject, deleteSubjects } = useTimetable()
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [newItem, setNewItem] = useState({ ...EMPTY_FORM })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingData, setEditingData] = useState({ ...EMPTY_FORM })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [classSubjectDraft, setClassSubjectDraft] = useState<Record<string, string[]>>({})
-  const [hasPendingMatrixChanges, setHasPendingMatrixChanges] = useState(false)
-  const [isAddingPair, setIsAddingPair] = useState(false)
-  const [newPair, setNewPair] = useState({ ...EMPTY_PAIR_FORM })
-  const [editingPairId, setEditingPairId] = useState<string | null>(null)
-  const [editingPairData, setEditingPairData] = useState({ ...EMPTY_PAIR_FORM })
 
   // ── CRUD ──
   const handleAdd = () => {
-    if (!newItem.name.trim()) return
-    addSubject({
-      name: newItem.name.trim(),
-      type: newItem.type || 'Other',
-    })
+    if (!newItem.name.trim() || !newItem.type) return
+    addSubject(newItem)
     setNewItem({ ...EMPTY_FORM })
     setIsAddingNew(false)
   }
@@ -118,11 +39,7 @@ const TimetableSubjects: React.FC = () => {
   }
 
   const handleSave = (id: string) => {
-    if (!editingData.name.trim()) return
-    updateSubject(id, {
-      name: editingData.name.trim(),
-      type: editingData.type || 'Other',
-    })
+    updateSubject(id, editingData)
     setEditingId(null)
     setEditingData({ ...EMPTY_FORM })
   }
@@ -144,13 +61,8 @@ const TimetableSubjects: React.FC = () => {
     })
   }
 
-  const sortedSubjects = useMemo(
-    () => [...subjects].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true })),
-    [subjects]
-  )
-
   const selectAllOnPage = () => {
-    const ids = sortedSubjects.map((s) => s.id)
+    const ids = subjects.map((s) => s.id)
     const allSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id))
     if (allSelected) {
       setSelectedIds((prev) => {
@@ -174,287 +86,8 @@ const TimetableSubjects: React.FC = () => {
     setSelectedIds(new Set())
   }
 
-  const allOnPageSelected = sortedSubjects.length > 0 && sortedSubjects.every((s) => selectedIds.has(s.id))
-  const someOnPageSelected = sortedSubjects.some((s) => selectedIds.has(s.id))
-
-  const classOptions = useMemo(() => {
-    const deduped = new Set<string>()
-    classes.forEach((item) => {
-      const className = item.className.trim()
-      if (className) deduped.add(className)
-    })
-    return Array.from(deduped).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-  }, [classes])
-
-  const classSubjectsMap = useMemo(() => {
-    const map = new Map<string, string[]>()
-    classOptions.forEach((className) => {
-      const subjectSet = new Set<string>()
-      classes.forEach((item) => {
-        if (item.className.trim().toLowerCase() !== className.toLowerCase()) return
-        item.subjects.forEach((subject) => {
-          const trimmed = subject.trim()
-          if (trimmed) subjectSet.add(trimmed)
-        })
-      })
-      map.set(
-        className,
-        Array.from(subjectSet).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-      )
-    })
-    return map
-  }, [classes, classOptions])
-
-  const classesById = useMemo(() => {
-    return new Map(classes.map((item) => [item.id, item]))
-  }, [classes])
-
-  useEffect(() => {
-    const nextDraft: Record<string, string[]> = {}
-    classes.forEach((item) => {
-      nextDraft[item.id] = [...item.subjects]
-    })
-    setClassSubjectDraft(nextDraft)
-    setHasPendingMatrixChanges(false)
-  }, [classes])
-
-  const matrixColumns = useMemo<SubjectMatrixColumn[]>(() => {
-    const groupedColumns = new Map<string, SubjectMatrixColumn>()
-    const sectionColumns: SubjectMatrixColumn[] = []
-
-    const sortedClasses = [...classes].sort((a, b) => {
-      const classOrder = compareClassNames(a.className, b.className)
-      if (classOrder !== 0) return classOrder
-      const classLevel = parseClassLevel(a.className)
-      if (classLevel === 11 || classLevel === 12) {
-        const sectionOrder = getSeniorSectionOrder(a.section) - getSeniorSectionOrder(b.section)
-        if (sectionOrder !== 0) return sectionOrder
-      }
-      return a.section.localeCompare(b.section, undefined, { numeric: true })
-    })
-
-    sortedClasses.forEach((item) => {
-      const className = item.className.trim()
-      if (!className) return
-
-      const section = item.section.trim()
-      const classLevel = parseClassLevel(className)
-      const sectionSpecific = classLevel === 11 || classLevel === 12
-
-      if (sectionSpecific) {
-        sectionColumns.push({
-          key: `section-${item.id}`,
-          label: section ? `${className}-${section}` : className,
-          classIds: [item.id],
-          className,
-          section,
-          sectionSpecific: true,
-        })
-        return
-      }
-
-      const classKey = className.toLowerCase()
-      const existing = groupedColumns.get(classKey)
-      if (existing) {
-        existing.classIds.push(item.id)
-        return
-      }
-
-      groupedColumns.set(classKey, {
-        key: `class-${classKey}`,
-        label: className,
-        classIds: [item.id],
-        className,
-        section: '',
-        sectionSpecific: false,
-      })
-    })
-
-    return [...Array.from(groupedColumns.values()), ...sectionColumns]
-  }, [classes])
-
-  const isSubjectAssignedToColumn = (subjectName: string, column: SubjectMatrixColumn) => {
-    const subjectKey = subjectName.trim().toLowerCase()
-    if (!subjectKey || column.classIds.length === 0) return false
-
-    return column.classIds.every((classId) => {
-      const draftSubjects = classSubjectDraft[classId] ?? classesById.get(classId)?.subjects ?? []
-      return draftSubjects.some((subject) => subject.trim().toLowerCase() === subjectKey)
-    })
-  }
-
-  const toggleSubjectAssignment = (subjectName: string, column: SubjectMatrixColumn, checked: boolean) => {
-    const subjectKey = subjectName.trim().toLowerCase()
-    if (!subjectKey || column.classIds.length === 0) return
-
-    setClassSubjectDraft((prev) => {
-      const next = { ...prev }
-      const targetClassIds = column.sectionSpecific ? [column.classIds[0]] : [...column.classIds]
-
-      targetClassIds.forEach((classId) => {
-        const baseSubjects = next[classId] ?? classesById.get(classId)?.subjects ?? []
-        const subjectMap = new Map<string, string>()
-        baseSubjects.forEach((subject) => {
-          const trimmed = subject.trim()
-          if (!trimmed) return
-          const key = trimmed.toLowerCase()
-          if (!subjectMap.has(key)) subjectMap.set(key, trimmed)
-        })
-
-        if (checked) {
-          subjectMap.set(subjectKey, subjectName)
-        } else {
-          subjectMap.delete(subjectKey)
-        }
-
-        next[classId] = Array.from(subjectMap.values())
-      })
-
-      return next
-    })
-    setHasPendingMatrixChanges(true)
-  }
-
-  const handleSaveSubjectMatrix = () => {
-    if (!hasPendingMatrixChanges) return
-
-    const allowedSubjectByKey = new Map<string, string>()
-    subjects.forEach((subject) => {
-      const trimmed = subject.name.trim()
-      if (!trimmed) return
-      const key = trimmed.toLowerCase()
-      if (!allowedSubjectByKey.has(key)) {
-        allowedSubjectByKey.set(key, trimmed)
-      }
-    })
-
-    const toKey = (entries: string[]) =>
-      entries
-        .map((entry) => entry.trim().toLowerCase())
-        .filter(Boolean)
-        .sort()
-        .join('|')
-
-    const updates: Record<string, string[]> = {}
-    classes.forEach((classEntry) => {
-      const draftSubjects = classSubjectDraft[classEntry.id] ?? classEntry.subjects
-      const sanitizedMap = new Map<string, string>()
-      draftSubjects.forEach((subjectName) => {
-        const key = subjectName.trim().toLowerCase()
-        const canonical = allowedSubjectByKey.get(key)
-        if (!canonical) return
-        if (!sanitizedMap.has(key)) {
-          sanitizedMap.set(key, canonical)
-        }
-      })
-      const nextSubjects = Array.from(sanitizedMap.values())
-      if (toKey(nextSubjects) !== toKey(classEntry.subjects)) {
-        updates[classEntry.id] = nextSubjects
-      }
-    })
-
-    if (Object.keys(updates).length > 0) {
-      applyClassSubjectAssignments(updates)
-    }
-
-    setHasPendingMatrixChanges(false)
-  }
-
-  const getPairValidationError = (
-    pairData: { className: string; subjectA: string; subjectB: string },
-    excludeId: string | null
-  ) => {
-    const className = pairData.className.trim()
-    const subjectA = pairData.subjectA.trim()
-    const subjectB = pairData.subjectB.trim()
-
-    if (!className) return 'Select class first.'
-    if (!subjectA || !subjectB) return 'Select both parallel subjects.'
-    if (subjectA.toLowerCase() === subjectB.toLowerCase()) return 'Both subjects cannot be same.'
-
-    const duplicate = parallelSubjectPairs.find((pair) => {
-      if (excludeId && pair.id === excludeId) return false
-      if (pair.className.trim().toLowerCase() !== className.toLowerCase()) return false
-
-      const existing = [pair.subjectA.trim().toLowerCase(), pair.subjectB.trim().toLowerCase()].sort().join('|')
-      const incoming = [subjectA.toLowerCase(), subjectB.toLowerCase()].sort().join('|')
-      return existing === incoming
-    })
-
-    if (duplicate) return 'This parallel pair already exists for the selected class.'
-    return ''
-  }
-
-  const handleAddPair = () => {
-    const validationError = getPairValidationError(newPair, null)
-    if (validationError) {
-      window.alert(validationError)
-      return
-    }
-
-    setParallelSubjectPairs([
-      ...parallelSubjectPairs,
-      {
-        id: `psp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        className: newPair.className.trim(),
-        subjectA: newPair.subjectA.trim(),
-        subjectB: newPair.subjectB.trim(),
-      },
-    ])
-    setNewPair({ ...EMPTY_PAIR_FORM })
-    setIsAddingPair(false)
-  }
-
-  const handleEditPair = (pairId: string) => {
-    const pair = parallelSubjectPairs.find((item) => item.id === pairId)
-    if (!pair) return
-
-    setEditingPairId(pair.id)
-    setEditingPairData({
-      className: pair.className,
-      subjectA: pair.subjectA,
-      subjectB: pair.subjectB,
-    })
-  }
-
-  const handleSavePair = (pairId: string) => {
-    const validationError = getPairValidationError(editingPairData, pairId)
-    if (validationError) {
-      window.alert(validationError)
-      return
-    }
-
-    setParallelSubjectPairs(
-      parallelSubjectPairs.map((pair) =>
-        pair.id === pairId
-          ? {
-              ...pair,
-              className: editingPairData.className.trim(),
-              subjectA: editingPairData.subjectA.trim(),
-              subjectB: editingPairData.subjectB.trim(),
-            }
-          : pair
-      )
-    )
-    setEditingPairId(null)
-    setEditingPairData({ ...EMPTY_PAIR_FORM })
-  }
-
-  const handleDeletePair = (pairId: string) => {
-    const pair = parallelSubjectPairs.find((item) => item.id === pairId)
-    if (!pair) return
-    if (!window.confirm(`Delete parallel pair "${pair.subjectA} + ${pair.subjectB}" from class ${pair.className}?`)) {
-      return
-    }
-    setParallelSubjectPairs(parallelSubjectPairs.filter((item) => item.id !== pairId))
-  }
-
-  const handleCancelPairEdit = () => {
-    setEditingPairId(null)
-    setEditingPairData({ ...EMPTY_PAIR_FORM })
-    setIsAddingPair(false)
-    setNewPair({ ...EMPTY_PAIR_FORM })
-  }
+  const allOnPageSelected = subjects.length > 0 && subjects.every((s) => selectedIds.has(s.id))
+  const someOnPageSelected = subjects.some((s) => selectedIds.has(s.id))
 
   // ── Stats ──
   const typeCounts: Record<string, number> = {}
@@ -616,15 +249,6 @@ const TimetableSubjects: React.FC = () => {
           transform: translateY(-1px);
           box-shadow: 0 4px 16px rgba(99, 102, 241, 0.45);
         }
-        .ts-btn-success {
-          background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-          color: #fff;
-          box-shadow: 0 2px 10px rgba(16, 185, 129, 0.32);
-        }
-        .ts-btn-success:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 16px rgba(16, 185, 129, 0.42);
-        }
         .ts-btn-danger {
           background: #fff;
           color: #ef4444;
@@ -644,9 +268,6 @@ const TimetableSubjects: React.FC = () => {
           border-collapse: separate;
           border-spacing: 0;
         }
-        .ts-subject-matrix-table {
-          min-width: max-content;
-        }
         .ts-table thead th {
           padding: 14px 20px;
           font-size: 0.72rem;
@@ -658,11 +279,6 @@ const TimetableSubjects: React.FC = () => {
           border-bottom: 2px solid #e2e8f0;
           text-align: left;
           white-space: nowrap;
-        }
-        .ts-th-matrix {
-          text-align: center !important;
-          min-width: 88px;
-          padding: 12px 10px !important;
         }
         .dark .ts-table thead th {
           background: #1e293b;
@@ -683,15 +299,6 @@ const TimetableSubjects: React.FC = () => {
           border-bottom: 1px solid #f1f5f9;
           white-space: nowrap;
         }
-        .ts-td-matrix {
-          text-align: center;
-          padding: 12px 10px !important;
-        }
-        .ts-matrix-note {
-          font-size: 0.75rem;
-          color: #94a3b8;
-        }
-        .dark .ts-matrix-note { color: #64748b; }
         .dark .ts-table tbody td {
           color: #e2e8f0;
           border-color: #1e293b;
@@ -701,61 +308,6 @@ const TimetableSubjects: React.FC = () => {
           width: 48px;
           padding-left: 20px;
           padding-right: 8px;
-        }
-        .ts-subject-matrix-table .ts-sticky-col {
-          position: sticky;
-        }
-        .ts-subject-matrix-table thead .ts-sticky-col {
-          z-index: 8;
-          background: #f8fafc;
-        }
-        .dark .ts-subject-matrix-table thead .ts-sticky-col {
-          background: #1e293b;
-        }
-        .ts-subject-matrix-table tbody .ts-sticky-col {
-          z-index: 4;
-          background: #fff;
-        }
-        .ts-subject-matrix-table tbody tr:nth-child(even) .ts-sticky-col {
-          background: #fafbfd;
-        }
-        .ts-subject-matrix-table tbody tr:hover .ts-sticky-col {
-          background: #f1f5f9;
-        }
-        .dark .ts-subject-matrix-table tbody .ts-sticky-col {
-          background: #1e293b;
-        }
-        .dark .ts-subject-matrix-table tbody tr:nth-child(even) .ts-sticky-col {
-          background: #1a2536;
-        }
-        .dark .ts-subject-matrix-table tbody tr:hover .ts-sticky-col {
-          background: #283548;
-        }
-        .ts-subject-matrix-table .ts-sticky-col-1 {
-          left: 0;
-          width: 48px;
-          min-width: 48px;
-          max-width: 48px;
-        }
-        .ts-subject-matrix-table .ts-sticky-col-2 {
-          left: 48px;
-          width: 72px;
-          min-width: 72px;
-          max-width: 72px;
-        }
-        .ts-subject-matrix-table .ts-sticky-col-3 {
-          left: 120px;
-          min-width: 190px;
-        }
-        .ts-subject-matrix-table .ts-sticky-col-4 {
-          left: 310px;
-          min-width: 140px;
-        }
-        .ts-subject-matrix-table .ts-sticky-divider {
-          box-shadow: 2px 0 0 #e2e8f0, 6px 0 10px -8px rgba(15, 23, 42, 0.35);
-        }
-        .dark .ts-subject-matrix-table .ts-sticky-divider {
-          box-shadow: 2px 0 0 #334155, 6px 0 10px -8px rgba(2, 6, 23, 0.65);
         }
 
         /* ───────── Serial number ───────── */
@@ -892,7 +444,11 @@ const TimetableSubjects: React.FC = () => {
         }
       `}</style>
 
-      <div className="mb-6" />
+      <div className="mb-6">
+        <p className="text-sm text-secondary-500 dark:text-secondary-400">
+          Manage subjects and their types for timetable scheduling
+        </p>
+      </div>
 
       <div className="ts-card">
         {/* ── Header ── */}
@@ -951,16 +507,6 @@ const TimetableSubjects: React.FC = () => {
               </button>
             )}
             <button
-              onClick={handleSaveSubjectMatrix}
-              disabled={!hasPendingMatrixChanges}
-              className="ts-btn ts-btn-success"
-            >
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
-              Save Matrix
-            </button>
-            <button
               onClick={() => setIsAddingNew(true)}
               disabled={isAddingNew}
               className="ts-btn ts-btn-primary"
@@ -974,14 +520,11 @@ const TimetableSubjects: React.FC = () => {
         </div>
 
         {/* ── Table ── */}
-        <div className="px-6 py-3 text-xs text-secondary-500 dark:text-secondary-400 border-b border-secondary-100 dark:border-secondary-800">
-          Subject Selection Matrix: classes up to 10 are grouped class-wise, while classes 11 and 12 are shown class-section wise. Use Save Matrix to persist checkbox changes.
-        </div>
         <div className="ts-table-wrap">
-          <table className="ts-table ts-subject-matrix-table">
+          <table className="ts-table">
             <thead>
               <tr>
-                <th className="ts-sticky-col ts-sticky-col-1">
+                <th>
                   <label className="ts-checkbox-label">
                     <input
                       type="checkbox"
@@ -995,12 +538,9 @@ const TimetableSubjects: React.FC = () => {
                     />
                   </label>
                 </th>
-                <th className="ts-sticky-col ts-sticky-col-2">Sr No</th>
-                <th className="ts-sticky-col ts-sticky-col-3">Name</th>
-                <th className="ts-sticky-col ts-sticky-col-4 ts-sticky-divider">Type</th>
-                {matrixColumns.map((column) => (
-                  <th key={column.key} className="ts-th-matrix">{column.label}</th>
-                ))}
+                <th>Sr No</th>
+                <th>Name</th>
+                <th>Type</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -1008,9 +548,9 @@ const TimetableSubjects: React.FC = () => {
               {/* Add new row */}
               {isAddingNew && (
                 <tr className="ts-new-row">
-                  <td className="ts-sticky-col ts-sticky-col-1" />
-                  <td className="ts-sticky-col ts-sticky-col-2"><span className="ts-sr">-</span></td>
-                  <td className="ts-sticky-col ts-sticky-col-3">
+                  <td />
+                  <td><span className="ts-sr">—</span></td>
+                  <td>
                     <input
                       type="text"
                       title="Subject name"
@@ -1020,7 +560,7 @@ const TimetableSubjects: React.FC = () => {
                       className="ts-input"
                     />
                   </td>
-                  <td className="ts-sticky-col ts-sticky-col-4 ts-sticky-divider">
+                  <td>
                     <select
                       title="Subject type"
                       value={newItem.type}
@@ -1033,11 +573,6 @@ const TimetableSubjects: React.FC = () => {
                       ))}
                     </select>
                   </td>
-                  {matrixColumns.length > 0 && (
-                    <td colSpan={matrixColumns.length}>
-                      <span className="ts-matrix-note">Save subject first, then assign to classes.</span>
-                    </td>
-                  )}
                   <td>
                     <div className="ts-action-group">
                       <button onClick={handleAdd} className="ts-action-link ts-action-save">Save</button>
@@ -1048,14 +583,14 @@ const TimetableSubjects: React.FC = () => {
               )}
 
               {/* Rows */}
-              {sortedSubjects.map((item, index) => {
+              {subjects.map((item, index) => {
                 const isEditing = editingId === item.id
                 const colors = TYPE_COLORS[item.type] || TYPE_COLORS.Other
 
                 if (isEditing) {
                   return (
                     <tr key={item.id}>
-                      <td className="ts-sticky-col ts-sticky-col-1">
+                      <td>
                         <label className="ts-checkbox-label">
                           <input
                             type="checkbox"
@@ -1065,8 +600,8 @@ const TimetableSubjects: React.FC = () => {
                           />
                         </label>
                       </td>
-                      <td className="ts-sticky-col ts-sticky-col-2"><span className="ts-sr">{index + 1}</span></td>
-                      <td className="ts-sticky-col ts-sticky-col-3">
+                      <td><span className="ts-sr">{index + 1}</span></td>
+                      <td>
                         <input
                           type="text"
                           title="Edit subject name"
@@ -1076,7 +611,7 @@ const TimetableSubjects: React.FC = () => {
                           className="ts-input"
                         />
                       </td>
-                      <td className="ts-sticky-col ts-sticky-col-4 ts-sticky-divider">
+                      <td>
                         <select
                           title="Edit subject type"
                           value={editingData.type}
@@ -1088,11 +623,6 @@ const TimetableSubjects: React.FC = () => {
                           ))}
                         </select>
                       </td>
-                      {matrixColumns.length > 0 && (
-                        <td colSpan={matrixColumns.length}>
-                          <span className="ts-matrix-note">Update name/type and save. Matrix checkboxes stay in normal view.</span>
-                        </td>
-                      )}
                       <td>
                         <div className="ts-action-group">
                           <button onClick={() => handleSave(item.id)} className="ts-action-link ts-action-save">Save</button>
@@ -1105,7 +635,7 @@ const TimetableSubjects: React.FC = () => {
 
                 return (
                   <tr key={item.id}>
-                    <td className="ts-sticky-col ts-sticky-col-1">
+                    <td>
                       <label className="ts-checkbox-label">
                         <input
                           type="checkbox"
@@ -1116,9 +646,9 @@ const TimetableSubjects: React.FC = () => {
                         />
                       </label>
                     </td>
-                    <td className="ts-sticky-col ts-sticky-col-2"><span className="ts-sr">{index + 1}</span></td>
-                    <td className="ts-sticky-col ts-sticky-col-3"><span className="ts-subject-name">{item.name}</span></td>
-                    <td className="ts-sticky-col ts-sticky-col-4 ts-sticky-divider">
+                    <td><span className="ts-sr">{index + 1}</span></td>
+                    <td><span className="ts-subject-name">{item.name}</span></td>
+                    <td>
                       <span
                         className="ts-type-badge"
                         style={{ background: colors.bg, color: colors.color }}
@@ -1126,17 +656,6 @@ const TimetableSubjects: React.FC = () => {
                         {item.type}
                       </span>
                     </td>
-                    {matrixColumns.map((column) => (
-                      <td key={`${item.id}-${column.key}`} className="ts-td-matrix">
-                        <input
-                          type="checkbox"
-                          className="ts-checkbox"
-                          checked={isSubjectAssignedToColumn(item.name, column)}
-                          onChange={(e) => toggleSubjectAssignment(item.name, column, e.target.checked)}
-                          aria-label={`Assign ${item.name} to ${column.label}`}
-                        />
-                      </td>
-                    ))}
                     <td>
                       <button onClick={() => handleEdit(item)} className="ts-action-link ts-action-edit">
                         <svg className="ts-edit-icon" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -1152,7 +671,7 @@ const TimetableSubjects: React.FC = () => {
               {/* Empty state */}
               {subjects.length === 0 && !isAddingNew && (
                 <tr>
-                  <td colSpan={5 + matrixColumns.length}>
+                  <td colSpan={5}>
                     <div className="ts-empty">
                       <div className="ts-empty-icon">
                         <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
@@ -1166,228 +685,6 @@ const TimetableSubjects: React.FC = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
                         </svg>
                         Add Subject
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="ts-card">
-        <div className="ts-card-header">
-          <div>
-            <h3>
-              <span className="ts-header-icon">
-                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h7.5M8.25 12h7.5m-7.5 5.25h7.5M3.75 5.25A2.25 2.25 0 016 3h12a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0118 21H6a2.25 2.25 0 01-2.25-2.25V5.25z" />
-                </svg>
-              </span>
-              Parallel Subject Pairs
-            </h3>
-          </div>
-          <div className="ts-header-stats">
-            <div className="ts-stat-card-inline ts-bg-indigo-soft">
-              <div className="ts-stat-icon ts-bg-indigo-grad">
-                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h7.5M8.25 12h7.5m-7.5 5.25h7.5M3.75 5.25A2.25 2.25 0 016 3h12a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0118 21H6a2.25 2.25 0 01-2.25-2.25V5.25z" />
-                </svg>
-              </div>
-              <div>
-                <div className="ts-stat-value">{parallelSubjectPairs.length}</div>
-                <div className="ts-stat-label">Pairs</div>
-              </div>
-            </div>
-          </div>
-          <div className="ts-btn-group">
-            <button
-              onClick={() => setIsAddingPair(true)}
-              disabled={isAddingPair || classOptions.length === 0}
-              className="ts-btn ts-btn-primary"
-              title={classOptions.length === 0 ? 'Add classes and subjects first' : 'Add parallel pair'}
-            >
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
-              </svg>
-              Add Pair
-            </button>
-          </div>
-        </div>
-
-        <div className="px-6 py-3 text-xs text-secondary-500 dark:text-secondary-400 border-b border-secondary-100 dark:border-secondary-800">
-          Parallel subjects share the same timetable slot. In Period Distribution, paired subjects are counted as one shared period, not two.
-        </div>
-
-        <div className="ts-table-wrap">
-          <table className="ts-table">
-            <thead>
-              <tr>
-                <th>Sr No</th>
-                <th>Class</th>
-                <th>Subject A</th>
-                <th>Subject B</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isAddingPair && (
-                <tr className="ts-new-row">
-                  <td><span className="ts-sr">-</span></td>
-                  <td>
-                    <select
-                      title="Class"
-                      value={newPair.className}
-                      onChange={(e) =>
-                        setNewPair({ className: e.target.value, subjectA: '', subjectB: '' })
-                      }
-                      className="ts-input"
-                    >
-                      <option value="">Select class</option>
-                      {classOptions.map((className) => (
-                        <option key={className} value={className}>{className}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <select
-                      title="Subject A"
-                      value={newPair.subjectA}
-                      onChange={(e) => setNewPair((prev) => ({ ...prev, subjectA: e.target.value }))}
-                      className="ts-input"
-                      disabled={!newPair.className}
-                    >
-                      <option value="">Select subject</option>
-                      {(classSubjectsMap.get(newPair.className) || []).map((subject) => (
-                        <option key={subject} value={subject}>{subject}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <select
-                      title="Subject B"
-                      value={newPair.subjectB}
-                      onChange={(e) => setNewPair((prev) => ({ ...prev, subjectB: e.target.value }))}
-                      className="ts-input"
-                      disabled={!newPair.className}
-                    >
-                      <option value="">Select subject</option>
-                      {(classSubjectsMap.get(newPair.className) || []).map((subject) => (
-                        <option key={subject} value={subject}>{subject}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td>
-                    <div className="ts-action-group">
-                      <button onClick={handleAddPair} className="ts-action-link ts-action-save">Save</button>
-                      <button onClick={handleCancelPairEdit} className="ts-action-link ts-action-cancel">Cancel</button>
-                    </div>
-                  </td>
-                </tr>
-              )}
-
-              {parallelSubjectPairs.map((pair, index) => {
-                const isEditingPair = editingPairId === pair.id
-                if (isEditingPair) {
-                  return (
-                    <tr key={pair.id}>
-                      <td><span className="ts-sr">{index + 1}</span></td>
-                      <td>
-                        <select
-                          title="Class"
-                          value={editingPairData.className}
-                          onChange={(e) =>
-                            setEditingPairData({ className: e.target.value, subjectA: '', subjectB: '' })
-                          }
-                          className="ts-input"
-                        >
-                          <option value="">Select class</option>
-                          {classOptions.map((className) => (
-                            <option key={className} value={className}>{className}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          title="Subject A"
-                          value={editingPairData.subjectA}
-                          onChange={(e) => setEditingPairData((prev) => ({ ...prev, subjectA: e.target.value }))}
-                          className="ts-input"
-                          disabled={!editingPairData.className}
-                        >
-                          <option value="">Select subject</option>
-                          {(classSubjectsMap.get(editingPairData.className) || []).map((subject) => (
-                            <option key={subject} value={subject}>{subject}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <select
-                          title="Subject B"
-                          value={editingPairData.subjectB}
-                          onChange={(e) => setEditingPairData((prev) => ({ ...prev, subjectB: e.target.value }))}
-                          className="ts-input"
-                          disabled={!editingPairData.className}
-                        >
-                          <option value="">Select subject</option>
-                          {(classSubjectsMap.get(editingPairData.className) || []).map((subject) => (
-                            <option key={subject} value={subject}>{subject}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <div className="ts-action-group">
-                          <button onClick={() => handleSavePair(pair.id)} className="ts-action-link ts-action-save">Save</button>
-                          <button onClick={handleCancelPairEdit} className="ts-action-link ts-action-cancel">Cancel</button>
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                }
-
-                return (
-                  <tr key={pair.id}>
-                    <td><span className="ts-sr">{index + 1}</span></td>
-                    <td><span className="ts-subject-name">{pair.className}</span></td>
-                    <td>{pair.subjectA}</td>
-                    <td>{pair.subjectB}</td>
-                    <td>
-                      <div className="ts-action-group">
-                        <button onClick={() => handleEditPair(pair.id)} className="ts-action-link ts-action-edit">Edit</button>
-                        <button
-                          onClick={() => handleDeletePair(pair.id)}
-                          className="ts-action-link"
-                          style={{ color: '#ef4444' }}
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-
-              {parallelSubjectPairs.length === 0 && !isAddingPair && (
-                <tr>
-                  <td colSpan={5}>
-                    <div className="ts-empty">
-                      <div className="ts-empty-icon">
-                        <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h7.5M8.25 12h7.5m-7.5 5.25h7.5M3.75 5.25A2.25 2.25 0 016 3h12a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0118 21H6a2.25 2.25 0 01-2.25-2.25V5.25z" />
-                        </svg>
-                      </div>
-                      <h3>No Parallel Pairs Added</h3>
-                      <p>Define subject pairs (like French + Sanskrit) that run in the same period.</p>
-                      <button
-                        onClick={() => setIsAddingPair(true)}
-                        className="ts-btn ts-btn-primary"
-                        disabled={classOptions.length === 0}
-                      >
-                        <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
-                        </svg>
-                        Add Parallel Pair
                       </button>
                     </div>
                   </td>
