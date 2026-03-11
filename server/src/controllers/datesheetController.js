@@ -10,6 +10,7 @@ const CBSEDatesheet = require('../models/CBSEDatesheet')
 const { getDayNameForDate } = require('../utils/calendarSeeder')
 const { getDayName, addDayNameToEntry } = require('../utils/dateHelper')
 const { calculateRoomsGroupedByDate } = require('../utils/roomCalculator')
+const { ensureTenantActiveDatesheet } = require('../services/cbseDatesheetRolloutService')
 
 const ACTIVE_CANDIDATE_FILTER = {
   $or: [{ status: 'active' }, { status: { $exists: false } }],
@@ -72,8 +73,11 @@ exports.getCBSEFullDatesheet = asyncHandler(async (req, res) => {
   try {
     console.log('📄 Fetching active CBSE datesheet...')
     
-    const cbseDatesheet = await CBSEDatesheet.getActive()
-    
+    const { datesheet: cbseDatesheet, seeded } = await ensureTenantActiveDatesheet(CBSEDatesheet)
+    if (seeded) {
+      console.log('Seeded tenant CBSE datesheet from active master datesheet')
+    }
+
     if (!cbseDatesheet) {
       return res.status(HTTP_STATUS.NOT_FOUND).json({
         success: false,
@@ -729,7 +733,7 @@ exports.getCentreDatesheet = asyncHandler(async (req, res) => {
     console.log('📄 Generating centre-specific datesheet...')
     
     // Get CBSE datesheet
-    const cbseDatesheet = await CBSEDatesheet.getActive()
+    const { datesheet: cbseDatesheet } = await ensureTenantActiveDatesheet(CBSEDatesheet)
     if (!cbseDatesheet) {
       return res.status(HTTP_STATUS.NOT_FOUND).json({
         success: false,
@@ -963,7 +967,7 @@ exports.getDatesheetStats = asyncHandler(async (req, res) => {
   }
 
   try {
-    const cbseDatesheet = await CBSEDatesheet.getActive()
+    const { datesheet: cbseDatesheet } = await ensureTenantActiveDatesheet(CBSEDatesheet)
     if (cbseDatesheet) {
       stats.fullDatesheet = cbseDatesheet.totalEntries || 0
       stats.fullDatesheetDays = new Set(
@@ -978,7 +982,7 @@ exports.getDatesheetStats = asyncHandler(async (req, res) => {
   }
 
   try {
-    const cbseDatesheet = await CBSEDatesheet.getActive()
+    const { datesheet: cbseDatesheet } = await ensureTenantActiveDatesheet(CBSEDatesheet)
     if (!cbseDatesheet) return res.status(HTTP_STATUS.OK).json({ success: true, data: stats })
 
     const candidates = await Candidate.find(ACTIVE_CANDIDATE_FILTER)
