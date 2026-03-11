@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useTimetable, WEEKDAYS, EMPTY_CELL, type TimetableCell } from '@/contexts/TimetableContext'
+import bellTimingsService, { type BellTimingRowPayload } from '@/services/bellTimingsService'
 
 /* ══════════════════════════════ Helpers ══════════════════════════════ */
 
@@ -35,12 +36,65 @@ const SHORT_DAYS: Record<string, string> = {
   Thursday: 'THU', Friday: 'FRI', Saturday: 'SAT',
 }
 
+const normalizeTeacherName = (value: string) => value.trim().toLowerCase()
+
+const createWeekdaySelection = (checked: boolean) =>
+  WEEKDAYS.reduce<Record<string, boolean>>((acc, day) => {
+    acc[day] = checked
+    return acc
+  }, {})
+
+const FALLBACK_START_MINUTES = 8 * 60
+
+const parseTimeToMinutes = (value: string): number => {
+  const [hoursRaw, minutesRaw] = String(value || '').split(':')
+  const hours = Number.parseInt(hoursRaw, 10)
+  const minutes = Number.parseInt(minutesRaw, 10)
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return FALLBACK_START_MINUTES
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return FALLBACK_START_MINUTES
+  return hours * 60 + minutes
+}
+
+const formatMinutesTo12Hour = (value: number): string => {
+  const normalized = ((value % 1440) + 1440) % 1440
+  const hours24 = Math.floor(normalized / 60)
+  const minutes = String(normalized % 60).padStart(2, '0')
+  const suffix = hours24 >= 12 ? 'PM' : 'AM'
+  const hours12 = hours24 === 0 ? 12 : hours24 > 12 ? hours24 - 12 : hours24
+  return `${String(hours12).padStart(2, '0')}:${minutes} ${suffix}`
+}
+
+const buildPeriodTimeRanges = (startTime: string, rows: BellTimingRowPayload[]): string[] => {
+  let cursor = parseTimeToMinutes(startTime)
+  const periodRanges: string[] = []
+
+  rows.forEach((row) => {
+    const duration = Number.isFinite(row.duration) && row.duration > 0
+      ? row.duration
+      : row.type === 'break'
+        ? 15
+        : 40
+    const from = cursor
+    const to = cursor + duration
+
+    if (row.type === 'period') {
+      periodRanges.push(`${formatMinutesTo12Hour(from)} - ${formatMinutesTo12Hour(to)}`)
+    }
+
+    cursor = to
+  })
+
+  return periodRanges
+}
+
 /* ══════════════════════════════ Component ══════════════════════════════ */
 
 const ClassWise: React.FC = () => {
   const {
     classes,
     teachers,
+    teacherSubjectAllocations,
+    periodAllocation,
     periodsPerDay,
     timetableGrid,
     setGridCell,
@@ -53,7 +107,22 @@ const ClassWise: React.FC = () => {
   // Cell editor state
   const [editingCell, setEditingCell] = useState<{ day: string; slot: number } | null>(null)
   const [cellDraft, setCellDraft] = useState<TimetableCell>({ ...EMPTY_CELL })
+  const [editingPeriodSlot, setEditingPeriodSlot] = useState<number | null>(null)
+  const [mode, setMode] = useState<'manual' | 'auto'>('manual')
+  const [periodDraft, setPeriodDraft] = useState<{
+    primarySubject: string
+    primaryDays: Record<string, boolean>
+    useSecondary: boolean
+    secondarySubject: string
+  }>({
+    primarySubject: '',
+    primaryDays: createWeekdaySelection(true),
+    useSecondary: false,
+    secondarySubject: '',
+  })
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const periodEditorRef = useRef<HTMLDivElement>(null)
+  const [periodTimeRanges, setPeriodTimeRanges] = useState<string[]>([])
 
   // Auto-select first class if none selected
   const selectedClass = useMemo(
@@ -68,11 +137,43 @@ const ClassWise: React.FC = () => {
     }
   }, [selectedClass, classes])
 
+  useEffect(() => {
+    setEditingCell(null)
+    setCellDraft({ ...EMPTY_CELL })
+    setEditingPeriodSlot(null)
+  }, [selectedClassId])
+
   // Period slots array [0, 1, 2, ... periodsPerDay-1]
   const periodSlots = useMemo(
     () => Array.from({ length: periodsPerDay }, (_, i) => i),
     [periodsPerDay]
   )
+
+  const periodHeaderTimes = useMemo(
+    () => periodSlots.map((slot) => periodTimeRanges[slot] || '-'),
+    [periodSlots, periodTimeRanges]
+  )
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadBellTimings = async () => {
+      try {
+        const saved = await bellTimingsService.getBellTimings()
+        if (!isMounted) return
+        setPeriodTimeRanges(buildPeriodTimeRanges(saved.startTime, saved.rows))
+      } catch {
+        if (!isMounted) return
+        setPeriodTimeRanges([])
+      }
+    }
+
+    void loadBellTimings()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Get a cell from the grid
   const getCell = useCallback(
@@ -103,6 +204,7 @@ const ClassWise: React.FC = () => {
   // Open cell editor
   const openEditor = useCallback((day: string, slot: number) => {
     if (!selectedClass) return
+    setEditingPeriodSlot(null)
     const existing = getCell(selectedClass.id, day, slot)
     setCellDraft({ subject: existing.subject, teacher: existing.teacher })
     setEditingCell({ day, slot })
@@ -111,10 +213,26 @@ const ClassWise: React.FC = () => {
   // Save cell
   const saveCell = useCallback(() => {
     if (!selectedClass || !editingCell) return
+    const normalizedTeacher = normalizeTeacherName(cellDraft.teacher)
+    let conflict: string | null = null
+    if (normalizedTeacher) {
+      for (const cls of classes) {
+        if (cls.id === selectedClass.id) continue
+        const existingCell = getCell(cls.id, editingCell.day, editingCell.slot)
+        if (normalizeTeacherName(existingCell.teacher) === normalizedTeacher) {
+          conflict = `${cls.className}-${cls.section}`
+          break
+        }
+      }
+    }
+    if (conflict) {
+      window.alert(`Teacher "${cellDraft.teacher}" is already assigned in ${conflict} for this day and period.`)
+      return
+    }
     setGridCell(selectedClass.id, editingCell.day, editingCell.slot, { ...cellDraft })
     setEditingCell(null)
     setCellDraft({ ...EMPTY_CELL })
-  }, [selectedClass, editingCell, cellDraft, setGridCell])
+  }, [selectedClass, editingCell, cellDraft, setGridCell, classes, getCell])
 
   // Clear a single cell
   const clearCell = useCallback(() => {
@@ -130,35 +248,116 @@ const ClassWise: React.FC = () => {
     setCellDraft({ ...EMPTY_CELL })
   }, [])
 
-  // Click outside to close editor
+  const closePeriodEditor = useCallback(() => {
+    setEditingPeriodSlot(null)
+    setPeriodDraft({
+      primarySubject: '',
+      primaryDays: createWeekdaySelection(true),
+      useSecondary: false,
+      secondarySubject: '',
+    })
+  }, [])
+
+  // Click outside to close open popovers
   useEffect(() => {
-    if (!editingCell) return
+    if (!editingCell && editingPeriodSlot === null) return
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      const target = e.target as Node
+      if (editingCell && dropdownRef.current && !dropdownRef.current.contains(target)) {
         closeEditor()
+      }
+      if (editingPeriodSlot !== null && periodEditorRef.current && !periodEditorRef.current.contains(target)) {
+        closePeriodEditor()
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [editingCell, closeEditor])
+  }, [editingCell, editingPeriodSlot, closeEditor, closePeriodEditor])
+
+  const selectedClassTeacherPool = useMemo(() => {
+    if (!selectedClass) return []
+
+    const byId = new Map<string, (typeof teachers)[number]>()
+    const byName = new Map<string, (typeof teachers)[number]>()
+    teachers.forEach((teacher) => {
+      byId.set(teacher.id, teacher)
+      byName.set(teacher.name.trim().toLowerCase(), teacher)
+    })
+
+    const mappedTeachers = new Map<string, { id: string; name: string; shortName: string; subjects: string[] }>()
+
+    const selectedClassNameKey = selectedClass.className.trim().toLowerCase()
+    const selectedSectionKey = selectedClass.section.trim().toLowerCase()
+
+    teacherSubjectAllocations.forEach((allocation) => {
+      const assignment = allocation.assignments.find((entry) => {
+        const classIdMatch = entry.classId === selectedClass.id
+        const classNameMatch = entry.className.trim().toLowerCase() === selectedClassNameKey
+        const sectionMatch = entry.section.trim().toLowerCase() === selectedSectionKey
+        return classIdMatch || (classNameMatch && sectionMatch)
+      })
+      if (!assignment) return
+
+      const teacherId = String(allocation.teacherId || '').trim()
+      const teacherName = String(allocation.teacherName || '').trim()
+      if (!teacherId && !teacherName) return
+
+      const teacherFromId = teacherId ? byId.get(teacherId) : undefined
+      const teacherFromName = byName.get(teacherName.toLowerCase())
+      const normalizedName = teacherName || teacherFromId?.name || teacherFromName?.name || ''
+      if (!normalizedName) return
+
+      const key = teacherId || normalizedName.toLowerCase()
+      const existing = mappedTeachers.get(key)
+      if (existing) {
+        const merged = new Set([...existing.subjects, ...assignment.subjects])
+        existing.subjects = Array.from(merged)
+        return
+      }
+
+      mappedTeachers.set(key, {
+        id: teacherId || key,
+        name: normalizedName,
+        shortName: teacherFromId?.shortName || teacherFromName?.shortName || '',
+        subjects: [...assignment.subjects],
+      })
+    })
+
+    if (mappedTeachers.size > 0) {
+      return Array.from(mappedTeachers.values())
+    }
+
+    // Fallback for legacy data where subject allocation is not configured yet.
+    return teachers.map((teacher) => ({
+      id: teacher.id,
+      name: teacher.name,
+      shortName: teacher.shortName,
+      subjects: [...teacher.subjects],
+    }))
+  }, [selectedClass, teachers, teacherSubjectAllocations])
 
   // Teachers filtered by subject for dropdown
   const getTeachersForSubject = useCallback(
     (subject: string) => {
-      if (!subject) return teachers
-      return teachers.filter((t) => t.subjects.length === 0 || t.subjects.includes(subject))
+      if (!subject) return selectedClassTeacherPool
+      const key = subject.trim().toLowerCase()
+      return selectedClassTeacherPool.filter((t) =>
+        t.subjects.length === 0 ||
+        t.subjects.some((assigned) => assigned.trim().toLowerCase() === key)
+      )
     },
-    [teachers]
+    [selectedClassTeacherPool]
   )
 
   // Check teacher conflict: is teacher already assigned elsewhere at this day+slot?
   const hasTeacherConflict = useCallback(
     (teacherName: string, day: string, slot: number, excludeClassId: string): string | null => {
-      if (!teacherName) return null
+      const normalizedTeacher = normalizeTeacherName(teacherName)
+      if (!normalizedTeacher) return null
       for (const cls of classes) {
         if (cls.id === excludeClassId) continue
         const cell = getCell(cls.id, day, slot)
-        if (cell.teacher === teacherName) {
+        if (normalizeTeacherName(cell.teacher) === normalizedTeacher) {
           return `${cls.className}-${cls.section}`
         }
       }
@@ -166,6 +365,213 @@ const ClassWise: React.FC = () => {
     },
     [classes, getCell]
   )
+
+  // Check if there is at least one available teacher for a subject at a given slot.
+  const canAssignSubjectToSlot = useCallback(
+    (subject: string, day: string, slot: number, classId: string): boolean => {
+      const candidates = getTeachersForSubject(subject)
+      if (candidates.length === 0) return false
+      return candidates.some(
+        (teacher) => !hasTeacherConflict(teacher.name, day, slot, classId)
+      )
+    },
+    [getTeachersForSubject, hasTeacherConflict]
+  )
+
+  const getAutoTeacherForSubject = useCallback(
+    (subject: string, day: string, slot: number, classId: string) => {
+      const normalizedSubject = subject.trim().toLowerCase()
+      if (!normalizedSubject) return ''
+
+      const exactSubjectTeachers = selectedClassTeacherPool.filter((teacher) =>
+        teacher.subjects.some((assigned) => assigned.trim().toLowerCase() === normalizedSubject)
+      )
+      const genericTeachers = selectedClassTeacherPool.filter((teacher) => teacher.subjects.length === 0)
+      const pool = [...exactSubjectTeachers, ...genericTeachers]
+      if (pool.length === 0) return ''
+
+      const available = pool.find((teacher) => !hasTeacherConflict(teacher.name, day, slot, classId))
+      return available?.name || ''
+    },
+    [selectedClassTeacherPool, hasTeacherConflict]
+  )
+
+  const autoFillClassTimetable = useCallback(() => {
+    if (!selectedClass) return
+
+    const allocation = periodAllocation[selectedClass.id] || {}
+    const remainingBySubject: Record<string, number> = {}
+
+    Object.entries(allocation).forEach(([subjectName, countValue]) => {
+      const trimmed = subjectName.trim()
+      const parsed = Number.parseInt(String(countValue), 10)
+      if (!trimmed || !Number.isFinite(parsed) || parsed <= 0) return
+      remainingBySubject[trimmed] = parsed
+    })
+
+    const subjectOrder = Object.keys(remainingBySubject)
+    if (subjectOrder.length === 0) {
+      window.alert('No period distribution found for this class. Set periods in Period Distribution first.')
+      return
+    }
+    const totalRequired = subjectOrder.reduce((sum, subj) => sum + remainingBySubject[subj], 0)
+    const totalSlots = periodsPerDay * WEEKDAYS.length
+    if (totalRequired > totalSlots) {
+      // Still proceed, but let the user know some periods will be truncated.
+      // eslint-disable-next-line no-alert
+      window.alert('Allocated periods exceed available slots for this class. Some periods will be skipped.')
+    }
+
+    // For each period slot, assign subjects across weekdays.
+    const usedSubjectsByDay: Record<string, Set<string>> = {}
+    WEEKDAYS.forEach((day) => {
+      usedSubjectsByDay[day] = new Set<string>()
+    })
+
+    let pointer = 0
+
+    for (let slot = 0; slot < periodsPerDay; slot++) {
+      WEEKDAYS.forEach((day) => {
+        const usedForDay = usedSubjectsByDay[day]
+        const previousSubject =
+          slot > 0 ? getCell(selectedClass.id, day, slot - 1).subject.trim() : ''
+        let chosenSubject: string | null = null
+
+        // First pass: prefer subjects not yet used on this day and not same as previous period.
+        let attempts = 0
+        while (attempts < subjectOrder.length) {
+          const idx = (pointer + attempts) % subjectOrder.length
+          const candidate = subjectOrder[idx]
+          const remaining = remainingBySubject[candidate] || 0
+          if (
+            remaining > 0 &&
+            !usedForDay.has(candidate) &&
+            candidate.trim() !== previousSubject
+          ) {
+            chosenSubject = candidate
+            pointer = idx + 1
+            break
+          }
+          attempts++
+        }
+
+        // Second pass: allow repeats on the same day / consecutive if needed.
+        if (!chosenSubject) {
+          attempts = 0
+          while (attempts < subjectOrder.length) {
+            const idx = (pointer + attempts) % subjectOrder.length
+            const candidate = subjectOrder[idx]
+            const remaining = remainingBySubject[candidate] || 0
+            if (remaining > 0) {
+              chosenSubject = candidate
+              pointer = idx + 1
+              break
+            }
+            attempts++
+          }
+        }
+
+        if (!chosenSubject) {
+          // No subject left to assign for this cell.
+          setGridCell(selectedClass.id, day, slot, { ...EMPTY_CELL })
+          return
+        }
+
+        const teacher = getAutoTeacherForSubject(chosenSubject, day, slot, selectedClass.id)
+        // Always assign the subject; teacher is optional (can be filled later).
+        setGridCell(selectedClass.id, day, slot, { subject: chosenSubject, teacher: teacher || '' })
+        remainingBySubject[chosenSubject] = (remainingBySubject[chosenSubject] || 0) - 1
+        usedForDay.add(chosenSubject)
+      })
+    }
+  }, [selectedClass, periodAllocation, periodsPerDay, setGridCell, getCell, getAutoTeacherForSubject])
+
+  const openPeriodEditor = useCallback((slot: number) => {
+    if (!selectedClass) return
+    if (editingPeriodSlot === slot) {
+      closePeriodEditor()
+      return
+    }
+
+    setEditingCell(null)
+    setCellDraft({ ...EMPTY_CELL })
+
+    const firstFilledDay = WEEKDAYS.find((day) => getCell(selectedClass.id, day, slot).subject)
+    const detectedPrimarySubject = firstFilledDay ? getCell(selectedClass.id, firstFilledDay, slot).subject : ''
+    const hasExistingAssignments = WEEKDAYS.some((day) => Boolean(getCell(selectedClass.id, day, slot).subject))
+    const primaryDays = createWeekdaySelection(!hasExistingAssignments)
+
+    if (detectedPrimarySubject) {
+      WEEKDAYS.forEach((day) => {
+        const cellSubject = getCell(selectedClass.id, day, slot).subject
+        primaryDays[day] = cellSubject === detectedPrimarySubject
+      })
+    }
+
+    const secondaryDay = WEEKDAYS.find((day) => {
+      const cellSubject = getCell(selectedClass.id, day, slot).subject
+      return Boolean(cellSubject) && cellSubject !== detectedPrimarySubject && !primaryDays[day]
+    })
+    const detectedSecondarySubject = secondaryDay ? getCell(selectedClass.id, secondaryDay, slot).subject : ''
+
+    setPeriodDraft({
+      primarySubject: detectedPrimarySubject,
+      primaryDays,
+      useSecondary: Boolean(detectedSecondarySubject),
+      secondarySubject: detectedSecondarySubject,
+    })
+    setEditingPeriodSlot(slot)
+  }, [selectedClass, getCell, editingPeriodSlot, closePeriodEditor])
+
+  const togglePeriodDay = useCallback((day: string) => {
+    setPeriodDraft((prev) => ({
+      ...prev,
+      primaryDays: {
+        ...prev.primaryDays,
+        [day]: !prev.primaryDays[day],
+      },
+    }))
+  }, [])
+
+  const savePeriodAssignment = useCallback(() => {
+    if (!selectedClass || editingPeriodSlot === null) return
+
+    const selectedDays = WEEKDAYS.filter((day) => Boolean(periodDraft.primaryDays[day]))
+    if (selectedDays.length > 0 && !periodDraft.primarySubject) {
+      window.alert('Select the first subject for checked weekdays.')
+      return
+    }
+    if (periodDraft.useSecondary && !periodDraft.secondarySubject) {
+      window.alert('Select the second subject for remaining weekdays.')
+      return
+    }
+
+    selectedDays.forEach((day) => {
+      const subject = periodDraft.primarySubject
+      const teacher = getAutoTeacherForSubject(subject, day, editingPeriodSlot, selectedClass.id)
+      setGridCell(selectedClass.id, day, editingPeriodSlot, { subject, teacher })
+    })
+
+    if (periodDraft.useSecondary && periodDraft.secondarySubject) {
+      WEEKDAYS.filter((day) => !periodDraft.primaryDays[day]).forEach((day) => {
+        const subject = periodDraft.secondarySubject
+        const teacher = getAutoTeacherForSubject(subject, day, editingPeriodSlot, selectedClass.id)
+        setGridCell(selectedClass.id, day, editingPeriodSlot, { subject, teacher })
+      })
+    }
+
+    closePeriodEditor()
+  }, [selectedClass, editingPeriodSlot, periodDraft, setGridCell, getAutoTeacherForSubject, closePeriodEditor])
+
+  const clearPeriodAssignment = useCallback(() => {
+    if (!selectedClass || editingPeriodSlot === null) return
+
+    WEEKDAYS.forEach((day) => {
+      setGridCell(selectedClass.id, day, editingPeriodSlot, { ...EMPTY_CELL })
+    })
+
+    closePeriodEditor()
+  }, [selectedClass, editingPeriodSlot, setGridCell, closePeriodEditor])
 
   return (
     <div className="cw-page">
@@ -345,6 +751,59 @@ const ClassWise: React.FC = () => {
           color: #fbbf24;
         }
 
+        /* ───────── Mode toggle ───────── */
+        .cw-mode-toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .cw-mode-label {
+          font-size: 0.75rem;
+          font-weight: 600;
+          color: #4b5563;
+        }
+        .dark .cw-mode-label {
+          color: #e5e7eb;
+        }
+        .cw-mode-switch {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          width: 44px;
+          height: 22px;
+          border-radius: 999px;
+          border: 1px solid #d1d5db;
+          background: #e5e7eb;
+          padding: 0 2px;
+          cursor: pointer;
+          transition: background 0.15s ease, border-color 0.15s ease;
+        }
+        .dark .cw-mode-switch {
+          border-color: #4b5563;
+          background: #111827;
+        }
+        .cw-mode-switch-auto {
+          background: #2563eb;
+          border-color: #2563eb;
+        }
+        .dark .cw-mode-switch-auto {
+          background: #1d4ed8;
+          border-color: #1d4ed8;
+        }
+        .cw-mode-switch-thumb {
+          position: relative;
+          width: 16px;
+          height: 16px;
+          border-radius: 999px;
+          background: #ffffff;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+          transform: translateX(0);
+          transition: transform 0.15s ease;
+        }
+        .cw-mode-switch-thumb-auto {
+          transform: translateX(18px);
+        }
+
         /* ───────── Header actions ───────── */
         .cw-btn {
           display: inline-flex;
@@ -407,6 +866,55 @@ const ClassWise: React.FC = () => {
           min-width: 80px;
           text-align: left;
           padding-left: 16px;
+        }
+        .cw-grid thead tr.cw-time-row th {
+          padding: 6px 6px;
+          font-size: 0.66rem;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+          text-transform: none;
+          color: #64748b;
+          background: #f8fafc;
+        }
+        .dark .cw-grid thead tr.cw-time-row th {
+          color: #94a3b8;
+          background: #1a2536;
+        }
+        .cw-grid thead tr.cw-time-row th.cw-th-day {
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: #94a3b8;
+        }
+        .cw-period-header-btn {
+          width: 100%;
+          border: none;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          font-size: 0.72rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          cursor: pointer;
+          padding: 2px 4px;
+          border-radius: 8px;
+          transition: all 0.2s ease;
+        }
+        .cw-period-header-btn:hover {
+          background: #e0e7ff;
+          color: #4338ca;
+        }
+        .dark .cw-period-header-btn:hover {
+          background: #312e8133;
+          color: #a5b4fc;
+        }
+        .cw-period-header-btn.cw-period-header-active {
+          background: #6366f1;
+          color: #fff;
+        }
+        .dark .cw-period-header-btn.cw-period-header-active {
+          background: #818cf8;
+          color: #0f172a;
         }
         .cw-grid tbody td {
           padding: 0;
@@ -615,6 +1123,120 @@ const ClassWise: React.FC = () => {
         }
         .dark .cw-conflict-badge { color: #fca5a5; }
 
+        /* ————————— Period bulk editor ————————— */
+        .cw-period-editor-panel {
+          margin: 14px 16px 0;
+          border: 1.5px solid #c7d2fe;
+          border-radius: 12px;
+          background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 100%);
+          padding: 14px;
+        }
+        .dark .cw-period-editor-panel {
+          border-color: #4f46e5;
+          background: linear-gradient(135deg, #1e2a3f 0%, #1e293b 100%);
+        }
+        .cw-period-editor-title {
+          font-size: 0.78rem;
+          font-weight: 800;
+          color: #4338ca;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          margin-bottom: 10px;
+        }
+        .dark .cw-period-editor-title {
+          color: #a5b4fc;
+        }
+        .cw-period-editor-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(220px, 1fr));
+          gap: 12px;
+        }
+        .cw-period-editor-field label {
+          display: block;
+          font-size: 0.72rem;
+          font-weight: 700;
+          color: #475569;
+          margin-bottom: 6px;
+        }
+        .dark .cw-period-editor-field label {
+          color: #cbd5e1;
+        }
+        .cw-period-editor-select {
+          width: 100%;
+          padding: 7px 10px;
+          border: 1.5px solid #cbd5e1;
+          border-radius: 8px;
+          background: #fff;
+          color: #334155;
+          outline: none;
+          font-size: 0.82rem;
+        }
+        .dark .cw-period-editor-select {
+          background: #0f172a;
+          border-color: #475569;
+          color: #e2e8f0;
+        }
+        .cw-period-editor-select:focus {
+          border-color: #6366f1;
+          box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+        }
+        .cw-weekday-grid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .cw-weekday-item {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 0.76rem;
+          font-weight: 600;
+          color: #334155;
+        }
+        .dark .cw-weekday-item {
+          color: #cbd5e1;
+        }
+        .cw-weekday-item input {
+          width: 14px;
+          height: 14px;
+          accent-color: #6366f1;
+        }
+        .cw-secondary-toggle {
+          margin-top: 10px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 0.76rem;
+          font-weight: 600;
+          color: #334155;
+        }
+        .dark .cw-secondary-toggle {
+          color: #cbd5e1;
+        }
+        .cw-period-editor-actions {
+          margin-top: 12px;
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+        }
+        .cw-period-hint {
+          margin-top: 10px;
+          font-size: 0.74rem;
+          color: #6366f1;
+          font-weight: 600;
+        }
+        .dark .cw-period-hint {
+          color: #a5b4fc;
+        }
+        @media (max-width: 900px) {
+          .cw-period-editor-grid {
+            grid-template-columns: 1fr;
+          }
+          .cw-weekday-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
         /* ───────── Subject legend ───────── */
         .cw-legend {
           padding: 12px 24px;
@@ -743,7 +1365,9 @@ const ClassWise: React.FC = () => {
 
       {/* ── Top bar ── */}
       <div className="cw-top-bar">
-        <p>Assign subjects and teachers to each period for every class</p>
+        <p>
+          Click a Period header to bulk-assign subjects by weekdays, or use Auto mode to fill the grid from Period Distribution.
+        </p>
       </div>
 
       {/* ── Empty state: no classes ── */}
@@ -805,20 +1429,50 @@ const ClassWise: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <button
-                  className="cw-btn cw-btn-danger"
-                  onClick={() => {
-                    if (window.confirm(`Clear all timetable entries for ${selectedClass.className}-${selectedClass.section}?`)) {
-                      clearGridForClass(selectedClass.id)
-                    }
-                  }}
-                  disabled={stats.filled === 0}
-                >
-                  <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                  </svg>
-                  Clear All
-                </button>
+                <div className="flex items-center gap-3">
+                  <div className="cw-mode-toggle" aria-label="Timetable mode">
+                    <span className="cw-mode-label">Manual</span>
+                    <button
+                      type="button"
+                      className={`cw-mode-switch ${mode === 'auto' ? 'cw-mode-switch-auto' : ''}`}
+                      onClick={() => setMode(mode === 'auto' ? 'manual' : 'auto')}
+                    >
+                      <span
+                        className={`cw-mode-switch-thumb ${
+                          mode === 'auto' ? 'cw-mode-switch-thumb-auto' : ''
+                        }`}
+                      />
+                    </button>
+                    <span className="cw-mode-label">Auto</span>
+                  </div>
+                  {mode === 'auto' && (
+                    <button
+                      type="button"
+                      className="cw-btn"
+                      onClick={autoFillClassTimetable}
+                      disabled={selectedClass.subjects.length === 0}
+                    >
+                      <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      Auto Fill
+                    </button>
+                  )}
+                  <button
+                    className="cw-btn cw-btn-danger"
+                    onClick={() => {
+                      if (window.confirm(`Clear all timetable entries for ${selectedClass.className}-${selectedClass.section}?`)) {
+                        clearGridForClass(selectedClass.id)
+                      }
+                    }}
+                    disabled={stats.filled === 0}
+                  >
+                    <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                    </svg>
+                    Clear All
+                  </button>
+                </div>
               </div>
 
               {/* No subjects warning */}
@@ -832,24 +1486,106 @@ const ClassWise: React.FC = () => {
               )}
 
               {/* No teachers info */}
-              {teachers.length === 0 && selectedClass.subjects.length > 0 && (
+              {selectedClassTeacherPool.length === 0 && selectedClass.subjects.length > 0 && (
                 <div className="cw-info">
                   <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
                   </svg>
-                  <span>No teachers added yet. You can still assign subjects to periods. Add teachers on the Classes page (Incharge field) or they will be available once the teachers list is set up.</span>
+                  <span>No teacher mapping found for this class-section. Assign teachers in Subject Allocation to auto-wire period teacher options.</span>
                 </div>
               )}
 
               {/* Grid */}
               {selectedClass.subjects.length > 0 && (
+                <>
+                {editingPeriodSlot !== null && (
+                  <div className="cw-period-editor-panel" ref={periodEditorRef}>
+                    <div className="cw-period-editor-title">
+                      Period {editingPeriodSlot + 1} Bulk Assignment
+                    </div>
+                    <div className="cw-period-editor-grid">
+                      <div className="cw-period-editor-field">
+                        <label>First Subject (checked weekdays)</label>
+                        <select
+                          className="cw-period-editor-select"
+                          value={periodDraft.primarySubject}
+                          onChange={(e) => setPeriodDraft((prev) => ({ ...prev, primarySubject: e.target.value }))}
+                        >
+                          <option value="">— Select Subject —</option>
+                          {selectedClass.subjects.map((subj) => (
+                            <option key={subj} value={subj}>{subj}</option>
+                          ))}
+                        </select>
+                        <div className="cw-secondary-toggle">
+                          <input
+                            type="checkbox"
+                            checked={periodDraft.useSecondary}
+                            onChange={(e) => setPeriodDraft((prev) => ({ ...prev, useSecondary: e.target.checked }))}
+                          />
+                          <span>Assign second subject for remaining weekdays</span>
+                        </div>
+                        {periodDraft.useSecondary && (
+                          <div style={{ marginTop: 8 }}>
+                            <select
+                              className="cw-period-editor-select"
+                              value={periodDraft.secondarySubject}
+                              onChange={(e) => setPeriodDraft((prev) => ({ ...prev, secondarySubject: e.target.value }))}
+                            >
+                              <option value="">— Select Second Subject —</option>
+                              {selectedClass.subjects.map((subj) => (
+                                <option key={subj} value={subj}>{subj}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                      <div className="cw-period-editor-field">
+                        <label>Select Weekdays For First Subject</label>
+                        <div className="cw-weekday-grid">
+                          {WEEKDAYS.map((day) => (
+                            <label key={day} className="cw-weekday-item">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(periodDraft.primaryDays[day])}
+                                onChange={() => togglePeriodDay(day)}
+                              />
+                              {SHORT_DAYS[day]}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="cw-period-hint">
+                      Teacher will auto-populate from teacher-subject mapping for each assigned day.
+                    </div>
+                    <div className="cw-period-editor-actions">
+                      <button className="cw-btn cw-btn-danger" onClick={clearPeriodAssignment}>Clear Period</button>
+                      <button className="cw-editor-btn cw-editor-btn-cancel" onClick={closePeriodEditor}>Cancel</button>
+                      <button className="cw-editor-btn cw-editor-btn-save" onClick={savePeriodAssignment}>Save</button>
+                    </div>
+                  </div>
+                )}
                 <div className="cw-grid-wrap">
                   <table className="cw-grid">
                     <thead>
                       <tr>
                         <th className="cw-th-day">Day</th>
                         {periodSlots.map((slot) => (
-                          <th key={slot}>Period {slot + 1}</th>
+                          <th key={slot}>
+                            <button
+                              type="button"
+                              className={`cw-period-header-btn ${editingPeriodSlot === slot ? 'cw-period-header-active' : ''}`}
+                              onClick={() => openPeriodEditor(slot)}
+                            >
+                              Period {slot + 1}
+                            </button>
+                          </th>
+                        ))}
+                      </tr>
+                      <tr className="cw-time-row">
+                        <th className="cw-th-day">Time</th>
+                        {periodSlots.map((slot) => (
+                          <th key={`period-time-${slot}`}>{periodHeaderTimes[slot]}</th>
                         ))}
                       </tr>
                     </thead>
@@ -898,12 +1634,43 @@ const ClassWise: React.FC = () => {
                                       <select
                                         className="cw-editor-select"
                                         value={cellDraft.subject}
-                                        onChange={(e) => setCellDraft((p) => ({ ...p, subject: e.target.value, teacher: '' }))}
+                                        onChange={(e) => {
+                                          const nextSubject = e.target.value
+                                          if (
+                                            nextSubject &&
+                                            !canAssignSubjectToSlot(nextSubject, day, slot, selectedClass.id)
+                                          ) {
+                                            window.alert(
+                                              `All teachers for ${nextSubject} are already busy in another section for this period.`
+                                            )
+                                            return
+                                          }
+                                          setCellDraft((p) => ({
+                                            ...p,
+                                            subject: nextSubject,
+                                            teacher: nextSubject
+                                              ? getAutoTeacherForSubject(nextSubject, day, slot, selectedClass.id)
+                                              : '',
+                                          }))
+                                        }}
                                       >
                                         <option value="">— None —</option>
-                                        {selectedClass.subjects.map((subj) => (
-                                          <option key={subj} value={subj}>{subj}</option>
-                                        ))}
+                                        {selectedClass.subjects.map((subj) => {
+                                          const disabled =
+                                            !!subj &&
+                                            subj !== cellDraft.subject &&
+                                            !canAssignSubjectToSlot(subj, day, slot, selectedClass.id)
+                                          return (
+                                            <option
+                                              key={subj}
+                                              value={subj}
+                                              disabled={disabled}
+                                            >
+                                              {subj}
+                                              {disabled ? ' [no free teacher]' : ''}
+                                            </option>
+                                          )
+                                        })}
                                       </select>
                                     </div>
                                     <div className="cw-editor-field">
@@ -950,6 +1717,7 @@ const ClassWise: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
 
               {/* Subject legend + period counts */}

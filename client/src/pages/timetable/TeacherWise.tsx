@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import { useTimetable, WEEKDAYS, type TimetableClass } from '@/contexts/TimetableContext'
+import bellTimingsService, { type BellTimingRowPayload } from '@/services/bellTimingsService'
 
 /* ══════════════════════════════ Types ══════════════════════════════ */
 
@@ -55,6 +56,49 @@ const getClassColor = (classKey: string) => {
   return CLASS_COLORS[classKey]
 }
 
+const FALLBACK_START_MINUTES = 8 * 60
+
+const parseTimeToMinutes = (value: string): number => {
+  const [hoursRaw, minutesRaw] = String(value || '').split(':')
+  const hours = Number.parseInt(hoursRaw, 10)
+  const minutes = Number.parseInt(minutesRaw, 10)
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return FALLBACK_START_MINUTES
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return FALLBACK_START_MINUTES
+  return hours * 60 + minutes
+}
+
+const formatMinutesTo12Hour = (value: number): string => {
+  const normalized = ((value % 1440) + 1440) % 1440
+  const hours24 = Math.floor(normalized / 60)
+  const minutes = String(normalized % 60).padStart(2, '0')
+  const suffix = hours24 >= 12 ? 'PM' : 'AM'
+  const hours12 = hours24 === 0 ? 12 : hours24 > 12 ? hours24 - 12 : hours24
+  return `${String(hours12).padStart(2, '0')}:${minutes} ${suffix}`
+}
+
+const buildPeriodTimeRanges = (startTime: string, rows: BellTimingRowPayload[]): string[] => {
+  let cursor = parseTimeToMinutes(startTime)
+  const periodRanges: string[] = []
+
+  rows.forEach((row) => {
+    const duration = Number.isFinite(row.duration) && row.duration > 0
+      ? row.duration
+      : row.type === 'break'
+        ? 15
+        : 40
+    const from = cursor
+    const to = cursor + duration
+
+    if (row.type === 'period') {
+      periodRanges.push(`${formatMinutesTo12Hour(from)} - ${formatMinutesTo12Hour(to)}`)
+    }
+
+    cursor = to
+  })
+
+  return periodRanges
+}
+
 /* ══════════════════════════════ Component ══════════════════════════════ */
 
 const TeacherWise: React.FC = () => {
@@ -66,6 +110,7 @@ const TeacherWise: React.FC = () => {
   } = useTimetable()
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [periodTimeRanges, setPeriodTimeRanges] = useState<string[]>([])
 
   // Build a class lookup
   const classMap = useMemo(() => {
@@ -79,6 +124,32 @@ const TeacherWise: React.FC = () => {
     () => Array.from({ length: periodsPerDay }, (_, i) => i),
     [periodsPerDay]
   )
+
+  const periodHeaderTimes = useMemo(
+    () => periodSlots.map((slot) => periodTimeRanges[slot] || '-'),
+    [periodSlots, periodTimeRanges]
+  )
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadBellTimings = async () => {
+      try {
+        const saved = await bellTimingsService.getBellTimings()
+        if (!isMounted) return
+        setPeriodTimeRanges(buildPeriodTimeRanges(saved.startTime, saved.rows))
+      } catch {
+        if (!isMounted) return
+        setPeriodTimeRanges([])
+      }
+    }
+
+    void loadBellTimings()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   // Derive teacher schedules from the timetable grid
   const teacherInfos: TeacherInfo[] = useMemo(() => {
@@ -395,6 +466,24 @@ const TeacherWise: React.FC = () => {
           text-align: left;
           padding-left: 16px;
         }
+        .tw-grid thead tr.tw-time-row th {
+          padding: 6px 6px;
+          font-size: 0.66rem;
+          font-weight: 600;
+          letter-spacing: 0.01em;
+          text-transform: none;
+          color: #64748b;
+          background: #f8fafc;
+        }
+        .dark .tw-grid thead tr.tw-time-row th {
+          color: #94a3b8;
+          background: #1a2536;
+        }
+        .tw-grid thead tr.tw-time-row th.tw-th-day {
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          color: #94a3b8;
+        }
         .tw-grid tbody td {
           padding: 0;
           border: 1px solid #e2e8f0;
@@ -687,6 +776,12 @@ const TeacherWise: React.FC = () => {
                       <th className="tw-th-day">Day</th>
                       {periodSlots.map((slot) => (
                         <th key={slot}>Period {slot + 1}</th>
+                      ))}
+                    </tr>
+                    <tr className="tw-time-row">
+                      <th className="tw-th-day">Time</th>
+                      {periodSlots.map((slot) => (
+                        <th key={`period-time-${slot}`}>{periodHeaderTimes[slot]}</th>
                       ))}
                     </tr>
                   </thead>
