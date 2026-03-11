@@ -117,6 +117,7 @@ const ROOM_FOLDER_INFO_COLUMN_KEYS: Array<
 const ROOM_DOOR_INFO_COLUMN_KEYS: Array<
   'infoCol1Width' | 'infoCol2Width' | 'infoCol3Width' | 'infoCol4Width' | 'infoCol5Width' | 'infoCol6Width'
 > = ['infoCol1Width', 'infoCol2Width', 'infoCol3Width', 'infoCol4Width', 'infoCol5Width', 'infoCol6Width']
+const APP_MAIN_SCROLL_ID = 'app-main-scroll'
 
 const SeatingPlan: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SeatingPlanFormat>('mainGate')
@@ -138,6 +139,12 @@ const SeatingPlan: React.FC = () => {
   const roomFolderTableWrapperRef = useRef<HTMLDivElement | null>(null)
   const roomDoorInfoTableWrapperRef = useRef<HTMLDivElement | null>(null)
   const roomDoorTableWrapperRef = useRef<HTMLDivElement | null>(null)
+  const restoredScrollRef = useRef(false)
+  const autoScrolledRef = useRef(false)
+  const scrollStorageKey = useMemo(
+    () => `seatingPlan:scrollTop:${window.location.search}:${window.location.hash}`,
+    []
+  )
 
   const { data: datesheetEntries = [], isLoading: loading, error: queryError, refetch } = useCentreDatesheetEntries()
   const { data: templateSettings, isLoading: loadingTemplateSettings } = useSeatingPlanTemplateSettings()
@@ -169,6 +176,36 @@ const SeatingPlan: React.FC = () => {
   const error = queryError?.message ?? null
   const downloadingId = pdfMutation.isPending ? pdfMutation.variables?.datesheetId ?? null : null
   const isSavingTemplateSettings = updateTemplateSettingsMutation.isPending
+
+  useEffect(() => {
+    const mainScrollContainer = document.getElementById(APP_MAIN_SCROLL_ID)
+    if (!mainScrollContainer) return
+
+    const savedScrollTop = Number(sessionStorage.getItem(scrollStorageKey) || 0)
+    if (Number.isFinite(savedScrollTop) && savedScrollTop > 0) {
+      restoredScrollRef.current = true
+      requestAnimationFrame(() => {
+        mainScrollContainer.scrollTop = savedScrollTop
+      })
+    }
+
+    let rafId: number | null = null
+    const persistScroll = () => {
+      sessionStorage.setItem(scrollStorageKey, String(mainScrollContainer.scrollTop))
+    }
+    const onScroll = () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId)
+      rafId = window.requestAnimationFrame(persistScroll)
+    }
+
+    mainScrollContainer.addEventListener('scroll', onScroll, { passive: true })
+
+    return () => {
+      if (rafId !== null) window.cancelAnimationFrame(rafId)
+      persistScroll()
+      mainScrollContainer.removeEventListener('scroll', onScroll)
+    }
+  }, [scrollStorageKey])
 
   useEffect(() => {
     return () => {
@@ -324,6 +361,7 @@ const SeatingPlan: React.FC = () => {
   /* ── Auto-scroll examination schedule table to today's (or next) exam row ── */
   useEffect(() => {
     if (loading || datesheetEntries.length === 0) return
+    if (autoScrolledRef.current || restoredScrollRef.current) return
     const timer = setTimeout(() => {
       const container = scheduleTableRef.current
       if (!container) return
@@ -331,7 +369,8 @@ const SeatingPlan: React.FC = () => {
         container.querySelector<HTMLElement>(`tr[data-date="${todayDateKey}"]`) ||
         (nextExamDateKey ? container.querySelector<HTMLElement>(`tr[data-date="${nextExamDateKey}"]`) : null)
       if (!targetRow) return
-      targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      autoScrolledRef.current = true
+      targetRow.scrollIntoView({ behavior: 'auto', block: 'center' })
     }, 200)
     return () => clearTimeout(timer)
   }, [loading, datesheetEntries.length, todayDateKey, nextExamDateKey])

@@ -3,7 +3,12 @@ import { Tabs } from '../components/common/Tabs'
 import type { TabConfig } from '../components/common/Tabs'
 import { useCandidates } from '../hooks/useCandidates'
 import { useCentreDatesheetEntries } from '../hooks/useSeatingPlan'
-import api, { uploadFile } from '../services/api'
+import {
+  useAbsenteeReportMutation,
+  useAttendanceAbsentees,
+  useSaveAbsenteesMutation,
+  useUploadAttendanceMutation,
+} from '../hooks/useAttendance'
 
 type ClassTab = 'classX' | 'classXII'
 
@@ -23,12 +28,8 @@ const Attendance: React.FC = () => {
   // Tracks absent candidates: absentees[candidateId][colKey] = true means ABSENT
   const [absentees, setAbsentees] = useState<Record<string, Record<string, boolean>>>({})
   const [searchQuery, setSearchQuery] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [loadedAbsentees, setLoadedAbsentees] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -38,6 +39,13 @@ const Attendance: React.FC = () => {
 
   // Fetch centre datesheet entries
   const { data: datesheetEntries = [], isLoading: loadingDatesheet } = useCentreDatesheetEntries()
+  const {
+    data: absenteeRecords = [],
+    isFetched: loadedAbsentees,
+  } = useAttendanceAbsentees()
+  const saveAbsenteesMutation = useSaveAbsenteesMutation()
+  const uploadAttendanceMutation = useUploadAttendanceMutation()
+  const absenteeReportMutation = useAbsenteeReportMutation()
 
   const classXCandidates = classXData?.data ?? []
   const classXIICandidates = classXIIData?.data ?? []
@@ -56,27 +64,20 @@ const Attendance: React.FC = () => {
   const columns = activeTab === 'classX' ? classXColumns : classXIIColumns
   const isLoading = activeTab === 'classX' ? loadingX : loadingXII
 
-  // Load absentees from API on mount
+  const saving = saveAbsenteesMutation.isPending
+  const uploading = uploadAttendanceMutation.isPending
+  const previewLoading = absenteeReportMutation.isPending
+
+  // Sync absentee records into local toggle map
   useEffect(() => {
-    const loadAbsentees = async () => {
-      try {
-        const res = await api.get('/attendance/absentees')
-        const records: { candidateId: string; examDate: string; subjectCode: string }[] = res.data?.data ?? []
-        const map: Record<string, Record<string, boolean>> = {}
-        records.forEach(r => {
-          const key = `${r.examDate}|${r.subjectCode}`
-          if (!map[r.candidateId]) map[r.candidateId] = {}
-          map[r.candidateId][key] = true
-        })
-        setAbsentees(map)
-        setLoadedAbsentees(true)
-      } catch {
-        // Silently fail — user can still mark attendance
-        setLoadedAbsentees(true)
-      }
-    }
-    loadAbsentees()
-  }, [])
+    const map: Record<string, Record<string, boolean>> = {}
+    absenteeRecords.forEach((record) => {
+      const key = `${record.examDate}|${record.subjectCode}`
+      if (!map[record.candidateId]) map[record.candidateId] = {}
+      map[record.candidateId][key] = true
+    })
+    setAbsentees(map)
+  }, [absenteeRecords])
 
   // Filter by search
   const filteredCandidates = useMemo(() => {
@@ -117,7 +118,6 @@ const Attendance: React.FC = () => {
 
   const openPreview = useCallback(async () => {
     setPreviewOpen(true)
-    setPreviewLoading(true)
     setPreviewError(null)
     setPreviewUrl((previousUrl) => {
       if (previousUrl) URL.revokeObjectURL(previousUrl)
@@ -125,13 +125,8 @@ const Attendance: React.FC = () => {
     })
 
     try {
-      const response = await api.get<Blob>('/attendance/absentees/report/download', {
-        params: { class: activeClassValue },
-        responseType: 'blob',
-        timeout: 180000,
-      })
-      const blob = response.data
-      const contentType = response.headers['content-type'] || ''
+      const blob = await absenteeReportMutation.mutateAsync(activeClassValue)
+      const contentType = blob.type || ''
 
       if (typeof blob === 'object' && blob !== null && contentType.toLowerCase().includes('application/pdf')) {
         const objectUrl = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob]))
@@ -149,23 +144,9 @@ const Attendance: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Failed to load absentee report preview:', error)
-      if (error?.response?.data instanceof Blob) {
-        try {
-          const text = await error.response.data.text()
-          const json = JSON.parse(text)
-          if (typeof json?.error === 'string') {
-            setPreviewError(json.error)
-            return
-          }
-        } catch (_) {
-          // Ignore invalid JSON error bodies here.
-        }
-      }
       setPreviewError(error?.serverMessage ?? error?.message ?? 'Failed to load absentee report preview')
-    } finally {
-      setPreviewLoading(false)
     }
-  }, [activeClassValue])
+  }, [absenteeReportMutation, activeClassValue])
 
   // Toggle absent status
   const toggleAbsent = (candidateId: string, colKey: string) => {
@@ -180,7 +161,6 @@ const Attendance: React.FC = () => {
 
   // Save absentees to API
   const handleSave = useCallback(async () => {
-    setSaving(true)
     try {
       // Collect ALL candidate+column pairs into a flat array
       const allCandidates = [...classXCandidates, ...classXIICandidates]
@@ -211,26 +191,24 @@ const Attendance: React.FC = () => {
         })
       })
 
-      await api.post('/attendance/absentees', { absentees: payload })
+      await saveAbsenteesMutation.mutateAsync(payload)
     } catch {
-    } finally {
-      setSaving(false)
+      // API interceptor already shows message.
     }
-  }, [absentees, classXCandidates, classXIICandidates, classXColumns, classXIIColumns])
+  }, [absentees, classXCandidates, classXIICandidates, classXColumns, classXIIColumns, saveAbsenteesMutation])
 
   // Upload attendance sheet
   const handleUpload = useCallback(async (file: File) => {
     const classValue = activeTab === 'classX' ? 'X' : 'XII'
-    setUploading(true)
     try {
-      await uploadFile('/attendance/upload', file, { class: classValue })
+      await uploadAttendanceMutation.mutateAsync({ file, classValue })
     } catch {
+      // API interceptor already shows message.
     } finally {
-      setUploading(false)
       // Reset file input
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
-  }, [activeTab])
+  }, [activeTab, uploadAttendanceMutation])
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

@@ -17,6 +17,9 @@ export const seatingPlanKeys = {
   all: ['seatingPlan'] as const,
   centreDatesheetEntries: () => [...seatingPlanKeys.all, 'centreDatesheetEntries'] as const,
   templateSettings: () => [...seatingPlanKeys.all, 'templateSettings'] as const,
+  pdfBucket: () => [...seatingPlanKeys.all, 'pdf'] as const,
+  pdf: (datesheetId: string, format: SeatingPlanFormat) =>
+    [...seatingPlanKeys.pdfBucket(), datesheetId, format] as const,
 }
 
 async function fetchCentreDatesheetEntries(): Promise<CentreDatesheetEntry[]> {
@@ -33,6 +36,9 @@ export function useCentreDatesheetEntries(
   return useQuery({
     queryKey: seatingPlanKeys.centreDatesheetEntries(),
     queryFn: fetchCentreDatesheetEntries,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
     ...options,
   })
 }
@@ -50,6 +56,9 @@ export function useSeatingPlanTemplateSettings(
   return useQuery({
     queryKey: seatingPlanKeys.templateSettings(),
     queryFn: fetchTemplateSettings,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
     ...options,
   })
 }
@@ -148,11 +157,26 @@ export function useGenerateSeatingPlanPDFMutation(
   options?: GenerateSeatingPlanPDFMutationOptions
 ) {
   const autoDownload = options?.autoDownload ?? true
+  const queryClient = useQueryClient()
+  const maxPdfCacheAgeMs = 5 * 60 * 1000
 
   return useMutation({
-    mutationFn: ({ datesheetId, format }: GenerateSeatingPlanPDFVariables) =>
-      generatePDF(datesheetId, format),
+    mutationFn: async ({ datesheetId, format }: GenerateSeatingPlanPDFVariables) => {
+      const cacheKey = seatingPlanKeys.pdf(datesheetId, format)
+      const cached = queryClient.getQueryData<Blob>(cacheKey)
+      const cachedState = queryClient.getQueryState(cacheKey)
+      const cacheAge = Date.now() - Number(cachedState?.dataUpdatedAt || 0)
+
+      if (cached && cacheAge < maxPdfCacheAgeMs) {
+        return cached
+      }
+
+      const blob = await generatePDF(datesheetId, format)
+      queryClient.setQueryData(cacheKey, blob)
+      return blob
+    },
     onSuccess: (blob, variables, onMutateResult, context) => {
+      queryClient.setQueryData(seatingPlanKeys.pdf(variables.datesheetId, variables.format), blob)
       if (autoDownload) {
         const filename = variables.filename || FORMAT_FILENAMES[variables.format]
         seatingPlanService.downloadPDF(blob, filename)
@@ -176,6 +200,7 @@ export function useUpdateSeatingPlanTemplateSettingsMutation(
     mutationFn: (settings) => seatingPlanService.updateTemplateSettings(settings),
     onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.setQueryData(seatingPlanKeys.templateSettings(), data)
+      queryClient.invalidateQueries({ queryKey: seatingPlanKeys.pdfBucket() })
       options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,

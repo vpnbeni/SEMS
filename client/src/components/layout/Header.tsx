@@ -1,14 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { selectUser } from '@/redux/slices/authSlice'
-import api from '@/services/api'
 import { useAcademicSession } from '@/contexts/AcademicSessionContext'
 import { isFeatureEnabledForPath } from '@/constants/featureAccess'
+import { useCentreDetails } from '@/hooks/useCentreDetails'
 
 const Header: React.FC = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [dashboardCentreLabel, setDashboardCentreLabel] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
   const user = useSelector(selectUser)
@@ -194,35 +193,17 @@ const Header: React.FC = () => {
     return `${weekday}, ${date}`
   }, [])
 
+  const { data: centreDetails } = useCentreDetails({
+    enabled: isDashboardRoute && canAccessCentreDetails,
+  })
+  const dashboardCentreLabel = useMemo(() => {
+    if (!isDashboardRoute || !canAccessCentreDetails) return ''
+    const centreNo = String(centreDetails?.centreNo || '').trim()
+    const centreName = String(centreDetails?.centreName || '').trim()
+    return [centreNo, centreName].filter(Boolean).join(' - ')
+  }, [canAccessCentreDetails, centreDetails, isDashboardRoute])
+
   const dashboardHeaderLabel = (dashboardCentreLabel || defaultDashboardCentreLabel).trim()
-
-  useEffect(() => {
-    if (!isDashboardRoute) return
-
-    let isMounted = true
-    const fetchCentreLabel = async () => {
-      if (!canAccessCentreDetails) {
-        if (isMounted) setDashboardCentreLabel('')
-        return
-      }
-
-      try {
-        const response = await api.get('/centre-details')
-        const payload = response?.data?.data || {}
-        const centreNo = String(payload?.centreNo || '').trim()
-        const centreName = String(payload?.centreName || '').trim()
-        const label = [centreNo, centreName].filter(Boolean).join(' - ')
-        if (isMounted) setDashboardCentreLabel(label)
-      } catch {
-        if (isMounted) setDashboardCentreLabel('')
-      }
-    }
-
-    fetchCentreLabel()
-    return () => {
-      isMounted = false
-    }
-  }, [canAccessCentreDetails, isDashboardRoute, location.pathname])
 
   return (
     <header className="h-20 flex-shrink-0 sticky top-0 z-40 glass border-b border-gray-100/80 dark:border-gray-800/80 transition-all duration-300">

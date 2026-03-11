@@ -11,6 +11,7 @@ import datesheetService, {
   type DatesheetStats,
 } from '../services/datesheetService'
 import subjectService, { type SubjectListParams } from '../services/subjectService'
+import { sidebarKeys } from './useSidebarCounts'
 
 // Query keys – centralised for invalidation
 export const datesheetKeys = {
@@ -170,6 +171,7 @@ export function useImportDatesheetMutation(
       queryClient.invalidateQueries({ queryKey: datesheetKeys.all })
       queryClient.invalidateQueries({ queryKey: datesheetKeys.stats() })
       queryClient.invalidateQueries({ queryKey: subjectKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -184,6 +186,7 @@ export function useCreateDatesheetMutation(
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: datesheetKeys.all })
       queryClient.invalidateQueries({ queryKey: datesheetKeys.stats() })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -199,6 +202,7 @@ export function useUpdateDatesheetMutation(
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: datesheetKeys.all })
       queryClient.invalidateQueries({ queryKey: datesheetKeys.stats() })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
