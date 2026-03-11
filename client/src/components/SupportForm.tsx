@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import api from '@/services/api'
+import { useCreateSupportTicketMutation } from '@/hooks/useSupport'
 
 type SupportFormProps = {
   onSubmitted?: () => void
@@ -16,7 +16,8 @@ const SupportForm: React.FC<SupportFormProps> = ({ onSubmitted }) => {
   const [description, setDescription] = useState('')
   const [screenshot, setScreenshot] = useState<File | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [submitting, setSubmitting] = useState(false)
+  const submitTicketMutation = useCreateSupportTicketMutation()
+  const submitting = submitTicketMutation.isPending
 
   useEffect(() => {
     const stored = localStorage.getItem('centreSchoolCode') || localStorage.getItem('centreCode')
@@ -35,14 +36,13 @@ const SupportForm: React.FC<SupportFormProps> = ({ onSubmitted }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
-    setSubmitting(true)
     try {
       let screenshotUrl: string | undefined
       if (screenshot) {
         // In this version we assume screenshot is already uploaded elsewhere; you can extend this to use an upload endpoint.
         screenshotUrl = screenshot.name
       }
-      await api.post('/support/ticket', {
+      await submitTicketMutation.mutateAsync({
         centreCode: centreCode.trim(),
         examDate,
         module,
@@ -55,8 +55,8 @@ const SupportForm: React.FC<SupportFormProps> = ({ onSubmitted }) => {
         localStorage.setItem('centreSchoolCode', centreCode.trim())
       }
       if (onSubmitted) onSubmitted()
-    } finally {
-      setSubmitting(false)
+    } catch {
+      // API interceptor already shows message.
     }
   }
 
@@ -147,4 +147,3 @@ const SupportForm: React.FC<SupportFormProps> = ({ onSubmitted }) => {
 }
 
 export default SupportForm
-

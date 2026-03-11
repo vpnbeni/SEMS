@@ -13,9 +13,8 @@ import EditTeacherModal from "../components/teachers/EditTeacherModal";
 import ExportModal, { ExportFilters } from "../components/common/ExportModal";
 import { Dropdown } from "../components/common/Dropdown";
 import { useTeachers, teacherKeys } from "../hooks/useTeachers";
-import axios from "axios";
 import toast from "react-hot-toast";
-import { getTenantHeader, resolveApiBaseUrl } from "../utils/tenantRuntime";
+import { useCentreDetails } from "../hooks/useCentreDetails";
 import teacherService from "../services/teacherService";
 
 
@@ -71,10 +70,6 @@ const Teachers: React.FC = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [isTemplateDownloading, setIsTemplateDownloading] = useState(false);
   const [isTemplateUploading, setIsTemplateUploading] = useState(false);
-  const [centreSchoolRef, setCentreSchoolRef] = useState<{ centreName: string; centreSchoolCode: string }>({
-    centreName: "",
-    centreSchoolCode: "",
-  });
   const [sortField, setSortField] = useState("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [dutyTypeOverrides, setDutyTypeOverrides] = useState<Record<string, string>>({});
@@ -86,7 +81,7 @@ const Teachers: React.FC = () => {
   const [debouncedJoiningDateTo, setDebouncedJoiningDateTo] = useState("");
   const [debouncedYearsOfExperience, setDebouncedYearsOfExperience] = useState("");
   const filterDropdownRef = useRef<HTMLDivElement>(null);
-  const API_BASE_URL = resolveApiBaseUrl();
+  const { data: centreDetails } = useCentreDetails();
 
   // Close filter dropdown on click outside
   useEffect(() => {
@@ -128,32 +123,6 @@ const Teachers: React.FC = () => {
     }, 500);
     return () => clearTimeout(t);
   }, [yearsOfExperience]);
-
-  useEffect(() => {
-    const fetchCentreSchoolRef = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const tenantHeader = getTenantHeader();
-        const response = await axios.get(`${API_BASE_URL}/centre-details`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            ...(tenantHeader ? { "x-tenant-slug": tenantHeader } : {}),
-          },
-        });
-
-        const payload = response?.data?.data || {};
-        setCentreSchoolRef({
-          centreName: String(payload?.centreName || "").trim(),
-          centreSchoolCode: String(payload?.centreSchoolCode || "").trim(),
-        });
-      } catch (error) {
-        console.error("Failed to fetch centre mapping for stats:", error);
-        setCentreSchoolRef({ centreName: "", centreSchoolCode: "" });
-      }
-    };
-
-    fetchCentreSchoolRef();
-  }, [API_BASE_URL]);
 
   const queryParams = useMemo(
     () => ({
@@ -276,8 +245,8 @@ const Teachers: React.FC = () => {
   const isSelfSchoolTeacher = (teacher: Teacher) => {
     const teacherSchoolCode = normalizeValue(teacher.schoolCode);
     const teacherSchoolName = normalizeValue(teacher.schoolName);
-    const centreSchoolCode = normalizeValue(centreSchoolRef.centreSchoolCode);
-    const centreName = normalizeValue(centreSchoolRef.centreName);
+    const centreSchoolCode = normalizeValue(centreDetails?.centreSchoolCode);
+    const centreName = normalizeValue(centreDetails?.centreName);
 
     if (centreSchoolCode) {
       return teacherSchoolCode === centreSchoolCode;
@@ -376,32 +345,7 @@ const Teachers: React.FC = () => {
 
   const handleFetchPreview = async (filters: ExportFilters) => {
     try {
-      const token = localStorage.getItem("token");
-      const tenantHeader = getTenantHeader();
-
-      // Build query params
-      const params = new URLSearchParams();
-
-      if (filters.search) params.append("search", filters.search);
-      if (filters.department && filters.department !== "all") params.append("department", filters.department);
-      if (filters.status && filters.status !== "all") {
-        params.append("isActive", filters.status === "active" ? "true" : "false");
-      }
-      if (filters.joiningDateFrom) params.append("joiningDateFrom", filters.joiningDateFrom);
-      if (filters.joiningDateTo) params.append("joiningDateTo", filters.joiningDateTo);
-      if (filters.minExperience) params.append("minExperience", filters.minExperience);
-
-      const response = await axios.get(
-        `${API_BASE_URL}/export/teachers/preview?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            ...(tenantHeader ? { "x-tenant-slug": tenantHeader } : {}),
-          },
-        }
-      );
-
-      return response.data.data;
+      return await teacherService.getExportPreview(filters);
     } catch (error) {
       console.error("Failed to fetch preview:", error);
       return { total: 0, filtered: 0 };
@@ -410,36 +354,10 @@ const Teachers: React.FC = () => {
 
   const handleExportData = async (filters: ExportFilters, exportAll: boolean) => {
     try {
-      const token = localStorage.getItem("token");
-      const tenantHeader = getTenantHeader();
-
-      // Build query params
-      const params = new URLSearchParams();
-
-      if (!exportAll) {
-        if (filters.search) params.append("search", filters.search);
-        if (filters.department && filters.department !== "all") params.append("department", filters.department);
-        if (filters.status && filters.status !== "all") {
-          params.append("isActive", filters.status === "active" ? "true" : "false");
-        }
-        if (filters.joiningDateFrom) params.append("joiningDateFrom", filters.joiningDateFrom);
-        if (filters.joiningDateTo) params.append("joiningDateTo", filters.joiningDateTo);
-        if (filters.minExperience) params.append("minExperience", filters.minExperience);
-      }
-
-      const response = await axios.get(
-        `${API_BASE_URL}/export/teachers?${params.toString()}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            ...(tenantHeader ? { "x-tenant-slug": tenantHeader } : {}),
-          },
-          responseType: "blob",
-        }
-      );
+      const blob = await teacherService.exportTeachersCsv(filters, exportAll);
 
       // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(new Blob([blob]));
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", `teachers_export_${new Date().toISOString().split('T')[0]}.csv`);
@@ -456,18 +374,9 @@ const Teachers: React.FC = () => {
   const downloadImportTemplate = async () => {
     try {
       setIsTemplateDownloading(true);
-      const token = localStorage.getItem("token");
-      const tenantHeader = getTenantHeader();
-      const response = await axios.get(`${API_BASE_URL}/teachers/import-template`, {
-        params: { format: "csv" },
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(tenantHeader ? { "x-tenant-slug": tenantHeader } : {}),
-        },
-        responseType: "blob",
-      });
+      const blob = await teacherService.downloadImportTemplate("csv");
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const url = window.URL.createObjectURL(new Blob([blob]));
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", `exam_functionaries_template_${new Date().toISOString().split("T")[0]}.csv`);
@@ -490,20 +399,9 @@ const Teachers: React.FC = () => {
 
     try {
       setIsTemplateUploading(true);
-      const token = localStorage.getItem("token");
-      const tenantHeader = getTenantHeader();
-      const formData = new FormData();
-      formData.append("file", selectedFile);
+      const response = await teacherService.uploadImportTemplate(selectedFile);
 
-      const response = await axios.post(`${API_BASE_URL}/teachers/import-template/upload`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(tenantHeader ? { "x-tenant-slug": tenantHeader } : {}),
-          "Content-Type": "multipart/form-data",
-        },
-      });
-
-      const result = response?.data?.data;
+      const result = response?.data;
       const errorPreview = (result?.errors || [])
         .slice(0, 5)
         .map((item: { row: number; message: string }) => `Row ${item.row}: ${item.message}`)

@@ -10,6 +10,7 @@ import subjectService, {
   type SubjectListResponse,
   type SubjectStats,
 } from '../services/subjectService'
+import { sidebarKeys } from './useSidebarCounts'
 
 export const subjectKeys = {
   all: ['subjects'] as const,
@@ -57,6 +58,7 @@ export function useCreateSubjectMutation(options?: UseMutationOptions<any, Error
     mutationFn: (data: any) => subjectService.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: subjectKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -71,6 +73,7 @@ export function useUpdateSubjectMutation(
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: subjectKeys.all })
       queryClient.invalidateQueries({ queryKey: subjectKeys.detail(variables.id) })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -82,6 +85,7 @@ export function useDeleteSubjectMutation(options?: UseMutationOptions<unknown, E
     mutationFn: (id: string) => subjectService.deleteById(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: subjectKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -93,6 +97,7 @@ export function useDeleteAllSubjectsMutation(options?: UseMutationOptions<unknow
     mutationFn: () => subjectService.deleteAll(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: subjectKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -104,6 +109,7 @@ export function useImportSubjectsMutation(options?: UseMutationOptions<any, Erro
     mutationFn: (file: File) => subjectService.importFromPDF(file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: subjectKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })

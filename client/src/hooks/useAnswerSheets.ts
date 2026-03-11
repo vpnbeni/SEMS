@@ -9,6 +9,7 @@ import answerSheetService, {
   type AnswerSheetEntry,
   type AnswerSheetSerialRange,
 } from '../services/answerSheetService'
+import { sidebarKeys } from './useSidebarCounts'
 
 export const answerSheetKeys = {
   all: ['answerSheets'] as const,
@@ -71,6 +72,7 @@ export function useCreateAnswerSheetMutation(
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: answerSheetKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -90,6 +92,7 @@ export function useUploadExcelMutation(
       answerSheetService.uploadExcel(file) as Promise<UploadExcelResult>,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: answerSheetKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -116,6 +119,7 @@ export function useUseSheetsMutation(
       answerSheetService.useSheets(id, quantity, linkData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: answerSheetKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -134,6 +138,7 @@ export function useUpdateAnswerSheetMutation(
       answerSheetService.updateAnswerSheet(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: answerSheetKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -153,6 +158,7 @@ export function useDiscardSheetsMutation(
       answerSheetService.discardSheets(id, quantity),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: answerSheetKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -193,6 +199,7 @@ export function useUpdateSeriesMutation(
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: seriesKeys.current })
       queryClient.invalidateQueries({ queryKey: answerSheetKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })

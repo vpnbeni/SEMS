@@ -17,7 +17,10 @@ const Layout: React.FC = () => {
         <BillingBanner />
 
         {/* Page Content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto animate-page-enter">
+        <main
+          id="app-main-scroll"
+          className="flex-1 overflow-x-hidden overflow-y-auto animate-page-enter"
+        >
           <Outlet />
         </main>
       </div>

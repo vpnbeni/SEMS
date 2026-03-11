@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import Loader from '../common/Loader'
-import { getAuthToken } from '@/utils/authStorage'
+import subjectService from '@/services/subjectService'
 
 interface SubjectOption { _id: string; name: string; code: string }
 
@@ -32,10 +32,8 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, onSave, 
     if (!isOpen) return
       ; (async () => {
         try {
-          const token = getAuthToken()
-          const res = await fetch('/api/subjects?isActive=true&limit=200', { headers: { Authorization: `Bearer ${token}` } })
-          const data = await res.json()
-          setSubjects(data?.data || [])
+          const response = await subjectService.getAll({ isActive: true, limit: 200 } as any)
+          setSubjects(response?.data?.data || [])
         } catch (e) { }
       })()
   }, [isOpen])
@@ -107,5 +105,4 @@ const ScheduleModal: React.FC<ScheduleModalProps> = ({ isOpen, onClose, onSave, 
 }
 
 export default ScheduleModal
-
 

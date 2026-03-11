@@ -1,13 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import api from '../services/api'
+import {
+  useCentreDetails,
+  useCentreDetailsSummary,
+  useUpdateCentreDetailsMutation,
+} from '../hooks/useCentreDetails'
 import './CentreDetails.css'
-
-interface CandidateRow {
-  schoolCode: string
-  schoolName: string
-  class: string
-  rollNumber: string
-}
 
 interface SchoolSummaryRow {
   srNo: number
@@ -39,12 +36,6 @@ interface CentreForm {
   packingClothColorClass12: string
   packingMarkerClass12: string
 }
-
-interface CentreDetailsResponse extends Partial<CentreForm> {
-  _id?: string
-}
-
-const PAGE_LIMIT = 1000
 
 const defaultForm: CentreForm = {
   centreNo: '',
@@ -83,82 +74,19 @@ const compareRollNumbers = (a: string, b: string) => {
 
 const CentreDetails: React.FC = () => {
   const [form, setForm] = useState<CentreForm>(defaultForm)
-  const [candidates, setCandidates] = useState<CandidateRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadingCentre, setLoadingCentre] = useState(true)
-  const [savingCentre, setSavingCentre] = useState(false)
   const [hasSavedCentreDetails, setHasSavedCentreDetails] = useState(false)
-  const [examDays, setExamDays] = useState<number>(0)
-
-  useEffect(() => {
-    const fetchCentreInfo = async () => {
-      try {
-        const res = await api.get('/centre-details')
-        const data = res?.data?.data as CentreDetailsResponse | null
-        if (data) {
-          setForm((prev) => ({
-            ...prev,
-            ...data,
-          }))
-          const hasAnySavedField = Object.values(data).some(
-            (value) => typeof value === 'string' && value.trim().length > 0
-          )
-          setHasSavedCentreDetails(Boolean(data._id) || hasAnySavedField)
-        }
-      } catch (error) {
-        console.error('Failed to fetch saved centre information:', error)
-      } finally {
-        setLoadingCentre(false)
-      }
-    }
-    fetchCentreInfo()
-  }, [])
-
-  useEffect(() => {
-    const fetchAll = async () => {
-      setLoading(true)
-      try {
-        const allCandidates: CandidateRow[] = []
-        let page = 1
-        let totalPages = 1
-
-        do {
-          const res = await api.get('/candidates', {
-            params: { page, limit: PAGE_LIMIT },
-          })
-          const body = res?.data ?? {}
-          const rows = (body?.data ?? []) as Array<any>
-
-          rows.forEach((row) => {
-            allCandidates.push({
-              schoolCode: String(row?.schoolCode || '').trim(),
-              schoolName: String(row?.schoolName || '').trim(),
-              class: String(row?.class || '').trim(),
-              rollNumber: String(row?.rollNumber || '').trim(),
-            })
-          })
-
-          totalPages = Number(body?.pages || 1)
-          page += 1
-        } while (page <= totalPages)
-
-        setCandidates(allCandidates)
-
-        const statsRes = await api.get('/datesheets/stats')
-        const statsData = statsRes?.data?.data ?? {}
-        const computedExamDays = Number(statsData?.centreDays ?? statsData?.fullDatesheetDays ?? 0)
-        setExamDays(Number.isFinite(computedExamDays) ? computedExamDays : 0)
-      } catch (error) {
-        console.error('Failed to fetch centre details data:', error)
-        setCandidates([])
-        setExamDays(0)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchAll()
-  }, [])
+  const {
+    data: centreDetails,
+    isLoading: loadingCentre,
+  } = useCentreDetails()
+  const {
+    data: summaryData,
+    isLoading: loadingSummary,
+  } = useCentreDetailsSummary()
+  const updateCentreMutation = useUpdateCentreDetailsMutation()
+  const candidates = summaryData?.candidates ?? []
+  const examDays = summaryData?.examDays ?? 0
+  const loading = loadingSummary
 
   const tableRows: SchoolSummaryRow[] = useMemo(() => {
     const grouped = new Map<string, SchoolSummaryRow>()
@@ -224,16 +152,26 @@ const CentreDetails: React.FC = () => {
   }
 
   const handleSaveCentreInfo = async () => {
-    setSavingCentre(true)
     try {
-      await api.put('/centre-details', form)
+      await updateCentreMutation.mutateAsync(form)
       setHasSavedCentreDetails(true)
     } catch (error) {
       console.error('Failed to save centre details:', error)
-    } finally {
-      setSavingCentre(false)
     }
   }
+
+  useEffect(() => {
+    if (!centreDetails) return
+    setForm((prev) => ({
+      ...prev,
+      ...centreDetails,
+    }))
+
+    const hasAnySavedField = Object.values(centreDetails).some(
+      (value) => typeof value === 'string' && value.trim().length > 0
+    )
+    setHasSavedCentreDetails(Boolean(centreDetails._id) || hasAnySavedField)
+  }, [centreDetails])
 
   return (
     <div className="cd-page">
@@ -290,10 +228,10 @@ const CentreDetails: React.FC = () => {
             type="button"
             className="cd-save-btn"
             onClick={handleSaveCentreInfo}
-            disabled={savingCentre || loadingCentre}
+            disabled={updateCentreMutation.isPending || loadingCentre}
             title={hasSavedCentreDetails ? 'Update centre information' : 'Save centre information'}
           >
-            {savingCentre ? (
+            {updateCentreMutation.isPending ? (
               <>
                 <svg className="animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

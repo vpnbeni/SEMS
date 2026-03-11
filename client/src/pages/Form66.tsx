@@ -1,19 +1,16 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { ChevronRight, ChevronDown, Download, Upload, RefreshCw, FileText, Calendar, Users, BookOpen, Eye, X } from 'lucide-react'
-import { getTenantHeader, resolveApiBaseUrl, resolveTenantSlug } from '../utils/tenantRuntime'
-import { getAuthToken } from '@/utils/authStorage'
 import { Dialog } from '@/components/common/Dialog'
-
-interface Form66Record {
-  _id: string
-  rollNo: string
-  examDate: string
-  subjectCode: string
-  subject: string
-  class: string
-  centreNo?: string
-  centreName?: string
-}
+import {
+  useForm66DatePdfMutation,
+  useForm66FileUrls,
+  useForm66Records,
+  useUploadForm66Mutation,
+} from '@/hooks/useForm66'
+import form66Service, {
+  type Form66Record,
+  type Form66UploadResponse as UploadResponse,
+} from '@/services/form66Service'
 
 interface DateGroup {
   date: string
@@ -28,17 +25,6 @@ interface SubjectGroup {
   count: number
 }
 
-interface UploadResponse {
-  message: string
-  count: number
-  dateCount?: number
-  dates?: string[]
-  originalFileUrl?: string
-  processedPdfUrl?: string
-  uploadId?: string
-  uploadedClasses?: string[]
-}
-
 type ProcessingStep = 'idle' | 'uploading' | 'converting' | 'analyzing' | 'saving' | 'complete' | 'error'
 type FormClassKey = 'X' | 'XII'
 
@@ -51,22 +37,10 @@ const processingSteps: { step: ProcessingStep; label: string }[] = [
 ]
 
 const Form66: React.FC = () => {
-  const [uploading, setUploading] = useState(false)
   const [processingStep, setProcessingStep] = useState<ProcessingStep>('idle')
   const [uploadStatus, setUploadStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null)
-  const [records, setRecords] = useState<Form66Record[]>([])
-  const [dateGroups, setDateGroups] = useState<DateGroup[]>([])
-  const [loadingRecords, setLoadingRecords] = useState(false)
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set())
   const [expandedSubjects, setExpandedSubjects] = useState<Set<string>>(new Set())
-  const [originalFileUrls, setOriginalFileUrls] = useState<Record<FormClassKey, string | null>>({
-    X: null,
-    XII: null,
-  })
-  const [processedPdfUrls, setProcessedPdfUrls] = useState<Record<FormClassKey, string | null>>({
-    X: null,
-    XII: null,
-  })
   const [downloadDialogClass, setDownloadDialogClass] = useState<FormClassKey | null>(null)
   const [previewTab, setPreviewTab] = useState<'pdf' | 'txt'>('pdf')
   const [previewLoading, setPreviewLoading] = useState(false)
@@ -92,54 +66,15 @@ const Form66: React.FC = () => {
   const [showForm66DatePreview, setShowForm66DatePreview] = useState(false)
   const [form66DatePreviewLoading, setForm66DatePreviewLoading] = useState(false)
   const [form66DatePreviewError, setForm66DatePreviewError] = useState<string | null>(null)
-  const API_BASE_URL = resolveApiBaseUrl()
-  const tenantHeader = getTenantHeader()
-  const tenantSlug = resolveTenantSlug()
-
-  const withAuthAndTenantHeaders = (options: RequestInit = {}): RequestInit => {
-    const token = getAuthToken()
-    return {
-      ...options,
-      headers: {
-        ...(options.headers || {}),
-        ...(tenantHeader ? { 'x-tenant-slug': tenantHeader } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-    }
-  }
-
-  const parseJsonSafely = async (response: Response) => {
-    try {
-      return await response.json()
-    } catch {
-      return null
-    }
-  }
-
-  const buildLocalTenantQuery = () => {
-    if (!tenantSlug) {
-      return ''
-    }
-
-    return `?tenant=${encodeURIComponent(tenantSlug)}`
-  }
-
-  // Compute stats
-  const stats = useMemo(() => {
-    const class10Records = records.filter(r => r.class === 'X' || r.class === '10th')
-    const class12Records = records.filter(r => r.class === 'XII' || r.class === '12th')
-    return {
-      totalRecords: records.length,
-      totalDates: dateGroups.length,
-      class10th: class10Records.length,
-      class12th: class12Records.length,
-    }
-  }, [records, dateGroups])
-
-  useEffect(() => {
-    fetchRecords()
-    fetchFileUrls()
-  }, [])
+  const recordsQuery = useForm66Records()
+  const fileUrlsQuery = useForm66FileUrls()
+  const uploadMutation = useUploadForm66Mutation()
+  const datePdfMutation = useForm66DatePdfMutation()
+  const uploading = uploadMutation.isPending
+  const loadingRecords = recordsQuery.isLoading
+  const records = recordsQuery.data ?? []
+  const originalFileUrls = fileUrlsQuery.data?.original ?? { X: null, XII: null }
+  const processedPdfUrls = fileUrlsQuery.data?.processed ?? { X: null, XII: null }
 
   useEffect(() => {
     return () => {
@@ -148,66 +83,6 @@ const Form66: React.FC = () => {
       })
     }
   }, [])
-
-  const fetchRecords = async () => {
-    try {
-      setLoadingRecords(true)
-      const response = await fetch(`${API_BASE_URL}/form66/records`, withAuthAndTenantHeaders())
-      const data = await parseJsonSafely(response)
-      const normalizedRecords = Array.isArray(data) ? data : []
-
-      setRecords(normalizedRecords)
-
-      if (!response.ok) {
-        const message =
-          (data && typeof data === 'object' && 'error' in data && typeof data.error === 'string' && data.error) ||
-          (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string' && data.message) ||
-          `Failed to fetch records (${response.status})`
-        throw new Error(message)
-      }
-
-      // Group records by date
-      const grouped = groupRecordsByDate(normalizedRecords)
-      setDateGroups(grouped)
-    } catch (error) {
-      console.error('Failed to fetch records:', error)
-      setRecords([])
-      setDateGroups([])
-    } finally {
-      setLoadingRecords(false)
-    }
-  }
-
-  const fetchFileUrls = async () => {
-    try {
-      const classConfigs: { key: FormClassKey; query: string }[] = [
-        { key: 'X', query: '10th' },
-        { key: 'XII', query: '12th' },
-      ]
-
-      const nextProcessedUrls: Record<FormClassKey, string | null> = { X: null, XII: null }
-      const nextOriginalUrls: Record<FormClassKey, string | null> = { X: null, XII: null }
-
-      await Promise.all(classConfigs.map(async ({ key, query }) => {
-        const pdfResponse = await fetch(`${API_BASE_URL}/form66/processed-pdf?class=${query}`, withAuthAndTenantHeaders())
-        if (pdfResponse.ok) {
-          const pdfData = await parseJsonSafely(pdfResponse)
-          nextProcessedUrls[key] = pdfData?.url || null
-        }
-
-        const originalResponse = await fetch(`${API_BASE_URL}/form66/original-file?class=${query}`, withAuthAndTenantHeaders())
-        if (originalResponse.ok) {
-          const originalData = await parseJsonSafely(originalResponse)
-          nextOriginalUrls[key] = originalData?.url || null
-        }
-      }))
-
-      setProcessedPdfUrls(nextProcessedUrls)
-      setOriginalFileUrls(nextOriginalUrls)
-    } catch (error) {
-      console.error('Failed to fetch file URLs:', error)
-    }
-  }
 
   const groupRecordsByDate = (records: Form66Record[]): DateGroup[] => {
     if (!records || records.length === 0) {
@@ -270,6 +145,20 @@ const Form66: React.FC = () => {
     })
   }
 
+  const dateGroups = useMemo(() => groupRecordsByDate(records), [records])
+
+  // Compute stats
+  const stats = useMemo(() => {
+    const class10Records = records.filter(r => r.class === 'X' || r.class === '10th')
+    const class12Records = records.filter(r => r.class === 'XII' || r.class === '12th')
+    return {
+      totalRecords: records.length,
+      totalDates: dateGroups.length,
+      class10th: class10Records.length,
+      class12th: class12Records.length,
+    }
+  }, [records, dateGroups])
+
   const handleFileSelect = () => {
     fileInputRef.current?.click()
   }
@@ -297,42 +186,21 @@ const Form66: React.FC = () => {
     }
 
     try {
-      setUploading(true)
       setUploadStatus(null)
       setProcessingStep('uploading')
-
-      const formData = new FormData()
-      formData.append('file', file)
 
       // Start simulating steps in parallel with actual upload
       const stepPromise = simulateProcessingSteps()
 
-      const response = await fetch(`${API_BASE_URL}/form66/upload`, withAuthAndTenantHeaders({
-        method: 'POST',
-        body: formData
-      }))
-
       // Wait for step simulation to finish
       await stepPromise
 
-      const data: UploadResponse = await response.json()
-
-      if (response.ok) {
-        setProcessingStep('complete')
-        setUploadStatus({
-          type: 'success',
-          message: `Successfully uploaded! Processed ${data.count || 0} records across ${data.dateCount || 0} exam dates.`
-        })
-
-        await fetchFileUrls()
-        fetchRecords() // Refresh the records table
-      } else {
-        setProcessingStep('error')
-        setUploadStatus({
-          type: 'error',
-          message: data.message || 'Upload failed'
-        })
-      }
+      const data: UploadResponse = await uploadMutation.mutateAsync(file)
+      setProcessingStep('complete')
+      setUploadStatus({
+        type: 'success',
+        message: `Successfully uploaded! Processed ${data.count || 0} records across ${data.dateCount || 0} exam dates.`
+      })
     } catch (error) {
       console.error('Upload error:', error)
       setProcessingStep('error')
@@ -341,7 +209,6 @@ const Form66: React.FC = () => {
         message: 'Failed to upload file. Please try again.'
       })
     } finally {
-      setUploading(false)
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -423,18 +290,7 @@ const Form66: React.FC = () => {
       return null
     })
     try {
-      const pdfPath = subjectCode
-        ? `/form66/dates/${date}/subjects/${subjectCode}/pdf`
-        : `/form66/dates/${date}/pdf`
-      const response = await fetch(`${API_BASE_URL}${pdfPath}${buildLocalTenantQuery()}`, withAuthAndTenantHeaders())
-      if (!response.ok) {
-        const data = await parseJsonSafely(response)
-        const message =
-          (data && typeof data === 'object' && 'message' in data && typeof data.message === 'string' && data.message) ||
-          `Failed to load PDF (${response.status})`
-        throw new Error(message)
-      }
-      const blob = await response.blob()
+      const blob = await datePdfMutation.mutateAsync({ date, subjectCode })
       const objectUrl = URL.createObjectURL(blob)
       setForm66DatePreviewUrl(objectUrl)
     } catch (error: any) {
@@ -493,12 +349,7 @@ const Form66: React.FC = () => {
 
         try {
           setPreviewLoading(true)
-          const response = await fetch(sourceUrl)
-          if (!response.ok) {
-            throw new Error(`Unable to load PDF preview (${response.status})`)
-          }
-
-          const rawBlob = await response.blob()
+          const rawBlob = await form66Service.fetchRemoteBlob(sourceUrl)
           const pdfBlob = rawBlob.type === 'application/pdf'
             ? rawBlob
             : new Blob([rawBlob], { type: 'application/pdf' })
@@ -537,12 +388,7 @@ const Form66: React.FC = () => {
 
         try {
           setPreviewLoading(true)
-          const response = await fetch(sourceUrl)
-          if (!response.ok) {
-            throw new Error(`Unable to load TXT preview (${response.status})`)
-          }
-
-          const content = await response.text()
+          const content = await form66Service.fetchRemoteText(sourceUrl)
           if (!isCancelled) {
             setTxtPreviewContent((prev) => ({ ...prev, [classKey]: content }))
           }
@@ -764,7 +610,7 @@ const Form66: React.FC = () => {
           </div>
           <div className="flex gap-3 shrink-0">
             <button
-              onClick={fetchRecords}
+              onClick={() => recordsQuery.refetch()}
               className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
               <RefreshCw className="w-4 h-4 mr-1.5" />

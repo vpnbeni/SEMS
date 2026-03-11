@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import { seatingPlanService, Room } from '../services/seatingPlanService'
 import centreDatesheetService, { type CentreDatesheetEntry } from '../services/centreDatesheetService'
+import { sidebarKeys } from '../hooks/useSidebarCounts'
 import './RoomAllocation.css'
 
 const RoomAllocation: React.FC = () => {
+  const queryClient = useQueryClient()
   const [rooms, setRooms] = useState<Room[]>([])
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -365,6 +368,7 @@ const RoomAllocation: React.FC = () => {
     try {
       await Promise.all(updates)
       await fetchRooms()
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
       toast.success(`Saved room allocation for ${updates.length} room(s)`)
     } catch (error) {
       console.error('Failed to save room allocation:', error)
@@ -379,6 +383,7 @@ const RoomAllocation: React.FC = () => {
       try {
         await seatingPlanService.createRoom(newRoom)
         await fetchRooms()
+        queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
         setNewRoom({ roomNo: '', roomName: '', floor: '' })
         setIsAddingNew(false)
       } catch (error: any) {
@@ -398,6 +403,7 @@ const RoomAllocation: React.FC = () => {
     try {
       await seatingPlanService.updateRoom(id, editingData)
       await fetchRooms()
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
       setEditingId(null)
       setEditingData({})
     } catch (error: any) {
@@ -445,6 +451,7 @@ const RoomAllocation: React.FC = () => {
       await Promise.all(ids.map((id) => seatingPlanService.deleteRoom(id)))
       clearSelection()
       await fetchRooms()
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     } catch (error) {
       console.error('Failed to delete rooms:', error)
       alert('Failed to delete some rooms')

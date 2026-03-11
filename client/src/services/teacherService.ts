@@ -69,6 +69,15 @@ export interface PaginatedTeachersResponse {
   itemsPerPage: number
 }
 
+export interface TeacherExportFilters {
+  search?: string
+  department?: string
+  status?: 'active' | 'inactive' | 'all'
+  joiningDateFrom?: string
+  joiningDateTo?: string
+  minExperience?: string
+}
+
 function parseTeachersResponse(res: any): PaginatedTeachersResponse {
   const body = res.data ?? res
   const inner = body.data // { data: teachers[], pagination } or array
@@ -108,6 +117,55 @@ const getNextEmployeeId = () => {
   return api.get('/teachers/next-employee-id')
 }
 
+const toExportParams = (filters: TeacherExportFilters, exportAll = false) => {
+  if (exportAll) return {}
+
+  const params: Record<string, string> = {}
+  if (filters.search) params.search = filters.search
+  if (filters.department && filters.department !== 'all') params.department = filters.department
+  if (filters.status && filters.status !== 'all') {
+    params.isActive = filters.status === 'active' ? 'true' : 'false'
+  }
+  if (filters.joiningDateFrom) params.joiningDateFrom = filters.joiningDateFrom
+  if (filters.joiningDateTo) params.joiningDateTo = filters.joiningDateTo
+  if (filters.minExperience) params.minExperience = filters.minExperience
+  return params
+}
+
+const getExportPreview = async (filters: TeacherExportFilters) => {
+  const response = await api.get('/export/teachers/preview', {
+    params: toExportParams(filters, false),
+  })
+  return response?.data?.data ?? { total: 0, filtered: 0 }
+}
+
+const exportTeachersCsv = async (filters: TeacherExportFilters, exportAll: boolean): Promise<Blob> => {
+  const response = await api.get('/export/teachers', {
+    params: toExportParams(filters, exportAll),
+    responseType: 'blob',
+  })
+  return response.data
+}
+
+const downloadImportTemplate = async (format: 'csv' | 'xlsx' = 'csv'): Promise<Blob> => {
+  const response = await api.get('/teachers/import-template', {
+    params: { format },
+    responseType: 'blob',
+  })
+  return response.data
+}
+
+const uploadImportTemplate = async (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await api.post('/teachers/import-template/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return response.data
+}
+
 const teacherService = {
   getAll,
   getById,
@@ -115,6 +173,10 @@ const teacherService = {
   update,
   deleteById,
   getNextEmployeeId,
+  getExportPreview,
+  exportTeachersCsv,
+  downloadImportTemplate,
+  uploadImportTemplate,
 }
 
 export default teacherService

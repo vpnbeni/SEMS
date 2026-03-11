@@ -1,52 +1,27 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
+import { useQueryClient } from '@tanstack/react-query'
 import { logout, selectUser } from '../../redux/slices/authSlice'
 import type { AppDispatch } from '../../redux/store'
-import api from '../../services/api'
 import { useAcademicSession } from '../../contexts/AcademicSessionContext'
 import { isFeatureEnabledForPath } from '../../constants/featureAccess'
-import { getAuthToken } from '../../utils/authStorage'
+import { useCentreDetails } from '../../hooks/useCentreDetails'
+import {
+  useSidebarCounts,
+  sidebarKeys,
+  type SidebarCount,
+} from '../../hooks/useSidebarCounts'
 
-type SidebarCount = number | null
-
-interface SidebarCounts {
-  examFunctionaries: SidebarCount
-  candidates: SidebarCount
-  subjects: SidebarCount
-  answerSheets: SidebarCount
-  datesheetDays: SidebarCount
-  rooms: SidebarCount
-}
-
-const SIDEBAR_COUNTS_STORAGE_KEY = 'sidebarCounts'
-const SIDEBAR_COUNTS_TIME_KEY = 'sidebarCountsTime'
-const SIDEBAR_COUNTS_CACHE_TTL_MS = 5 * 60 * 1000
-
-const EMPTY_COUNTS: SidebarCounts = {
+const EMPTY_COUNTS = {
   examFunctionaries: null,
   candidates: null,
   subjects: null,
   answerSheets: null,
   datesheetDays: null,
-  rooms: null
-}
-
-const parseCount = (value: unknown): SidebarCount => {
-  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
-    return value
-  }
-
-  if (typeof value === 'string' && value.trim() !== '') {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      return parsed
-    }
-  }
-
-  return null
-}
+  rooms: null,
+} as const
 
 const toBadgeValue = (value: SidebarCount): string | null => {
   if (value === null || value <= 0) {
@@ -55,54 +30,42 @@ const toBadgeValue = (value: SidebarCount): string | null => {
   return value.toString()
 }
 
-const normalizeCounts = (value: unknown): SidebarCounts => {
-  const raw = (typeof value === 'object' && value !== null
-    ? value
-    : {}) as Partial<Record<keyof SidebarCounts, unknown>>
-
-  return {
-    examFunctionaries: parseCount(raw.examFunctionaries),
-    candidates: parseCount(raw.candidates),
-    subjects: parseCount(raw.subjects),
-    answerSheets: parseCount(raw.answerSheets),
-    datesheetDays: parseCount(raw.datesheetDays),
-    rooms: parseCount(raw.rooms)
-  }
-}
-
-const getAnswerSheetRecordCount = (answerStatsPayload: unknown): SidebarCount => {
-  const byType = (answerStatsPayload as { data?: { byType?: unknown } } | null)?.data?.byType
-  if (!Array.isArray(byType)) {
-    return null
-  }
-
-  const total = byType.reduce((sum: number, entry: unknown) => {
-    const count = parseCount((entry as { count?: unknown } | null)?.count)
-    return sum + (count ?? 0)
-  }, 0)
-
-  return total
-}
-
 const Sidebar: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
+  const queryClient = useQueryClient()
   const currentUser = useSelector(selectUser)
   const location = useLocation()
   const navigate = useNavigate()
   const { currentSession, clearSession } = useAcademicSession()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
-  const [counts, setCounts] = useState<SidebarCounts>(EMPTY_COUNTS)
-  const [centreLabel, setCentreLabel] = useState<string>('')
-  const [centreCode, setCentreCode] = useState<string>('')
-  const [centreName, setCentreName] = useState<string>('')
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const isPathAllowed = (href: string) => isFeatureEnabledForPath(href, currentUser?.featureToggles)
   const canAccessCentreDetails = isPathAllowed('/centre-details')
 
-  useEffect(() => {
-    fetchCounts(true)
-  }, [currentUser?.featureToggles])
+  const sidebarCountsAccess = useMemo(
+    () => ({
+      examFunctionaries: isPathAllowed('/exam-functionaries'),
+      candidates: isPathAllowed('/candidates'),
+      subjects: isPathAllowed('/subjects'),
+      answerSheets: isPathAllowed('/answersheets'),
+      datesheetDays: isPathAllowed('/datesheets'),
+      rooms: isPathAllowed('/examrooms'),
+    }),
+    [currentUser?.featureToggles]
+  )
+
+  const { data: countsData } = useSidebarCounts(sidebarCountsAccess)
+  const counts = countsData ?? EMPTY_COUNTS
+  const { data: centreDetails } = useCentreDetails({
+    enabled: canAccessCentreDetails,
+  })
+
+  const centreNo = String(centreDetails?.centreNo || '').trim()
+  const schoolCode = String(centreDetails?.centreSchoolCode || '').trim()
+  const centreName = String(centreDetails?.centreName || '').trim()
+  const centreCode = schoolCode || centreNo
+  const centreLabel = [centreCode, centreName].filter(Boolean).join(' - ')
 
   // Refresh counts when location changes (user navigates)
   useEffect(() => {
@@ -110,11 +73,11 @@ const Sidebar: React.FC = () => {
     const relevantPaths = ['/candidates', '/subjects', '/exam-functionaries', '/duties', '/answersheets', '/datesheets', '/examrooms']
     if (relevantPaths.some(path => location.pathname.includes(path))) {
       const timer = setTimeout(() => {
-        fetchCounts(false)
+        queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
       }, 1000)
       return () => clearTimeout(timer)
     }
-  }, [location.pathname])
+  }, [location.pathname, queryClient])
 
   const handleLogout = () => {
     dispatch(logout())
@@ -122,114 +85,7 @@ const Sidebar: React.FC = () => {
 
   const handleSwitchSession = () => {
     clearSession()
-    // Clear cached sidebar counts since they are session-scoped
-    localStorage.removeItem(SIDEBAR_COUNTS_STORAGE_KEY)
-    localStorage.removeItem(SIDEBAR_COUNTS_TIME_KEY)
     navigate('/select-session')
-  }
-
-  useEffect(() => {
-    const fetchCentreLabel = async () => {
-      if (!canAccessCentreDetails) {
-        setCentreLabel('')
-        setCentreCode('')
-        setCentreName('')
-        return
-      }
-
-      try {
-        const response = await api.get('/centre-details')
-        const payload = response?.data?.data || {}
-        const centreNo = String(payload?.centreNo || '').trim()
-        const schoolCode = String(payload?.centreSchoolCode || '').trim()
-        const centreNameValue = String(payload?.centreName || '').trim()
-        const label = [schoolCode || centreNo, centreNameValue].filter(Boolean).join(' - ')
-        setCentreLabel(label)
-        setCentreCode(centreNo)
-        setCentreName(centreNameValue)
-      } catch {
-        setCentreLabel('')
-        setCentreCode('')
-        setCentreName('')
-      }
-    }
-
-    fetchCentreLabel()
-  }, [canAccessCentreDetails])
-
-  const fetchCounts = async (useCache = true) => {
-    try {
-      // Check if we have cached counts (valid for 5 minutes)
-      const cachedCounts = localStorage.getItem(SIDEBAR_COUNTS_STORAGE_KEY)
-      const cacheTime = localStorage.getItem(SIDEBAR_COUNTS_TIME_KEY)
-
-      if (useCache && cachedCounts && cacheTime) {
-        const age = Date.now() - parseInt(cacheTime, 10)
-        if (age < SIDEBAR_COUNTS_CACHE_TTL_MS) { // 5 minutes
-          try {
-            setCounts(normalizeCounts(JSON.parse(cachedCounts)))
-          } catch (error) {
-            console.warn('Invalid sidebar count cache, ignoring it:', error)
-          }
-        }
-      }
-
-      const token = getAuthToken()
-      if (!token) return
-
-      const teachersRequest = isPathAllowed('/exam-functionaries')
-        ? api.get('/teachers', { params: { limit: 1 } })
-        : Promise.resolve({ data: null })
-      const candidatesRequest = isPathAllowed('/candidates')
-        ? api.get('/candidates', { params: { limit: 1 } })
-        : Promise.resolve({ data: null })
-      const subjectsRequest = isPathAllowed('/subjects')
-        ? api.get('/subjects/stats')
-        : Promise.resolve({ data: null })
-      const datesheetsRequest = isPathAllowed('/datesheets')
-        ? api.get('/datesheets/stats')
-        : Promise.resolve({ data: null })
-      const roomsRequest = isPathAllowed('/examrooms')
-        ? api.get('/seating-plan/rooms')
-        : Promise.resolve({ data: null })
-      const answerSheetsRequest = isPathAllowed('/answersheets')
-        ? api.get('/answersheets/stats/summary')
-        : Promise.resolve({ data: null })
-
-      // Fetch all counts in parallel with error handling
-      const results = await Promise.allSettled([
-        teachersRequest,
-        candidatesRequest,
-        subjectsRequest,
-        datesheetsRequest,
-        roomsRequest,
-        answerSheetsRequest
-      ])
-
-      const teachers = results[0].status === 'fulfilled' ? results[0].value.data : null
-      const candidates = results[1].status === 'fulfilled' ? results[1].value.data : null
-      const subjects = results[2].status === 'fulfilled' ? results[2].value.data : null
-      const datesheets = results[3].status === 'fulfilled' ? results[3].value.data : null
-      const rooms = results[4].status === 'fulfilled' ? results[4].value.data : null
-      const answerStats = results[5].status === 'fulfilled' ? results[5].value.data : null
-
-      const newCounts: SidebarCounts = {
-        examFunctionaries: parseCount(teachers?.data?.pagination?.totalCount),
-        candidates: parseCount(candidates?.total),
-        subjects: parseCount(subjects?.data?.total),
-        answerSheets: getAnswerSheetRecordCount(answerStats),
-        datesheetDays: parseCount(datesheets?.data?.centreDays ?? datesheets?.data?.fullDatesheetDays),
-        rooms: parseCount(Array.isArray(rooms) ? rooms.length : null)
-      }
-
-      setCounts(newCounts)
-
-      // Cache latest dynamic values (including zero/null)
-      localStorage.setItem(SIDEBAR_COUNTS_STORAGE_KEY, JSON.stringify(newCounts))
-      localStorage.setItem(SIDEBAR_COUNTS_TIME_KEY, Date.now().toString())
-    } catch (error) {
-      console.error('Failed to fetch counts:', error)
-    }
   }
 
   const toggleGroup = (groupName: string) => {

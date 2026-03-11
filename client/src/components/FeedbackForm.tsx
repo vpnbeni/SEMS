@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import api from '@/services/api'
+import { useCreateFeedbackMutation } from '@/hooks/useSupport'
 
 type FeedbackFormProps = {
   onSubmitted?: () => void
@@ -11,7 +11,8 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSubmitted }) => {
   const [rating, setRating] = useState<number | null>(5)
   const [message, setMessage] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [submitting, setSubmitting] = useState(false)
+  const submitFeedbackMutation = useCreateFeedbackMutation()
+  const submitting = submitFeedbackMutation.isPending
 
   const validate = () => {
     const next: Record<string, string> = {}
@@ -30,12 +31,11 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSubmitted }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validate()) return
-    setSubmitting(true)
     try {
-      await api.post('/support/feedback', {
+      await submitFeedbackMutation.mutateAsync({
         name: name.trim(),
         email: email.trim(),
-        rating,
+        rating: rating as number,
         message: message.trim(),
       })
       setName('')
@@ -43,8 +43,8 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSubmitted }) => {
       setRating(5)
       setMessage('')
       if (onSubmitted) onSubmitted()
-    } finally {
-      setSubmitting(false)
+    } catch {
+      // API interceptor already shows message.
     }
   }
 
@@ -132,4 +132,3 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSubmitted }) => {
 }
 
 export default FeedbackForm
-

@@ -9,6 +9,7 @@ import candidateService, {
   type CandidateListParams,
   type CandidateListResponse,
 } from '../services/candidateService'
+import { sidebarKeys } from './useSidebarCounts'
 import type { Candidate, CandidateStats } from '../types/candidate'
 
 export const candidateKeys = {
@@ -223,6 +224,7 @@ export function useImportCandidatesMutation(
     mutationFn: (file: File) => candidateService.importFromPDF(file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: candidateKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })
@@ -238,6 +240,7 @@ export function useDeleteCandidateMutation(
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: candidateKeys.all })
+      queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
     },
     ...options,
   })

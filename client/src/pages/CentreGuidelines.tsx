@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Tabs } from '../components/common/Tabs'
 import type { TabConfig } from '../components/common/Tabs'
-import api from '../services/api'
+import {
+  useCentreGuidelinesCheck,
+  useCentreGuidelinesParsed,
+  useGuidelinesViewerMutation,
+  useSearchCentreGuidelinesMutation,
+  useUploadCentreGuidelinesMutation,
+} from '../hooks/useCentreGuidelines'
 
 interface Chapter {
   number: string
@@ -55,24 +61,26 @@ const CentreGuidelines: React.FC = () => {
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [uploadedPdf, setUploadedPdf] = useState<string | null>(null)
-  const [guidelinesData, setGuidelinesData] = useState<GuidelinesData | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SearchResult[]>([])
-  const [searching, setSearching] = useState(false)
   const [activeTab, setActiveTab] = useState<'viewer' | 'chapters' | 'appendices' | 'search'>('chapters')
   const [expandedAppendix, setExpandedAppendix] = useState<string | null>(null)
   const [expandedChapter, setExpandedChapter] = useState<string | null>(null)
   const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null)
   const [pdfViewerLoading, setPdfViewerLoading] = useState(false)
-  const [loading, setLoading] = useState(true)
   const pdfBlobUrlRef = useRef<string | null>(null)
   const previousUploadedPdfRef = useRef<string | null>(null)
 
-  useEffect(() => {
-    checkForExistingPdf()
-  }, [])
+  const checkQuery = useCentreGuidelinesCheck()
+  const uploadedPdf = checkQuery.data?.exists && checkQuery.data?.path ? checkQuery.data.path : null
+  const parsedQuery = useCentreGuidelinesParsed({ enabled: Boolean(uploadedPdf) })
+  const uploadMutation = useUploadCentreGuidelinesMutation()
+  const searchMutation = useSearchCentreGuidelinesMutation()
+  const viewerMutation = useGuidelinesViewerMutation()
+  const guidelinesData = (parsedQuery.data as GuidelinesData | null) ?? null
+  const loading = checkQuery.isLoading || (Boolean(uploadedPdf) && parsedQuery.isLoading)
+  const uploading = uploadMutation.isPending
+  const searching = searchMutation.isPending
 
   // Invalidate PDF viewer cache when the guidelines document changes (new upload)
   useEffect(() => {
@@ -93,8 +101,7 @@ const CentreGuidelines: React.FC = () => {
 
     let cancelled = false
     setPdfViewerLoading(true)
-    api.get('/guidelines/file', { responseType: 'blob' })
-      .then((res) => res.data as Blob)
+    viewerMutation.mutateAsync()
       .then((blob) => {
         if (cancelled) return
         const url = URL.createObjectURL(blob)
@@ -110,7 +117,7 @@ const CentreGuidelines: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [activeTab, uploadedPdf, pdfViewerUrl])
+  }, [activeTab, uploadedPdf, pdfViewerUrl, viewerMutation])
 
   // Unmount: revoke blob URL to avoid memory leaks
   useEffect(() => {
@@ -121,33 +128,6 @@ const CentreGuidelines: React.FC = () => {
       }
     }
   }, [])
-
-  const checkForExistingPdf = async () => {
-    try {
-      const response = await api.get('/guidelines/check')
-      const data = response.data
-      if (data.exists && data.path) {
-        setUploadedPdf(data.path)
-        await loadGuidelinesData()
-      } else {
-        setLoading(false)
-      }
-    } catch {
-      // PDF doesn't exist yet or API error
-      setLoading(false)
-    }
-  }
-
-  const loadGuidelinesData = async () => {
-    try {
-      const response = await api.get('/guidelines/parse')
-      setGuidelinesData(response.data?.data ?? null)
-    } catch (error) {
-      console.error('Error loading guidelines data:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const setFileIfPdf = (file: File | null) => {
     if (file && file.type === 'application/pdf') {
@@ -184,26 +164,14 @@ const CentreGuidelines: React.FC = () => {
   const handleUpload = async () => {
     if (!selectedFile) return
 
-    setUploading(true)
-    const formData = new FormData()
-    formData.append('pdf', selectedFile)
-
     try {
-      const response = await api.post('/guidelines/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      const data = response.data
-      setUploadedPdf(data.path)
+      await uploadMutation.mutateAsync(selectedFile)
       setShowUploadModal(false)
       setSelectedFile(null)
       alert('Guidelines uploaded successfully!')
-      setLoading(true)
-      await loadGuidelinesData()
     } catch (error) {
       console.error('Upload error:', error)
       alert('Error uploading guidelines')
-    } finally {
-      setUploading(false)
     }
   }
 
@@ -213,19 +181,13 @@ const CentreGuidelines: React.FC = () => {
       return
     }
 
-    setSearching(true)
     try {
-      const response = await api.get('/guidelines/search', {
-        params: { query: searchQuery }
-      })
-      const data = response.data
-      setSearchResults(data.results)
+      const results = await searchMutation.mutateAsync(searchQuery)
+      setSearchResults(results)
       setActiveTab('search')
     } catch (error) {
       console.error('Search error:', error)
       alert('Error searching guidelines')
-    } finally {
-      setSearching(false)
     }
   }
 
