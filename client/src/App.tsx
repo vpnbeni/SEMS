@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { HashRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
-import { getCurrentUser, selectIsAuthenticated, selectAuthLoading } from './redux/slices/authSlice'
+import { getCurrentUser, selectIsAuthenticated, selectAuthLoading, selectUser } from './redux/slices/authSlice'
 import { useAcademicSession } from './contexts/AcademicSessionContext'
 import authService from './services/authService'
 import type { AppDispatch } from './redux/store'
@@ -59,7 +59,10 @@ function App() {
   const dispatch = useDispatch<AppDispatch>()
   const isAuthenticated = useSelector(selectIsAuthenticated)
   const loading = useSelector(selectAuthLoading)
+  const user = useSelector(selectUser)
   const { hasSession } = useAcademicSession()
+
+  const timetableFeatureEnabled = user?.featureToggles?.timetable_classes !== false
 
   useEffect(() => {
     // Initialize auth on app startup
@@ -163,7 +166,18 @@ function App() {
 
           {/* Protected Routes */}
           <Route path="/" element={<ProtectedRoute />}>
-            <Route path="/" element={<TimetableProvider><Layout /></TimetableProvider>}>
+            <Route
+              path="/"
+              element={
+                timetableFeatureEnabled ? (
+                  <TimetableProvider>
+                    <Layout />
+                  </TimetableProvider>
+                ) : (
+                  <Layout />
+                )
+              }
+            >
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="school-hub" element={<SchoolHub />} />
               <Route path="staff" element={<Staff />} />

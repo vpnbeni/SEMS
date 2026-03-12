@@ -4,9 +4,19 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { useTeachers } from '../hooks/useTeachers'
 import type { Teacher } from '../services/teacherService'
-import { seatingPlanService, type Room, type SeatingPlanTemplateSettings } from '../services/seatingPlanService'
-import centreDatesheetService from '../services/centreDatesheetService'
+import { seatingPlanService, type Room } from '../services/seatingPlanService'
 import dutiesService from '../services/dutiesService'
+import Dialog from '../components/common/Dialog/Dialog'
+import {
+  useDutiesSupport,
+  useDutySelections,
+  useDutyAllocationMode,
+  useSaveDutySelectionsMutation,
+  useUpdateDutyAllocationModeMutation,
+  useAssignDailyDutiesMutation,
+} from '../hooks/useDuties'
+import { useDailyDuties } from '../hooks/useDashboard'
+import { useSeatingPlanTemplateSettings } from '../hooks/useSeatingPlan'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -176,17 +186,25 @@ const DUTY_LIST_COLUMN_CONTROLS: Array<{
 /* ────────── component ────────── */
 
 const Duties: React.FC = () => {
-  const [rooms, setRooms] = useState<Room[]>([])
-  const [examDates, setExamDates] = useState<string[]>([])
   const dutiesTableRef = useRef<HTMLDivElement | null>(null)
-  const [requiredRoomsByDate, setRequiredRoomsByDate] = useState<Record<string, number>>({})
-  const [candidatesByDate, setCandidatesByDate] = useState<Record<string, number>>({})
-  const [examSubjectCodesByDate, setExamSubjectCodesByDate] = useState<Record<string, string[]>>({})
+  const hasScrolledToDateRef = useRef(false)
+
+  const { data: supportData, isLoading: loadingSupport } = useDutiesSupport()
+  const rooms = supportData?.rooms ?? []
+  const examDates = supportData?.examDates ?? []
+  const requiredRoomsByDate = supportData?.requiredRoomsByDate ?? {}
+  const candidatesByDate = supportData?.candidatesByDate ?? {}
+  const examSubjectCodesByDate = supportData?.examSubjectCodesByDate ?? {}
+
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('ASI')
-  const [isSaving, setIsSaving] = useState(false)
-  const [allocationMode, setAllocationMode] = useState<'auto' | 'manual'>('manual')
-  const [loadingAllocationMode, setLoadingAllocationMode] = useState(false)
+  const allocationModeQuery = useDutyAllocationMode()
+  const updateAllocationModeMutation = useUpdateDutyAllocationModeMutation()
+  const saveSelectionsMutation = useSaveDutySelectionsMutation()
+  const assignDailyDutiesMutation = useAssignDailyDutiesMutation()
+  const allocationMode = allocationModeQuery.data ?? 'manual'
+  const loadingAllocationMode = allocationModeQuery.isLoading || updateAllocationModeMutation.isPending
+  const isSaving = saveSelectionsMutation.isPending
   // Track checked duties: key = "funcId::dateKey", value = true/false
   const [checkedDuties, setCheckedDuties] = useState<Record<string, boolean>>({})
   const [selectedRoomDate, setSelectedRoomDate] = useState('')
@@ -201,24 +219,38 @@ const Duties: React.FC = () => {
   const [roomRollNumbersByDate, setRoomRollNumbersByDate] = useState<
     Record<string, Record<string, string[]>>
   >({})
-  const [loadingRoomAssignments, setLoadingRoomAssignments] = useState(false)
-  const [savingRoomAssignments, setSavingRoomAssignments] = useState(false)
-  const [functionaryDutyListFormat, setFunctionaryDutyListFormat] = useState<{
-    pageSize: string
-    orientation: 'landscape' | 'portrait'
-  }>({
-    pageSize: 'A4',
-    orientation: 'landscape',
-  })
-  const [dutyListColumnWidths, setDutyListColumnWidths] = useState(DEFAULT_DUTY_LIST_COLUMN_WIDTHS)
-  const [templateSettingsSnapshot, setTemplateSettingsSnapshot] = useState<SeatingPlanTemplateSettings | null>(null)
-  const [dutyListLayoutReady, setDutyListLayoutReady] = useState(false)
+  const savingRoomAssignments = assignDailyDutiesMutation.isPending
   const [dutyPdfPreviewUrl, setDutyPdfPreviewUrl] = useState<string | null>(null)
   const [showDutyPdfPreview, setShowDutyPdfPreview] = useState(false)
   const [loadingDutyPdfPreview, setLoadingDutyPdfPreview] = useState(false)
   const [dutyPdfPageCount, setDutyPdfPageCount] = useState(0)
   const [dutyPdfRenderError, setDutyPdfRenderError] = useState<string | null>(null)
   const [invigilatorDutySort, setInvigilatorDutySort] = useState<'none' | 'asc' | 'desc'>('none')
+  const [showConflictDialog, setShowConflictDialog] = useState(false)
+  const [conflictDialogData, setConflictDialogData] = useState<any[] | null>(null)
+  const [expandedConflictIdx, setExpandedConflictIdx] = useState<number | null>(null)
+
+  const { data: templateSettings, isLoading: loadingTemplateSettings } = useSeatingPlanTemplateSettings()
+  const templateSettingsSnapshot = templateSettings ?? null
+  const functionaryDutyListFormat = useMemo((): { pageSize: string; orientation: 'landscape' | 'portrait' } => {
+    const pageSize = String(templateSettings?.functionaryDutyList?.pageSize || 'A4').toUpperCase()
+    const orientation =
+      String(templateSettings?.functionaryDutyList?.orientation || 'landscape').toLowerCase() === 'portrait'
+        ? ('portrait' as const)
+        : ('landscape' as const)
+    return { pageSize: pageSize || 'A4', orientation }
+  }, [templateSettings])
+  const [dutyListColumnWidths, setDutyListColumnWidths] = useState(DEFAULT_DUTY_LIST_COLUMN_WIDTHS)
+  const hasInitializedColumnWidthsRef = useRef(false)
+  useEffect(() => {
+    if (!templateSettings?.functionaryDutyList || hasInitializedColumnWidthsRef.current) return
+    hasInitializedColumnWidthsRef.current = true
+    setDutyListColumnWidths({
+      ...DEFAULT_DUTY_LIST_COLUMN_WIDTHS,
+      ...(templateSettings.functionaryDutyList.columnWidths || {}),
+    })
+  }, [templateSettings])
+  const dutyListLayoutReady = Boolean(templateSettings) && !loadingTemplateSettings
 
   const dutyListControlByKey = useMemo(() => {
     const map = new Map<string, { min: number; max: number }>()
@@ -382,6 +414,13 @@ const Duties: React.FC = () => {
     [selectedRoomDate, selectedInvigilatorCountForRoomDate, allocatedRoomsForSelectedDate.length]
   )
 
+  // Only consider rooms that are actually allocated for the selected date.
+  // The API can return duties for rooms not allocated on this date (stale/ghost entries)
+  // which causes false "assigned elsewhere" conflicts.
+  const allocatedRoomIdSet = useMemo(() => {
+    return new Set(allocatedRoomsForSelectedDate.map((r) => String(r._id || '').trim()))
+  }, [allocatedRoomsForSelectedDate])
+
   const isFunctionaryAssignedElsewhere = useCallback(
     (dateKey: string, functionaryId: string, currentRoomId: string, slot: 'first' | 'second') => {
       const normalizedFunctionaryId = String(functionaryId || '').trim()
@@ -395,6 +434,7 @@ const Duties: React.FC = () => {
         const roomId = String(roomIdRaw || '').trim()
         const assignedId = String(assignedIdRaw || '').trim()
         if (!roomId || !assignedId) continue
+        if (!allocatedRoomIdSet.has(roomId)) continue
         const isSameSlot = slot === 'first' && roomId === normalizedCurrentRoomId
         if (isSameSlot) continue
         if (assignedId === normalizedFunctionaryId) return true
@@ -404,6 +444,7 @@ const Duties: React.FC = () => {
         const roomId = String(roomIdRaw || '').trim()
         const assignedId = String(assignedIdRaw || '').trim()
         if (!roomId || !assignedId) continue
+        if (!allocatedRoomIdSet.has(roomId)) continue
         const isSameSlot = slot === 'second' && roomId === normalizedCurrentRoomId
         if (isSameSlot) continue
         if (assignedId === normalizedFunctionaryId) return true
@@ -411,7 +452,7 @@ const Duties: React.FC = () => {
 
       return false
     },
-    [roomAssignmentsByDate, roomAssignmentsByDateSecond]
+    [roomAssignmentsByDate, roomAssignmentsByDateSecond, allocatedRoomIdSet]
   )
 
   const getRemainingInvigilatorIdsForSlot = useCallback(
@@ -431,6 +472,7 @@ const Duties: React.FC = () => {
         const mappedRoomId = String(mappedRoomIdRaw || '').trim()
         const assignedId = String(assignedIdRaw || '').trim()
         if (!assignedId) continue
+        if (!allocatedRoomIdSet.has(mappedRoomId)) continue
         const keepCurrentSlot = slot === 'first' && mappedRoomId === normalizedRoomId
         if (!keepCurrentSlot) selectedIds.delete(assignedId)
       }
@@ -438,13 +480,14 @@ const Duties: React.FC = () => {
         const mappedRoomId = String(mappedRoomIdRaw || '').trim()
         const assignedId = String(assignedIdRaw || '').trim()
         if (!assignedId) continue
+        if (!allocatedRoomIdSet.has(mappedRoomId)) continue
         const keepCurrentSlot = slot === 'second' && mappedRoomId === normalizedRoomId
         if (!keepCurrentSlot) selectedIds.delete(assignedId)
       }
 
       return selectedIds
     },
-    [selectedInvigilatorsForDate, roomAssignmentsByDate, roomAssignmentsByDateSecond]
+    [selectedInvigilatorsForDate, roomAssignmentsByDate, roomAssignmentsByDateSecond, allocatedRoomIdSet]
   )
 
   /* ── Count per tab ── */
@@ -650,110 +693,6 @@ const Duties: React.FC = () => {
     setCheckedDuties((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
-  /* ── Fetch rooms + exam dates + candidate counts ── */
-  useEffect(() => {
-    const fetchSupportData = async () => {
-      try {
-        const [roomsRes, datesheetRes] = await Promise.all([
-          seatingPlanService.getRooms(),
-          centreDatesheetService.getEntries(),
-        ])
-
-        setRooms(roomsRes || [])
-
-        const rawEntries = Array.isArray(datesheetRes?.data) ? datesheetRes.data : []
-        // Only include dates that have at least one exam with candidates
-        const entries = rawEntries.filter(
-          (entry: { candidateCount?: number }) => Number(entry?.candidateCount ?? 0) > 0
-        )
-        const nextRequired: Record<string, number> = {}
-        const nextCandidates: Record<string, number> = {}
-        const nextExamSubjectCodesByDate: Record<string, Set<string>> = {}
-        const uniqueDates = Array.from(
-          new Set(
-            entries
-              .map((entry) => {
-                const dateKey = normalizeDateKey(entry.examDate)
-                if (dateKey) {
-                  nextRequired[dateKey] = (nextRequired[dateKey] || 0) + Number(entry.roomsNeeded || 0)
-                  nextCandidates[dateKey] = (nextCandidates[dateKey] || 0) + Number(entry.candidateCount || 0)
-                  if (!nextExamSubjectCodesByDate[dateKey]) {
-                    nextExamSubjectCodesByDate[dateKey] = new Set<string>()
-                  }
-                  const subjectCode = normalizeSubjectCode(entry.subjectCode)
-                  if (subjectCode) nextExamSubjectCodesByDate[dateKey].add(subjectCode)
-                }
-                return dateKey
-              })
-              .filter(Boolean) as string[]
-          )
-        ).sort()
-
-        setExamDates(uniqueDates)
-        setRequiredRoomsByDate(nextRequired)
-        setCandidatesByDate(nextCandidates)
-        setExamSubjectCodesByDate(
-          Object.fromEntries(
-            Object.entries(nextExamSubjectCodesByDate).map(([dateKey, codes]) => [dateKey, Array.from(codes)])
-          )
-        )
-      } catch (error: any) {
-        console.error('Failed to load support data:', error)
-        toast.error('Failed to load exam dates or rooms')
-      }
-    }
-
-    fetchSupportData()
-  }, [])
-
-  useEffect(() => {
-    const fetchAllocationMode = async () => {
-      try {
-        setLoadingAllocationMode(true)
-        const mode = await dutiesService.getDutyAllocationMode()
-        if (mode === 'auto') {
-          // Keep manual as default landing mode for Duties page.
-          await dutiesService.updateDutyAllocationMode('manual')
-          setAllocationMode('manual')
-        } else {
-          setAllocationMode('manual')
-        }
-      } catch (error) {
-        console.error('Failed to fetch duty allocation mode:', error)
-        setAllocationMode('manual')
-      } finally {
-        setLoadingAllocationMode(false)
-      }
-    }
-
-    fetchAllocationMode()
-  }, [])
-
-  useEffect(() => {
-    const fetchFunctionaryDutyListFormat = async () => {
-      try {
-        const settings = await seatingPlanService.getTemplateSettings()
-        setTemplateSettingsSnapshot(settings)
-        const pageSize = String(settings?.functionaryDutyList?.pageSize || 'A4').toUpperCase()
-        const orientation = String(settings?.functionaryDutyList?.orientation || 'landscape').toLowerCase() === 'portrait'
-          ? 'portrait'
-          : 'landscape'
-        setFunctionaryDutyListFormat({
-          pageSize: pageSize || 'A4',
-          orientation,
-        })
-        setDutyListColumnWidths({
-          ...DEFAULT_DUTY_LIST_COLUMN_WIDTHS,
-          ...(settings?.functionaryDutyList?.columnWidths || {}),
-        })
-        setDutyListLayoutReady(true)
-      } catch (error) {
-        console.error('Failed to load functionary duty list format:', error)
-      }
-    }
-
-    fetchFunctionaryDutyListFormat()
-  }, [])
 
   useEffect(() => {
     if (!dutyListLayoutReady || !templateSettingsSnapshot) return
@@ -776,42 +715,33 @@ const Duties: React.FC = () => {
     return () => window.clearTimeout(timer)
   }, [dutyListColumnWidths, functionaryDutyListFormat.orientation, dutyListLayoutReady, templateSettingsSnapshot])
 
-  /* ── Load saved selections when tab changes ── */
-  const loadSelections = useCallback(async () => {
-    try {
-      const saved = await dutiesService.getDutySelections(activeDutyType)
-      setCheckedDuties(saved)
-    } catch (err) {
-      console.error('Failed to load duty selections:', err)
-    }
-  }, [activeDutyType])
-
+  /* ── Sync duty selections from cache when tab or data changes ── */
+  const { data: selectionsData } = useDutySelections(activeDutyType)
   useEffect(() => {
-    if (activeDutyType) loadSelections()
-  }, [activeDutyType, loadSelections])
+    if (selectionsData) setCheckedDuties(selectionsData)
+  }, [activeDutyType, selectionsData])
 
-  /* ── Auto-scroll duties table to today's date column (or nearest future exam date) ── */
+  /* ── Auto-scroll duties table to today's date column once on initial load (not on tab switch) ── */
+  const supportOrTeachersLoading = loadingSupport || loadingTeachers
   useEffect(() => {
-    if (loadingTeachers || examDates.length === 0) return
-    // Use setTimeout to let the table DOM render fully after tab switch / data load
+    if (supportOrTeachersLoading || examDates.length === 0 || hasScrolledToDateRef.current) return
     const timer = setTimeout(() => {
       const wrap = dutiesTableRef.current
       if (!wrap) return
       const todayKey = new Date().toISOString().slice(0, 10)
-      // Find today or the nearest future exam date
       const targetDate = examDates.includes(todayKey)
         ? todayKey
         : examDates.find((d) => d >= todayKey) || examDates[examDates.length - 1]
       if (!targetDate) return
       const th = wrap.querySelector<HTMLElement>(`[data-date="${targetDate}"]`)
       if (!th) return
-      // Measure the actual sticky columns width from the first date column's offsetLeft
       const firstDateTh = wrap.querySelector<HTMLElement>(`[data-date="${examDates[0]}"]`)
       const stickyWidth = firstDateTh ? firstDateTh.offsetLeft : 0
       wrap.scrollLeft = th.offsetLeft - stickyWidth
+      hasScrolledToDateRef.current = true
     }, 150)
     return () => clearTimeout(timer)
-  }, [examDates, activeTab, loadingTeachers])
+  }, [examDates, supportOrTeachersLoading])
 
   /* Auto-select room date: today if it's an exam date, else next exam date */
   const getDefaultRoomDate = useCallback((dates: string[]): string => {
@@ -831,50 +761,49 @@ const Duties: React.FC = () => {
     setSelectedRoomDate((prev) => (prev && examDates.includes(prev) ? prev : getDefaultRoomDate(examDates)))
   }, [activeTab, examDates, getDefaultRoomDate])
 
+  const { data: dailyDutiesData, isLoading: loadingRoomAssignments } = useDailyDuties(selectedRoomDate, {
+    refetchOnWindowFocus: false,
+    enabled: activeTab === 'ASI' && !!selectedRoomDate,
+  })
   useEffect(() => {
-    const loadRoomAssignmentsForDate = async () => {
-      if (activeTab !== 'ASI' || !selectedRoomDate) return
-      try {
-        setLoadingRoomAssignments(true)
-        const response = await dutiesService.getDailyDuties(selectedRoomDate)
-        const nextAssignments: Record<string, string> = {}
-        const nextAssignmentsSecond: Record<string, string> = {}
-        for (const duty of response?.duties || []) {
-          const roomId = String(duty?.room?._id || '')
-          const functionaryId = String(duty?.functionary?._id || '')
-          const functionary2Id = String(duty?.functionary2?._id || '')
-          if (roomId && functionaryId) nextAssignments[roomId] = functionaryId
-          if (roomId && functionary2Id) nextAssignmentsSecond[roomId] = functionary2Id
-        }
-        setRoomAssignmentsByDate((prev) => ({
-          ...prev,
-          [selectedRoomDate]: nextAssignments,
-        }))
-        setRoomAssignmentsByDateSecond((prev) => ({
-          ...prev,
-          [selectedRoomDate]: nextAssignmentsSecond,
-        }))
-        setRoomCandidateSchoolCodesByDate((prev) => ({
-          ...prev,
-          [selectedRoomDate]: response?.roomCandidateSchoolCodes || {},
-        }))
-        setRoomSubjectCodesByDate((prev) => ({
-          ...prev,
-          [selectedRoomDate]: response?.roomSubjectCodes || {},
-        }))
-        setRoomRollNumbersByDate((prev) => ({
-          ...prev,
-          [selectedRoomDate]: response?.roomRollNumbers || {},
-        }))
-      } catch (error) {
-        console.error('Failed to load room assignments:', error)
-      } finally {
-        setLoadingRoomAssignments(false)
-      }
+    if (activeTab !== 'ASI' || !selectedRoomDate || !dailyDutiesData) return
+    const response = dailyDutiesData
+    const nextAssignments: Record<string, string> = {}
+    const nextAssignmentsSecond: Record<string, string> = {}
+    const nextChecked: Record<string, boolean> = {}
+    for (const duty of response?.duties || []) {
+      const roomId = String(duty?.room?._id || '')
+      const functionaryId = String(duty?.functionary?._id || '')
+      const functionary2Id = String(duty?.functionary2?._id || '')
+      if (roomId && functionaryId) nextAssignments[roomId] = functionaryId
+      if (roomId && functionary2Id) nextAssignmentsSecond[roomId] = functionary2Id
+      if (functionaryId) nextChecked[`${functionaryId}::${selectedRoomDate}`] = true
+      if (functionary2Id) nextChecked[`${functionary2Id}::${selectedRoomDate}`] = true
     }
-
-    loadRoomAssignmentsForDate()
-  }, [activeTab, selectedRoomDate])
+    setRoomAssignmentsByDate((prev) => ({
+      ...prev,
+      [selectedRoomDate]: nextAssignments,
+    }))
+    setRoomAssignmentsByDateSecond((prev) => ({
+      ...prev,
+      [selectedRoomDate]: nextAssignmentsSecond,
+    }))
+    if (Object.keys(nextChecked).length > 0) {
+      setCheckedDuties((prev) => ({ ...prev, ...nextChecked }))
+    }
+    setRoomCandidateSchoolCodesByDate((prev) => ({
+      ...prev,
+      [selectedRoomDate]: response?.roomCandidateSchoolCodes || {},
+    }))
+    setRoomSubjectCodesByDate((prev) => ({
+      ...prev,
+      [selectedRoomDate]: response?.roomSubjectCodes || {},
+    }))
+    setRoomRollNumbersByDate((prev) => ({
+      ...prev,
+      [selectedRoomDate]: response?.roomRollNumbers || {},
+    }))
+  }, [activeTab, selectedRoomDate, dailyDutiesData])
 
   useEffect(() => {
     if (activeTab !== 'ASI' || !selectedRoomDate) return
@@ -923,82 +852,97 @@ const Duties: React.FC = () => {
   ])
 
   /* ── Save handler ── */
-  const handleSaveFunctionaries = async () => {
-    setIsSaving(true)
-    try {
-      await dutiesService.saveDutySelections(activeDutyType, checkedDuties)
-      toast.success(`Selections saved for ${activeDutyType}`)
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Failed to save selections')
-    } finally {
-      setIsSaving(false)
-    }
+  const handleSaveFunctionaries = () => {
+    saveSelectionsMutation.mutate(
+      { dutyType: activeDutyType, selections: checkedDuties },
+      {
+        onSuccess: () => toast.success(`Selections saved for ${activeDutyType}`),
+        onError: (err: any) =>
+          toast.error(err?.response?.data?.message || 'Failed to save selections'),
+      }
+    )
   }
 
-  const runAutoAssignmentForSelectedDate = useCallback(async (showSuccessToast = true) => {
-    if (!selectedRoomDate) return false
-    if (allocatedRoomsForSelectedDate.length === 0) return false
+  const runAutoAssignmentForSelectedDate = useCallback(
+    async (showSuccessToast = true) => {
+      if (!selectedRoomDate) return false
+      if (allocatedRoomsForSelectedDate.length === 0) return false
 
-    const orderedFunctionaryIds = selectedInvigilatorsForDate
-      .map((func) => String(func._id || '').trim())
-      .filter(Boolean)
+      const orderedFunctionaryIds = selectedInvigilatorsForDate
+        .map((func) => String(func._id || '').trim())
+        .filter(Boolean)
 
-    const requiredForAuto = allocatedRoomsForSelectedDate.length * 2
-    if (orderedFunctionaryIds.length < requiredForAuto) {
-      toast.error(`Select at least ${requiredForAuto} invigilators for auto assignment`)
-      return false
-    }
-
-    try {
-      setSavingRoomAssignments(true)
-      const response = await dutiesService.assignDailyDuties({
-        examDate: selectedRoomDate,
-        functionaryIds: orderedFunctionaryIds,
-      })
-
-      const nextAssignments: Record<string, string> = {}
-      const nextAssignmentsSecond: Record<string, string> = {}
-      for (const duty of response?.duties || []) {
-        const roomId = String(duty?.room?._id || '')
-        const functionaryId = String(duty?.functionary?._id || '')
-        const functionary2Id = String(duty?.functionary2?._id || '')
-        if (roomId && functionaryId) nextAssignments[roomId] = functionaryId
-        if (roomId && functionary2Id) nextAssignmentsSecond[roomId] = functionary2Id
+      const requiredForAuto = allocatedRoomsForSelectedDate.length * 2
+      if (orderedFunctionaryIds.length < requiredForAuto) {
+        toast.error(`Select at least ${requiredForAuto} invigilators for auto assignment`)
+        return false
       }
-      setRoomAssignmentsByDate((prev) => ({
-        ...prev,
-        [selectedRoomDate]: nextAssignments,
-      }))
-      setRoomAssignmentsByDateSecond((prev) => ({
-        ...prev,
-        [selectedRoomDate]: nextAssignmentsSecond,
-      }))
-      setRoomCandidateSchoolCodesByDate((prev) => ({
-        ...prev,
-        [selectedRoomDate]: response?.roomCandidateSchoolCodes || prev[selectedRoomDate] || {},
-      }))
-      setRoomSubjectCodesByDate((prev) => ({
-        ...prev,
-        [selectedRoomDate]: response?.roomSubjectCodes || prev[selectedRoomDate] || {},
-      }))
-      setRoomRollNumbersByDate((prev) => ({
-        ...prev,
-        [selectedRoomDate]: response?.roomRollNumbers || prev[selectedRoomDate] || {},
-      }))
 
-      if (showSuccessToast) {
-        toast.success(`Auto-assigned invigilators for ${formatDateLabel(selectedRoomDate)}`)
+      try {
+        const response = await assignDailyDutiesMutation.mutateAsync({
+          examDate: selectedRoomDate,
+          functionaryIds: orderedFunctionaryIds,
+          silent: true,
+        })
+
+        const nextAssignments: Record<string, string> = {}
+        const nextAssignmentsSecond: Record<string, string> = {}
+        for (const duty of response?.duties || []) {
+          const roomId = String(duty?.room?._id || '')
+          const functionaryId = String(duty?.functionary?._id || '')
+          const functionary2Id = String(duty?.functionary2?._id || '')
+          if (roomId && functionaryId) nextAssignments[roomId] = functionaryId
+          if (roomId && functionary2Id) nextAssignmentsSecond[roomId] = functionary2Id
+        }
+        setRoomAssignmentsByDate((prev) => ({
+          ...prev,
+          [selectedRoomDate]: nextAssignments,
+        }))
+        setRoomAssignmentsByDateSecond((prev) => ({
+          ...prev,
+          [selectedRoomDate]: nextAssignmentsSecond,
+        }))
+        setRoomCandidateSchoolCodesByDate((prev) => ({
+          ...prev,
+          [selectedRoomDate]: response?.roomCandidateSchoolCodes || prev[selectedRoomDate] || {},
+        }))
+        setRoomSubjectCodesByDate((prev) => ({
+          ...prev,
+          [selectedRoomDate]: response?.roomSubjectCodes || prev[selectedRoomDate] || {},
+        }))
+        setRoomRollNumbersByDate((prev) => ({
+          ...prev,
+          [selectedRoomDate]: response?.roomRollNumbers || prev[selectedRoomDate] || {},
+        }))
+
+        if (showSuccessToast) {
+          toast.success(`Auto-assigned invigilators for ${formatDateLabel(selectedRoomDate)}`)
+        }
+        return true
+      } catch (error: any) {
+        const details = error?.response?.data?.conflictDetails
+        if (details && Array.isArray(details) && details.length > 0) {
+          setConflictDialogData(details)
+          setExpandedConflictIdx(null)
+          setShowConflictDialog(true)
+        } else {
+          toast.error(error?.response?.data?.message || 'Failed to auto-assign invigilators')
+        }
+        // Revert to manual mode on failure (silent to avoid duplicate toast)
+        updateAllocationModeMutation.mutate({ mode: 'manual', silent: true })
+        return false
       }
-      return true
-    } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Failed to auto-assign invigilators')
-      return false
-    } finally {
-      setSavingRoomAssignments(false)
-    }
-  }, [selectedRoomDate, allocatedRoomsForSelectedDate, selectedInvigilatorsForDate])
+    },
+    [
+      selectedRoomDate,
+      allocatedRoomsForSelectedDate,
+      selectedInvigilatorsForDate,
+      assignDailyDutiesMutation,
+      updateAllocationModeMutation,
+    ]
+  )
 
-  const handleModeChange = async (mode: 'auto' | 'manual') => {
+  const handleModeChange = (mode: 'auto' | 'manual') => {
     if (mode === allocationMode) return
     if (mode === 'auto' && activeTab === 'ASI') {
       if (!selectedRoomDate) {
@@ -1014,19 +958,19 @@ const Duties: React.FC = () => {
         return
       }
     }
-    try {
-      setLoadingAllocationMode(true)
-      const savedMode = await dutiesService.updateDutyAllocationMode(mode)
-      setAllocationMode(savedMode)
-      if (savedMode === 'auto' && activeTab === 'ASI') {
-        await runAutoAssignmentForSelectedDate(true)
-      }
-    } catch (error) {
-      console.error('Failed to update duty allocation mode:', error)
-      toast.error('Failed to update duty allocation mode')
-    } finally {
-      setLoadingAllocationMode(false)
-    }
+    updateAllocationModeMutation.mutate({ mode, silent: true }, {
+      onSuccess: async (savedMode) => {
+        if (savedMode === 'auto' && activeTab === 'ASI') {
+          const ok = await runAutoAssignmentForSelectedDate(true)
+          if (!ok) {
+            // Auto assignment failed; revert is handled inside runAutoAssignmentForSelectedDate
+          }
+        }
+      },
+      onError: () => {
+        toast.error('Failed to update duty allocation mode')
+      },
+    })
   }
 
   const handleRoomAssignmentChange = useCallback((roomId: string, functionaryId: string) => {
@@ -1162,9 +1106,8 @@ const Duties: React.FC = () => {
 
     }
 
-    setSavingRoomAssignments(true)
     try {
-      const response = await dutiesService.assignDailyDuties({
+      const response = await assignDailyDutiesMutation.mutateAsync({
         examDate: selectedRoomDate,
         functionaryIds: orderedFunctionaryIds,
         secondFunctionaryIds: orderedSecondFunctionaryIds,
@@ -1203,8 +1146,6 @@ const Duties: React.FC = () => {
       toast.success(`Room assignments saved for ${formatDateLabel(selectedRoomDate)}`)
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to save room assignments')
-    } finally {
-      setSavingRoomAssignments(false)
     }
   }
 
@@ -2051,6 +1992,124 @@ const Duties: React.FC = () => {
           </div>
         </div>
       )}
+      {/* ── Conflict diagnostics dialog ── */}
+      <Dialog
+        isOpen={showConflictDialog && !!conflictDialogData}
+        onClose={() => { setShowConflictDialog(false); setConflictDialogData(null); setExpandedConflictIdx(null) }}
+        variant="error"
+        size="xl"
+        title="Auto Assignment Failed"
+        description="No valid assignment exists. See conflict details below."
+        maxHeight="80vh"
+        actions={[
+          {
+            label: 'Close',
+            variant: 'outline',
+            onClick: () => { setShowConflictDialog(false); setConflictDialogData(null); setExpandedConflictIdx(null) },
+          },
+        ]}
+        footerClassName="justify-between"
+      >
+        {conflictDialogData && (
+          <>
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                  <th className="text-left py-2 pr-2">Functionary</th>
+                  <th className="text-left py-2 pr-2">OASIS ID</th>
+                  <th className="text-left py-2 pr-2">School</th>
+                  <th className="text-center py-2 pr-2">Eligible</th>
+                  <th className="text-center py-2">Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                {conflictDialogData.map((entry: any, idx: number) => {
+                  const isExpanded = expandedConflictIdx === idx
+                  const hasConflicts = entry.ineligibleRooms?.length > 0
+                  return (
+                    <React.Fragment key={idx}>
+                      <tr
+                        className={`border-b border-gray-100 dark:border-gray-800 ${hasConflicts ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50' : ''} ${isExpanded ? 'bg-amber-50/60 dark:bg-amber-900/10' : ''}`}
+                        onClick={() => hasConflicts && setExpandedConflictIdx(isExpanded ? null : idx)}
+                      >
+                        <td className="py-2 pr-2 font-medium text-gray-800 dark:text-gray-200">{entry.name || '—'}</td>
+                        <td className="py-2 pr-2 text-gray-500 dark:text-gray-400 font-mono">{entry.employeeId || '—'}</td>
+                        <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">{entry.schoolCode || '—'}</td>
+                        <td className="py-2 pr-2 text-center">
+                          <span className={`inline-flex items-center justify-center min-w-[40px] px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                            entry.eligibleRoomCount === entry.totalRooms
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                              : entry.eligibleRoomCount === 0
+                                ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                          }`}>
+                            {entry.eligibleRoomCount}/{entry.totalRooms}
+                          </span>
+                        </td>
+                        <td className="py-2 text-center">
+                          {hasConflicts ? (
+                            <span className="text-gray-400 dark:text-gray-500 text-sm">
+                              {isExpanded ? '▾' : '▸'}
+                            </span>
+                          ) : (
+                            <span className="text-green-500 text-sm">✓</span>
+                          )}
+                        </td>
+                      </tr>
+                      {isExpanded && hasConflicts && (
+                        <tr>
+                          <td colSpan={5} className="px-3 py-2 bg-gray-50 dark:bg-gray-800/40">
+                            <div className="space-y-1.5">
+                              {entry.ineligibleRooms.map((room: any, rIdx: number) => (
+                                <div key={rIdx} className="flex items-start gap-2 text-[11px]">
+                                  <span className="font-mono font-semibold text-gray-600 dark:text-gray-300 min-w-[52px] shrink-0">
+                                    Room {room.roomNo}
+                                  </span>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {room.reasons.map((reason: any, reasonIdx: number) => {
+                                      if (reason.type === 'subject') {
+                                        return (
+                                          <span key={reasonIdx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                                            <span className="font-semibold">Subject:</span> {(reason.codes || []).join(', ')}
+                                          </span>
+                                        )
+                                      }
+                                      if (reason.type === 'school') {
+                                        return (
+                                          <span key={reasonIdx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                                            <span className="font-semibold">School:</span> {reason.schoolCode}
+                                          </span>
+                                        )
+                                      }
+                                      if (reason.type === 'candidateOverlap') {
+                                        return (
+                                          <span key={reasonIdx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
+                                            <span className="font-semibold">Overlap:</span>
+                                            {' '}{(reason.rollNumbers || []).join(', ')}
+                                            {reason.totalOverlaps > 5 ? ` (+${reason.totalOverlaps - 5} more)` : ''}
+                                          </span>
+                                        )
+                                      }
+                                      return null
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+            <p className="mt-3 text-[10px] text-gray-500 dark:text-gray-400">
+              Mode reverted to manual. Add more functionaries or resolve conflicts above.
+            </p>
+          </>
+        )}
+      </Dialog>
     </div>
   )
 }

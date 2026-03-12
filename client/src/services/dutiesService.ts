@@ -44,8 +44,10 @@ const assignDailyDuties = async (payload: {
   examDate: string
   functionaryIds: string[]
   secondFunctionaryIds?: string[]
-}): Promise<DailyDutiesResponse> => {
-  const response = await api.post('/duties/assign', payload)
+}, options?: { silent?: boolean }): Promise<DailyDutiesResponse> => {
+  const response = await api.post('/duties/assign', payload, {
+    ...(options?.silent ? { _silent: true } as any : {}),
+  })
   return response.data?.data ?? { examDate: payload.examDate, duties: [], totalAssigned: 0 }
 }
 
@@ -65,8 +67,10 @@ const getDutyAllocationMode = async (): Promise<'auto' | 'manual'> => {
   return response.data?.data?.mode === 'auto' ? 'auto' : 'manual'
 }
 
-const updateDutyAllocationMode = async (mode: 'auto' | 'manual'): Promise<'auto' | 'manual'> => {
-  const response = await api.put('/duties/allocation-mode', { mode })
+const updateDutyAllocationMode = async (mode: 'auto' | 'manual', options?: { silent?: boolean }): Promise<'auto' | 'manual'> => {
+  const response = await api.put('/duties/allocation-mode', { mode }, {
+    ...(options?.silent ? { _silent: true } as any : {}),
+  })
   return response.data?.data?.mode === 'auto' ? 'auto' : 'manual'
 }
 

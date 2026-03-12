@@ -28,6 +28,8 @@ export function useTeachers(
   return useQuery({
     queryKey: teacherKeys.list(params),
     queryFn: () => teacherService.getAll(params),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
     ...options,
   })
 }
