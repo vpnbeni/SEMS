@@ -275,27 +275,44 @@ const buildSupplementaryUsageContext = async (answerSheet, req, relatedExams = n
   const discardedCount = (answerSheet.discardedSerials || []).length
   const subjects = await Promise.all(exams.map(async (exam) => {
     const { roomOptions, roomError } = await getRoomRollOptionsForEntry(exam._id, req)
+    // Flatten serial arrays so each saved row represents exactly one sheet number.
     const usages = (answerSheet.supplementaryUsages || [])
       .filter((usage) => String(usage.centreDatesheetEntry) === String(exam._id))
-      .map((usage) => ({
-        _id: usage._id,
-        centreDatesheetEntryId: usage.centreDatesheetEntry,
-        examDate: usage.examDate,
-        subjectCode: usage.subjectCode,
-        subjectName: usage.subjectName,
-        roomNo: usage.roomNo,
-        rollNo: usage.rollNo,
-        serials: usage.serials || [],
-        createdAt: usage.createdAt
-      }))
-      .sort((left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime())
+      .flatMap((usage) => {
+        const serials = (usage.serials || [])
+          .map(normalizeSerialValue)
+          .filter(Boolean)
+
+        if (!serials.length) return []
+
+        return serials.map((serial) => ({
+          _id: usage._id,
+          centreDatesheetEntryId: usage.centreDatesheetEntry,
+          examDate: usage.examDate,
+          subjectCode: usage.subjectCode,
+          subjectName: usage.subjectName,
+          roomNo: usage.roomNo,
+          rollNo: usage.rollNo,
+          sheetNo: serial,
+          serials: [serial],
+          createdAt: usage.createdAt
+        }))
+      })
+      .sort((left, right) => {
+        const timeDiff = new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+        if (timeDiff !== 0) return timeDiff
+        return String(left.sheetNo || '').localeCompare(String(right.sheetNo || ''), undefined, {
+          numeric: true,
+          sensitivity: 'base'
+        })
+      })
 
     return {
       ...exam,
       roomOptions,
       roomError,
       usages,
-      usedCount: usages.reduce((sum, usage) => sum + (usage.serials?.length || 0), 0)
+      usedCount: usages.length
     }
   }))
 
@@ -611,90 +628,88 @@ const buildConsolidatedRecordTemplateData = async (answerSheet, req) => {
   const receivedRanges = buildReceivedRangeRows(answerSheet)
   const totalReceived = Number(answerSheet.total || 0)
   const totalDiscarded = (answerSheet.discardedSerials || []).length
+  const isSupplementary = answerSheet.answerSheetType === 'Supplementary'
+  const receivedRows = receivedRanges.map((range, index) => ({
+    ...range,
+    seriesNo: index + 1,
+    receivedLabel: index === 0 ? 'Received' : '',
+    grandTotal: index === 0 ? totalReceived : ''
+  }))
   const notes = []
   let rows = []
   let totalUsed = 0
 
-  if (answerSheet.answerSheetType === 'Supplementary') {
+  if (isSupplementary) {
     const relatedExams = await getRelatedExamsForAnswerSheet(answerSheet)
     const examById = new Map(relatedExams.map((exam) => [String(exam._id), exam]))
-    const groupedUsages = new Map()
-
-    ;(answerSheet.supplementaryUsages || []).forEach((usage) => {
-      const key = String(usage.centreDatesheetEntry || '')
-      if (!groupedUsages.has(key)) {
-        groupedUsages.set(key, {
-          examDate: usage.examDate,
-          subjectCode: usage.subjectCode,
-          subjectName: usage.subjectName,
-          serials: []
-        })
-      }
-
-      groupedUsages.get(key).serials.push(...(usage.serials || []))
-    })
-
     const usedSerialSet = getSupplementaryUsedSerials(answerSheet)
     totalUsed = usedSerialSet.size
 
-    let runningUsed = 0
-    let previousDiscardedCount = 0
-    let previousDiscardedSerialSet = new Set()
+    const discardedEntries = (answerSheet.discardedSerials || [])
+      .map((item) => ({
+        serial: normalizeSerialValue(item.serial),
+        discardedAt: new Date(item.discardedAt)
+      }))
+      .filter((item) => item.serial)
 
-    rows = await Promise.all(
-      Array.from(groupedUsages.entries()).map(async ([entryId, usageGroup]) => {
-        const exam = examById.get(entryId)
-        const examDate = usageGroup.examDate || exam?.examDate
-        const roomContext = entryId
-          ? await getRoomRollOptionsForEntry(entryId, req)
-          : { roomOptions: [] }
-        const uniqueSerials = Array.from(new Set(
-          (usageGroup.serials || [])
-            .map((serial) => normalizeSerialValue(serial))
-            .filter(Boolean)
-        )).sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
-        const discardedToDateItems = (answerSheet.discardedSerials || []).filter((item) => {
-          const endOfDay = getEndOfDay(examDate)
-          const discardedAt = new Date(item.discardedAt)
-          return endOfDay && !Number.isNaN(discardedAt.getTime()) && discardedAt <= endOfDay
-        })
-        const discardedToDateSerials = discardedToDateItems
-          .map((item) => normalizeSerialValue(item.serial))
+    const normalizedRows = (answerSheet.supplementaryUsages || [])
+      .flatMap((usage) => {
+        const exam = examById.get(String(usage.centreDatesheetEntry || ''))
+        const examDate = usage.examDate || exam?.examDate
+        const serials = (usage.serials || [])
+          .map((serial) => normalizeSerialValue(serial))
           .filter(Boolean)
-          .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
 
-        return {
+        if (!serials.length) return []
+
+        return serials.map((sheetNo, index) => ({
           sortTime: new Date(examDate || 0).getTime(),
-          serialSort: getSerialSortValue(uniqueSerials[0]),
+          createdAt: new Date(usage.createdAt || 0).getTime(),
+          serialSort: getSerialSortValue(sheetNo),
+          serialOrder: index,
           examDate,
-          dayName: exam?.dayName || getRecordDayName(examDate),
-          subjectName: String(usageGroup.subjectName || exam?.subjectName || ''),
-          subjectCode: String(usageGroup.subjectCode || exam?.subjectCode || ''),
-          roomCount: getRoomCountForRecord(roomContext.roomOptions),
-          candidateCount: Number(exam?.candidateCount || 0),
-          serialNo: uniqueSerials.join(', ') || 'N/A',
-          usedCount: uniqueSerials.length,
-          discardedToDate: discardedToDateSerials.length,
-          discardedToDateSerials
-        }
+          dayName: exam?.dayName || getRecordDayName(examDate) || '-',
+          subjectName: String(usage.subjectName || exam?.subjectName || ''),
+          subjectCode: String(usage.subjectCode || exam?.subjectCode || ''),
+          roomNo: String(usage.roomNo || ''),
+          rollNo: String(usage.rollNo || ''),
+          sheetNo
+        }))
       })
-    )
       .sort((left, right) => {
         const dateDiff = (Number.isNaN(left.sortTime) ? 0 : left.sortTime) - (Number.isNaN(right.sortTime) ? 0 : right.sortTime)
         if (dateDiff !== 0) return dateDiff
+        const createdDiff = (Number.isNaN(left.createdAt) ? 0 : left.createdAt) - (Number.isNaN(right.createdAt) ? 0 : right.createdAt)
+        if (createdDiff !== 0) return createdDiff
         const serialDiff = left.serialSort - right.serialSort
         if (serialDiff !== 0) return serialDiff
-        return left.subjectName.localeCompare(right.subjectName)
+        const roomDiff = String(left.roomNo || '').localeCompare(String(right.roomNo || ''), undefined, { numeric: true, sensitivity: 'base' })
+        if (roomDiff !== 0) return roomDiff
+        const rollDiff = String(left.rollNo || '').localeCompare(String(right.rollNo || ''), undefined, { numeric: true, sensitivity: 'base' })
+        if (rollDiff !== 0) return rollDiff
+        return left.serialOrder - right.serialOrder
       })
+
+    let seenUsedSerials = new Set()
+    let previousDiscardedSerialSet = new Set()
+
+    rows = normalizedRows
       .map((row, index) => {
-        runningUsed += row.usedCount
-        const currentDiscardedCount = Math.max(previousDiscardedCount, row.discardedToDate)
-        const discardedCount = Math.max(0, currentDiscardedCount - previousDiscardedCount)
-        const currentDiscardedSerialSet = new Set(row.discardedToDateSerials || [])
-        const discardedSerials = Array.from(currentDiscardedSerialSet)
+        seenUsedSerials.add(row.sheetNo)
+        const currentUsedCount = seenUsedSerials.size
+        const endOfDay = getEndOfDay(row.examDate)
+        const currentDiscardedSerialSet = new Set(
+          discardedEntries
+            .filter((entry) =>
+              endOfDay
+              && !Number.isNaN(entry.discardedAt.getTime())
+              && entry.discardedAt <= endOfDay
+            )
+            .map((entry) => entry.serial)
+        )
+        const discardedCount = Array.from(currentDiscardedSerialSet)
           .filter((serial) => !previousDiscardedSerialSet.has(serial))
-          .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
-        previousDiscardedCount = currentDiscardedCount
+          .length
         previousDiscardedSerialSet = currentDiscardedSerialSet
 
         return {
@@ -703,13 +718,12 @@ const buildConsolidatedRecordTemplateData = async (answerSheet, req) => {
           dayName: row.dayName || '-',
           subjectName: row.subjectName || '-',
           subjectCode: row.subjectCode || '-',
-          roomCount: row.roomCount || 0,
-          candidateCount: row.candidateCount || 0,
-          serialNo: row.serialNo,
-          usedCount: row.usedCount,
+          roomNo: row.roomNo || '-',
+          rollNo: row.rollNo || '-',
+          sheetNo: row.sheetNo || '-',
+          totalCount: currentUsedCount,
           discardedCount,
-          discardedLabel: formatDiscardedLabel(discardedSerials),
-          balanceCount: Math.max(0, totalReceived - runningUsed - currentDiscardedCount)
+          balanceCount: Math.max(0, totalReceived - currentUsedCount - currentDiscardedSerialSet.size)
         }
       })
 
@@ -817,6 +831,7 @@ const buildConsolidatedRecordTemplateData = async (answerSheet, req) => {
   const examSession = getAcademicSession(referenceDate || new Date())
 
   return {
+    isSupplementary,
     schoolName,
     centreNo,
     examSession,
@@ -825,6 +840,7 @@ const buildConsolidatedRecordTemplateData = async (answerSheet, req) => {
     colour: String(answerSheet.colour || ''),
     series: String(answerSheet.series || 'N/A'),
     receivedRanges,
+    receivedRows,
     rows,
     hasRows: rows.length > 0,
     totalReceived,
@@ -1669,14 +1685,16 @@ exports.saveSupplementaryUsage = async (req, res) => {
     }
 
     answerSheet.supplementaryUsages = answerSheet.supplementaryUsages || []
-    answerSheet.supplementaryUsages.push({
-      centreDatesheetEntry: centreDatesheetEntryId,
-      examDate: selectedExam.examDate,
-      subjectCode: selectedExam.subjectCode,
-      subjectName: selectedExam.subjectName,
-      roomNo: String(roomNo).trim(),
-      rollNo: normalizedRollNo,
-      serials
+    serials.forEach((serial) => {
+      answerSheet.supplementaryUsages.push({
+        centreDatesheetEntry: centreDatesheetEntryId,
+        examDate: selectedExam.examDate,
+        subjectCode: selectedExam.subjectCode,
+        subjectName: selectedExam.subjectName,
+        roomNo: String(roomNo).trim(),
+        rollNo: normalizedRollNo,
+        serials: [serial]
+      })
     })
 
     answerSheet.used = getSupplementaryUsedSerials(answerSheet).size
@@ -1721,18 +1739,41 @@ exports.removeSupplementaryUsage = async (req, res) => {
     }
 
     const usageId = String(req.params.usageId)
-    const nextUsages = (answerSheet.supplementaryUsages || []).filter(
-      usage => String(usage._id) !== usageId
+    const targetIndex = (answerSheet.supplementaryUsages || []).findIndex(
+      usage => String(usage._id) === usageId
     )
 
-    if (nextUsages.length === (answerSheet.supplementaryUsages || []).length) {
+    if (targetIndex < 0) {
       return res.status(404).json({
         success: false,
         error: 'Supplementary usage record not found'
       })
     }
 
-    answerSheet.supplementaryUsages = nextUsages
+    const serialParam = normalizeSerialValue(req.query.serial)
+    if (serialParam) {
+      const targetUsage = answerSheet.supplementaryUsages[targetIndex]
+      const currentSerials = (targetUsage.serials || [])
+        .map(normalizeSerialValue)
+        .filter(Boolean)
+      const nextSerials = currentSerials.filter((serial) => serial !== serialParam)
+
+      if (nextSerials.length === currentSerials.length) {
+        return res.status(404).json({
+          success: false,
+          error: 'Supplementary sheet number not found for this usage record'
+        })
+      }
+
+      if (nextSerials.length === 0) {
+        answerSheet.supplementaryUsages.splice(targetIndex, 1)
+      } else {
+        targetUsage.serials = nextSerials
+      }
+    } else {
+      answerSheet.supplementaryUsages.splice(targetIndex, 1)
+    }
+
     answerSheet.used = getSupplementaryUsedSerials(answerSheet).size
     await answerSheet.save()
 

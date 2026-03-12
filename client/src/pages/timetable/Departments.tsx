@@ -273,7 +273,7 @@ const Departments: React.FC = () => {
 
   const handleToggleMatrix = (teacherId: string, subjectName: string) => {
     const key = normalize(subjectName)
-    const nextTeachers = matrixTeachers.map((teacher) => {
+    const nextTeachers = teachers.map((teacher) => {
       if (teacher.id !== teacherId) return teacher
       const hasSubject = teacher.subjects.some((subject) => normalize(subject) === key)
       const nextSubjects = hasSubject
@@ -287,12 +287,13 @@ const Departments: React.FC = () => {
 
     setTeachers(nextTeachers)
 
-    const removed = !nextTeachers
-      .find((teacher) => teacher.id === teacherId)
-      ?.subjects.some((subject) => normalize(subject) === key)
+    const after = nextTeachers.find((teacher) => teacher.id === teacherId)
+    const stillHasSubject = after?.subjects.some((subject) => normalize(subject) === key)
 
-    if (removed) {
-      setTeacherSubjectAllocations(removeSubjectFromTeacherAllocations(teacherSubjectAllocations, teacherId, subjectName))
+    if (!stillHasSubject) {
+      setTeacherSubjectAllocations(
+        removeSubjectFromTeacherAllocations(teacherSubjectAllocations, teacherId, subjectName)
+      )
     }
   }
 
@@ -417,15 +418,18 @@ const Departments: React.FC = () => {
         ) : searchableTeachers.length === 0 ? (
           <div className="px-5 py-8 text-sm text-secondary-500">No matching teachers found.</div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="max-h-[430px] overflow-auto">
             <table className="min-w-[920px] w-full text-sm">
-              <thead className="bg-secondary-50 text-secondary-700">
+              <thead className="bg-secondary-50 text-secondary-700 dark:bg-secondary-900 dark:text-secondary-100">
                 <tr>
-                  <th className="px-3 py-2 text-left font-semibold border-b border-secondary-200 sticky left-0 bg-secondary-50 z-10">
+                  <th className="px-3 py-2 text-left font-semibold border-b border-secondary-200 sticky top-0 left-0 bg-secondary-50 dark:bg-secondary-900 z-30">
                     Teacher
                   </th>
                   {subjectNames.map((subjectName) => (
-                    <th key={subjectName} className="px-3 py-2 text-center font-semibold border-b border-secondary-200">
+                    <th
+                      key={subjectName}
+                      className="px-3 py-2 text-center font-semibold border-b border-secondary-200 sticky top-0 bg-secondary-50 z-20"
+                    >
                       {subjectName}
                     </th>
                   ))}
@@ -433,8 +437,8 @@ const Departments: React.FC = () => {
               </thead>
               <tbody>
                 {searchableTeachers.map((teacher) => (
-                  <tr key={teacher.id} className="odd:bg-white even:bg-secondary-50/40">
-                    <td className="px-3 py-2 border-b border-secondary-100 sticky left-0 bg-inherit z-10">
+                  <tr key={teacher.id} className="odd:bg-white even:bg-secondary-50/40 dark:odd:bg-secondary-900 dark:even:bg-secondary-800/60">
+                    <td className="px-3 py-2 border-b border-secondary-100 sticky left-0 z-20 bg-white dark:bg-secondary-900">
                       <div className="font-medium text-secondary-900">{toTitleCase(teacher.name)}</div>
                       <div className="text-xs text-secondary-500">{teacher.shortName || 'Functionary'}</div>
                     </td>
@@ -487,9 +491,11 @@ const Departments: React.FC = () => {
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-[980px] w-full text-sm">
-                  <thead className="bg-secondary-50 text-secondary-700">
+                  <thead className="bg-secondary-50 text-secondary-700 dark:bg-secondary-900 dark:text-secondary-100">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold border-b border-secondary-200">Teacher</th>
+                      <th className="px-3 py-2 text-left font-semibold border-b border-secondary-200 sticky left-0 bg-secondary-50 dark:bg-secondary-900 z-20">
+                        Teacher
+                      </th>
                       {card.classRows.map((row) => (
                         <th key={row.id} className="px-3 py-2 text-center font-semibold border-b border-secondary-200">
                           <div>{row.className}-{row.section}</div>
@@ -507,8 +513,8 @@ const Departments: React.FC = () => {
                       const workload = getTeacherWorkload(teacher.id, card.subjectName)
 
                       return (
-                        <tr key={`${card.subjectName}-${teacher.id}`} className="odd:bg-white even:bg-secondary-50/30">
-                          <td className="px-3 py-2 border-b border-secondary-100">
+                        <tr key={`${card.subjectName}-${teacher.id}`} className="odd:bg-white even:bg-secondary-50/30 dark:odd:bg-secondary-900 dark:even:bg-secondary-800/60">
+                          <td className="px-3 py-2 border-b border-secondary-100 sticky left-0 z-10 bg-white dark:bg-secondary-900">
                             <div className="font-medium text-secondary-900">{toTitleCase(teacher.name)}</div>
                             <div className="text-xs text-secondary-500">{assignedClassIds.size} classes assigned</div>
                           </td>
@@ -540,6 +546,4 @@ const Departments: React.FC = () => {
 }
 
 export default Departments
-
-
 

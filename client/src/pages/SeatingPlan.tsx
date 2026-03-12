@@ -358,19 +358,31 @@ const SeatingPlan: React.FC = () => {
     return futureExamDateKeys[0] || null
   }, [datesheetEntries, todayDateKey])
 
-  /* ── Auto-scroll examination schedule table to today's (or next) exam row ── */
+  /* ── Auto-scroll examination schedule table to today's (or next) exam row inside the vertical scroll container ── */
   useEffect(() => {
     if (loading || datesheetEntries.length === 0) return
-    if (autoScrolledRef.current || restoredScrollRef.current) return
+    if (autoScrolledRef.current) return
     const timer = setTimeout(() => {
-      const container = scheduleTableRef.current
-      if (!container) return
+      const root = scheduleTableRef.current
+      if (!root) return
+
+      const scrollContainer =
+        root.querySelector<HTMLElement>('.seating-table-wrapper') ?? root
+
       const targetRow =
-        container.querySelector<HTMLElement>(`tr[data-date="${todayDateKey}"]`) ||
-        (nextExamDateKey ? container.querySelector<HTMLElement>(`tr[data-date="${nextExamDateKey}"]`) : null)
+        scrollContainer.querySelector<HTMLElement>(`tr[data-date="${todayDateKey}"]`) ||
+        (nextExamDateKey
+          ? scrollContainer.querySelector<HTMLElement>(`tr[data-date="${nextExamDateKey}"]`)
+          : null) ||
+        scrollContainer.querySelector<HTMLElement>('tbody tr')
+
       if (!targetRow) return
       autoScrolledRef.current = true
-      targetRow.scrollIntoView({ behavior: 'auto', block: 'center' })
+      const containerRect = scrollContainer.getBoundingClientRect()
+      const rowRect = targetRow.getBoundingClientRect()
+      const offset =
+        rowRect.top + rowRect.height / 2 - (containerRect.top + containerRect.height / 2)
+      scrollContainer.scrollTop += offset
     }, 200)
     return () => clearTimeout(timer)
   }, [loading, datesheetEntries.length, todayDateKey, nextExamDateKey])

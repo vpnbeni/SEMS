@@ -252,7 +252,7 @@ const AnswerSheetDetails: React.FC = () => {
         const nextSerials = parseSerialInput(draft.serialInput)
 
         if (nextSerials.length === 0) {
-            toast.error('Enter at least one serial number to add')
+            toast.error('Enter at least one sheet number to add')
             return
         }
 
@@ -276,7 +276,7 @@ const AnswerSheetDetails: React.FC = () => {
         const serials = Array.from(new Set([...draft.serials, ...pendingSerials]))
 
         if (!draft.roomNo || !draft.rollNo || serials.length === 0) {
-            toast.error('Select room number, roll number, and at least one serial number')
+            toast.error('Select room number, roll number, and at least one sheet number')
             return
         }
 
@@ -306,11 +306,11 @@ const AnswerSheetDetails: React.FC = () => {
         }
     }
 
-    const handleRemoveSupplementaryUsage = async (usageId: string) => {
+    const handleRemoveSupplementaryUsage = async (usageId: string, sheetNo?: string) => {
         if (!id) return
 
         try {
-            const response = await answerSheetService.removeSupplementaryUsage(id, usageId)
+            const response = await answerSheetService.removeSupplementaryUsage(id, usageId, sheetNo)
             if (response.success) {
                 setSupplementaryContext(response.data)
                 await loadDetails()
@@ -601,9 +601,9 @@ const AnswerSheetDetails: React.FC = () => {
                 </div>
 
                 {/* Main Content Area */}
-                <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+                <div className="grid grid-cols-1 gap-8">
                     {/* Left Column: Serial Allocation Stats */}
-                    <div className="lg:col-span-2 space-y-6">
+                    <div className="space-y-6">
                         {/* Serial Number Management Card */}
                         <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-gray-100 dark:bg-gray-800 dark:ring-gray-700">
                             <div className="border-b border-gray-100 bg-gray-50/50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800/50">
@@ -843,7 +843,7 @@ const AnswerSheetDetails: React.FC = () => {
                                 <div className="border-b border-gray-100 px-6 py-4 dark:border-gray-700 flex justify-between items-center">
                                     <div>
                                         <h3 className="font-semibold text-gray-900 dark:text-white">Supplementary Usage</h3>
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">Select room, roll no, and one or more serial numbers for each subject.</p>
+                                        <p className="text-sm text-gray-500 dark:text-gray-400">Select room, roll no, and one or more sheet numbers for each subject.</p>
                                     </div>
                                     <div className="text-sm text-gray-500">
                                         {supplementarySubjects.length} subjects
@@ -932,7 +932,7 @@ const AnswerSheetDetails: React.FC = () => {
                                                                                 serialInput: e.target.value
                                                                             }))}
                                                                             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                                                                            placeholder="Enter serial no(s), comma separated"
+                                                                            placeholder="Enter sheet no(s), comma separated"
                                                                         />
                                                                         <button
                                                                             type="button"
@@ -987,27 +987,39 @@ const AnswerSheetDetails: React.FC = () => {
                                                         {subject.usages.length > 0 && (
                                                             <tr className="bg-gray-50/40 dark:bg-gray-900/20">
                                                                 <td colSpan={6} className="px-6 pb-4 pt-1">
-                                                                    <div className="flex flex-wrap gap-2">
-                                                                        {subject.usages.map((usage) => (
-                                                                            <div
-                                                                                key={usage._id}
-                                                                                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                                                                            >
-                                                                                <span className="font-medium">{usage.roomNo}</span>
-                                                                                <span className="text-gray-400">/</span>
-                                                                                <span className="font-medium">{usage.rollNo}</span>
-                                                                                <span className="text-gray-400">:</span>
-                                                                                <span className="font-mono">{usage.serials.join(', ')}</span>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => handleRemoveSupplementaryUsage(usage._id)}
-                                                                                    className="rounded p-0.5 text-gray-400 hover:text-red-500"
-                                                                                    title="Remove usage"
-                                                                                >
-                                                                                    <X className="h-3.5 w-3.5" />
-                                                                                </button>
-                                                                            </div>
-                                                                        ))}
+                                                                    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                                                                        <table className="min-w-full text-xs">
+                                                                            <thead className="bg-gray-100/80 dark:bg-gray-800/80">
+                                                                                <tr>
+                                                                                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">Room No</th>
+                                                                                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">Roll Number</th>
+                                                                                    <th className="px-3 py-2 text-left font-medium text-gray-600 dark:text-gray-300">Sheet No</th>
+                                                                                    <th className="px-3 py-2 text-right font-medium text-gray-600 dark:text-gray-300">Action</th>
+                                                                                </tr>
+                                                                            </thead>
+                                                                            <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900/40">
+                                                                                {subject.usages.map((usage, usageIndex) => {
+                                                                                    const sheetNo = usage.sheetNo || usage.serials?.[0] || '-'
+                                                                                    return (
+                                                                                        <tr key={`${usage._id}-${sheetNo}-${usageIndex}`}>
+                                                                                            <td className="px-3 py-2 text-gray-900 dark:text-gray-100">{usage.roomNo}</td>
+                                                                                            <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">{usage.rollNo}</td>
+                                                                                            <td className="px-3 py-2 font-mono text-gray-900 dark:text-gray-100">{sheetNo}</td>
+                                                                                            <td className="px-3 py-2 text-right">
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    onClick={() => handleRemoveSupplementaryUsage(usage._id, usage.sheetNo || usage.serials?.[0])}
+                                                                                                    className="rounded p-0.5 text-gray-400 hover:text-red-500"
+                                                                                                    title="Remove usage"
+                                                                                                >
+                                                                                                    <X className="h-3.5 w-3.5" />
+                                                                                                </button>
+                                                                                            </td>
+                                                                                        </tr>
+                                                                                    )
+                                                                                })}
+                                                                            </tbody>
+                                                                        </table>
                                                                     </div>
                                                                 </td>
                                                             </tr>

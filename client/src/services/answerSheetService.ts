@@ -19,6 +19,7 @@ export interface SupplementaryUsageRecord {
   subjectName: string
   roomNo: string
   rollNo: string
+  sheetNo?: string
   serials: string[]
   createdAt: string
 }
@@ -286,9 +287,11 @@ class AnswerSheetService {
 
   async removeSupplementaryUsage(
     id: string,
-    usageId: string
+    usageId: string,
+    sheetNo?: string
   ): Promise<{ success: boolean; data: SupplementaryUsageContextResponse }> {
-    const response = await api.delete(`/answersheets/${id}/supplementary-usage/${usageId}`)
+    const serialQuery = sheetNo ? `?serial=${encodeURIComponent(sheetNo)}` : ''
+    const response = await api.delete(`/answersheets/${id}/supplementary-usage/${usageId}${serialQuery}`)
     return response.data
   }
 

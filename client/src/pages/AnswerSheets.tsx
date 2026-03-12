@@ -18,6 +18,7 @@ import { Dropdown } from '../components/common/Dropdown'
 import type { DropdownOption } from '../components/common/Dropdown'
 import { Tabs } from '../components/common/Tabs'
 import type { TabConfig } from '../components/common/Tabs'
+import { useAttendanceAbsentees } from '../hooks/useAttendance'
 import {
   createEmptySerialRange,
   getAnswerSheetSerialRanges,
@@ -66,6 +67,24 @@ const getEntryEditingKey = (entry: AnswerSheetEntry) => {
 }
 
 const isSupplementaryEntry = (answerSheetType?: string) => answerSheetType === 'Supplementary'
+
+const normalizeUsageDateKey = (examDate?: string) => {
+  if (!examDate) return ''
+  const date = new Date(examDate)
+  return Number.isNaN(date.getTime()) ? '' : date.toDateString()
+}
+
+const buildSupplementaryUsageSubjectKey = (
+  examDate?: string,
+  subjectCode?: string,
+  classLevel?: string | number
+) => {
+  const dateKey = normalizeUsageDateKey(examDate)
+  const normalizedSubjectCode = String(subjectCode || '').trim().toUpperCase()
+  const normalizedClass = String(classLevel ?? '').trim()
+  if (!dateKey || !normalizedSubjectCode || !normalizedClass) return ''
+  return `${dateKey}::${normalizedClass}::${normalizedSubjectCode}`
+}
 
 const buildSerialRangePayload = (
   answerSheetType: string,
@@ -123,6 +142,7 @@ const AnswerSheets: React.FC = () => {
     { class: selectedClass || undefined }
   )
   const { data: centreDatesheetEntries = [] } = useCentreDatesheetEntries()
+  const { data: absenteeRecords = [] } = useAttendanceAbsentees()
   const { data: savedSeries } = useSeries()
   const createMutation = useCreateAnswerSheetMutation()
   const uploadMutation = useUploadExcelMutation()
@@ -323,6 +343,16 @@ const AnswerSheets: React.FC = () => {
     }
   }
 
+  const formatShortDate = (dateString: string) => {
+    const date = new Date(dateString)
+    if (Number.isNaN(date.getTime())) return ''
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit',
+    })
+  }
+
   // Calculate totals
   const totals = entries.reduce((acc, entry) => {
     acc.received += entry.total
@@ -332,6 +362,54 @@ const AnswerSheets: React.FC = () => {
   }, { received: 0, used: 0, discarded: 0 })
 
   const balance = totals.received - totals.used - totals.discarded
+
+  const supplementaryUsageCounts = React.useMemo(() => {
+    const byEntryId = new Map<string, number>()
+    const bySubjectKey = new Map<string, number>()
+
+    entries.forEach((entry) => {
+      if (entry.answerSheetType !== 'Supplementary') return
+      const usages = entry.supplementaryUsages
+      if (!Array.isArray(usages) || usages.length === 0) return
+
+      usages.forEach((usage) => {
+        const usageEntry = usage as {
+          centreDatesheetEntryId?: string
+          centreDatesheetEntry?: string
+          examDate?: string
+          subjectCode?: string
+          serials?: string[]
+        }
+        const increment = Array.isArray(usage.serials) && usage.serials.length > 0 ? usage.serials.length : 1
+
+        const entryId = String(usageEntry.centreDatesheetEntryId || usageEntry.centreDatesheetEntry || '').trim()
+        if (entryId) {
+          byEntryId.set(entryId, (byEntryId.get(entryId) ?? 0) + increment)
+        }
+
+        // Legacy fallback for old rows that may not have centreDatesheetEntryId in list payload.
+        const subjectKey = buildSupplementaryUsageSubjectKey(usageEntry.examDate, usageEntry.subjectCode, entry.class)
+        if (subjectKey) {
+          bySubjectKey.set(subjectKey, (bySubjectKey.get(subjectKey) ?? 0) + increment)
+        }
+      })
+    })
+
+    return { byEntryId, bySubjectKey }
+  }, [entries])
+
+  const absenteesByDateAndSubject = React.useMemo(() => {
+    const map = new Map<string, number>()
+
+    absenteeRecords.forEach((record) => {
+      if (!record.examDate || !record.subjectCode) return
+      const dateKey = new Date(record.examDate).toDateString()
+      const key = `${dateKey}|${record.subjectCode}`
+      map.set(key, (map.get(key) ?? 0) + 1)
+    })
+
+    return map
+  }, [absenteeRecords])
 
   const updateFormSerialRange = (index: number, field: 'serialFrom' | 'serialTo', value: string) => {
     setFormData((current) => ({
@@ -669,14 +747,65 @@ const AnswerSheets: React.FC = () => {
         return byClass
       case 'used':
         return []
-      case 'balance':
-        return byClass.filter(e => (e.total - e.used - getDiscardedCount(e)) > 0)
       case 'discarded':
         return byClass.filter(e => getDiscardedCount(e) > 0)
       default:
         return byClass
     }
   }
+
+  const balanceRows = React.useMemo(() => {
+    const byClass = entries.filter(classFilter)
+    type BalanceGroup = {
+      answerSheetType: string
+      classLabel: string
+      received: number
+      used: number
+      discarded: number
+    }
+
+    const groups = new Map<string, BalanceGroup>()
+
+    byClass.forEach((entry) => {
+      const classLabel = String(entry.class || '').trim()
+      const key = `${entry.answerSheetType}|${classLabel}`
+      const existing = groups.get(key) ?? {
+        answerSheetType: entry.answerSheetType,
+        classLabel,
+        received: 0,
+        used: 0,
+        discarded: 0,
+      }
+
+      existing.received += entry.total || 0
+      existing.used += entry.used || 0
+      existing.discarded += getDiscardedCount(entry)
+
+      groups.set(key, existing)
+    })
+
+    const rows = Array.from(groups.values())
+      .map((group, index) => {
+        const balanceValue = group.received - group.used - group.discarded
+        return {
+          srNo: index + 1,
+          answerSheetType: group.answerSheetType,
+          classLabel: group.classLabel,
+          received: group.received,
+          used: group.used,
+          discarded: group.discarded,
+          balance: balanceValue,
+        }
+      })
+      .filter((row) => row.balance > 0)
+      .sort((a, b) => {
+        const classDiff = String(a.classLabel).localeCompare(String(b.classLabel))
+        if (classDiff !== 0) return classDiff
+        return a.answerSheetType.localeCompare(b.answerSheetType)
+      })
+
+    return rows
+  }, [entries, selectedClass])
 
   const getDiscardedRows = () => {
     const byClass = entries.filter(classFilter).sort(sortByAnswerSheetSequence)
@@ -699,7 +828,7 @@ const AnswerSheets: React.FC = () => {
         rows.push({
           key: `${entry._id || getEntryEditingKey(entry)}-${item.serial}-${index}`,
           serialNo: item.serial || '-',
-          date: entry.linkedExamDate ? new Date(entry.linkedExamDate).toLocaleDateString('en-IN') : '-',
+          date: entry.linkedExamDate ? formatShortDate(entry.linkedExamDate) : '-',
           subject: entry.linkedSubjectName || entry.subject || '-',
           code: entry.linkedSubjectCode || '-',
           roomNo: linkedRoomNo ? String(linkedRoomNo) : '-',
@@ -713,7 +842,7 @@ const AnswerSheets: React.FC = () => {
         rows.push({
           key: `${entry._id || getEntryEditingKey(entry)}-count-only-${i}`,
           serialNo: '-',
-          date: entry.linkedExamDate ? new Date(entry.linkedExamDate).toLocaleDateString('en-IN') : '-',
+          date: entry.linkedExamDate ? formatShortDate(entry.linkedExamDate) : '-',
           subject: entry.linkedSubjectName || entry.subject || '-',
           code: entry.linkedSubjectCode || '-',
           roomNo: linkedRoomNo ? String(linkedRoomNo) : '-',
@@ -1131,84 +1260,108 @@ const AnswerSheets: React.FC = () => {
             </table>
           ) : (
             // Other Tabs - Summary Table
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <table
+              className={
+                activeTab === 'used'
+                  ? 'table-auto divide-y divide-gray-200 dark:divide-gray-700'
+                  : 'min-w-full divide-y divide-gray-200 dark:divide-gray-700'
+              }
+            >
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-1 py-2 text-center align-middle text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Sr No
                   </th>
                   {activeTab === 'used' && (
                     <>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-center align-middle text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-center align-middle text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Class
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-center align-middle text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Subject Code
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-center align-middle text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Subject Name
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-center align-middle text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Answer Sheet Type
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-center align-middle text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Candidates
+                      </th>
+                      <th className="px-1 py-2 text-center align-middle text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Main Used
+                      </th>
+                      <th className="px-1 py-2 text-center align-middle text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Supp. Used
+                      </th>
+                      <th className="px-1 py-2 text-center align-middle text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Absent
                       </th>
                     </>
                   )}
                   {activeTab === 'discarded' && (
                     <>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Serial No
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Subject
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Code
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Room No
                       </th>
                     </>
                   )}
                   {activeTab !== 'used' && activeTab !== 'discarded' && (
                     <>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Answer Sheet
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                         Class
                       </th>
                     </>
                   )}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Received
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Used
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Balance
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Discarded
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  {activeTab !== 'used' && (
+                    <>
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Received
+                      </th>
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Used
+                      </th>
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Balance
+                      </th>
+                      <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                        Discarded
+                      </th>
+                    </>
+                  )}
+                  {activeTab !== 'used' && (
+                    <th className="px-1 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={activeTab === 'used' ? 13 : activeTab === 'discarded' ? 11 : 8} className="px-6 py-12 text-center">
+                    <td
+                      colSpan={activeTab === 'used' ? 10 : activeTab === 'discarded' ? 11 : 8}
+                      className="px-1 py-8 text-center"
+                    >
                       <div className="flex flex-col items-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                         <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading...</p>
@@ -1218,7 +1371,12 @@ const AnswerSheets: React.FC = () => {
                 ) : activeTab === 'used' ? (
                   // Used Tab - Show Centre Datesheet Entries
                   getUsedTabEntries().length > 0 ? (
-                    getUsedTabEntries().map((datesheetEntry, index) => {
+                    (() => {
+                      const srNoByDate = new Map<string, number>()
+                      let srCounter = 0
+                      const usedEntries = getUsedTabEntries()
+
+                      return usedEntries.map((datesheetEntry, index) => {
                       const candidateCount = datesheetEntry.candidateCount ?? 0
 
                       // Determine if this exam date is today or in the past
@@ -1227,9 +1385,6 @@ const AnswerSheets: React.FC = () => {
                       const todayStart = new Date()
                       todayStart.setHours(0, 0, 0, 0)
                       const isPastOrToday = examDayStart.getTime() <= todayStart.getTime()
-
-                      // Received = candidate count (sheets allocated for this exam)
-                      const totalReceived = candidateCount
 
                       // Used: for past/today exams, used = candidateCount (every candidate gets a sheet)
                       // For future exams, show whatever has been manually linked
@@ -1246,24 +1401,47 @@ const AnswerSheets: React.FC = () => {
                         totalUsed = candidateCount > 0 ? Math.min(rawTotalUsed, candidateCount) : rawTotalUsed
                       }
 
+                      const dateKey = new Date(datesheetEntry.examDate).toDateString()
+                      if (!srNoByDate.has(dateKey)) {
+                        srCounter += 1
+                        srNoByDate.set(dateKey, srCounter)
+                      }
+                      const srNo = srNoByDate.get(dateKey) ?? index + 1
+                      const entryId = String(datesheetEntry._id || '').trim()
+                      const subjectKey = buildSupplementaryUsageSubjectKey(
+                        datesheetEntry.examDate,
+                        datesheetEntry.subjectCode,
+                        datesheetEntry.class
+                      )
+                      const supplementaryUsed = (
+                        (entryId ? supplementaryUsageCounts.byEntryId.get(entryId) : undefined)
+                        ?? (subjectKey ? supplementaryUsageCounts.bySubjectKey.get(subjectKey) : undefined)
+                        ?? 0
+                      )
+                      const absentKey = `${dateKey}|${datesheetEntry.subjectCode}`
+                      const absentCount = absenteesByDateAndSubject.get(absentKey) ?? 0
+
                       return (
-                        <tr key={datesheetEntry._id} className={index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {index + 1}
+                        <tr
+                          key={datesheetEntry._id}
+                          className={index % 2 === 1 ? 'bg-gray-50 dark:bg-gray-700/50' : 'bg-white dark:bg-gray-800'}
+                        >
+                          <td className="px-1 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white text-center align-middle">
+                            {srNo}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                            {new Date(datesheetEntry.examDate).toLocaleDateString('en-IN')}
+                          <td className="px-1 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white text-center align-middle">
+                            {formatShortDate(datesheetEntry.examDate)}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          <td className="px-1 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white text-center align-middle">
                             {datesheetEntry.class}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
+                          <td className="px-1 py-2 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white text-center align-middle">
                             {datesheetEntry.subjectCode}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          <td className="px-1 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white text-center align-middle">
                             {datesheetEntry.subjectName}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                          <td className="px-1 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white text-center align-middle">
                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${datesheetEntry.answerSheetType === '32_pages' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
                               datesheetEntry.answerSheetType === '20_pages' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
                                 datesheetEntry.answerSheetType === '40_graph' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
@@ -1272,13 +1450,10 @@ const AnswerSheets: React.FC = () => {
                               {formatAnswerSheetType(datesheetEntry.answerSheetType)}
                             </span>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
+                          <td className="px-1 py-2 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400 text-center align-middle">
                             {datesheetEntry.candidateCount}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
-                            {totalReceived || 0}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600 dark:text-green-400">
+                          <td className="px-1 py-2 whitespace-nowrap text-sm font-semibold text-green-600 dark:text-green-400 text-center align-middle">
                             {isPastOrToday ? (
                               <span title="Auto-set to candidate count for completed exams">
                                 {totalUsed}
@@ -1342,31 +1517,19 @@ const AnswerSheets: React.FC = () => {
                               </div>
                             )}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-600 dark:text-gray-400">
-                            -
+                          <td className="px-1 py-2 whitespace-nowrap text-sm font-semibold text-indigo-600 dark:text-indigo-400 text-center align-middle">
+                            {supplementaryUsed}
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-600 dark:text-gray-400">
-                            -
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                            <button
-                              onClick={() => {
-                                // Show modal to select answer sheet and mark as used
-                                setSelectedDatesheetEntry(datesheetEntry._id)
-                                setShowLinkModal(true)
-                              }}
-                              className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                              disabled={loading}
-                            >
-                              Mark Used
-                            </button>
+                          <td className="px-1 py-2 whitespace-nowrap text-sm font-semibold text-rose-600 dark:text-rose-400 text-center align-middle">
+                            {absentCount}
                           </td>
                         </tr>
                       )
                     })
+                    })()
                   ) : (
                     <tr>
-                      <td colSpan={12} className="px-6 py-12 text-center">
+                      <td colSpan={10} className="px-1 py-8 text-center">
                         <div className="flex flex-col items-center">
                           <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -1378,6 +1541,48 @@ const AnswerSheets: React.FC = () => {
                             <li>• CBSE datesheet is imported</li>
                             <li>• Candidates have subjects linked</li>
                           </ul>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                ) : activeTab === 'balance' ? (
+                  // Balance Tab - aggregated per type/class
+                  balanceRows.length > 0 ? (
+                    balanceRows.map((row) => (
+                      <tr key={`${row.answerSheetType}-${row.classLabel}`} className="odd:bg-white even:bg-gray-50 dark:odd:bg-gray-800 dark:even:bg-gray-900/40">
+                        <td className="px-1 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white text-center align-middle">
+                          {row.srNo}
+                        </td>
+                        <td className="px-1 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white text-center align-middle">
+                          {row.answerSheetType}
+                        </td>
+                        <td className="px-1 py-2 whitespace-nowrap text-sm text-gray-900 dark:text-white text-center align-middle">
+                          {row.classLabel}
+                        </td>
+                        <td className="px-1 py-2 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400 text-center align-middle">
+                          {row.received}
+                        </td>
+                        <td className="px-1 py-2 whitespace-nowrap text-sm font-semibold text-green-600 dark:text-green-400 text-center align-middle">
+                          {row.used}
+                        </td>
+                        <td className="px-1 py-2 whitespace-nowrap text-sm font-semibold text-yellow-600 dark:text-yellow-400 text-center align-middle">
+                          {row.balance}
+                        </td>
+                        <td className="px-1 py-2 whitespace-nowrap text-sm font-semibold text-red-600 dark:text-red-400 text-center align-middle">
+                          {row.discarded}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="px-1 py-8 text-center">
+                        <div className="flex flex-col items-center">
+                          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                            No balance records found. Add received quantities first.
+                          </p>
                         </div>
                       </td>
                     </tr>
@@ -1951,7 +2156,7 @@ const AnswerSheets: React.FC = () => {
                     <option value="">-- Skip linking (mark as used without exam details) --</option>
                     {centreDatesheetEntries.map((entry) => (
                       <option key={entry._id} value={entry._id}>
-                        {new Date(entry.examDate).toLocaleDateString('en-IN')} - {entry.dayName} - Class {entry.class} - {entry.subjectCode} {entry.subjectName} ({entry.candidateCount} candidates)
+                        {formatShortDate(entry.examDate)} - {entry.dayName} - Class {entry.class} - {entry.subjectCode} {entry.subjectName} ({entry.candidateCount} candidates)
                       </option>
                     ))}
                   </select>
@@ -1966,7 +2171,7 @@ const AnswerSheets: React.FC = () => {
                         <div className="text-sm text-green-800 dark:text-green-200">
                           <p className="font-semibold mb-2">Selected Exam Details:</p>
                           <ul className="space-y-1">
-                            <li><strong>Date:</strong> {new Date(entry.examDate).toLocaleDateString('en-IN')} ({entry.dayName})</li>
+                            <li><strong>Date:</strong> {formatShortDate(entry.examDate)} ({entry.dayName})</li>
                             <li><strong>Class:</strong> {entry.class}</li>
                             <li><strong>Subject:</strong> {entry.subjectCode} - {entry.subjectName}</li>
                             <li><strong>Time:</strong> {formatTime(entry.timeSlot.start)} - {formatTime(entry.timeSlot.end)}</li>

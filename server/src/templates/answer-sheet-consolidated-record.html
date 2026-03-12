@@ -125,6 +125,25 @@
     .usage-table .col-discarded { width: 6%; }
     .usage-table .col-balance { width: 6%; }
 
+    .supp-usage-table .col-sr { width: 4.5%; }
+    .supp-usage-table .col-date { width: 8.5%; }
+    .supp-usage-table .col-day { width: 8.5%; }
+    .supp-usage-table .col-subject { width: 19%; }
+    .supp-usage-table .col-code { width: 6%; }
+    .supp-usage-table .col-room { width: 8%; }
+    .supp-usage-table .col-roll { width: 10%; }
+    .supp-usage-table .col-sheet { width: 10%; }
+    .supp-usage-table .col-total { width: 7%; }
+    .supp-usage-table .col-discarded { width: 8%; }
+    .supp-usage-table .col-balance { width: 10.5%; }
+
+    .supp-received-table .col-received { width: 16%; }
+    .supp-received-table .col-series { width: 10%; }
+    .supp-received-table .col-from { width: 24%; }
+    .supp-received-table .col-to { width: 24%; }
+    .supp-received-table .col-count { width: 14%; }
+    .supp-received-table .col-grand { width: 12%; }
+
     .ranges-table .col-range-sr { width: 8%; }
     .ranges-table .col-from { width: 28%; }
     .ranges-table .col-to { width: 28%; }
@@ -207,7 +226,13 @@
     <div class="header">
       <div class="school-name">{{schoolName}}</div>
       <div class="exam-session">CBSE BOARD EXAMINATION ({{examSession}})</div>
-      <div class="record-title">Consolidated Answer Sheet Record - Centre No: {{centreNo}}</div>
+      <div class="record-title">
+        {{#if isSupplementary}}
+        Answer-Sheet Record - Centre No: {{centreNo}}
+        {{else}}
+        Consolidated Answer Sheet Record - Centre No: {{centreNo}}
+        {{/if}}
+      </div>
     </div>
 
     <table class="meta">
@@ -223,6 +248,32 @@
 
     <div class="panel">
       <div class="section-title">Received Record</div>
+      {{#if isSupplementary}}
+      <table class="table supp-received-table">
+        <thead>
+          <tr>
+            <th class="col-received">Received</th>
+            <th class="col-series">Series</th>
+            <th class="col-from">From</th>
+            <th class="col-to">To</th>
+            <th class="col-count">Total</th>
+            <th class="col-grand">G. TOTAL</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#receivedRows}}
+          <tr>
+            <td class="center">{{receivedLabel}}</td>
+            <td class="center">{{seriesNo}}</td>
+            <td class="center">{{serialFrom}}</td>
+            <td class="center">{{serialTo}}</td>
+            <td class="center">{{count}}</td>
+            <td class="center">{{grandTotal}}</td>
+          </tr>
+          {{/receivedRows}}
+        </tbody>
+      </table>
+      {{else}}
       <table class="table ranges-table">
         <thead>
           <tr>
@@ -243,11 +294,48 @@
           {{/receivedRanges}}
         </tbody>
       </table>
+      {{/if}}
     </div>
 
     <div class="panel">
       <div class="section-title">Usage Details</div>
       {{#if hasRows}}
+      {{#if isSupplementary}}
+      <table class="table supp-usage-table">
+        <thead>
+          <tr>
+            <th class="col-sr">Sr No</th>
+            <th class="col-date">Date</th>
+            <th class="col-day">Day</th>
+            <th class="col-subject">Subject</th>
+            <th class="col-code">Code</th>
+            <th class="col-room">Room No</th>
+            <th class="col-roll">Roll No</th>
+            <th class="col-sheet">Sheet No</th>
+            <th class="col-total">Total</th>
+            <th class="col-discarded">Discarded</th>
+            <th class="col-balance">Balance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#rows}}
+          <tr>
+            <td class="center">{{srNo}}</td>
+            <td class="center">{{dateLabel}}</td>
+            <td class="center">{{dayName}}</td>
+            <td>{{subjectName}}</td>
+            <td class="center">{{subjectCode}}</td>
+            <td class="center">{{roomNo}}</td>
+            <td class="center">{{rollNo}}</td>
+            <td class="center">{{sheetNo}}</td>
+            <td class="center">{{totalCount}}</td>
+            <td class="center">{{discardedCount}}</td>
+            <td class="center">{{balanceCount}}</td>
+          </tr>
+          {{/rows}}
+        </tbody>
+      </table>
+      {{else}}
       <table class="table usage-table">
         <thead>
           <tr>
@@ -282,6 +370,7 @@
           {{/rows}}
         </tbody>
       </table>
+      {{/if}}
       {{else}}
       <div class="empty">No usage record available for this answer sheet.</div>
       {{/if}}

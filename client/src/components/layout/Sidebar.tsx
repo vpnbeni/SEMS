@@ -208,16 +208,6 @@ const Sidebar: React.FC = () => {
               ),
               badge: null,
             },
-            {
-              name: 'Subject Allocation',
-              href: '/time-table/subject-allocation',
-              icon: (
-                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7.5 6h9M7.5 10.5h9M7.5 15h5.25m8.25-9v12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18V6A2.25 2.25 0 015.25 3.75h13.5A2.25 2.25 0 0121 6z" />
-                </svg>
-              ),
-              badge: null,
-            },
           ],
         },
       ],

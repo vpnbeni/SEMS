@@ -36,7 +36,6 @@ import TimetableSubjects from './pages/timetable/TimetableSubjects'
 import ClassWise from './pages/timetable/ClassWise'
 import TeacherWise from './pages/timetable/TeacherWise'
 import PeriodAllocation from './pages/timetable/PeriodAllocation'
-import SubjectAllocation from './pages/timetable/SubjectAllocation'
 import Departments from './pages/timetable/Departments'
 import { TimetableProvider } from './contexts/TimetableContext'
 import Form66 from './pages/Form66'
@@ -177,7 +176,6 @@ function App() {
               <Route path="time-table/period-distribution" element={<PeriodAllocation />} />
               <Route path="time-table/distribution" element={<Navigate to="/time-table/period-distribution" replace />} />
               <Route path="time-table/period-allocation" element={<Navigate to="/time-table/period-distribution" replace />} />
-              <Route path="time-table/subject-allocation" element={<SubjectAllocation />} />
               <Route path="time-table" element={<Navigate to="/time-table/classes" replace />} />
               <Route path="centre-details" element={<CentreDetails />} />
               <Route path="exam-functionaries" element={<Teachers />} />

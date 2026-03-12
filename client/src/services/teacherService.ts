@@ -54,6 +54,8 @@ export interface FetchTeachersParams {
   search?: string
   department?: string
   subject?: string
+  schoolCode?: string
+  designation?: string
   isActive?: boolean
   sort?: string
   joiningDateFrom?: string
@@ -73,6 +75,9 @@ export interface TeacherExportFilters {
   search?: string
   department?: string
   status?: 'active' | 'inactive' | 'all'
+  schoolCode?: string
+  subject?: string
+  designation?: string
   joiningDateFrom?: string
   joiningDateTo?: string
   minExperience?: string
@@ -123,6 +128,9 @@ const toExportParams = (filters: TeacherExportFilters, exportAll = false) => {
   const params: Record<string, string> = {}
   if (filters.search) params.search = filters.search
   if (filters.department && filters.department !== 'all') params.department = filters.department
+  if (filters.schoolCode) params.schoolCode = filters.schoolCode
+  if (filters.subject) params.subject = filters.subject
+  if (filters.designation) params.designation = filters.designation
   if (filters.status && filters.status !== 'all') {
     params.isActive = filters.status === 'active' ? 'true' : 'false'
   }

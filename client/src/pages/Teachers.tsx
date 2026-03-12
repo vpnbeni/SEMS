@@ -38,20 +38,6 @@ const getDutyOptionsForDesignation = (designation: string | undefined): string[]
   return DUTY_TYPE_OPTIONS;
 };
 
-const DEPARTMENTS_LIST = [
-  "Mathematics",
-  "Physics",
-  "English",
-  "Chemistry",
-  "Biology",
-  "History",
-];
-
-const DEPARTMENT_OPTIONS = [
-  { value: "all", label: "All Departments" },
-  ...DEPARTMENTS_LIST.map((dept) => ({ value: dept, label: dept })),
-];
-
 const LIMIT = 50;
 const getTeacherId = (teacher: Teacher) => teacher._id || teacher.id || "";
 
@@ -60,7 +46,9 @@ const Teachers: React.FC = () => {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
-  const [selectedDepartment, setSelectedDepartment] = useState("all");
+  const [filterSchoolCode, setFilterSchoolCode] = useState("");
+  const [filterSubject, setFilterSubject] = useState("");
+  const [filterDesignation, setFilterDesignation] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
 
@@ -129,7 +117,9 @@ const Teachers: React.FC = () => {
       page: currentPage,
       limit: LIMIT,
       search: debouncedSearchTerm || undefined,
-      department: selectedDepartment !== "all" ? selectedDepartment : undefined,
+      schoolCode: filterSchoolCode || undefined,
+      subject: filterSubject || undefined,
+      designation: filterDesignation || undefined,
       // Always fetch active functionaries for the main list.
       isActive: true,
 
@@ -141,7 +131,9 @@ const Teachers: React.FC = () => {
     [
       currentPage,
       debouncedSearchTerm,
-      selectedDepartment,
+      filterSchoolCode,
+      filterSubject,
+      filterDesignation,
 
       debouncedJoiningDateFrom,
       debouncedJoiningDateTo,
@@ -199,12 +191,62 @@ const Teachers: React.FC = () => {
 
   const displayTeachers = useMemo(() => {
     if (!teachers) return [];
+
     const transformed = teachers
       .map(transformTeacher)
       // Hide soft-deleted functionaries even if API returns mixed records.
       .filter((teacher) => teacher.isActive !== false)
       // Optimistic UI: hide freshly deleted functionaries immediately.
       .filter((teacher) => !hiddenDeletedTeacherIds[teacher._id || teacher.id || '']);
+
+    const needle = (debouncedSearchTerm || '').trim().toLowerCase();
+    const schoolFilter = filterSchoolCode.trim().toLowerCase();
+    const subjectFilter = filterSubject.trim().toLowerCase();
+    const designationFilter = filterDesignation.trim().toLowerCase();
+
+    let filtered = transformed;
+
+    if (needle) {
+      filtered = filtered.filter((teacher) => {
+        const name = String(teacher.name || '').toLowerCase();
+        const employeeId = String(teacher.employeeId || '').toLowerCase();
+        const mobile = String(teacher.mobileNo || teacher.phone || '').toLowerCase();
+        const schoolName = String(teacher.schoolName || '').toLowerCase();
+        const schoolCode = String(teacher.schoolCode || '').toLowerCase();
+        const subjectCode = getPrimarySubjectCode(teacher).toLowerCase();
+        const subjectName = getPrimarySubjectName(teacher).toLowerCase();
+
+        return (
+          name.includes(needle) ||
+          employeeId.includes(needle) ||
+          mobile.includes(needle) ||
+          schoolName.includes(needle) ||
+          schoolCode.includes(needle) ||
+          subjectCode.includes(needle) ||
+          subjectName.includes(needle)
+        );
+      });
+    }
+
+    if (schoolFilter) {
+      filtered = filtered.filter((teacher) =>
+        String(teacher.schoolCode || '').toLowerCase().includes(schoolFilter)
+      );
+    }
+
+    if (subjectFilter) {
+      filtered = filtered.filter((teacher) => {
+        const subjectCode = getPrimarySubjectCode(teacher).toLowerCase();
+        const subjectName = getPrimarySubjectName(teacher).toLowerCase();
+        return subjectCode.includes(subjectFilter) || subjectName.includes(subjectFilter);
+      });
+    }
+
+    if (designationFilter) {
+      filtered = filtered.filter((teacher) =>
+        String(teacher.designation || '').toLowerCase().includes(designationFilter)
+      );
+    }
 
     // Default sort: Principal first, then Vice Principal, then rest by name
     const designationPriority = (d: string | undefined): number => {
@@ -214,13 +256,13 @@ const Teachers: React.FC = () => {
       return 2;
     };
 
-    return [...transformed].sort((a, b) => {
+    return [...filtered].sort((a, b) => {
       const pa = designationPriority(a.designation);
       const pb = designationPriority(b.designation);
       if (pa !== pb) return pa - pb;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [teachers, hiddenDeletedTeacherIds]);
+  }, [teachers, hiddenDeletedTeacherIds, debouncedSearchTerm, filterSchoolCode, filterSubject, filterDesignation]);
   const visibleTeacherIds = useMemo(
     () => displayTeachers.map((teacher) => getTeacherId(teacher)).filter(Boolean),
     [displayTeachers]
@@ -261,7 +303,6 @@ const Teachers: React.FC = () => {
 
   const activeCount = displayTeachers.filter((t) => isSelfSchoolTeacher(t)).length;
   const inactiveCount = Math.max(0, displayTeachers.length - activeCount);
-  const departments = DEPARTMENTS_LIST;
 
   const invalidateTeachers = () => {
     queryClient.invalidateQueries({ queryKey: teacherKeys.all });
@@ -602,57 +643,40 @@ const Teachers: React.FC = () => {
                 {/* Filters Dropdown */}
                 {showMoreFilters && (
                   <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-4 space-y-4">
-
                     <div>
-                      <Dropdown
-                        id="teachers-department-filter"
-                        label="Department"
-                        options={DEPARTMENT_OPTIONS}
-                        value={selectedDepartment}
-                        onChange={(value) => setSelectedDepartment(String(value))}
-                        placeholder="All Departments"
-                        clearable={false}
-                        size="md"
-                        portal={true}
+                      <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+                        School Code
+                      </label>
+                      <input
+                        type="text"
+                        value={filterSchoolCode}
+                        onChange={(e) => setFilterSchoolCode(e.target.value)}
+                        className="input w-full"
+                        placeholder="e.g., 829261"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                        Joining Date From
+                        Subject
                       </label>
                       <input
-                        type="date"
-                        id="teachers-joining-date-from"
-                        title="Joining date from"
-                        value={joiningDateFrom}
-                        onChange={(e) => setJoiningDateFrom(e.target.value)}
+                        type="text"
+                        value={filterSubject}
+                        onChange={(e) => setFilterSubject(e.target.value)}
                         className="input w-full"
+                        placeholder="Code or name (e.g., 043, Chemistry)"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                        Joining Date To
+                        Designation
                       </label>
                       <input
-                        type="date"
-                        id="teachers-joining-date-to"
-                        title="Joining date to"
-                        value={joiningDateTo}
-                        onChange={(e) => setJoiningDateTo(e.target.value)}
+                        type="text"
+                        value={filterDesignation}
+                        onChange={(e) => setFilterDesignation(e.target.value)}
                         className="input w-full"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                        Min Years of Experience
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="e.g., 5"
-                        value={yearsOfExperience}
-                        onChange={(e) => setYearsOfExperience(e.target.value)}
-                        className="input w-full"
+                        placeholder="e.g., PGT, PRINCIPAL"
                       />
                     </div>
                   </div>
@@ -904,7 +928,7 @@ const Teachers: React.FC = () => {
               No teachers found
             </h3>
             <p className="text-secondary-600 dark:text-secondary-400 mb-6">
-              {searchTerm || selectedDepartment !== "all" || joiningDateFrom || joiningDateTo || yearsOfExperience
+              {searchTerm || filterSchoolCode || filterSubject || filterDesignation
                 ? "No teachers match your search criteria. Try adjusting your filters."
                 : "Get started by adding your first teacher to the system."}
             </p>
@@ -1027,13 +1051,22 @@ const Teachers: React.FC = () => {
             placeholder: "Search by name, email, or employee ID",
           },
           {
-            label: "Department",
-            key: "department",
-            type: "select",
-            options: [
-              { label: "All Departments", value: "all" },
-              ...departments.map((dept) => ({ label: dept, value: dept })),
-            ],
+            label: "School Code",
+            key: "schoolCode",
+            type: "text",
+            placeholder: "Filter by school code",
+          },
+          {
+            label: "Subject",
+            key: "subject",
+            type: "text",
+            placeholder: "Filter by subject code/name",
+          },
+          {
+            label: "Designation",
+            key: "designation",
+            type: "text",
+            placeholder: "Filter by designation",
           },
           {
             label: "Status",

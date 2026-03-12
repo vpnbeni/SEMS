@@ -12,9 +12,11 @@
   }
 }
 
-/* Table wrapper — no vertical scroll; page scrolls instead */
 .seating-table-wrapper {
   position: relative;
+  /* Fill available viewport height and scroll vertically */
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
 }
 
 .seating-table-wrapper::-webkit-scrollbar {
@@ -111,6 +113,8 @@
 }
 
 .seating-table-wrapper .sp-schedule-table thead th {
+  position: sticky;
+  top: 0;
   z-index: 20;
   background-color: #f9fafb;
 }

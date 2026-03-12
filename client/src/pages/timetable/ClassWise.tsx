@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useTimetable, WEEKDAYS, EMPTY_CELL, type TimetableCell } from '@/contexts/TimetableContext'
 import bellTimingsService, { type BellTimingRowPayload } from '@/services/bellTimingsService'
+import toast from 'react-hot-toast'
 
 /* ══════════════════════════════ Helpers ══════════════════════════════ */
 
@@ -37,6 +38,7 @@ const SHORT_DAYS: Record<string, string> = {
 }
 
 const normalizeTeacherName = (value: string) => value.trim().toLowerCase()
+const normalizeSubjectName = (value: string) => value.trim().toLowerCase()
 
 const createWeekdaySelection = (checked: boolean) =>
   WEEKDAYS.reduce<Record<string, boolean>>((acc, day) => {
@@ -129,6 +131,95 @@ const ClassWise: React.FC = () => {
     () => classes.find((c) => c.id === selectedClassId) ?? null,
     [classes, selectedClassId]
   )
+
+  const selectedClassPeriodAllocation = useMemo<Record<string, number>>(() => {
+    if (!selectedClass) return {}
+
+    const direct = periodAllocation[selectedClass.id]
+    if (direct && Object.keys(direct).length > 0) {
+      return direct
+    }
+
+    const classNameKey = selectedClass.className.trim().toLowerCase()
+    const sectionKey = selectedClass.section.trim().toLowerCase()
+
+    const exactFallback = classes.find((item) => {
+      if (item.id === selectedClass.id) return false
+      const allocation = periodAllocation[item.id]
+      if (!allocation || Object.keys(allocation).length === 0) return false
+      return (
+        item.className.trim().toLowerCase() === classNameKey &&
+        item.section.trim().toLowerCase() === sectionKey
+      )
+    })
+    if (exactFallback) {
+      return periodAllocation[exactFallback.id] || {}
+    }
+
+    const classWideFallback = classes.find((item) => {
+      const allocation = periodAllocation[item.id]
+      if (!allocation || Object.keys(allocation).length === 0) return false
+      return item.className.trim().toLowerCase() === classNameKey
+    })
+
+    return classWideFallback ? periodAllocation[classWideFallback.id] || {} : {}
+  }, [selectedClass, periodAllocation, classes])
+
+  const unassignedSubjectsForAutoMode = useMemo(() => {
+    if (!selectedClass) return []
+
+    const classSubjects = Array.from(
+      new Set(
+        (selectedClass.subjects || [])
+          .map((subject) => subject.trim())
+          .filter(Boolean)
+      )
+    )
+    if (classSubjects.length === 0) return []
+
+    const selectedClassNameKey = selectedClass.className.trim().toLowerCase()
+    const selectedSectionKey = selectedClass.section.trim().toLowerCase()
+    const mappedSubjects = new Set<string>()
+
+    teacherSubjectAllocations.forEach((allocation) => {
+      const assignment = allocation.assignments.find((entry) => {
+        const classIdMatch = entry.classId === selectedClass.id
+        const classNameMatch = entry.className.trim().toLowerCase() === selectedClassNameKey
+        const sectionMatch = entry.section.trim().toLowerCase() === selectedSectionKey
+        return classIdMatch || (classNameMatch && sectionMatch)
+      })
+      if (!assignment) return
+
+      assignment.subjects.forEach((subject) => {
+        const trimmed = subject.trim()
+        if (!trimmed) return
+        mappedSubjects.add(normalizeSubjectName(trimmed))
+      })
+    })
+
+    return classSubjects.filter((subject) => !mappedSubjects.has(normalizeSubjectName(subject)))
+  }, [selectedClass, teacherSubjectAllocations])
+
+  const handleModeToggle = useCallback(() => {
+    if (mode === 'auto') {
+      setMode('manual')
+      return
+    }
+
+    if (unassignedSubjectsForAutoMode.length > 0) {
+      const preview = unassignedSubjectsForAutoMode.slice(0, 5)
+      const remainingCount = Math.max(unassignedSubjectsForAutoMode.length - preview.length, 0)
+      const extraSuffix = remainingCount > 0 ? ` +${remainingCount} more` : ''
+      const label = unassignedSubjectsForAutoMode.length === 1 ? 'subject' : 'subjects'
+
+      toast.error(
+        `Assign this remaining ${label} to any teacher under Departments: ${preview.join(', ')}${extraSuffix}`
+      )
+      return
+    }
+
+    setMode('auto')
+  }, [mode, unassignedSubjectsForAutoMode])
 
   // If the selected class is deleted or no selection, pick first
   useMemo(() => {
@@ -399,7 +490,7 @@ const ClassWise: React.FC = () => {
   const autoFillClassTimetable = useCallback(() => {
     if (!selectedClass) return
 
-    const allocation = periodAllocation[selectedClass.id] || {}
+    const allocation = selectedClassPeriodAllocation
     const remainingBySubject: Record<string, number> = {}
 
     Object.entries(allocation).forEach(([subjectName, countValue]) => {
@@ -411,15 +502,13 @@ const ClassWise: React.FC = () => {
 
     const subjectOrder = Object.keys(remainingBySubject)
     if (subjectOrder.length === 0) {
-      window.alert('No period distribution found for this class. Set periods in Period Distribution first.')
+      toast.error('No period distribution found for this class-section. Set periods in Period Distribution first.')
       return
     }
     const totalRequired = subjectOrder.reduce((sum, subj) => sum + remainingBySubject[subj], 0)
     const totalSlots = periodsPerDay * WEEKDAYS.length
     if (totalRequired > totalSlots) {
-      // Still proceed, but let the user know some periods will be truncated.
-      // eslint-disable-next-line no-alert
-      window.alert('Allocated periods exceed available slots for this class. Some periods will be skipped.')
+      toast.error('Allocated periods exceed available slots for this class. Some periods will be skipped.')
     }
 
     // For each period slot, assign subjects across weekdays.
@@ -484,7 +573,7 @@ const ClassWise: React.FC = () => {
         usedForDay.add(chosenSubject)
       })
     }
-  }, [selectedClass, periodAllocation, periodsPerDay, setGridCell, getCell, getAutoTeacherForSubject])
+  }, [selectedClass, selectedClassPeriodAllocation, periodsPerDay, setGridCell, getCell, getAutoTeacherForSubject])
 
   const openPeriodEditor = useCallback((slot: number) => {
     if (!selectedClass) return
@@ -1435,7 +1524,7 @@ const ClassWise: React.FC = () => {
                     <button
                       type="button"
                       className={`cw-mode-switch ${mode === 'auto' ? 'cw-mode-switch-auto' : ''}`}
-                      onClick={() => setMode(mode === 'auto' ? 'manual' : 'auto')}
+                      onClick={handleModeToggle}
                     >
                       <span
                         className={`cw-mode-switch-thumb ${

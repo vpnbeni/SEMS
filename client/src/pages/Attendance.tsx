@@ -380,9 +380,9 @@ const Attendance: React.FC = () => {
             </div>
           ) : (
             <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-260px)]">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-900/50">
+                  <thead className="bg-gray-50 dark:bg-gray-900/50 sticky top-0 z-20">
                     {/* Date header row - spans across subject columns for same date */}
                     <tr>
                       <th rowSpan={2} className="sticky left-0 z-10 bg-gray-50 dark:bg-gray-900/50 px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-r border-gray-200 dark:border-gray-700 min-w-[48px]">

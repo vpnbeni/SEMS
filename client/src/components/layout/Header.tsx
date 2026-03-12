@@ -180,7 +180,6 @@ const Header: React.FC = () => {
           'period-distribution': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
           'distribution': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
           'period-allocation': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
-          'subject-allocation': { title: 'Subject Allocation', subtitle: 'Assign classes and subjects to exam functionaries' },
         }
         const info = titleMap[subPage] || { title: 'Time Table', subtitle: 'School timetable management' }
         return {
