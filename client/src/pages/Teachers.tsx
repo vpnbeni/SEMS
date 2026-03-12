@@ -11,7 +11,6 @@ import {
 import AddTeacherModal from "../components/teachers/AddTeacherModal";
 import EditTeacherModal from "../components/teachers/EditTeacherModal";
 import ExportModal, { ExportFilters } from "../components/common/ExportModal";
-import { Dropdown } from "../components/common/Dropdown";
 import { useTeachers, teacherKeys } from "../hooks/useTeachers";
 import toast from "react-hot-toast";
 import { useCentreDetails } from "../hooks/useCentreDetails";
@@ -52,9 +51,9 @@ const Teachers: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [showMoreFilters, setShowMoreFilters] = useState(false);
 
-  const [joiningDateFrom, setJoiningDateFrom] = useState("");
-  const [joiningDateTo, setJoiningDateTo] = useState("");
-  const [yearsOfExperience, setYearsOfExperience] = useState("");
+  const [joiningDateFrom] = useState("");
+  const [joiningDateTo] = useState("");
+  const [yearsOfExperience] = useState("");
   const [showExportModal, setShowExportModal] = useState(false);
   const [isTemplateDownloading, setIsTemplateDownloading] = useState(false);
   const [isTemplateUploading, setIsTemplateUploading] = useState(false);
