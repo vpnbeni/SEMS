@@ -73,6 +73,11 @@ const normalizeRoomNo = (value) => {
   return trimmed;
 };
 const normalizeText = (value) => String(value || '').trim();
+const isCurrentInvigilator = (functionary) => (
+  Boolean(functionary)
+  && functionary.isActive !== false
+  && normalizeText(functionary.dutyType) === 'Invigilator'
+);
 
 const DEFAULT_DUTY_LIST_COLUMN_WIDTHS = Object.freeze({
   srNo: 50,
@@ -540,10 +545,23 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
   const allocationMode = await getDutyAllocationMode();
   const lookupIds = Array.from(new Set([...firstFunctionaryIds, ...secondFunctionaryIds]));
   const functionaries = await Teacher.find({ _id: { $in: lookupIds }, isActive: true })
-    .select('name employeeId department designation schoolCode subjectCode supervisionHistory')
+    .select('name employeeId department designation schoolCode subjectCode supervisionHistory dutyType isActive')
     .lean();
   if (functionaries.length !== lookupIds.length) {
     return res.status(400).json({ success: false, message: 'Some selected functionaries are invalid or inactive.' });
+  }
+  const invalidInvigilators = functionaries.filter((functionary) => !isCurrentInvigilator(functionary));
+  if (invalidInvigilators.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Only active current invigilators can be assigned to room duties.',
+      invalidFunctionaries: invalidInvigilators.map((functionary) => ({
+        _id: functionary._id,
+        name: functionary.name,
+        employeeId: functionary.employeeId,
+        dutyType: functionary.dutyType,
+      })),
+    });
   }
   const functionaryMap = new Map(functionaries.map((f) => [String(f._id), f]));
   const [roomCandidateSchoolCodes, roomSubjectCodes] = await Promise.all([
@@ -726,6 +744,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
         });
         const eligibleCount = eligible[fnIdx].filter(Boolean).length;
         return {
+          _id: funcId,
           name: fn.name,
           employeeId: fn.employeeId,
           schoolCode: normalizeSchoolCode(fn.schoolCode),

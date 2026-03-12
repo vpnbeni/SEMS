@@ -34,6 +34,29 @@ const DUTY_TABS = [
   { key: 'CL4', label: 'CL4', dutyType: 'Class IV' },
 ] as const
 
+type ConflictReason = {
+  type: 'subject' | 'school' | 'candidateOverlap'
+  codes?: string[]
+  schoolCode?: string
+  rollNumbers?: string[]
+  totalOverlaps?: number
+}
+
+type ConflictRoom = {
+  roomNo: string
+  reasons: ConflictReason[]
+}
+
+type ConflictDialogEntry = {
+  _id?: string
+  name?: string
+  employeeId?: string
+  schoolCode?: string
+  eligibleRoomCount: number
+  totalRooms: number
+  ineligibleRooms?: ConflictRoom[]
+}
+
 /* ────────── helpers ────────── */
 
 const normalizeDateKey = (value: string | Date) => {
@@ -60,6 +83,10 @@ const hasDutyType = (functionary: Teacher, dutyType: string) => {
   if (functionary?.dutyType === dutyType) return true
   if (!Array.isArray(functionary?.dutyHistory)) return false
   return functionary.dutyHistory.some((duty: string) => duty === dutyType)
+}
+
+const isCurrentInvigilator = (functionary?: Teacher) => {
+  return Boolean(functionary && functionary.isActive !== false && functionary.dutyType === 'Invigilator')
 }
 
 const compareRoomNo = (a: Room, b: Room) => {
@@ -227,8 +254,9 @@ const Duties: React.FC = () => {
   const [dutyPdfRenderError, setDutyPdfRenderError] = useState<string | null>(null)
   const [invigilatorDutySort, setInvigilatorDutySort] = useState<'none' | 'asc' | 'desc'>('none')
   const [showConflictDialog, setShowConflictDialog] = useState(false)
-  const [conflictDialogData, setConflictDialogData] = useState<any[] | null>(null)
+  const [conflictDialogData, setConflictDialogData] = useState<ConflictDialogEntry[] | null>(null)
   const [expandedConflictIdx, setExpandedConflictIdx] = useState<number | null>(null)
+  const [replacementTarget, setReplacementTarget] = useState<ConflictDialogEntry | null>(null)
 
   const { data: templateSettings, isLoading: loadingTemplateSettings } = useSeatingPlanTemplateSettings()
   const templateSettingsSnapshot = templateSettings ?? null
@@ -362,6 +390,7 @@ const Duties: React.FC = () => {
 
   /* ── Filter by active tab + search ── */
   const activeDutyType = DUTY_TABS.find((t) => t.key === activeTab)?.dutyType || ''
+  const isAsiTabActive = activeTab === 'ASI'
 
   const allocatedRoomsForSelectedDate = useMemo(() => {
     if (!selectedRoomDate) return []
@@ -385,8 +414,7 @@ const Duties: React.FC = () => {
   }, [allFunctionaries])
 
   const invigilatorsForTab = useMemo(() => {
-    const dutyType = DUTY_TABS.find((t) => t.key === 'ASI')?.dutyType || 'Invigilator'
-    return allFunctionaries.filter((f) => hasDutyType(f, dutyType))
+    return allFunctionaries.filter((f) => isCurrentInvigilator(f))
   }, [allFunctionaries])
 
   const selectedInvigilatorsForDate = useMemo(() => {
@@ -399,15 +427,17 @@ const Duties: React.FC = () => {
     return [...source].sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }))
   }, [allocationMode, selectedInvigilatorsForDate, invigilatorsForTab])
 
+  const selectedInvigilatorIdsForDate = useMemo(() => {
+    return new Set(
+      selectedInvigilatorsForDate
+        .map((func) => String(func?._id || '').trim())
+        .filter(Boolean)
+    )
+  }, [selectedInvigilatorsForDate])
+
   const selectedInvigilatorCountForRoomDate = useMemo(() => {
-    if (!selectedRoomDate) return 0
-    let count = 0
-    const suffix = `::${selectedRoomDate}`
-    for (const [key, value] of Object.entries(checkedDuties)) {
-      if (value && key.endsWith(suffix)) count += 1
-    }
-    return count
-  }, [selectedRoomDate, checkedDuties])
+    return selectedInvigilatorsForDate.length
+  }, [selectedInvigilatorsForDate])
 
   const canEnableAutoModeForDate = useMemo(
     () => Boolean(selectedRoomDate) && selectedInvigilatorCountForRoomDate >= allocatedRoomsForSelectedDate.length * 2,
@@ -502,9 +532,11 @@ const Duties: React.FC = () => {
   /* ── Count checked duties per date (only for active functionaries in this tab) ── */
   const activeFunctionaryIdSet = useMemo(() => {
     const set = new Set<string>()
-    allFunctionaries.filter((f) => hasDutyType(f, activeDutyType)).forEach((f) => set.add(String(f._id)))
+    allFunctionaries
+      .filter((f) => (isAsiTabActive ? isCurrentInvigilator(f) : hasDutyType(f, activeDutyType)))
+      .forEach((f) => set.add(String(f._id)))
     return set
-  }, [allFunctionaries, activeDutyType])
+  }, [allFunctionaries, activeDutyType, isAsiTabActive])
 
   const checkedCountByDate = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -531,7 +563,7 @@ const Duties: React.FC = () => {
   }, [checkedDuties, activeFunctionaryIdSet])
 
   const filteredFunctionaries = useMemo(() => {
-    let list = allFunctionaries.filter((f) => hasDutyType(f, activeDutyType))
+    let list = allFunctionaries.filter((f) => (isAsiTabActive ? isCurrentInvigilator(f) : hasDutyType(f, activeDutyType)))
     const term = search.trim().toLowerCase()
     if (term) {
       list = list.filter((f) => {
@@ -552,7 +584,7 @@ const Duties: React.FC = () => {
       })
     }
     return list
-  }, [allFunctionaries, activeDutyType, search, activeTab, invigilatorDutySort, checkedCountByFunctionary])
+  }, [allFunctionaries, activeDutyType, search, isAsiTabActive, invigilatorDutySort, checkedCountByFunctionary])
 
   const getFunctionarySubjectCodes = useCallback((functionary?: Teacher) => {
     if (!functionary) return []
@@ -659,11 +691,56 @@ const Duties: React.FC = () => {
 
   const isInvigilatorAllowedForRoom = useCallback((roomId: string, functionaryId: string, dateKey: string) => {
     if (!functionaryId || !dateKey) return true
+    const functionary = functionaryById[functionaryId]
+    if (!isCurrentInvigilator(functionary)) return false
     if (getRoomSubjectConflict(roomId, functionaryId, dateKey)) return false
     if (getRoomSchoolConflict(roomId, functionaryId, dateKey)) return false
     if (getCandidateOverlapConflict(roomId, functionaryId, dateKey)) return false
     return true
-  }, [getRoomSubjectConflict, getRoomSchoolConflict, getCandidateOverlapConflict])
+  }, [functionaryById, getRoomSubjectConflict, getRoomSchoolConflict, getCandidateOverlapConflict])
+
+  const getEligibleRoomCountForFunctionary = useCallback((functionaryId: string, dateKey: string) => {
+    if (!dateKey || !functionaryId) return 0
+    let count = 0
+    for (const room of allocatedRoomsForSelectedDate) {
+      if (!isInvigilatorAllowedForRoom(room._id, functionaryId, dateKey)) continue
+      if (isFunctionaryAssignedElsewhere(dateKey, functionaryId, room._id, 'first')) continue
+      if (isFunctionaryAssignedElsewhere(dateKey, functionaryId, room._id, 'second')) continue
+      count += 1
+    }
+    return count
+  }, [allocatedRoomsForSelectedDate, isInvigilatorAllowedForRoom, isFunctionaryAssignedElsewhere])
+
+  const replacementCandidates = useMemo(() => {
+    if (!selectedRoomDate || !replacementTarget?._id) return []
+
+    return invigilatorsForTab
+      .filter((func) => {
+        const candidateId = String(func?._id || '').trim()
+        if (!candidateId || candidateId === String(replacementTarget._id || '').trim()) return false
+        if (selectedInvigilatorIdsForDate.has(candidateId)) return false
+        if (Object.values(roomAssignmentsByDate[selectedRoomDate] || {}).some((value) => String(value || '').trim() === candidateId)) return false
+        if (Object.values(roomAssignmentsByDateSecond[selectedRoomDate] || {}).some((value) => String(value || '').trim() === candidateId)) return false
+        return true
+      })
+      .map((func) => ({
+        functionary: func,
+        eligibleRoomCount: getEligibleRoomCountForFunctionary(String(func._id || ''), selectedRoomDate),
+      }))
+      .filter((entry) => entry.eligibleRoomCount > 0)
+      .sort((a, b) => {
+        if (b.eligibleRoomCount !== a.eligibleRoomCount) return b.eligibleRoomCount - a.eligibleRoomCount
+        return String(a.functionary.name || '').localeCompare(String(b.functionary.name || ''), undefined, { sensitivity: 'base' })
+      })
+  }, [
+    selectedRoomDate,
+    replacementTarget,
+    invigilatorsForTab,
+    selectedInvigilatorIdsForDate,
+    roomAssignmentsByDate,
+    roomAssignmentsByDateSecond,
+    getEligibleRoomCountForFunctionary,
+  ])
 
   const toggleDuty = (funcId: string, dateKey: string) => {
     const key = `${funcId}::${dateKey}`
@@ -770,15 +847,12 @@ const Duties: React.FC = () => {
     const response = dailyDutiesData
     const nextAssignments: Record<string, string> = {}
     const nextAssignmentsSecond: Record<string, string> = {}
-    const nextChecked: Record<string, boolean> = {}
     for (const duty of response?.duties || []) {
       const roomId = String(duty?.room?._id || '')
       const functionaryId = String(duty?.functionary?._id || '')
       const functionary2Id = String(duty?.functionary2?._id || '')
       if (roomId && functionaryId) nextAssignments[roomId] = functionaryId
       if (roomId && functionary2Id) nextAssignmentsSecond[roomId] = functionary2Id
-      if (functionaryId) nextChecked[`${functionaryId}::${selectedRoomDate}`] = true
-      if (functionary2Id) nextChecked[`${functionary2Id}::${selectedRoomDate}`] = true
     }
     setRoomAssignmentsByDate((prev) => ({
       ...prev,
@@ -788,9 +862,6 @@ const Duties: React.FC = () => {
       ...prev,
       [selectedRoomDate]: nextAssignmentsSecond,
     }))
-    if (Object.keys(nextChecked).length > 0) {
-      setCheckedDuties((prev) => ({ ...prev, ...nextChecked }))
-    }
     setRoomCandidateSchoolCodesByDate((prev) => ({
       ...prev,
       [selectedRoomDate]: response?.roomCandidateSchoolCodes || {},
@@ -922,6 +993,7 @@ const Duties: React.FC = () => {
       } catch (error: any) {
         const details = error?.response?.data?.conflictDetails
         if (details && Array.isArray(details) && details.length > 0) {
+          setReplacementTarget(null)
           setConflictDialogData(details)
           setExpandedConflictIdx(null)
           setShowConflictDialog(true)
@@ -941,6 +1013,25 @@ const Duties: React.FC = () => {
       updateAllocationModeMutation,
     ]
   )
+
+  const handleReplaceConflictFunctionary = useCallback((fromFunctionaryId: string, toFunctionaryId: string) => {
+    if (!selectedRoomDate || !fromFunctionaryId || !toFunctionaryId) return
+
+    setCheckedDuties((prev) => {
+      const next = { ...prev }
+      delete next[`${fromFunctionaryId}::${selectedRoomDate}`]
+      next[`${toFunctionaryId}::${selectedRoomDate}`] = true
+      return next
+    })
+
+    const replacement = functionaryById[toFunctionaryId]
+    const replaced = functionaryById[fromFunctionaryId]
+    setReplacementTarget(null)
+    setShowConflictDialog(false)
+    setConflictDialogData(null)
+    setExpandedConflictIdx(null)
+    toast.success(`Replaced ${replaced?.name || 'functionary'} with ${replacement?.name || 'selected invigilator'}`)
+  }, [selectedRoomDate, functionaryById])
 
   const handleModeChange = (mode: 'auto' | 'manual') => {
     if (mode === allocationMode) return
@@ -1589,6 +1680,10 @@ const Duties: React.FC = () => {
                     const selectedFunctionarySecondId = roomAssignmentsByDateSecond[selectedRoomDate]?.[room._id] || ''
                     const selectedFunctionary = functionaryById[selectedFunctionaryId]
                     const selectedFunctionarySecond = functionaryById[selectedFunctionarySecondId]
+                    const selectedFunctionaryAllowed = isCurrentInvigilator(selectedFunctionary) && isInvigilatorAllowedForRoom(room._id, selectedFunctionaryId, selectedRoomDate)
+                    const selectedFunctionarySecondAllowed =
+                      isCurrentInvigilator(selectedFunctionarySecond) &&
+                      isInvigilatorAllowedForRoom(room._id, selectedFunctionarySecondId, selectedRoomDate)
                     const remainingForFirst = getRemainingInvigilatorIdsForSlot(selectedRoomDate, room._id, 'first')
                     const remainingForSecond = getRemainingInvigilatorIdsForSlot(selectedRoomDate, room._id, 'second')
 
@@ -1614,7 +1709,7 @@ const Duties: React.FC = () => {
                     if (
                       selectedFunctionaryId &&
                       selectedFunctionary &&
-                      isInvigilatorAllowedForRoom(room._id, selectedFunctionaryId, selectedRoomDate) &&
+                      selectedFunctionaryAllowed &&
                       !isFunctionaryAssignedElsewhere(selectedRoomDate, selectedFunctionaryId, room._id, 'first') &&
                       !options.some((func) => func._id === selectedFunctionaryId)
                     ) {
@@ -1624,7 +1719,7 @@ const Duties: React.FC = () => {
                       selectedFunctionarySecondId &&
                       selectedFunctionarySecond &&
                       String(selectedFunctionarySecondId) !== String(selectedFunctionaryId) &&
-                      isInvigilatorAllowedForRoom(room._id, selectedFunctionarySecondId, selectedRoomDate) &&
+                      selectedFunctionarySecondAllowed &&
                       !isFunctionaryAssignedElsewhere(selectedRoomDate, selectedFunctionarySecondId, room._id, 'second') &&
                       !secondOptions.some((func) => func._id === selectedFunctionarySecondId)
                     ) {
@@ -1649,6 +1744,11 @@ const Duties: React.FC = () => {
                             }
                           >
                             <option value="">Select invigilator</option>
+                            {selectedFunctionaryId && selectedFunctionary && !selectedFunctionaryAllowed && (
+                              <option value={selectedFunctionaryId} disabled>
+                                {`${String(selectedFunctionary.name || '').toUpperCase()} (stored invalid assignment)`}
+                              </option>
+                            )}
                             {options.map((func) => (
                               <option key={func._id} value={func._id}>
                                 {String(func.name || '').toUpperCase()}
@@ -1672,6 +1772,11 @@ const Duties: React.FC = () => {
                             title={`Invigilator 2 for room ${room.roomNo}`}
                           >
                             <option value="">Select invigilator</option>
+                            {selectedFunctionarySecondId && selectedFunctionarySecond && !selectedFunctionarySecondAllowed && (
+                              <option value={selectedFunctionarySecondId} disabled>
+                                {`${String(selectedFunctionarySecond.name || '').toUpperCase()} (stored invalid assignment)`}
+                              </option>
+                            )}
                             {secondOptions.map((func) => (
                               <option key={func._id} value={func._id}>
                                 {String(func.name || '').toUpperCase()}
@@ -1995,7 +2100,7 @@ const Duties: React.FC = () => {
       {/* ── Conflict diagnostics dialog ── */}
       <Dialog
         isOpen={showConflictDialog && !!conflictDialogData}
-        onClose={() => { setShowConflictDialog(false); setConflictDialogData(null); setExpandedConflictIdx(null) }}
+        onClose={() => { setShowConflictDialog(false); setConflictDialogData(null); setExpandedConflictIdx(null); setReplacementTarget(null) }}
         variant="error"
         size="xl"
         title="Auto Assignment Failed"
@@ -2005,7 +2110,7 @@ const Duties: React.FC = () => {
           {
             label: 'Close',
             variant: 'outline',
-            onClick: () => { setShowConflictDialog(false); setConflictDialogData(null); setExpandedConflictIdx(null) },
+            onClick: () => { setShowConflictDialog(false); setConflictDialogData(null); setExpandedConflictIdx(null); setReplacementTarget(null) },
           },
         ]}
         footerClassName="justify-between"
@@ -2019,13 +2124,14 @@ const Duties: React.FC = () => {
                   <th className="text-left py-2 pr-2">OASIS ID</th>
                   <th className="text-left py-2 pr-2">School</th>
                   <th className="text-center py-2 pr-2">Eligible</th>
+                  <th className="text-center py-2 pr-2">Replace</th>
                   <th className="text-center py-2">Details</th>
                 </tr>
               </thead>
               <tbody>
-                {conflictDialogData.map((entry: any, idx: number) => {
+                {conflictDialogData.map((entry, idx) => {
                   const isExpanded = expandedConflictIdx === idx
-                  const hasConflicts = entry.ineligibleRooms?.length > 0
+                  const hasConflicts = (entry.ineligibleRooms?.length ?? 0) > 0
                   return (
                     <React.Fragment key={idx}>
                       <tr
@@ -2046,6 +2152,22 @@ const Duties: React.FC = () => {
                             {entry.eligibleRoomCount}/{entry.totalRooms}
                           </span>
                         </td>
+                        <td className="py-2 pr-2 text-center">
+                          {entry._id && hasConflicts ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setReplacementTarget(entry)
+                              }}
+                              className="inline-flex items-center px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-[10px] font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                            >
+                              Replace
+                            </button>
+                          ) : (
+                            <span className="text-gray-300 dark:text-gray-600">-</span>
+                          )}
+                        </td>
                         <td className="py-2 text-center">
                           {hasConflicts ? (
                             <span className="text-gray-400 dark:text-gray-500 text-sm">
@@ -2058,15 +2180,15 @@ const Duties: React.FC = () => {
                       </tr>
                       {isExpanded && hasConflicts && (
                         <tr>
-                          <td colSpan={5} className="px-3 py-2 bg-gray-50 dark:bg-gray-800/40">
+                          <td colSpan={6} className="px-3 py-2 bg-gray-50 dark:bg-gray-800/40">
                             <div className="space-y-1.5">
-                              {entry.ineligibleRooms.map((room: any, rIdx: number) => (
+                              {(entry.ineligibleRooms || []).map((room: ConflictRoom, rIdx: number) => (
                                 <div key={rIdx} className="flex items-start gap-2 text-[11px]">
                                   <span className="font-mono font-semibold text-gray-600 dark:text-gray-300 min-w-[52px] shrink-0">
                                     Room {room.roomNo}
                                   </span>
                                   <div className="flex flex-wrap gap-1.5">
-                                    {room.reasons.map((reason: any, reasonIdx: number) => {
+                                    {room.reasons.map((reason: ConflictReason, reasonIdx: number) => {
                                       if (reason.type === 'subject') {
                                         return (
                                           <span key={reasonIdx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
@@ -2086,7 +2208,7 @@ const Duties: React.FC = () => {
                                           <span key={reasonIdx} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
                                             <span className="font-semibold">Overlap:</span>
                                             {' '}{(reason.rollNumbers || []).join(', ')}
-                                            {reason.totalOverlaps > 5 ? ` (+${reason.totalOverlaps - 5} more)` : ''}
+                                            {(reason.totalOverlaps || 0) > 5 ? ` (+${(reason.totalOverlaps || 0) - 5} more)` : ''}
                                           </span>
                                         )
                                       }
@@ -2109,6 +2231,65 @@ const Duties: React.FC = () => {
             </p>
           </>
         )}
+      </Dialog>
+      <Dialog
+        isOpen={!!replacementTarget}
+        onClose={() => setReplacementTarget(null)}
+        size="lg"
+        title={replacementTarget?.name ? `Replace ${replacementTarget.name}` : 'Replace Functionary'}
+        description="Only current ASI invigilators who are not already selected or assigned for this date are shown."
+        actions={[
+          {
+            label: 'Close',
+            variant: 'outline',
+            onClick: () => setReplacementTarget(null),
+          },
+        ]}
+      >
+        <div className="space-y-3">
+          {replacementCandidates.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              No eligible ASI invigilators are available for replacement on this date.
+            </p>
+          ) : (
+            <div className="max-h-[50vh] overflow-auto rounded-lg border border-gray-200 dark:border-gray-700">
+              <table className="w-full text-sm border-collapse">
+                <thead className="bg-gray-50 dark:bg-gray-800">
+                  <tr className="text-left text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                    <th className="px-3 py-2">Functionary</th>
+                    <th className="px-3 py-2">OASIS ID</th>
+                    <th className="px-3 py-2">Eligible Rooms</th>
+                    <th className="px-3 py-2 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {replacementCandidates.map(({ functionary, eligibleRoomCount }) => (
+                    <tr key={functionary._id} className="border-t border-gray-100 dark:border-gray-800">
+                      <td className="px-3 py-2 font-medium text-gray-900 dark:text-white">
+                        {String(functionary.name || '').toUpperCase()}
+                      </td>
+                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400 font-mono">
+                        {functionary.employeeId || '-'}
+                      </td>
+                      <td className="px-3 py-2 text-gray-500 dark:text-gray-400">
+                        {eligibleRoomCount}/{allocatedRoomsForSelectedDate.length}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleReplaceConflictFunctionary(String(replacementTarget?._id || ''), String(functionary._id || ''))}
+                          className="inline-flex items-center px-2.5 py-1.5 rounded bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700"
+                        >
+                          Replace
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </Dialog>
     </div>
   )
