@@ -726,6 +726,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
         });
         const eligibleCount = eligible[fnIdx].filter(Boolean).length;
         return {
+          _id: String(fn._id),
           name: fn.name,
           employeeId: fn.employeeId,
           schoolCode: normalizeSchoolCode(fn.schoolCode),
@@ -1168,10 +1169,141 @@ const rebuildAllSupervisionHistory = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * POST /duties/replacement-candidates
+ * Returns eligible replacement functionaries for a failed auto-assignment.
+ * Body: { examDate, currentFunctionaryIds, replaceFunctionaryId }
+ */
+const getReplacementCandidates = asyncHandler(async (req, res) => {
+  const examDate = normalizeExamDate(req.body.examDate);
+  const currentIds = Array.isArray(req.body.currentFunctionaryIds)
+    ? req.body.currentFunctionaryIds.map((id) => String(id).trim()).filter(Boolean)
+    : [];
+  const replaceId = String(req.body.replaceFunctionaryId || '').trim();
+
+  if (!examDate) {
+    return res.status(400).json({ success: false, message: 'Invalid examDate.' });
+  }
+  if (!replaceId) {
+    return res.status(400).json({ success: false, message: 'replaceFunctionaryId is required.' });
+  }
+
+  const examDateKey = examDate.toISOString().slice(0, 10);
+
+  // 1. Get rooms for this date
+  const rooms = await Room.find({ isActive: true, allocatedExamDates: examDateKey }).lean();
+  const sortedRooms = [...rooms].sort((a, b) => {
+    const orderDiff = parseAllocationOrder(a, examDateKey) - parseAllocationOrder(b, examDateKey);
+    if (orderDiff !== 0) return orderDiff;
+    return compareRoomNo(a, b);
+  });
+
+  if (sortedRooms.length === 0) {
+    return res.status(200).json({ success: true, data: [] });
+  }
+
+  // 2. Find candidate teachers (active, dutyType = Invigilator, NOT in currentIds)
+  const excludeSet = new Set(currentIds);
+  const candidates = await Teacher.find({
+    isActive: true,
+    dutyType: { $in: ['Invigilator', 'ASI (CCTV)', 'ASI (Frisking Male)', 'ASI (Frisking Female)'] },
+    _id: { $nin: currentIds },
+  })
+    .select('name employeeId schoolCode subjectCode supervisionHistory')
+    .lean();
+
+  if (candidates.length === 0) {
+    return res.status(200).json({ success: true, data: [] });
+  }
+
+  // 3. Build eligibility data (same as assignDailyDuties)
+  const candidateIds = candidates.map((c) => String(c._id));
+  const [roomCandidateSchoolCodes, roomSubjectCodes, rollNosByRoom, supervisedByFunc] = await Promise.all([
+    buildRoomCandidateSchoolCodes(examDateKey, sortedRooms),
+    buildRoomSubjectCodes(examDateKey, sortedRooms),
+    buildRollNosByRoomForDate(examDateKey, sortedRooms),
+    buildSupervisedRollNosByFunctionary(candidateIds, examDateKey),
+  ]);
+
+  // Eligibility helpers (same logic as assignDailyDuties)
+  const hasSchoolConflict = (roomId, fn) => {
+    if (!fn) return false;
+    const code = normalizeSchoolCode(fn.schoolCode);
+    if (!code) return false;
+    const roomCodes = (roomCandidateSchoolCodes[String(roomId)] || []).map((c) => normalizeSchoolCode(c));
+    return roomCodes.includes(code);
+  };
+  const getSubjectConflictCodes = (roomId, fn) => {
+    const teacherCodes = getFunctionarySubjectCodes(fn);
+    if (teacherCodes.length === 0) return [];
+    const roomCodes = (roomSubjectCodes[String(roomId)] || []).map((c) => normalizeSubjectCode(c));
+    if (roomCodes.length === 0) return [];
+    const roomCodeSet = new Set(roomCodes);
+    return teacherCodes.filter((c) => roomCodeSet.has(c));
+  };
+  const hasSubjectConflict = (roomId, fn) => getSubjectConflictCodes(roomId, fn).length > 0;
+
+  // 4. Compute eligibility for each candidate
+  const nRooms = sortedRooms.length;
+  const eligibilityResults = candidates.map((fn) => {
+    const funcId = String(fn._id);
+    const prevRollNos = supervisedByFunc.get(funcId) || new Set();
+    let eligibleCount = 0;
+
+    for (const room of sortedRooms) {
+      if (hasSubjectConflict(room._id, fn)) continue;
+      if (hasSchoolConflict(room._id, fn)) continue;
+      const roomRollNos = rollNosByRoom.get(String(room._id));
+      if (roomRollNos && prevRollNos.size > 0) {
+        let overlap = false;
+        for (const rollNo of roomRollNos) {
+          if (prevRollNos.has(rollNo)) { overlap = true; break; }
+        }
+        if (overlap) continue;
+      }
+      eligibleCount++;
+    }
+
+    return { fn, eligibleCount };
+  });
+
+  // 5. Get duty assignment counts for candidates
+  const dutyCountPipeline = await DutyAssignment.aggregate([
+    { $match: { isActive: true, $or: [{ functionary: { $in: candidates.map((c) => c._id) } }, { functionary2: { $in: candidates.map((c) => c._id) } }] } },
+    { $project: { funcs: [{ $ifNull: ['$functionary', null] }, { $ifNull: ['$functionary2', null] }] } },
+    { $unwind: '$funcs' },
+    { $match: { funcs: { $ne: null, $in: candidates.map((c) => c._id) } } },
+    { $group: { _id: '$funcs', count: { $sum: 1 } } },
+  ]);
+  const dutyCountMap = new Map(dutyCountPipeline.map((d) => [String(d._id), d.count]));
+
+  // 6. Build result sorted by eligibleRoomCount DESC, dutyCount ASC
+  const result = eligibilityResults
+    .filter((e) => e.eligibleCount > 0) // only include candidates eligible for at least 1 room
+    .map((e) => ({
+      _id: String(e.fn._id),
+      name: e.fn.name,
+      employeeId: e.fn.employeeId,
+      schoolCode: normalizeSchoolCode(e.fn.schoolCode),
+      eligibleRoomCount: e.eligibleCount,
+      totalRooms: nRooms,
+      dutyCount: dutyCountMap.get(String(e.fn._id)) || 0,
+    }))
+    .sort((a, b) => {
+      // First: most eligible rooms
+      if (b.eligibleRoomCount !== a.eligibleRoomCount) return b.eligibleRoomCount - a.eligibleRoomCount;
+      // Then: fewest past duties
+      return a.dutyCount - b.dutyCount;
+    });
+
+  return res.status(200).json({ success: true, data: result });
+});
+
 module.exports = {
   getDailyDuties,
   assignDailyDuties,
   downloadFunctionaryDutyRecord,
   rebuildAllSupervisionHistory,
   rebuildSupervisionHistoryForDate,
+  getReplacementCandidates,
 };

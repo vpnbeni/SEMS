@@ -5,7 +5,7 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { useTeachers } from '../hooks/useTeachers'
 import type { Teacher } from '../services/teacherService'
 import { seatingPlanService, type Room } from '../services/seatingPlanService'
-import dutiesService from '../services/dutiesService'
+import dutiesService, { type ReplacementCandidate } from '../services/dutiesService'
 import Dialog from '../components/common/Dialog/Dialog'
 import {
   useDutiesSupport,
@@ -229,6 +229,10 @@ const Duties: React.FC = () => {
   const [showConflictDialog, setShowConflictDialog] = useState(false)
   const [conflictDialogData, setConflictDialogData] = useState<any[] | null>(null)
   const [expandedConflictIdx, setExpandedConflictIdx] = useState<number | null>(null)
+  const [showReplacementPicker, setShowReplacementPicker] = useState(false)
+  const [replacementCandidates, setReplacementCandidates] = useState<ReplacementCandidate[]>([])
+  const [replacingFunctionary, setReplacingFunctionary] = useState<{ _id: string; name: string } | null>(null)
+  const [loadingReplacements, setLoadingReplacements] = useState(false)
 
   const { data: templateSettings, isLoading: loadingTemplateSettings } = useSeatingPlanTemplateSettings()
   const templateSettingsSnapshot = templateSettings ?? null
@@ -971,6 +975,109 @@ const Duties: React.FC = () => {
         toast.error('Failed to update duty allocation mode')
       },
     })
+  }
+
+  const handleReplace = async (entry: any) => {
+    if (!selectedRoomDate || !entry?._id) return
+    setReplacingFunctionary({ _id: entry._id, name: entry.name || 'Functionary' })
+    setLoadingReplacements(true)
+    setShowReplacementPicker(true)
+    setReplacementCandidates([])
+    try {
+      const currentIds = selectedInvigilatorsForDate
+        .map((func) => String(func._id || '').trim())
+        .filter(Boolean)
+      const candidates = await dutiesService.getReplacementCandidates({
+        examDate: selectedRoomDate,
+        currentFunctionaryIds: currentIds,
+        replaceFunctionaryId: String(entry._id),
+      })
+      setReplacementCandidates(candidates)
+    } catch (err: any) {
+      toast.error('Failed to fetch replacement candidates')
+      setShowReplacementPicker(false)
+    } finally {
+      setLoadingReplacements(false)
+    }
+  }
+
+  const handleSelectReplacement = async (replacementId: string) => {
+    if (!selectedRoomDate || !replacingFunctionary) return
+    const oldId = replacingFunctionary._id
+    const dutyType = DUTY_TABS.find((t) => t.key === 'ASI')?.dutyType || 'Invigilator'
+
+    // Compute the new functionary IDs directly (avoids stale closure)
+    const newFunctionaryIds = selectedInvigilatorsForDate
+      .map((func) => String(func._id || '').trim())
+      .filter(Boolean)
+      .filter((id) => id !== oldId) // remove old
+    newFunctionaryIds.push(replacementId) // add replacement
+
+    // Swap in checkedDuties: deselect old, select new
+    const oldKey = `${oldId}::${selectedRoomDate}`
+    const newKey = `${replacementId}::${selectedRoomDate}`
+    const nextChecked = { ...checkedDuties, [oldKey]: false, [newKey]: true }
+    setCheckedDuties(nextChecked)
+
+    // Close both dialogs immediately
+    setShowReplacementPicker(false)
+    setReplacementCandidates([])
+    setReplacingFunctionary(null)
+    setShowConflictDialog(false)
+    setConflictDialogData(null)
+    setExpandedConflictIdx(null)
+
+    // Persist the updated selections
+    saveSelectionsMutation.mutate(
+      { dutyType, selections: nextChecked },
+      {
+        onSuccess: async () => {
+          // Switch to auto mode and assign with the correctly computed IDs
+          updateAllocationModeMutation.mutate({ mode: 'auto', silent: true }, {
+            onSuccess: async (savedMode) => {
+              if (savedMode === 'auto') {
+                try {
+                  const response = await assignDailyDutiesMutation.mutateAsync({
+                    examDate: selectedRoomDate,
+                    functionaryIds: newFunctionaryIds,
+                    silent: true,
+                  })
+                  // Build assignments from response
+                  const nextAssignments: Record<string, string> = {}
+                  if (response?.duties && Array.isArray(response.duties)) {
+                    for (const duty of response.duties) {
+                      if (duty?.room && duty?.functionary) {
+                        nextAssignments[String(duty.room)] = String(duty.functionary)
+                      }
+                    }
+                  }
+                  setRoomAssignmentsByDate((prev) => ({
+                    ...prev,
+                    [selectedRoomDate]: nextAssignments,
+                  }))
+                  toast.success('Auto assignment succeeded after replacement!')
+                } catch (error: any) {
+                  const details = error?.response?.data?.conflictDetails
+                  if (details && Array.isArray(details)) {
+                    setConflictDialogData(details)
+                    setShowConflictDialog(true)
+                  } else {
+                    toast.error(error?.response?.data?.message || 'Auto-assign still failed after replacement')
+                  }
+                  updateAllocationModeMutation.mutate({ mode: 'manual', silent: true })
+                }
+              }
+            },
+            onError: () => {
+              toast.error('Failed to switch to auto mode')
+            },
+          })
+        },
+        onError: () => {
+          toast.error('Failed to save selections')
+        },
+      }
+    )
   }
 
   const handleRoomAssignmentChange = useCallback((roomId: string, functionaryId: string) => {
@@ -2047,7 +2154,18 @@ const Duties: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-2 text-center">
-                          {hasConflicts ? (
+                          {entry.eligibleRoomCount === 0 ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleReplace(entry)
+                              }}
+                              className="px-2 py-0.5 text-[10px] font-semibold rounded bg-primary-50 text-primary-700 hover:bg-primary-100 dark:bg-primary-900/30 dark:text-primary-300 dark:hover:bg-primary-900/50 transition-colors"
+                            >
+                              Replace
+                            </button>
+                          ) : hasConflicts ? (
                             <span className="text-gray-400 dark:text-gray-500 text-sm">
                               {isExpanded ? '▾' : '▸'}
                             </span>
@@ -2108,6 +2226,78 @@ const Duties: React.FC = () => {
               Mode reverted to manual. Add more functionaries or resolve conflicts above.
             </p>
           </>
+        )}
+      </Dialog>
+
+      {/* ── Replacement picker dialog ── */}
+      <Dialog
+        isOpen={showReplacementPicker}
+        onClose={() => { setShowReplacementPicker(false); setReplacementCandidates([]); setReplacingFunctionary(null) }}
+        size="lg"
+        title={`Replace ${replacingFunctionary?.name || 'Functionary'}`}
+        description="Select a replacement from the list below. Sorted by fewest past duties first."
+        maxHeight="70vh"
+        loading={loadingReplacements}
+        actions={[
+          {
+            label: 'Cancel',
+            variant: 'outline',
+            onClick: () => { setShowReplacementPicker(false); setReplacementCandidates([]); setReplacingFunctionary(null) },
+          },
+        ]}
+      >
+        {replacementCandidates.length === 0 && !loadingReplacements ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">
+            No eligible replacement found. All available functionaries have conflicts with the rooms on this date.
+          </p>
+        ) : (
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wider text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+                <th className="text-left py-2 pr-2">Name</th>
+                <th className="text-left py-2 pr-2">OASIS ID</th>
+                <th className="text-left py-2 pr-2">School</th>
+                <th className="text-center py-2 pr-2">Eligible</th>
+                <th className="text-center py-2 pr-2">Duties</th>
+                <th className="text-center py-2">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {replacementCandidates.map((candidate) => (
+                <tr
+                  key={candidate._id}
+                  className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                >
+                  <td className="py-2 pr-2 font-medium text-gray-800 dark:text-gray-200">{candidate.name}</td>
+                  <td className="py-2 pr-2 text-gray-500 dark:text-gray-400 font-mono">{candidate.employeeId || '—'}</td>
+                  <td className="py-2 pr-2 text-gray-500 dark:text-gray-400">{candidate.schoolCode || '—'}</td>
+                  <td className="py-2 pr-2 text-center">
+                    <span className={`inline-flex items-center justify-center min-w-[40px] px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      candidate.eligibleRoomCount === candidate.totalRooms
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                    }`}>
+                      {candidate.eligibleRoomCount}/{candidate.totalRooms}
+                    </span>
+                  </td>
+                  <td className="py-2 pr-2 text-center">
+                    <span className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                      {candidate.dutyCount}
+                    </span>
+                  </td>
+                  <td className="py-2 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectReplacement(candidate._id)}
+                      className="px-2.5 py-1 text-[10px] font-semibold rounded bg-primary-600 text-white hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 transition-colors"
+                    >
+                      Select
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </Dialog>
     </div>

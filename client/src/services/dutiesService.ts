@@ -88,6 +88,27 @@ const getDutySelectionCounts = async (): Promise<Record<string, number>> => {
   return response.data?.data ?? {}
 }
 
+export interface ReplacementCandidate {
+  _id: string
+  name: string
+  employeeId?: string
+  schoolCode?: string
+  eligibleRoomCount: number
+  totalRooms: number
+  dutyCount: number
+}
+
+const getReplacementCandidates = async (payload: {
+  examDate: string
+  currentFunctionaryIds: string[]
+  replaceFunctionaryId: string
+}): Promise<ReplacementCandidate[]> => {
+  const response = await api.post('/duties/replacement-candidates', payload, {
+    _silent: true,
+  } as any)
+  return response.data?.data ?? []
+}
+
 const dutiesService = {
   getDailyDuties,
   assignDailyDuties,
@@ -97,7 +118,9 @@ const dutiesService = {
   updateDutyAllocationMode,
   downloadFunctionaryDutyRecord,
   getDutySelectionCounts,
+  getReplacementCandidates,
 }
 
 export default dutiesService
+
 
