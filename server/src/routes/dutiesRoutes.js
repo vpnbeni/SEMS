@@ -5,7 +5,6 @@ const {
   assignDailyDuties,
   downloadFunctionaryDutyRecord,
   rebuildAllSupervisionHistory,
-  getReplacementCandidates,
 } = require('../controllers/dutiesController');
 const {
   getDutySelections,
@@ -21,7 +20,6 @@ router.use(protect);
 
 router.get('/', getDailyDuties);
 router.post('/assign', authorize('admin', 'staff'), assignDailyDuties);
-router.post('/replacement-candidates', authorize('admin', 'staff'), getReplacementCandidates);
 router.get('/functionary-duty-record', downloadFunctionaryDutyRecord);
 
 // Duty selections (pre-assignment)
