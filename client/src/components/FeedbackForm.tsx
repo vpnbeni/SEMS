@@ -55,7 +55,7 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({ onSubmitted }) => {
     >
       <h2 className="text-sm font-semibold text-gray-900">Feedback</h2>
       <p className="text-xs text-gray-500">
-        Help us improve BECMS by sharing your experience with the application.
+        Help us improve Cntr by sharing your experience with the application.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">

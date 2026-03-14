@@ -13,6 +13,8 @@ import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
 import TenantSignupChat from './pages/TenantSignupChat'
 import TenantSignupComplete from './pages/TenantSignupComplete'
+import Signup from './pages/Signup'
+import CntrLanding from './pages/CntrLanding'
 import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
 import Duties from './pages/Duties'
@@ -48,6 +50,7 @@ import Billing from './pages/Billing'
 import AccountSettings from './pages/AccountSettings'
 import HelpSupport from './pages/HelpSupport'
 import SessionSelector from './pages/SessionSelector'
+import Pricing from './pages/Pricing'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -95,6 +98,8 @@ function App() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Routes>
           {/* Public Routes */}
+          <Route path="/cntr" element={<CntrLanding />} />
+          <Route path="/pricing" element={<Pricing />} />
           <Route
             path="/"
             element={
@@ -127,6 +132,16 @@ function App() {
           />
           <Route
             path="/signup"
+            element={
+              isAuthenticated ? (
+                hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
+              ) : (
+                <Signup />
+              )
+            }
+          />
+          <Route
+            path="/signupold"
             element={
               isAuthenticated ? (
                 hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />

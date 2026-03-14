@@ -81,7 +81,7 @@ const SessionSelector: React.FC = () => {
             <div className="p-2 bg-primary-500 rounded-xl shadow-lg shadow-primary-500/20">
               <BookOpen className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold tracking-tight">BECMS</span>
+            <span className="text-xl font-bold tracking-tight">Cntr</span>
           </motion.div>
 
           <div className="space-y-8">

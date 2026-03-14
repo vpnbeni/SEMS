@@ -210,7 +210,7 @@ const ForgotPassword: React.FC = () => {
                 Secure Recovery
               </div>
               <h1 className="mt-8 text-4xl font-bold leading-tight">
-                Reset your BECMS access
+                Reset your Cntr access
                 <span className="block bg-gradient-to-r from-primary-300 to-secondary-300 bg-clip-text text-transparent">
                   with email verification.
                 </span>
@@ -223,7 +223,7 @@ const ForgotPassword: React.FC = () => {
             <div className="space-y-4 text-sm text-gray-300">
               <p className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                Tenant-aware email verification
+                User-aware email verification
               </p>
               <p className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />

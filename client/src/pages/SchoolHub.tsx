@@ -92,7 +92,7 @@ const tiles: HubTile[] = [
   },
   {
     id: 'becms',
-    name: 'BECMS',
+    name: 'Cntr',
     description: 'Board Examination Centre Management — seating plans, duties, answer sheets, and more',
     href: '/dashboard',
     icon: (

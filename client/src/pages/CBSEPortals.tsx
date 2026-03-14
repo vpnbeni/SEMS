@@ -57,7 +57,7 @@ const portals: PortalItem[] = [
   {
     id: 'oecms',
     name: 'OECMS',
-    description: 'Online Exam Centre Management System for board examinations',
+    description: 'Exam Centre Management System for board examinations',
     url: 'https://cbseit.in/cbse/web/oecms/LoginAction.aspx',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="portal-card-icon">

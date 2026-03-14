@@ -136,7 +136,7 @@ const Header: React.FC = () => {
       case 'help-support':
         return {
           pageTitle: 'Help Support',
-          pageSubtitle: 'Get assistance with BECMS issues, report exam-day problems, and share feedback.',
+          pageSubtitle: 'Get assistance with Cntr issues, report exam-day problems, and share feedback.',
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }

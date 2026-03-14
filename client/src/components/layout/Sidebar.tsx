@@ -8,6 +8,7 @@ import type { AppDispatch } from '../../redux/store'
 import { useAcademicSession } from '../../contexts/AcademicSessionContext'
 import { isFeatureEnabledForPath } from '../../constants/featureAccess'
 import { useCentreDetails } from '../../hooks/useCentreDetails'
+import logoMark from '../../assets/image.png'
 import {
   useSidebarCounts,
   sidebarKeys,
@@ -64,7 +65,8 @@ const Sidebar: React.FC = () => {
   const centreNo = String(centreDetails?.centreNo || '').trim()
   const schoolCode = String(centreDetails?.centreSchoolCode || '').trim()
   const centreName = String(centreDetails?.centreName || '').trim()
-  const centreCode = schoolCode || centreNo
+  // Prefer showing Centre No; fall back to school code if missing
+  const centreCode = centreNo || schoolCode
   const centreLabel = [centreCode, centreName].filter(Boolean).join(' - ')
 
   // Refresh counts when location changes (user navigates)
@@ -453,28 +455,35 @@ const Sidebar: React.FC = () => {
       <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-primary-50/30 via-primary-50/10 to-transparent dark:from-primary-900/10 dark:via-transparent pointer-events-none" />
 
       {/* Logo and Header */}
-      <div className={`flex-shrink-0 h-24 transition-all duration-300 ${isCollapsed ? 'px-0' : 'px-6'} flex items-center justify-center relative z-10`}>
+      <div className={`flex-shrink-0 h-28 transition-all duration-300 ${isCollapsed ? 'px-0' : 'px-5'} flex items-center justify-center relative z-10`}>
         <div className={`flex items-center w-full ${isCollapsed ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
-          <div className={`flex items-center min-w-0 ${isCollapsed ? 'flex-col' : 'gap-3'}`}>
+          <a
+            href="https://sems.capabble.cloud/centre-details"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`flex items-center min-w-0 ${isCollapsed ? 'flex-col' : 'gap-4'} group`}
+          >
             <div className={`relative flex-shrink-0 transition-transform duration-300 ${isCollapsed ? 'scale-90' : 'scale-100'}`}>
-              <div className="absolute inset-0 bg-primary-500 rounded-xl blur opacity-20 dark:opacity-40 animate-pulse-slow"></div>
-              <div className="relative bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/25 w-10 h-10 ring-1 ring-white/20">
-                <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
+              <div className="absolute inset-0 rounded-2xl bg-sky-400/20 blur-md transition-all group-hover:bg-sky-400/30"></div>
+              <div className="relative flex h-16 w-16 items-center justify-center">
+                <img
+                  src={logoMark}
+                  alt="Exam Centre Control"
+                  className="h-16 w-16 object-contain"
+                />
               </div>
             </div>
             {!isCollapsed && (
               <div className="min-w-0 flex flex-col justify-center">
-                <h2 className="text-lg font-bold text-secondary-900 dark:text-white leading-none tracking-tight">
-                  BECMS
+                <h2 className="text-[2rem] font-black text-slate-800 dark:text-white leading-none tracking-tight">
+                  Cntr
                 </h2>
-                <p className="text-[11px] font-medium text-secondary-500 dark:text-secondary-400 leading-tight mt-1 tracking-wide uppercase">
-                  Exam Management
+                <p className="mt-1 text-[13px] font-semibold text-slate-900 dark:text-slate-200 leading-tight tracking-tight">
+                  Exam Centre Control
                 </p>
               </div>
             )}
-          </div>
+          </a>
 
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}

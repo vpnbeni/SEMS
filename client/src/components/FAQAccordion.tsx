@@ -14,7 +14,7 @@ const FAQAccordion: React.FC = () => {
     {
       id: 'login-1',
       category: 'Login Issues',
-      question: 'I am unable to login to BECMS.',
+    question: 'I am unable to login to Cntr.',
       answer:
         'Confirm your centre code and school code are correct, then check your email and password. If the issue persists, contact the board coordinator with a screenshot of the error.',
     },

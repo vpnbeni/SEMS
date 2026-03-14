@@ -12,6 +12,7 @@ import { resolveTenantSlug } from '../utils/tenantRuntime'
 import type { AppDispatch } from '../redux/store'
 import type { LoginCredentials } from '../types/auth'
 import Loader from '../components/common/Loader'
+import fullLogo from '../assets/full logo.png'
 
 const syncTenantInUrl = (tenantSlug: string | null) => {
   const url = new URL(window.location.href)
@@ -167,10 +168,11 @@ const Login: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-3"
           >
-            <div className="p-2 bg-primary-500 rounded-xl shadow-lg shadow-primary-500/20">
-              <BookOpen className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-xl font-bold tracking-tight">BECMS</span>
+            <img
+              src={fullLogo}
+              alt="Cntr - Exam Centre Control"
+              className="w-auto h-24"
+            />
           </motion.div>
 
           <div className="space-y-8 xl:space-y-12">
@@ -182,11 +184,11 @@ const Login: React.FC = () => {
               <h1 className="login-hero-title text-[2rem] font-bold leading-tight mb-4">
                 The Future of <br />
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-secondary-400">
-                  Online Exam Centre Management System
+                  Exam Centre Management System
                 </span>
               </h1>
               <p className="text-gray-400 text-base xl:text-lg max-w-md">
-                Experience BECMS — a minimalistic, powerful, and secure platform designed for Bharat&apos;s modern
+                Experience Cntr — a minimalistic, powerful, and secure platform designed for Bharat&apos;s modern
                 educational ecosystem.
               </p>
             </motion.div>
@@ -240,11 +242,13 @@ const Login: React.FC = () => {
         >
           <div className="text-center mb-8 xl:mb-10">
             <div className="lg:hidden flex justify-center mb-6">
-              <div className="p-3 bg-primary-500 rounded-2xl">
-                <BookOpen className="w-8 h-8 text-white" />
-              </div>
+              <img
+                src={fullLogo}
+                alt="Cntr - Exam Centre Control"
+                className="w-auto h-24"
+              />
             </div>
-            <h2 className="text-3xl font-bold mb-2">Welcome to BECMS</h2>
+            <h2 className="text-3xl font-bold mb-2">Welcome to Cntr</h2>
             <p className="text-gray-400">Enter your username/email and password to login.</p>
           </div>
 
@@ -373,7 +377,7 @@ const Login: React.FC = () => {
               <p className="text-sm text-cyan-100">
                 New user?{' '}
                 <Link to="/signup" className="font-semibold text-cyan-300 hover:text-cyan-200 underline underline-offset-2">
-                  Create your account with AI signup.
+                  Create your account.
                 </Link>
               </p>
             </div>
