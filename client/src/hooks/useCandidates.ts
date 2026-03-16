@@ -245,3 +245,17 @@ export function useDeleteCandidateMutation(
     ...options,
   })
 }
+
+export function useUpdateCandidateMutation(
+  options?: UseMutationOptions<any, Error, { id: string; data: Record<string, any> }>
+) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, any> }) =>
+      candidateService.updateCandidate(id, data),
+    onSuccess: (_result, { id }) => {
+      queryClient.invalidateQueries({ queryKey: candidateKeys.detail(id) })
+    },
+    ...options,
+  })
+}
