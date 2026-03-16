@@ -64,8 +64,20 @@ const normalizeExamDate = (value) => {
 const normalizeSchoolCode = (value) => String(value || '').trim().toUpperCase();
 const normalizeSubjectCode = (value) => String(value || '').trim().toUpperCase();
 const normalizeRollNo = (value) => String(value || '').trim().toUpperCase();
-const normalizeRoomNo = (value) => String(value || '').trim();
+const normalizeRoomNo = (value) => {
+  const trimmed = String(value || '').trim();
+  // Normalize purely numeric room numbers by removing leading zeros.
+  // SeatingPlanAllocation stores zero-padded values (e.g. "05") while
+  // Room documents may store unpadded values (e.g. "5").
+  if (/^\d+$/.test(trimmed)) return String(parseInt(trimmed, 10));
+  return trimmed;
+};
 const normalizeText = (value) => String(value || '').trim();
+const isCurrentInvigilator = (functionary) => (
+  Boolean(functionary)
+  && functionary.isActive !== false
+  && normalizeText(functionary.dutyType) === 'Invigilator'
+);
 
 const DEFAULT_DUTY_LIST_COLUMN_WIDTHS = Object.freeze({
   srNo: 50,
@@ -464,16 +476,19 @@ const getDailyDuties = asyncHandler(async (req, res) => {
     });
   }
 
+  const examDateKey = examDate.toISOString().slice(0, 10);
   const duties = await DutyAssignment.find({ examDate, isActive: true })
-    .populate('room', 'roomNo roomName floor')
+    .populate('room', 'roomNo roomName floor allocationOrderByDate')
     .populate('functionary', 'name employeeId department designation')
     .populate('functionary2', 'name employeeId department designation')
-    .sort({ room: 1 })
     .lean();
 
-  const sortedDuties = [...duties].sort((a, b) => compareRoomNo(a?.room, b?.room));
+  const sortedDuties = [...duties].sort((a, b) => {
+    const orderDiff = parseAllocationOrder(a?.room, examDateKey) - parseAllocationOrder(b?.room, examDateKey);
+    if (orderDiff !== 0) return orderDiff;
+    return compareRoomNo(a?.room, b?.room);
+  });
   const activeRooms = await Room.find({ isActive: true }).select('_id roomNo').lean();
-  const examDateKey = examDate.toISOString().slice(0, 10);
   const [roomCandidateSchoolCodes, roomSubjectCodes, roomSchoolNames, rollNosByRoomMap] = await Promise.all([
     buildRoomCandidateSchoolCodes(examDateKey, activeRooms),
     buildRoomSubjectCodes(examDateKey, activeRooms),
@@ -518,7 +533,11 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
 
   const examDateKey = examDate.toISOString().slice(0, 10);
   const rooms = await Room.find({ isActive: true, allocatedExamDates: examDateKey }).lean();
-  const sortedRooms = [...rooms].sort(compareRoomNo);
+  const sortedRooms = [...rooms].sort((a, b) => {
+    const orderDiff = parseAllocationOrder(a, examDateKey) - parseAllocationOrder(b, examDateKey);
+    if (orderDiff !== 0) return orderDiff;
+    return compareRoomNo(a, b);
+  });
   if (sortedRooms.length === 0) {
     return res.status(400).json({ success: false, message: 'No active rooms found. Add rooms first.' });
   }
@@ -526,10 +545,23 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
   const allocationMode = await getDutyAllocationMode();
   const lookupIds = Array.from(new Set([...firstFunctionaryIds, ...secondFunctionaryIds]));
   const functionaries = await Teacher.find({ _id: { $in: lookupIds }, isActive: true })
-    .select('name employeeId department designation schoolCode subjectCode supervisionHistory')
+    .select('name employeeId department designation schoolCode subjectCode supervisionHistory dutyType isActive')
     .lean();
   if (functionaries.length !== lookupIds.length) {
     return res.status(400).json({ success: false, message: 'Some selected functionaries are invalid or inactive.' });
+  }
+  const invalidInvigilators = functionaries.filter((functionary) => !isCurrentInvigilator(functionary));
+  if (invalidInvigilators.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Only active current invigilators can be assigned to room duties.',
+      invalidFunctionaries: invalidInvigilators.map((functionary) => ({
+        _id: functionary._id,
+        name: functionary.name,
+        employeeId: functionary.employeeId,
+        dutyType: functionary.dutyType,
+      })),
+    });
   }
   const functionaryMap = new Map(functionaries.map((f) => [String(f._id), f]));
   const [roomCandidateSchoolCodes, roomSubjectCodes] = await Promise.all([
@@ -580,7 +612,16 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
   let orderedSecond = [];
 
   if (allocationMode === 'auto') {
-    const pool = firstFunctionaryIds.map((id) => functionaryMap.get(id)).filter(Boolean);
+    const rawPool = firstFunctionaryIds.map((id) => functionaryMap.get(id)).filter(Boolean);
+    // Deduplicate by _id — if the same teacher ID appears twice in the checked list,
+    // keep only the first occurrence to prevent same teacher being assigned to both slots.
+    const seenPoolIds = new Set();
+    const pool = rawPool.filter((fn) => {
+      const id = String(fn._id);
+      if (seenPoolIds.has(id)) return false;
+      seenPoolIds.add(id);
+      return true;
+    });
     if (pool.length < sortedRooms.length * 2) {
       return res.status(400).json({
         success: false,
@@ -588,18 +629,26 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
       });
     }
 
-    // ── Build supervised-roll-numbers map from denormalized supervisionHistory ──
-    // This replaces the expensive buildSupervisedRollNosByFunctionary() call.
+    // ── Build supervised-roll-numbers map ──────────────────────────────────
+    // Query DutyAssignment + SeatingPlanAllocation directly so that historical
+    // assignments (made before supervisionHistory was introduced, or made manually)
+    // are included. Fall back to merging with supervisionHistory as a supplement
+    // in case any assignments exist in history but not in DutyAssignment.
+    const poolIds = pool.map((fn) => fn._id);
+    const dbSupervisedByFunc = await buildSupervisedRollNosByFunctionary(poolIds, examDateKey);
+
+    // Merge with supervisionHistory (for any entries not captured in DutyAssignment)
     const supervisedByFunc = new Map();
     for (const fn of pool) {
-      const rollNos = new Set();
+      const funcId = String(fn._id);
+      const rollNos = new Set(dbSupervisedByFunc.get(funcId) || []);
       for (const entry of (fn.supervisionHistory || [])) {
         if (entry.examDate === examDateKey) continue;
         for (const r of (entry.rollNumbers || [])) {
           rollNos.add(normalizeRollNo(r));
         }
       }
-      supervisedByFunc.set(String(fn._id), rollNos);
+      supervisedByFunc.set(funcId, rollNos);
     }
 
     // ── Build eligibility matrix purely in-memory ───────────────────────
@@ -649,6 +698,8 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
         // Pick second invigilator for this room
         for (let j = 0; j < nFuncs; j++) {
           if (j === i || assigned[j] || !eligMatrix[j][roomIdx]) continue;
+          // Safety net: never assign the same teacher to both Inv1 and Inv2 slots
+          if (String(pool[j]._id) === String(pool[i]._id)) continue;
           assigned[j] = true;
           secondResult[roomIdx] = j;
           if (backtrack(roomIdx + 1, eligMatrix)) return true;
@@ -665,9 +716,48 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
     const solved = backtrack(0, eligible);
 
     if (!solved) {
+      // Build per-functionary conflict diagnostics so the UI can explain exactly
+      // why auto assignment failed.
+      const conflictDetails = pool.map((fn, fnIdx) => {
+        const funcId = String(fn._id);
+        const ineligibleRooms = [];
+        sortedRooms.forEach((room, rIdx) => {
+          if (eligible[fnIdx][rIdx]) return; // no conflict for this room
+          const reasons = [];
+          if (hasSubjectConflict(room._id, fn)) {
+            reasons.push({ type: 'subject', codes: getSubjectConflictCodes(room._id, fn) });
+          }
+          if (hasSchoolConflict(room._id, fn)) {
+            reasons.push({ type: 'school', schoolCode: normalizeSchoolCode(fn.schoolCode) });
+          }
+          // Candidate overlap
+          const prevRollNos = supervisedByFunc.get(funcId) || new Set();
+          const roomRollNos = rollNosByRoom.get(String(room._id));
+          if (roomRollNos && prevRollNos.size > 0) {
+            const overlapping = [];
+            for (const r of roomRollNos) { if (prevRollNos.has(r)) overlapping.push(r); }
+            if (overlapping.length > 0) {
+              reasons.push({ type: 'candidateOverlap', rollNumbers: overlapping.slice(0, 5), totalOverlaps: overlapping.length });
+            }
+          }
+          if (reasons.length > 0) ineligibleRooms.push({ roomNo: normalizeRoomNo(room.roomNo), reasons });
+        });
+        const eligibleCount = eligible[fnIdx].filter(Boolean).length;
+        return {
+          _id: funcId,
+          name: fn.name,
+          employeeId: fn.employeeId,
+          schoolCode: normalizeSchoolCode(fn.schoolCode),
+          eligibleRoomCount: eligibleCount,
+          totalRooms: nRooms,
+          ineligibleRooms,
+        };
+      });
+
       return res.status(400).json({
         success: false,
         message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids subject conflict, candidate-school conflict, and any candidate they have previously supervised. Try adding more eligible functionaries.`,
+        conflictDetails,
       });
     }
 
@@ -811,12 +901,15 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
   }
 
   const duties = await DutyAssignment.find({ examDate, isActive: true })
-    .populate('room', 'roomNo roomName floor')
+    .populate('room', 'roomNo roomName floor allocationOrderByDate')
     .populate('functionary', 'name employeeId department designation')
     .populate('functionary2', 'name employeeId department designation')
-    .sort({ room: 1 })
     .lean();
-  const sortedDuties = [...duties].sort((a, b) => compareRoomNo(a?.room, b?.room));
+  const sortedDuties = [...duties].sort((a, b) => {
+    const orderDiff = parseAllocationOrder(a?.room, examDateKey) - parseAllocationOrder(b?.room, examDateKey);
+    if (orderDiff !== 0) return orderDiff;
+    return compareRoomNo(a?.room, b?.room);
+  });
 
   return res.status(200).json({
     success: true,

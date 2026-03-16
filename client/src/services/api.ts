@@ -141,11 +141,12 @@ api.interceptors.response.use(
   (response: AxiosResponse) => {
     // Handle successful responses
     if (response.data?.success) {
-      // Show success toast for certain operations
+      // Show success toast for certain operations (unless caller opted out)
       const method = response.config.method?.toUpperCase()
       const isModifyingOperation = ['POST', 'PUT', 'DELETE'].includes(method || '')
+      const isSilent = (response.config as any)?._silent === true
 
-      if (isModifyingOperation && response.data.message) {
+      if (isModifyingOperation && response.data.message && !isSilent) {
         toast.success(response.data.message)
       }
     }
@@ -165,10 +166,14 @@ api.interceptors.response.use(
 
     // Handle different error status codes
     switch (status) {
-      case 400:
-        // Bad Request - show validation errors
-        showApiErrorToast(getValidationErrorMessage(data?.details, data?.error || 'Bad request'))
+      case 400: {
+        // Bad Request - show validation errors (unless caller opted out)
+        const isSilent400 = (error.config as any)?._silent === true
+        if (!isSilent400) {
+          showApiErrorToast(getValidationErrorMessage(data?.details, data?.error || 'Bad request'))
+        }
         break
+      }
 
       case 401:
         // Unauthorized - try to refresh token or handle auth failure
@@ -235,10 +240,16 @@ api.interceptors.response.use(
         }
         break
 
-      case 403:
-        // Forbidden
-        showApiErrorToast('You do not have permission to perform this action')
+      case 403: {
+        // Forbidden - skip toast when feature is disabled for tenant (silent)
+        const isFeatureDisabled =
+          (typeof data?.featureKey === 'string' && data.featureKey.length > 0) ||
+          (typeof data?.message === 'string' && data.message.includes('disabled by platform admin'))
+        if (!isFeatureDisabled) {
+          showApiErrorToast('You do not have permission to perform this action')
+        }
         break
+      }
 
       case 402:
         // Billing restriction
