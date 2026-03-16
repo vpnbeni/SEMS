@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import candidateService from '../services/candidateService'
 import Loader from '../components/common/Loader'
+import { Dialog } from '../components/common/Dialog'
 import { useSubjectList } from '../hooks/useSubjects'
 import { useUpdateCandidateMutation } from '../hooks/useCandidates'
 
@@ -125,7 +126,7 @@ const CandidateDetail: React.FC = () => {
     try {
       await updateCandidateMutation.mutateAsync({
         id,
-        data: { subjects: [...existingIds, subjectId] },
+        data: { name: candidate.name, rollNumber: candidate.rollNumber, subjects: [...existingIds, subjectId] },
       })
       await fetchCandidate()
       toast.success('Subject assigned successfully')
@@ -142,7 +143,7 @@ const CandidateDetail: React.FC = () => {
       ?.filter((s) => s._id !== subjectToRemove._id)
       .map((s) => s._id) ?? []
     try {
-      await updateCandidateMutation.mutateAsync({ id, data: { subjects: remaining } })
+      await updateCandidateMutation.mutateAsync({ id, data: { name: candidate.name, rollNumber: candidate.rollNumber, subjects: remaining } })
       await fetchCandidate()
       toast.success('Subject removed')
       setSubjectToRemove(null)
@@ -727,167 +728,121 @@ const CandidateDetail: React.FC = () => {
         </div>
       </div>
 
-      {/* Assign Subject Modal */}
-      {assignSubjectOpen && (() => {
-        const enrolledIds = new Set(candidate.subjects?.map((s) => s._id) ?? [])
-        const allSubjects: any[] = subjectListData?.data ?? []
-        const available = allSubjects.filter((s) => {
-          if (enrolledIds.has(s._id)) return false
-          if (!assignSearch.trim()) return true
-          const q = assignSearch.trim().toLowerCase()
-          return (
-            (s.name ?? '').toLowerCase().includes(q) ||
-            (s.code ?? '').toLowerCase().includes(q)
-          )
-        })
-
-        return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div
-              className="absolute inset-0 bg-black/50"
-              onClick={() => { setAssignSubjectOpen(false); setAssignSearch('') }}
+      {/* Assign Subject Dialog */}
+      <Dialog
+        isOpen={assignSubjectOpen}
+        onClose={() => { setAssignSubjectOpen(false); setAssignSearch('') }}
+        title="Assign Subject"
+        size="sm"
+        maxHeight="80vh"
+      >
+        <Dialog.Body className="flex flex-col gap-0 p-0">
+          {/* Search */}
+          <div className="px-6 py-3 border-b border-secondary-200 dark:border-secondary-700">
+            <input
+              type="text"
+              value={assignSearch}
+              onChange={(e) => setAssignSearch(e.target.value)}
+              placeholder="Search by name or code…"
+              className="w-full px-3 py-2 rounded-lg border border-secondary-300 dark:border-secondary-600 bg-white dark:bg-secondary-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              autoFocus
             />
-            <div className="relative z-10 w-full max-w-md bg-white dark:bg-secondary-900 rounded-xl shadow-xl border border-secondary-200 dark:border-secondary-700 flex flex-col max-h-[80vh]">
-              {/* Modal header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-secondary-200 dark:border-secondary-700">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Assign Subject</h3>
-                <button
-                  type="button"
-                  onClick={() => { setAssignSubjectOpen(false); setAssignSearch('') }}
-                  className="p-1 rounded hover:bg-secondary-100 dark:hover:bg-secondary-700 text-gray-500 dark:text-gray-400"
-                  aria-label="Close"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Search */}
-              <div className="px-6 py-3 border-b border-secondary-200 dark:border-secondary-700">
-                <input
-                  type="text"
-                  value={assignSearch}
-                  onChange={(e) => setAssignSearch(e.target.value)}
-                  placeholder="Search by name or code…"
-                  className="w-full px-3 py-2 rounded-lg border border-secondary-300 dark:border-secondary-600 bg-white dark:bg-secondary-800 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                  autoFocus
-                />
-              </div>
-
-              {/* Subject list */}
-              <div className="overflow-y-auto flex-1 px-2 py-2">
-                {subjectsLoading ? (
-                  <div className="flex justify-center py-8">
-                    <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
-                  </div>
-                ) : available.length === 0 ? (
-                  <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
-                    {assignSearch ? 'No subjects match your search.' : 'All available subjects are already enrolled.'}
-                  </p>
-                ) : (
-                  available.map((subject) => (
-                    <button
-                      key={subject._id}
-                      type="button"
-                      disabled={updateCandidateMutation.isPending}
-                      onClick={() => handleAssignSubject(subject._id)}
-                      className="w-full text-left px-4 py-3 rounded-lg hover:bg-secondary-50 dark:hover:bg-secondary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{subject.name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Code: {subject.code}{subject.class ? ` · Class ${subject.class}` : ''}</p>
-                        </div>
-                        {updateCandidateMutation.isPending && (
-                          <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
-                        )}
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
           </div>
-        )
-      })()}
+          {/* Subject list */}
+          <div className="overflow-y-auto px-2 py-2" style={{ maxHeight: '50vh' }}>
+            {(() => {
+              const enrolledIds = new Set(candidate.subjects?.map((s) => s._id) ?? [])
+              const allSubjects: any[] = subjectListData?.data ?? []
+              const available = allSubjects.filter((s) => {
+                if (enrolledIds.has(s._id)) return false
+                if (!assignSearch.trim()) return true
+                const q = assignSearch.trim().toLowerCase()
+                return (
+                  (s.name ?? '').toLowerCase().includes(q) ||
+                  (s.code ?? '').toLowerCase().includes(q)
+                )
+              })
+              if (subjectsLoading) return (
+                <div className="flex justify-center py-8">
+                  <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+                </div>
+              )
+              if (available.length === 0) return (
+                <p className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
+                  {assignSearch ? 'No subjects match your search.' : 'All available subjects are already enrolled.'}
+                </p>
+              )
+              return available.map((subject) => (
+                <button
+                  key={subject._id}
+                  type="button"
+                  disabled={updateCandidateMutation.isPending}
+                  onClick={() => handleAssignSubject(subject._id)}
+                  className="w-full text-left px-4 py-3 rounded-lg hover:bg-secondary-50 dark:hover:bg-secondary-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">{subject.name}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Code: {subject.code}{subject.class ? ` · Class ${subject.class}` : ''}</p>
+                    </div>
+                    {updateCandidateMutation.isPending && (
+                      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent" />
+                    )}
+                  </div>
+                </button>
+              ))
+            })()}
+          </div>
+        </Dialog.Body>
+      </Dialog>
 
       {/* Remove Subject Confirmation Dialog */}
-      {subjectToRemove && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/50"
-            onClick={() => setSubjectToRemove(null)}
-          />
-          <div className="relative z-10 w-full max-w-md bg-white dark:bg-secondary-900 rounded-xl shadow-xl border border-secondary-200 dark:border-secondary-700">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-secondary-200 dark:border-secondary-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Remove Subject</h3>
-              <button
-                type="button"
-                onClick={() => setSubjectToRemove(null)}
-                className="p-1 rounded hover:bg-secondary-100 dark:hover:bg-secondary-700 text-gray-500 dark:text-gray-400"
-                aria-label="Close"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      <Dialog
+        isOpen={!!subjectToRemove}
+        onClose={() => setSubjectToRemove(null)}
+        title="Remove Subject"
+        variant="warning"
+        size="sm"
+        actions={[
+          {
+            label: 'Cancel',
+            variant: 'secondary',
+            onClick: () => setSubjectToRemove(null),
+            disabled: updateCandidateMutation.isPending,
+          },
+          {
+            label: 'Remove Subject',
+            variant: 'error',
+            onClick: handleRemoveSubject,
+            loading: updateCandidateMutation.isPending,
+          },
+        ]}
+      >
+        <Dialog.Body className="space-y-4">
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            You are about to remove the following subject from this candidate:
+          </p>
+          {subjectToRemove && (
+            <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800 border border-secondary-200 dark:border-secondary-700">
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{subjectToRemove.name}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Code: {subjectToRemove.code}</p>
             </div>
-
-            {/* Body */}
-            <div className="px-6 py-5 space-y-4">
-              <p className="text-sm text-gray-700 dark:text-gray-300">
-                You are about to remove the following subject from this candidate:
-              </p>
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800 border border-secondary-200 dark:border-secondary-700">
-                <div>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{subjectToRemove.name}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Code: {subjectToRemove.code}</p>
-                </div>
-              </div>
-
-              {/* Warning */}
-              <div className="flex gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
-                <svg className="w-5 h-5 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Potential downstream effects</p>
-                  <ul className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-disc list-inside">
-                    <li>If a seating plan has already been generated for this subject, the existing room allocations for this candidate will remain in the database. You may need to regenerate the seating plan.</li>
-                    <li>Answer sheet frequency counts for this subject may become inaccurate.</li>
-                    <li>Dashboard exam filters may be affected if no other candidates are enrolled in this subject.</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="flex justify-end gap-3 px-6 py-4 border-t border-secondary-200 dark:border-secondary-700">
-              <button
-                type="button"
-                onClick={() => setSubjectToRemove(null)}
-                disabled={updateCandidateMutation.isPending}
-                className="btn btn-secondary"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleRemoveSubject}
-                disabled={updateCandidateMutation.isPending}
-                className="btn inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {updateCandidateMutation.isPending && (
-                  <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                )}
-                Remove Subject
-              </button>
+          )}
+          <div className="flex gap-3 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+            <svg className="w-5 h-5 text-amber-500 dark:text-amber-400 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Potential downstream effects</p>
+              <ul className="text-xs text-amber-700 dark:text-amber-400 space-y-1 list-disc list-inside">
+                <li>If a seating plan has already been generated for this subject, the existing room allocations for this candidate will remain. You may need to regenerate the seating plan.</li>
+                <li>Answer sheet frequency counts for this subject may become inaccurate.</li>
+                <li>Dashboard exam filters may be affected if no other candidates are enrolled in this subject.</li>
+              </ul>
             </div>
           </div>
-        </div>
-      )}
+        </Dialog.Body>
+      </Dialog>
     </div>
   )
 }
