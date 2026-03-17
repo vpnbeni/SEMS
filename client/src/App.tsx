@@ -70,18 +70,10 @@ function App() {
     // Initialize auth on app startup
     authService.initializeAuth()
 
-    // Always refresh current user (and feature toggles) when token exists.
-    const refreshCurrentUser = () => {
-      const token = authService.getToken()
-      if (!token) return
+    // Refresh current user (and feature toggles) once on mount when token exists.
+    const token = authService.getToken()
+    if (token) {
       dispatch(getCurrentUser())
-    }
-
-    refreshCurrentUser()
-    window.addEventListener('focus', refreshCurrentUser)
-
-    return () => {
-      window.removeEventListener('focus', refreshCurrentUser)
     }
   }, [dispatch])
 

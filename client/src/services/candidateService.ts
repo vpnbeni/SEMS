@@ -96,10 +96,10 @@ class CandidateService {
     formData.append('pdf', file)
 
     return api.post('/candidates/import', formData, {
+      timeout: 300000, // 5 minutes for PDF processing
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-      timeout: 300000, // 5 minutes for PDF processing
     })
   }
 
