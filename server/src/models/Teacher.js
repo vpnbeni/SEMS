@@ -10,13 +10,26 @@ const teacherSchema = new mongoose.Schema({
     trim: true,
     maxlength: [100, 'Name cannot be more than 100 characters']
   },
-  // Stored as employeeId for backward compatibility; shown as OASIS Number in UI.
+  // OASIS ID (exam identity). Unique per tenant DB.
+  // NOTE: Older data stored OASIS in `employeeId` — see migration.
+  oasisId: {
+    type: String,
+    required: function requiredOasisId() {
+      return String(this.dutyType || '').trim() !== 'Class IV';
+    },
+    unique: true,
+    sparse: true,
+    trim: true,
+    match: [/^\d+$/, 'OASIS ID must contain digits only'],
+    default: null,
+  },
+  // School employee id (HR). Optional.
+  // Use null for "not set" so legacy unique index constraints (if any) don't collide on ''.
   employeeId: {
     type: String,
-    required: [true, 'OASIS ID is required'],
-    unique: true,
     trim: true,
-    match: [/^\d+$/, 'OASIS ID must contain digits only']
+    default: null,
+    sparse: true,
   },
   designation: {
     type: String,
@@ -220,12 +233,13 @@ const teacherSchema = new mongoose.Schema({
 });
 
 // Indexes
+// `oasisId` already has unique index via schema option; avoid duplicate index warnings.
 teacherSchema.index({ employeeId: 1 });
 teacherSchema.index({ schoolName: 1, schoolCode: 1 });
 teacherSchema.index({ subjectCode: 1 });
 teacherSchema.index({ mobileNo: 1 });
 teacherSchema.index({ isActive: 1 });
-teacherSchema.index({ name: 'text', employeeId: 'text', schoolName: 'text', schoolCode: 'text' });
+teacherSchema.index({ name: 'text', oasisId: 'text', employeeId: 'text', schoolName: 'text', schoolCode: 'text' });
 teacherSchema.index({ createdAt: -1 });
 
 // Virtual for age

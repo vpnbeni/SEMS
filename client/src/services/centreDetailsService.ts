@@ -17,6 +17,9 @@ export interface CentreDetails {
   packingMarkerClass10: string
   packingClothColorClass12: string
   packingMarkerClass12: string
+  dispatchSlipToAddress: string
+  dispatchSlipFromAddress: string
+  dispatchSlipInsuredAmount: string
 }
 
 export const defaultCentreDetails: CentreDetails = {
@@ -35,6 +38,9 @@ export const defaultCentreDetails: CentreDetails = {
   packingMarkerClass10: '',
   packingClothColorClass12: '',
   packingMarkerClass12: '',
+  dispatchSlipToAddress: '',
+  dispatchSlipFromAddress: '',
+  dispatchSlipInsuredAmount: '1000',
 }
 
 const normalizeCentreDetails = (value: Partial<CentreDetails> | null | undefined): CentreDetails => ({

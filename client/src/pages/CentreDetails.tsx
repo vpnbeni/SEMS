@@ -35,6 +35,9 @@ interface CentreForm {
   packingMarkerClass10: string
   packingClothColorClass12: string
   packingMarkerClass12: string
+  dispatchSlipToAddress: string
+  dispatchSlipFromAddress: string
+  dispatchSlipInsuredAmount: string
 }
 
 const defaultForm: CentreForm = {
@@ -53,6 +56,9 @@ const defaultForm: CentreForm = {
   packingMarkerClass10: '',
   packingClothColorClass12: '',
   packingMarkerClass12: '',
+  dispatchSlipToAddress: '',
+  dispatchSlipFromAddress: '',
+  dispatchSlipInsuredAmount: '1000',
 }
 
 const sanitizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 10)
@@ -401,6 +407,64 @@ const CentreDetails: React.FC = () => {
               </tr>
             </tbody>
           </table>
+
+          {/* Dispatch Slip Metadata Section Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 28, marginBottom: 8 }}>
+            <div className="cd-card-icon cd-card-icon--blue" style={{ width: 32, height: 32, borderRadius: 8 }}>
+              <svg style={{ width: 16, height: 16 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <span className="cd-field-label" style={{ margin: 0 }}>Dispatch Slip Metadata</span>
+            <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.06)' }} />
+          </div>
+
+          <div className="cd-grid-2" style={{ marginTop: 12 }}>
+            <div className="cd-field">
+              <label htmlFor="dispatch-slip-insured" className="cd-field-label">Default Insured Amount (Rs)</label>
+              <input
+                id="dispatch-slip-insured"
+                title="Default insured amount (Rs)"
+                className="cd-input"
+                placeholder="e.g. 1000"
+                value={form.dispatchSlipInsuredAmount}
+                onChange={(e) => handleChange('dispatchSlipInsuredAmount', e.target.value)}
+              />
+            </div>
+            <div className="cd-field">
+              <label className="cd-field-label">Used in Dispatch Slip PDF</label>
+              <p className="cd-field-hint" style={{ marginTop: 6 }}>
+                These values are printed on the parcel dispatch slip (To/From address and insured amount).
+              </p>
+            </div>
+          </div>
+
+          <div className="cd-grid-2" style={{ marginTop: 12 }}>
+            <div className="cd-field">
+              <label htmlFor="dispatch-slip-to" className="cd-field-label">To Address (multiline)</label>
+              <textarea
+                id="dispatch-slip-to"
+                title="Dispatch slip To address"
+                className="cd-input"
+                style={{ minHeight: 120, resize: 'vertical' }}
+                placeholder="The RO GURUGRAM (CBSE)\n1st & 2nd FLOOR\nC-1 BUILDING, TOWER-A, INFOCITY – 1,\nSECTOR – 34,\nGURUGRAM, PIN: 122001\nHARYANA\nTel:- 0124-2973658"
+                value={form.dispatchSlipToAddress}
+                onChange={(e) => handleChange('dispatchSlipToAddress', e.target.value)}
+              />
+            </div>
+            <div className="cd-field">
+              <label htmlFor="dispatch-slip-from" className="cd-field-label">From Address (multiline)</label>
+              <textarea
+                id="dispatch-slip-from"
+                title="Dispatch slip From address"
+                className="cd-input"
+                style={{ minHeight: 120, resize: 'vertical' }}
+                placeholder="INTERNATIONAL BHARTI SCHOOL\n5KM MILESTONE, GOHANA ROAD\nROHTAK, HARYANA, PIN – 124001\nSchool Code: 40291\nMobile No: 9138981415, 16"
+                value={form.dispatchSlipFromAddress}
+                onChange={(e) => handleChange('dispatchSlipFromAddress', e.target.value)}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

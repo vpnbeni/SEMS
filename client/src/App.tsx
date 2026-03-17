@@ -44,6 +44,9 @@ import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
 import AnswerSheetDetails from './pages/AnswerSheetDetails'
 import Attendance from './pages/Attendance'
+import DispatchSlip from './pages/DispatchSlip'
+import Remuneration from './pages/Remuneration'
+import RemunerationDetails from './pages/RemunerationDetails'
 import DropdownExamples from './pages/DropdownExamples'
 import DialogShowcase from './pages/DialogShowcase'
 import Billing from './pages/Billing'
@@ -217,6 +220,9 @@ function App() {
               {/* Students feature removed */}
               <Route path="candidates" element={<Candidates />} />
               <Route path="candidates/:id" element={<CandidateDetail />} />
+              <Route path="dispatch-slip" element={<DispatchSlip />} />
+              <Route path="remuneration" element={<Remuneration />} />
+              <Route path="remuneration/:id" element={<RemunerationDetails />} />
               <Route path="form66" element={<Form66 />} />
               <Route path="seatingplan" element={<SeatingPlan />} />
               <Route path="subjects" element={<Subjects />} />

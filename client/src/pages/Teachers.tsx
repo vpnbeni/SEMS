@@ -208,6 +208,7 @@ const Teachers: React.FC = () => {
     if (needle) {
       filtered = filtered.filter((teacher) => {
         const name = String(teacher.name || '').toLowerCase();
+        const oasisId = String(teacher.oasisId || '').toLowerCase();
         const employeeId = String(teacher.employeeId || '').toLowerCase();
         const mobile = String(teacher.mobileNo || teacher.phone || '').toLowerCase();
         const schoolName = String(teacher.schoolName || '').toLowerCase();
@@ -217,6 +218,7 @@ const Teachers: React.FC = () => {
 
         return (
           name.includes(needle) ||
+          oasisId.includes(needle) ||
           employeeId.includes(needle) ||
           mobile.includes(needle) ||
           schoolName.includes(needle) ||
@@ -732,7 +734,8 @@ const Teachers: React.FC = () => {
                 </th>
                 {[
                   { label: "Teacher Name", field: "name" },
-                  { label: "OASIS ID", field: "employeeId" },
+                  { label: "OASIS ID", field: "oasisId" },
+                  { label: "Employee ID", field: "employeeId" },
                   { label: "Duty Type", field: "dutyType" },
                   { label: "Designation", field: "designation" },
                   { label: "Subject Code", field: "subjectCode" },
@@ -837,7 +840,10 @@ const Teachers: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {teacher.employeeId}
+                      {teacher.oasisId || "—"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      {teacher.employeeId || "—"}
                     </td>
                     <td
                       className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"

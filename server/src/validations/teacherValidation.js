@@ -13,17 +13,33 @@ const createTeacherSchema = Joi.object({
       'string.max': 'Name cannot exceed 100 characters',
       'any.required': 'Name is required'
     }),
+  oasisId: Joi.alternatives().conditional('dutyType', {
+    is: 'Class IV',
+    then: Joi.string()
+      .trim()
+      .allow('', null)
+      .messages({
+        'string.base': 'OASIS ID must be a string'
+      }),
+    otherwise: Joi.string()
+      .trim()
+      .min(3)
+      .max(50)
+      .pattern(/^\d+$/)
+      .required()
+      .messages({
+        'string.min': 'OASIS ID must be at least 3 digits long',
+        'string.max': 'OASIS ID cannot exceed 50 digits',
+        'string.pattern.base': 'OASIS ID must contain digits only',
+        'any.required': 'OASIS ID is required'
+      }),
+  }),
   employeeId: Joi.string()
     .trim()
-    .min(3)
     .max(50)
-    .pattern(/^\d+$/)
-    .required()
+    .allow('')
     .messages({
-      'string.min': 'OASIS ID must be at least 3 digits long',
-      'string.max': 'OASIS ID cannot exceed 50 digits',
-      'string.pattern.base': 'OASIS ID must contain digits only',
-      'any.required': 'OASIS ID is required'
+      'string.max': 'Employee ID cannot exceed 50 characters'
     }),
   designation: Joi.string()
     .trim()
@@ -183,9 +199,21 @@ const updateTeacherSchema = Joi.object({
       'string.min': 'Name must be at least 2 characters long',
       'string.max': 'Name cannot exceed 100 characters'
     }),
-  employeeId: Joi.string().trim().min(3).max(50).pattern(/^\d+$/).messages({
-    'string.pattern.base': 'OASIS ID must contain digits only'
-  }),
+  oasisId: Joi.string()
+    .trim()
+    .min(3)
+    .max(50)
+    .pattern(/^\d+$/)
+    .messages({
+      'string.pattern.base': 'OASIS ID must contain digits only'
+    }),
+  employeeId: Joi.string()
+    .trim()
+    .max(50)
+    .allow('')
+    .messages({
+      'string.max': 'Employee ID cannot exceed 50 characters'
+    }),
   designation: Joi.string()
     .trim()
     .min(2)

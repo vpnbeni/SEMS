@@ -21,6 +21,9 @@ const centreDetailsUpsertSchema = Joi.object({
   packingMarkerClass10: optionalText(80),
   packingClothColorClass12: optionalText(80),
   packingMarkerClass12: optionalText(80),
+  dispatchSlipToAddress: optionalText(2000),
+  dispatchSlipFromAddress: optionalText(2000),
+  dispatchSlipInsuredAmount: optionalText(50),
 }).custom((value, helpers) => {
   const hasCentreName = Boolean(String(value.centreName || '').trim());
   const hasCentreSchoolCode = Boolean(String(value.centreSchoolCode || '').trim());

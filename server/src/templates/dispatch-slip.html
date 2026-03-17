@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dispatch Slip</title>
+    <style>
+      @page {
+        size: A4;
+        margin: 0;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        color: #000;
+      }
+      .page {
+        width: 210mm;
+        height: 297mm;
+      }
+      .half {
+        width: 210mm;
+        height: 148.5mm;
+        padding: 10mm 15mm;
+      }
+      .card {
+        height: 100%;
+        border: 0;
+        padding: 18mm 18mm 10mm 18mm;
+        display: flex;
+        flex-direction: column;
+      }
+      .topHeader {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 12mm;
+      }
+      .centerTitle {
+        font-size: 12pt;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+      }
+      .underline {
+        display: inline-block;
+        min-width: 28mm;
+        border-bottom: 1px solid #000;
+        padding: 0 2mm 1mm 2mm;
+        line-height: 1.1;
+      }
+      .underline.wide {
+        min-width: 70mm;
+      }
+      .topGrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14mm;
+        margin-bottom: 12mm;
+      }
+      .field {
+        margin-bottom: 6mm;
+        font-size: 10pt;
+        font-weight: 600;
+      }
+      .fieldLabel {
+        font-weight: 700;
+      }
+      .addrGrid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18mm;
+        margin-top: 4mm;
+      }
+      .addrLabel {
+        font-size: 10pt;
+        font-weight: 700;
+        margin-bottom: 4mm;
+      }
+      .addrLines {
+        font-size: 10pt;
+        font-weight: 700;
+        line-height: 1.35;
+        white-space: pre-wrap;
+      }
+      .cut {
+        width: 210mm;
+        border-top: 1px dashed #999;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="half">
+        <div class="card">
+          <div class="topHeader">
+            <div class="centerTitle">CENTER No. <span class="underline">{{centreNo}}</span></div>
+          </div>
+
+          <div class="topGrid">
+            <div class="leftFields">
+              <div class="field"><span class="fieldLabel">Class:</span> <span class="underline"></span></div>
+              <div class="field"><span class="fieldLabel">Subject. Name:</span> <span class="underline wide">{{subjectName}}</span></div>
+              <div class="field"><span class="fieldLabel">Subject code:</span> <span class="underline">{{subjectCode}}</span></div>
+            </div>
+            <div class="rightFields">
+              <div class="field"><span class="fieldLabel">Date:</span> <span class="underline"></span></div>
+              <div class="field"><span class="fieldLabel">Insured:</span> Rs {{insuredAmount}}</div>
+              <div class="field"><span class="fieldLabel">No. of Answer Sheet Packed:</span> <span class="underline">{{totalSheets}}</span></div>
+              <div class="field"><span class="fieldLabel">Parcel No.</span> <span class="underline"></span></div>
+              <div class="field"><span class="fieldLabel">Time of Packing:</span> <span class="underline"></span></div>
+            </div>
+          </div>
+
+          <div class="addrGrid">
+            <div class="toBlock">
+              <div class="addrLabel">To,</div>
+              <div class="addrLines">
+                {{#each toAddressLines}}
+                  <div>{{this}}</div>
+                {{/each}}
+              </div>
+            </div>
+            <div class="fromBlock">
+              <div class="addrLabel">From,</div>
+              <div class="addrLines">
+                {{#each fromAddressLines}}
+                  <div>{{this}}</div>
+                {{/each}}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cut"></div>
+
+      <div class="half">
+        <div class="card">
+          <div class="topHeader">
+            <div class="centerTitle">CENTER No. <span class="underline">{{centreNo}}</span></div>
+          </div>
+
+          <div class="topGrid">
+            <div class="leftFields">
+              <div class="field"><span class="fieldLabel">Class:</span> <span class="underline"></span></div>
+              <div class="field"><span class="fieldLabel">Subject. Name:</span> <span class="underline wide">{{subjectName}}</span></div>
+              <div class="field"><span class="fieldLabel">Subject code:</span> <span class="underline">{{subjectCode}}</span></div>
+            </div>
+            <div class="rightFields">
+              <div class="field"><span class="fieldLabel">Date:</span> <span class="underline"></span></div>
+              <div class="field"><span class="fieldLabel">Insured:</span> Rs {{insuredAmount}}</div>
+              <div class="field"><span class="fieldLabel">No. of Answer Sheet Packed:</span> <span class="underline">{{totalSheets}}</span></div>
+              <div class="field"><span class="fieldLabel">Parcel No.</span> <span class="underline"></span></div>
+              <div class="field"><span class="fieldLabel">Time of Packing:</span> <span class="underline"></span></div>
+            </div>
+          </div>
+
+          <div class="addrGrid">
+            <div class="toBlock">
+              <div class="addrLabel">To,</div>
+              <div class="addrLines">
+                {{#each toAddressLines}}
+                  <div>{{this}}</div>
+                {{/each}}
+              </div>
+            </div>
+            <div class="fromBlock">
+              <div class="addrLabel">From,</div>
+              <div class="addrLines">
+                {{#each fromAddressLines}}
+                  <div>{{this}}</div>
+                {{/each}}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
+

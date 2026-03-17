@@ -24,6 +24,8 @@ const FEATURE_RULES = [
   { key: 'duties', prefixes: ['/duties'] },
   { key: 'attendance', prefixes: ['/attendance'] },
   { key: 'candidates', prefixes: ['/candidates'] },
+  { key: 'dispatch_slip', prefixes: ['/dispatch-slip'] },
+  { key: 'remuneration', prefixes: ['/remuneration'] },
   { key: 'billing', prefixes: ['/billing'] },
   { key: 'account_settings', prefixes: ['/account-settings'] },
   { key: 'help_support', prefixes: ['/help-support'] },

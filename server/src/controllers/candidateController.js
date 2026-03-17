@@ -174,6 +174,17 @@ const getCandidate = asyncHandler(async (req, res) => {
     }
 
     if (Array.isArray(candidateData.subjects) && candidateData.subjects.length > 0) {
+      const subjectCodeSet = new Set(
+        (candidateData.subjectCodes || []).map((sc) =>
+          (typeof sc === 'string' ? sc : sc.code || '').trim().toUpperCase()
+        )
+      );
+      if (subjectCodeSet.size > 0) {
+        candidateData.subjects = candidateData.subjects.filter((s) =>
+          subjectCodeSet.has((s.code || '').trim().toUpperCase())
+        );
+      }
+
       const rollNo = String(candidateData.rollNumber || '').trim().toUpperCase();
       const dutyCache = new Map();
 
@@ -397,6 +408,33 @@ const updateCandidate = asyncHandler(async (req, res) => {
     ...req.body,
     updatedBy: req.user.id
   };
+
+  if (req.body.subjectCodes) {
+    const Subject = require('../models/Subject');
+    const allSubjects = await Subject.find({ isActive: true });
+    const subjectMap = new Map();
+    allSubjects.forEach((s) => {
+      const key = `${(s.code || '').toUpperCase()}-${s.class}`;
+      subjectMap.set(key, s);
+    });
+    const candidateClass = (req.body.class || candidate.class || '').toString().trim();
+    const linkedSubjects = [];
+    const linkedIds = new Set();
+    for (const sc of req.body.subjectCodes) {
+      const code = (typeof sc === 'string' ? sc : sc.code || '').trim().toUpperCase();
+      if (!code) continue;
+      const classesToTry = candidateClass ? [candidateClass] : ['10th', '12th'];
+      for (const cls of classesToTry) {
+        const subject = subjectMap.get(`${code}-${cls}`);
+        if (subject && !linkedIds.has(subject._id.toString())) {
+          linkedSubjects.push(subject._id);
+          linkedIds.add(subject._id.toString());
+          break;
+        }
+      }
+    }
+    updateData.subjects = linkedSubjects;
+  }
 
   candidate = await Candidate.findByIdAndUpdate(
     req.params.id,
@@ -943,6 +981,46 @@ const extractCandidatesFromText = (text) => {
             continue;
           }
 
+          // Handle medium+code packed on one line (e.g., "2034" = medium "2" for prev subject + code "034")
+          // This happens when pdf-parse concatenates a medium value with the next subject code.
+          const medCodeMatch = currentLine.match(/^(\d{1,2})(\d{3})$/);
+          if (medCodeMatch && subjectCodes.length > 0) {
+            const medPart = medCodeMatch[1];
+            const codePart = medCodeMatch[2];
+            let handled = false;
+
+            if (medPart.length === 1 && !subjectCodes[subjectCodes.length - 1].medium) {
+              subjectCodes[subjectCodes.length - 1].medium = medPart;
+              let medium = '';
+              if (i + lineOffset + j + 1 < lines.length) {
+                const nextLine = lines[i + lineOffset + j + 1].trim();
+                if (/^[0-9]$/.test(nextLine)) {
+                  medium = nextLine;
+                  j++;
+                }
+              }
+              subjectCodes.push({ code: codePart, medium });
+              handled = true;
+            } else if (medPart.length === 2 && subjectCodes.length >= 2
+              && !subjectCodes[subjectCodes.length - 1].medium
+              && !subjectCodes[subjectCodes.length - 2].medium) {
+              subjectCodes[subjectCodes.length - 2].medium = medPart[0];
+              subjectCodes[subjectCodes.length - 1].medium = medPart[1];
+              let medium = '';
+              if (i + lineOffset + j + 1 < lines.length) {
+                const nextLine = lines[i + lineOffset + j + 1].trim();
+                if (/^[0-9]$/.test(nextLine)) {
+                  medium = nextLine;
+                  j++;
+                }
+              }
+              subjectCodes.push({ code: codePart, medium });
+              handled = true;
+            }
+
+            if (handled) continue;
+          }
+
           // Check if this is a 3-digit subject code
           if (/^\d{3}$/.test(currentLine)) {
             const code = currentLine;
@@ -965,8 +1043,13 @@ const extractCandidatesFromText = (text) => {
             continue;
           }
 
-          // Stop if we hit another roll number or dash
-          if (isRollNumberLine(currentLine) || currentLine === '-') {
+          // Skip dashes (may appear from Int.Subs, Pr Roll, or Pr Year columns)
+          if (/^-+$/.test(currentLine)) {
+            continue;
+          }
+
+          // Stop if we hit another roll number
+          if (isRollNumberLine(currentLine)) {
             break;
           }
         }

@@ -126,6 +126,20 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
+      case 'dispatch-slip':
+        return {
+          pageTitle: 'Dispatch Slip',
+          pageSubtitle: 'Centre datesheet (date-wise). Download a dispatch slip PDF per subject.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'remuneration':
+        return {
+          pageTitle: 'Remuneration',
+          pageSubtitle: 'Summary of duties assigned to each exam functionary.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
       case 'billing':
         return {
           pageTitle: 'Billing',

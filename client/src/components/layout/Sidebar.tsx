@@ -40,7 +40,10 @@ const Sidebar: React.FC = () => {
   const { currentSession, clearSession } = useAcademicSession()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    'Centre Details': true,
+    'Centre Records': true,
+  })
   const isPathAllowed = (href: string) => isFeatureEnabledForPath(href, currentUser?.featureToggles)
   const canAccessCentreDetails = isPathAllowed('/centre-details')
 
@@ -392,6 +395,26 @@ const Sidebar: React.FC = () => {
             </svg>
           ),
           badge: toBadgeValue(counts.candidates),
+        },
+        {
+          name: 'Dispatch Slip',
+          href: '/dispatch-slip',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: 'Remuneration',
+          href: '/remuneration',
+          icon: (
+            <span className="inline-flex items-center justify-center w-4 h-4 text-[13px] font-semibold leading-none">
+              ₹
+            </span>
+          ),
+          badge: null,
         },
       ],
     },

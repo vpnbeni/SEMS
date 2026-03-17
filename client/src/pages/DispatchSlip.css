@@ -1,0 +1,126 @@
+/* Dispatch Slip - A4 print layout: 2 slips per page (half page each) */
+
+.dispatch-slip-print-area {
+  /* Screen: show as preview */
+  display: block;
+  max-width: 210mm;
+  margin: 0 auto;
+  background: white;
+  color: black;
+}
+
+.dispatch-slip-half {
+  /* Each slip = half A4 height */
+  width: 210mm;
+  min-height: 148.5mm; /* A4 height / 2 */
+  padding: 10mm 15mm;
+  box-sizing: border-box;
+  page-break-after: avoid;
+}
+
+/* Every third slip (indices 2, 4, 6...) starts a new page when printed */
+.dispatch-slip-new-page {
+  page-break-before: always;
+}
+
+.dispatch-slip-content {
+  border: 1px solid #333;
+  padding: 8mm;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.dispatch-slip-header {
+  border-bottom: 1px solid #333;
+  padding-bottom: 4mm;
+  margin-bottom: 6mm;
+}
+
+.dispatch-slip-title {
+  font-size: 14pt;
+  font-weight: 700;
+  margin: 0 0 2mm 0;
+  letter-spacing: 0.05em;
+}
+
+.dispatch-slip-meta {
+  font-size: 10pt;
+  display: flex;
+  flex-direction: column;
+  gap: 1mm;
+}
+
+.dispatch-slip-body {
+  flex: 1;
+  font-size: 11pt;
+}
+
+.dispatch-slip-row {
+  display: flex;
+  gap: 4mm;
+  margin-bottom: 3mm;
+}
+
+.dispatch-slip-label {
+  font-weight: 600;
+  min-width: 100px;
+}
+
+.dispatch-slip-value {
+  flex: 1;
+}
+
+.dispatch-slip-destination {
+  margin-top: 4mm;
+  padding-top: 4mm;
+  border-top: 1px dashed #666;
+}
+
+.dispatch-slip-footer {
+  margin-top: auto;
+  padding-top: 6mm;
+}
+
+.dispatch-slip-cut-line {
+  border-top: 1px dashed #999;
+  margin-top: 4mm;
+  font-size: 8pt;
+  color: #666;
+}
+
+/* Hide screen preview when printing */
+@media print {
+  .dispatch-slip-preview {
+    display: none !important;
+  }
+
+  .dispatch-slip-print-area {
+    display: block !important;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .dispatch-slip-half {
+    width: 210mm;
+    min-height: 148.5mm;
+    padding: 10mm 15mm;
+    border: none;
+    background: white;
+  }
+
+  .dispatch-slip-new-page {
+    page-break-before: always;
+  }
+
+  /* Ensure odd number of slips: last slip doesn't force blank half */
+  .dispatch-slip-half:last-child {
+    min-height: 148.5mm;
+  }
+
+  /* Hide non-print UI */
+  .print\\:hidden {
+    display: none !important;
+  }
+}

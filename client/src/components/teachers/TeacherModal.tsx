@@ -74,11 +74,6 @@ const normalizeAccountNumber = (value: string) => {
   if (digits.length >= 6) return digits.slice(0, 40);
   return digits.padStart(6, "0");
 };
-const generateClassIvEmployeeId = () => {
-  // Keep numeric-only unique ID for backend validation while UI can show N/A.
-  const suffix = String(Date.now()).slice(-9);
-  return `9${suffix}`;
-};
 const resolveDefaultSchoolOption = (options: SchoolOption[]): SchoolOption | null => {
   const match = (options || []).find((option) =>
     String(option.schoolName || "").toLowerCase().includes(DEFAULT_SCHOOL_NAME.toLowerCase())
@@ -101,6 +96,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const [subjectSearch, setSubjectSearch] = useState("");
   const [formData, setFormData] = useState({
     name: "",
+    oasisId: "",
     employeeId: "",
     designation: "",
     subjectIds: [] as string[],
@@ -202,6 +198,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
 
     setFormData({
       name: selectedTeacher.name || "",
+      oasisId: (selectedTeacher as any).oasisId || "",
       employeeId: selectedTeacher.employeeId || "",
       designation: selectedTeacher.designation || "",
       subjectIds,
@@ -293,6 +290,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const resetForm = () => {
     setFormData({
       name: "",
+      oasisId: "",
       employeeId: "",
       designation: "",
       subjectIds: [],
@@ -316,7 +314,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    const numericOnlyFields = new Set(["employeeId", "accountNumber", "mobileNo"]);
+    const numericOnlyFields = new Set(["oasisId", "accountNumber", "mobileNo"]);
     const nextValue = numericOnlyFields.has(name) ? value.replace(/\D/g, "") : value;
     setFormData((prev) => ({ ...prev, [name]: nextValue }));
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: "" }));
@@ -352,8 +350,8 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     const nextErrors: Record<string, string> = {};
     if (!formData.name.trim()) nextErrors.name = "Teacher name is required";
     if (!isClassIvFunctionary) {
-      if (!formData.employeeId.trim()) nextErrors.employeeId = "OASIS ID is required";
-      else if (!/^\d+$/.test(formData.employeeId.trim())) nextErrors.employeeId = "OASIS ID must contain digits only";
+      if (!formData.oasisId.trim()) nextErrors.oasisId = "OASIS ID is required";
+      else if (!/^\d+$/.test(formData.oasisId.trim())) nextErrors.oasisId = "OASIS ID must contain digits only";
     }
     if (!formData.designation.trim()) nextErrors.designation = "Designation is required";
     if (!subjectsDisabled && !formData.subjectIds.length) nextErrors.subjectIds = "At least one subject is required";
@@ -367,13 +365,14 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    const resolvedEmployeeId = isClassIvFunctionary
-      ? (selectedTeacher?.employeeId || generateClassIvEmployeeId())
-      : formData.employeeId.trim().toUpperCase();
+    const resolvedOasisId = isClassIvFunctionary
+      ? ""
+      : formData.oasisId.trim();
 
     const payload = {
       name: formData.name.trim(),
-      employeeId: resolvedEmployeeId,
+      oasisId: resolvedOasisId,
+      employeeId: formData.employeeId.trim(),
       designation: isClassIvFunctionary ? "Class IV" : formData.designation.trim(),
       subjects: isClassIvFunctionary ? [] : formData.subjectIds,
       subjectCode: isClassIvFunctionary ? "N/A" : formData.subjectCode,
@@ -439,21 +438,35 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
           </div>
 
           <div>
-            <label htmlFor={`${fieldIdPrefix}employeeId`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+            <label htmlFor={`${fieldIdPrefix}oasisId`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
               OASIS ID {!isClassIvFunctionary && <span className="text-error-500">*</span>}
+            </label>
+            <input
+              id={`${fieldIdPrefix}oasisId`}
+              name="oasisId"
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              value={isClassIvFunctionary ? "N/A" : formData.oasisId}
+              onChange={handleInputChange}
+              disabled={isClassIvFunctionary}
+              className={`input w-full ${errors.oasisId ? "input-error" : ""} ${isClassIvFunctionary ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed" : ""}`}
+            />
+            {errors.oasisId && <p className="text-error-500 text-xs mt-1">{errors.oasisId}</p>}
+          </div>
+
+          <div>
+            <label htmlFor={`${fieldIdPrefix}employeeId`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Employee ID
             </label>
             <input
               id={`${fieldIdPrefix}employeeId`}
               name="employeeId"
               type="text"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              value={isClassIvFunctionary ? "N/A" : formData.employeeId}
+              value={formData.employeeId}
               onChange={handleInputChange}
-              disabled={isClassIvFunctionary}
-              className={`input w-full ${errors.employeeId ? "input-error" : ""} ${isClassIvFunctionary ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed" : ""}`}
+              className="input w-full"
             />
-            {errors.employeeId && <p className="text-error-500 text-xs mt-1">{errors.employeeId}</p>}
           </div>
 
           <div>

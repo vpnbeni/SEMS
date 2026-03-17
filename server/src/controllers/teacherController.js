@@ -90,6 +90,13 @@ const digitsOnly = (value, fallback = '') => {
   return numeric || fallback;
 };
 
+const normalizeOasisId = (value) => {
+  const raw = normalizeString(value);
+  if (!raw) return '';
+  const digits = raw.replace(/\D/g, '');
+  return digits || '';
+};
+
 const escapeCsvCell = (value) => {
   const stringValue = normalizeString(value);
   const escaped = stringValue.replace(/"/g, '""');
@@ -182,6 +189,7 @@ const getTeachers = asyncHandler(async (req, res) => {
   if (search) {
     filter.$or = [
       { name: { $regex: search, $options: 'i' } },
+      { oasisId: { $regex: search, $options: 'i' } },
       { employeeId: { $regex: search, $options: 'i' } },
       { designation: { $regex: search, $options: 'i' } },
       { schoolName: { $regex: search, $options: 'i' } },
@@ -273,6 +281,12 @@ const getTeacher = asyncHandler(async (req, res) => {
 // @route   POST /api/teachers
 // @access  Private
 const createTeacher = asyncHandler(async (req, res) => {
+  // Backward-compat: older clients sent OASIS in employeeId.
+  // If oasisId is missing and employeeId is digits-only, treat it as oasisId and clear employeeId.
+  const legacyEmployeeId = normalizeString(req.body.employeeId);
+  const derivedOasisId = normalizeOasisId(req.body.oasisId) || normalizeOasisId(legacyEmployeeId);
+  const isLegacyEmployeeIdOasis = !normalizeOasisId(req.body.oasisId) && legacyEmployeeId && /^\d+$/.test(legacyEmployeeId);
+
   // Validate subjects first so resolvedSubjectCode is available for reactivation too
   let resolvedSubjectCode = '';
   if (req.body.subjects && req.body.subjects.length > 0) {
@@ -289,24 +303,28 @@ const createTeacher = asyncHandler(async (req, res) => {
     resolvedSubjectCode = validSubjects[0]?.code || '';
   }
 
-  // Check if OASIS/employee ID already exists (including soft-deleted records)
-  const existingEmployeeId = await Teacher.findOne({ employeeId: req.body.employeeId });
-  if (existingEmployeeId) {
-    if (!existingEmployeeId.isActive) {
+  // Check if OASIS ID already exists (including soft-deleted records)
+  const existingOasisId = derivedOasisId
+    ? await Teacher.findOne({ oasisId: derivedOasisId })
+    : null;
+  if (existingOasisId) {
+    if (!existingOasisId.isActive) {
       // Reactivate the soft-deleted record with the new payload
       const payload = {
         ...req.body,
+        oasisId: derivedOasisId || req.body.oasisId || null,
+        employeeId: isLegacyEmployeeIdOasis ? null : (req.body.employeeId || null),
         isActive: true,
-        email: req.body.email || `${String(req.body.employeeId || '').toLowerCase()}@sems.local`,
+        email: req.body.email || `${String(derivedOasisId || '').toLowerCase()}@sems.local`,
         subjectCode: resolvedSubjectCode || req.body.subjectCode || '',
         accountNumber: digitsOnly(req.body.accountNumber),
         phone: req.body.mobileNo || req.body.phone || ''
       };
       if (normalizeDutyType(payload.dutyType)) {
-        payload.dutyHistory = mergeDutyHistory(existingEmployeeId.dutyHistory || [], payload.dutyType);
+        payload.dutyHistory = mergeDutyHistory(existingOasisId.dutyHistory || [], payload.dutyType);
       }
       const reactivated = await Teacher.findByIdAndUpdate(
-        existingEmployeeId._id,
+        existingOasisId._id,
         payload,
         { new: true, runValidators: true }
       ).populate('subjects', 'name code class');
@@ -321,7 +339,9 @@ const createTeacher = asyncHandler(async (req, res) => {
 
   const payload = {
     ...req.body,
-    email: req.body.email || `${String(req.body.employeeId || '').toLowerCase()}@sems.local`,
+    oasisId: derivedOasisId || req.body.oasisId || null,
+    employeeId: isLegacyEmployeeIdOasis ? null : (req.body.employeeId || null),
+    email: req.body.email || `${String(derivedOasisId || '').toLowerCase()}@sems.local`,
     subjectCode: resolvedSubjectCode || req.body.subjectCode || '',
     accountNumber: digitsOnly(req.body.accountNumber),
     phone: req.body.mobileNo || req.body.phone || ''
@@ -353,13 +373,18 @@ const updateTeacher = asyncHandler(async (req, res) => {
     );
   }
 
-  // Check for OASIS/employee ID conflicts (exclude current teacher)
-  if (req.body.employeeId && req.body.employeeId !== teacher.employeeId) {
-    const existingEmployeeId = await Teacher.findOne({
-      employeeId: req.body.employeeId,
+  // Backward-compat: older clients may send OASIS in employeeId.
+  const legacyEmployeeIdUpdate = normalizeString(req.body.employeeId);
+  const derivedOasisIdUpdate = normalizeOasisId(req.body.oasisId) || normalizeOasisId(legacyEmployeeIdUpdate);
+  const isLegacyEmployeeIdOasisUpdate = !normalizeOasisId(req.body.oasisId) && legacyEmployeeIdUpdate && /^\d+$/.test(legacyEmployeeIdUpdate);
+
+  // Check for OASIS ID conflicts (exclude current teacher)
+  if (derivedOasisIdUpdate && derivedOasisIdUpdate !== normalizeOasisId(teacher.oasisId)) {
+    const existingOasisId = await Teacher.findOne({
+      oasisId: derivedOasisIdUpdate,
       _id: { $ne: req.params.id }
     });
-    if (existingEmployeeId && existingEmployeeId.isActive) {
+    if (existingOasisId && existingOasisId.isActive) {
       return res.status(HTTP_STATUS.CONFLICT).json(
         generateResponse(false, 'Teacher with this OASIS ID already exists')
       );
@@ -368,6 +393,12 @@ const updateTeacher = asyncHandler(async (req, res) => {
 
   // Validate subjects if provided
   const updatePayload = { ...req.body };
+  if (Object.prototype.hasOwnProperty.call(req.body, 'oasisId') || Object.prototype.hasOwnProperty.call(req.body, 'employeeId')) {
+    updatePayload.oasisId = derivedOasisIdUpdate || null;
+    if (isLegacyEmployeeIdOasisUpdate) {
+      updatePayload.employeeId = null;
+    }
+  }
   if (Object.prototype.hasOwnProperty.call(req.body, 'accountNumber')) {
     updatePayload.accountNumber = digitsOnly(req.body.accountNumber);
   }
@@ -387,8 +418,8 @@ const updateTeacher = asyncHandler(async (req, res) => {
   if (req.body.mobileNo) {
     updatePayload.phone = req.body.mobileNo;
   }
-  if (req.body.employeeId && !req.body.email && !teacher.email) {
-    updatePayload.email = `${String(req.body.employeeId || '').toLowerCase()}@sems.local`;
+  if ((updatePayload.oasisId || derivedOasisIdUpdate) && !req.body.email && !teacher.email) {
+    updatePayload.email = `${String(updatePayload.oasisId || derivedOasisIdUpdate || '').toLowerCase()}@sems.local`;
   }
   if (Object.prototype.hasOwnProperty.call(req.body, 'dutyType')) {
     const previousDutyType = normalizeDutyType(teacher.dutyType);
@@ -847,7 +878,7 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
 
   const normalizedEntries = [];
   const subjectCodeUniverse = new Set();
-  const employeeIdUniverse = new Set();
+  const oasisIdUniverse = new Set();
 
   dataRows.forEach(({ rowNumber, valueAt }) => {
     const rowData = {};
@@ -873,10 +904,13 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
       return;
     }
 
-    const employeeId = clampText(normalizedRow.oasisId || normalizedRow.employeeId, 120);
+    const oasisId = clampText(normalizedRow.oasisId || normalizedRow.employeeId, 120);
+    // Employee ID (school HR) is optional. If template only had legacy `employeeId` digits,
+    // it will be treated as OASIS and school employeeId will remain blank.
+    const schoolEmployeeId = clampText(normalizedRow.employeeId || '', 120);
     const name = clampText(normalizedRow.functionaryName || normalizedRow.name, 100);
     const designation = clampText(normalizedRow.designation, 50);
-    if (!employeeId || !name || !designation) {
+    if (!oasisId || !name || !designation) {
       results.errors.push({
         row: rowNumber,
         message: 'Oasis ID, Functionary Name, and Designation are required'
@@ -889,11 +923,12 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
       .map((code) => code.trim().toUpperCase())
       .filter(Boolean);
     subjectCodes.forEach((code) => subjectCodeUniverse.add(code));
-    employeeIdUniverse.add(employeeId);
+    oasisIdUniverse.add(oasisId);
 
     normalizedEntries.push({
       rowNumber,
-      employeeId,
+      oasisId,
+      employeeId: schoolEmployeeId,
       name,
       designation,
       subjectName: normalizedRow.subject || normalizedRow.department || '',
@@ -917,15 +952,15 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
     });
   }
 
-  const existingTeachers = employeeIdUniverse.size > 0
+  const existingTeachers = oasisIdUniverse.size > 0
     ? await withDbRetry(
-      () => TeacherModel.find({ employeeId: { $in: Array.from(employeeIdUniverse) } })
-        .select('employeeId email phone mobileNo department designation schoolName schoolCode bankName accountNumber ifscCode experience qualification dateOfJoining dateOfBirth isActive')
+      () => TeacherModel.find({ oasisId: { $in: Array.from(oasisIdUniverse) } })
+        .select('oasisId employeeId email phone mobileNo department designation schoolName schoolCode bankName accountNumber ifscCode experience qualification dateOfJoining dateOfBirth isActive')
         .lean(),
       'teacher import existing teacher lookup'
     )
     : [];
-  const existingByEmployeeId = new Map(existingTeachers.map((teacher) => [teacher.employeeId, teacher]));
+  const existingByOasisId = new Map(existingTeachers.map((teacher) => [teacher.oasisId, teacher]));
   const importBatchToken = Date.now();
 
   const operations = [];
@@ -945,11 +980,12 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
       });
     }
 
-    const existingTeacher = existingByEmployeeId.get(entry.employeeId);
+    const existingTeacher = existingByOasisId.get(entry.oasisId);
     const payload = {
-      employeeId: entry.employeeId,
+      oasisId: entry.oasisId,
+      employeeId: entry.employeeId || '',
       name: entry.name,
-      email: existingTeacher?.email || buildGeneratedImportEmail(entry.employeeId, entry.rowNumber, importBatchToken),
+      email: existingTeacher?.email || buildGeneratedImportEmail(entry.oasisId, entry.rowNumber, importBatchToken),
       phone: existingTeacher?.phone || '9000000000',
       mobileNo: existingTeacher?.mobileNo || existingTeacher?.phone || '9000000000',
       department: clampText(existingTeacher?.department || 'General', 50),
@@ -958,7 +994,7 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
       schoolName: clampText(existingTeacher?.schoolName || `School ${entry.schoolCode || 'Unknown'}`, 200),
       schoolCode: clampText(existingTeacher?.schoolCode || entry.schoolCode || 'NA', 20),
       bankName: clampText(existingTeacher?.bankName || 'N/A Bank', 120),
-      accountNumber: digitsOnly(existingTeacher?.accountNumber || entry.employeeId || '0', '0').slice(0, 40),
+      accountNumber: digitsOnly(existingTeacher?.accountNumber || entry.oasisId || '0', '0').slice(0, 40),
       ifscCode: clampText((existingTeacher?.ifscCode || 'ABCD0000001').toUpperCase(), 20),
       experience: existingTeacher?.experience ?? 0,
       qualification: clampText(existingTeacher?.qualification || 'N/A', 200),
@@ -981,7 +1017,7 @@ const uploadTeachersFromTemplate = asyncHandler(async (req, res) => {
 
     operations.push({
       updateOne: {
-        filter: { employeeId: entry.employeeId },
+        filter: { oasisId: entry.oasisId },
         update: { $set: payload },
         upsert: true
       }
