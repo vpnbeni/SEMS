@@ -6,6 +6,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 BECMS (Bharat Examination Core Management System) is a multi-tenant, full-stack MERN application for managing CBSE examination processes. It handles importing CBSE datesheets, candidate management, seating plan generation, answer sheet tracking, Form 66 attendance, and tenant onboarding. The system uses a central platform database alongside per-tenant databases for data isolation.
 
+## Deployment & Domains
+
+- **cntr.capabble.cloud** — Production deployment of the `/client` app on Vercel. This is the main product website for "Cntr – Exam Centre Control".
+  - `/` (root) → shows `CntrLanding` page (public marketing landing page) when not authenticated
+  - `/login` → Login page
+  - `/signup` → Signup / tenant onboarding
+  - Authenticated users are redirected to `/dashboard` or `/select-session`
+- **capabble.cloud** — Separate repo (`capabble-landing`) deployed on Vercel. This is the parent company (CAPABBLE) main website. Cntr is one of the products under CAPABBLE.
+
 ## Development Commands
 
 ```bash
