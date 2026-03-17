@@ -37,7 +37,6 @@ const ImportModal: React.FC<ImportModalProps> = ({
   const handleImport = async () => {
     if (selectedFile) {
       await onImport(selectedFile)
-      setSelectedFile(null)
     }
   }
 

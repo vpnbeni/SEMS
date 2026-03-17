@@ -124,32 +124,30 @@ const Candidates: React.FC = () => {
   }
 
   const handleImport = async (file: File) => {
-    importMutation.mutate(file, {
-      onSuccess: (response: any) => {
-        const payload = response?.data?.data ?? response?.data
-        const imported = payload?.imported ?? 0
-        const skipped = payload?.errors ?? 0
-        if (imported === 0 && skipped === 0) {
-          toast('No candidates found in PDF', { icon: 'ℹ️' })
-        } else if (imported === 0) {
-          toast.success(`All ${skipped} candidates already exist — nothing new to import`)
-        } else if (skipped === 0) {
-          toast.success(`Successfully added ${imported} new candidate${imported !== 1 ? 's' : ''}`)
-        } else {
-          toast.success(`Added ${imported} new candidate${imported !== 1 ? 's' : ''} (${skipped} already existed, skipped)`)
-        }
-        setShowImportModal(false)
-      },
-      onError: (error: any) => {
-        if (error?.code === 'ECONNABORTED') {
-          toast.error('Request timeout. The PDF file might be too large or complex.')
-        } else if (error?.message === 'canceled') {
-          toast.error('Upload was canceled. Please try again.')
-        } else {
-          toast.error(error?.response?.data?.message || 'Failed to import candidates')
-        }
-      },
-    })
+    try {
+      const response: any = await importMutation.mutateAsync(file)
+      const payload = response?.data?.data ?? response?.data
+      const imported = payload?.imported ?? 0
+      const skipped = payload?.errors ?? 0
+      if (imported === 0 && skipped === 0) {
+        toast('No candidates found in PDF', { icon: 'ℹ️' })
+      } else if (imported === 0) {
+        toast.success(`All ${skipped} candidates already exist — nothing new to import`)
+      } else if (skipped === 0) {
+        toast.success(`Successfully added ${imported} new candidate${imported !== 1 ? 's' : ''}`)
+      } else {
+        toast.success(`Added ${imported} new candidate${imported !== 1 ? 's' : ''} (${skipped} already existed, skipped)`)
+      }
+      setShowImportModal(false)
+    } catch (error: any) {
+      if (error?.code === 'ECONNABORTED') {
+        toast.error('Request timeout. The PDF file might be too large or complex.')
+      } else if (error?.message === 'canceled') {
+        toast.error('Upload was canceled. Please try again.')
+      } else {
+        toast.error(error?.response?.data?.message || 'Failed to import candidates')
+      }
+    }
   }
 
   const handleDelete = async (id: string) => {

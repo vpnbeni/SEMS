@@ -14,7 +14,6 @@ const Header: React.FC = () => {
   const user = useSelector(selectUser)
   const isDashboardRoute = location.pathname === '/dashboard'
   const canAccessCentreDetails = isFeatureEnabledForPath('/centre-details', user?.featureToggles)
-  const defaultDashboardCentreLabel = '829261 - International Bharti School, Rohtak'
   const { currentSession } = useAcademicSession()
   const { periodsPerWeek, setPeriodsPerWeek } = useTimetable()
   const [editingPeriodsPerWeek, setEditingPeriodsPerWeek] = useState(false)
@@ -239,7 +238,7 @@ const Header: React.FC = () => {
     return [centreNo, centreName].filter(Boolean).join(' - ')
   }, [canAccessCentreDetails, centreDetails, isDashboardRoute])
 
-  const dashboardHeaderLabel = (dashboardCentreLabel || defaultDashboardCentreLabel).trim()
+  const dashboardHeaderLabel = dashboardCentreLabel.trim()
 
   useEffect(() => {
     setDraftPeriodsPerWeek(periodsPerWeek)
@@ -277,11 +276,26 @@ const Header: React.FC = () => {
               </button>
             )}
             {isDashboardRoute ? (
-              <div className="min-w-0 rounded-xl border border-secondary-200/70 dark:border-secondary-700 bg-white/70 dark:bg-secondary-800/40 px-3 py-2 shadow-sm">
-                <h1 className="text-base sm:text-lg md:text-2xl font-bold text-secondary-900 dark:text-white truncate tracking-tight">
-                  {dashboardHeaderLabel}
-                </h1>
-              </div>
+              dashboardHeaderLabel ? (
+                <div className="min-w-0 rounded-xl border border-secondary-200/70 dark:border-secondary-700 bg-white/70 dark:bg-secondary-800/40 px-3 py-2 shadow-sm">
+                  <h1 className="text-base sm:text-lg md:text-2xl font-bold text-secondary-900 dark:text-white truncate tracking-tight">
+                    {dashboardHeaderLabel}
+                  </h1>
+                </div>
+              ) : canAccessCentreDetails ? (
+                <button
+                  type="button"
+                  onClick={() => navigate('/centre-details')}
+                  className="min-w-0 rounded-xl border border-dashed border-primary-300 dark:border-primary-700 bg-primary-50/60 dark:bg-primary-900/20 px-3 py-2 shadow-sm hover:bg-primary-100/60 dark:hover:bg-primary-900/40 transition-colors group"
+                >
+                  <span className="flex items-center gap-2 text-base sm:text-lg font-semibold text-primary-600 dark:text-primary-400 group-hover:text-primary-700 dark:group-hover:text-primary-300">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Set up Centre Details
+                  </span>
+                </button>
+              ) : null
             ) : (
               <div className="min-w-0">
                 <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white truncate tracking-tight">

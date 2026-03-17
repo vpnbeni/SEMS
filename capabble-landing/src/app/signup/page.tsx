@@ -1,12 +1,14 @@
-import type { Metadata } from "next";
-import { SignupChat } from "@/components/signup/SignupChat";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "Register Your Centre | Capabble",
-  description:
-    "Create your exam centre on Capabble in a few quick steps with our guided onboarding assistant.",
-};
+function getCntrOrigin(host: string): string {
+  if (host.startsWith("stage.")) return "https://stagecntr.capabble.cloud";
+  return "https://cntr.capabble.cloud";
+}
 
-export default function SignupPage() {
-  return <SignupChat />;
+export default async function SignupPage() {
+  const headersList = await headers();
+  const host = headersList.get("host") || "";
+  const cntrOrigin = getCntrOrigin(host);
+  redirect(`${cntrOrigin}/#/signup`);
 }

@@ -73,18 +73,10 @@ function App() {
     // Initialize auth on app startup
     authService.initializeAuth()
 
-    // Always refresh current user (and feature toggles) when token exists.
-    const refreshCurrentUser = () => {
-      const token = authService.getToken()
-      if (!token) return
+    // Refresh current user (and feature toggles) once on mount when token exists.
+    const token = authService.getToken()
+    if (token) {
       dispatch(getCurrentUser())
-    }
-
-    refreshCurrentUser()
-    window.addEventListener('focus', refreshCurrentUser)
-
-    return () => {
-      window.removeEventListener('focus', refreshCurrentUser)
     }
   }, [dispatch])
 
@@ -104,7 +96,6 @@ function App() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Routes>
           {/* Public Routes */}
-          <Route path="/cntr" element={<CntrLanding />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route
             path="/"
@@ -112,7 +103,7 @@ function App() {
               isAuthenticated ? (
                 hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
               ) : (
-                <Login />
+                <CntrLanding />
               )
             }
           />
@@ -122,7 +113,7 @@ function App() {
               isAuthenticated ? (
                 hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
               ) : (
-                <Navigate to="/" replace />
+                <Login />
               )
             }
           />
