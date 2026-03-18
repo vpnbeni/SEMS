@@ -114,7 +114,7 @@ const CandidateDetail: React.FC = () => {
       setCandidate(response.data.data)
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to fetch candidate details')
-      navigate('/candidates')
+      navigate('/candidate-details')
     } finally {
       setLoading(false)
     }
@@ -215,10 +215,10 @@ const CandidateDetail: React.FC = () => {
             Candidate Not Found
           </h1>
           <button
-            onClick={() => navigate('/candidates')}
+            onClick={() => navigate('/candidate-details')}
             className="btn btn-primary"
           >
-            Back to Candidates
+            Back to Candidate Details
           </button>
         </div>
       </div>
@@ -232,10 +232,10 @@ const CandidateDetail: React.FC = () => {
       <div className="flex items-center space-x-4">
       <button
       type="button"
-      onClick={() => navigate('/candidates')}
+      onClick={() => navigate('/candidate-details')}
       className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 transition-colors"
-      aria-label="Back to candidates list"
-      title="Back to candidates list"
+      aria-label="Back to candidate details list"
+      title="Back to candidate details list"
       >
       <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -265,7 +265,7 @@ const CandidateDetail: React.FC = () => {
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
           <button
-            onClick={() => navigate(`/candidates/${candidate._id}/edit`)}
+            onClick={() => navigate(`/candidate-details/${candidate._id}/edit`)}
             className="btn btn-secondary"
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

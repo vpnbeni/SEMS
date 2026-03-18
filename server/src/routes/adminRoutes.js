@@ -31,12 +31,14 @@ const {
   deleteTenantSchema,
   tenantQuerySchema,
   tenantIdParamSchema,
-  tenantFeatureUpdateSchema
+  tenantFeatureUpdateSchema,
+  masterRemunerationUpdateSchema
 } = require('../validations/adminValidation');
 const masterSubjectsController = require('../controllers/admin/masterSubjectsController');
 const masterDatesheetController = require('../controllers/admin/masterDatesheetController');
 const masterGuidelinesController = require('../controllers/admin/masterGuidelinesController');
 const masterUndertakingsController = require('../controllers/admin/masterUndertakingsController');
+const masterRemunerationController = require('../controllers/admin/masterRemunerationController');
 const rolloutController = require('../controllers/admin/rolloutController');
 const masterTeacherTemplateController = require('../controllers/admin/masterTeacherTemplateController');
 const billingAdminController = require('../controllers/admin/billingAdminController');
@@ -188,6 +190,10 @@ router.get('/master-undertakings', masterUndertakingsController.listUndertakings
 router.get('/master-undertakings/current', masterUndertakingsController.getCurrentUndertaking);
 router.get('/master-undertakings/:id', masterUndertakingsController.getUndertaking);
 router.delete('/master-undertakings/:id', masterUndertakingsController.deleteUndertaking);
+
+// Master Remuneration rates routes
+router.get('/master-remuneration', masterRemunerationController.listRates);
+router.put('/master-remuneration', validateJoi(masterRemunerationUpdateSchema), masterRemunerationController.upsertRates);
 
 // Rollout routes
 router.post('/rollouts/initiate', rolloutController.initiateRollout);

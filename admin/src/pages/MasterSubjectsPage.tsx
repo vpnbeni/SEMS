@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { DataTable, type DataTableColumn } from '../components/DataTable'
 import { Dialog } from '../components/Dialog'
 import { FileUpload } from '../components/FileUpload'
@@ -30,6 +30,7 @@ export function MasterSubjectsPage() {
   const [subjects, setSubjects] = useState<MasterSubject[]>([])
   const [stats, setStats] = useState<SubjectStats>(EMPTY_STATS)
   const [classFilter, setClassFilter] = useState<ClassFilter>('all')
+  const [search, setSearch] = useState('')
   const [academicYear, setAcademicYear] = useState('')
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -70,6 +71,19 @@ export function MasterSubjectsPage() {
   useEffect(() => {
     loadData().catch(() => undefined)
   }, [classFilter])
+
+  const filteredSubjects = useMemo(() => {
+    const searchTerm = search.trim().toLowerCase()
+    if (!searchTerm) {
+      return subjects
+    }
+
+    return subjects.filter((subject) => {
+      const code = String(subject.code || '').toLowerCase()
+      const name = String(subject.name || '').toLowerCase()
+      return code.includes(searchTerm) || name.includes(searchTerm)
+    })
+  }, [search, subjects])
 
   const handleUpload = async (file: File) => {
     setUploading(true)
@@ -246,34 +260,50 @@ export function MasterSubjectsPage() {
       </section>
 
       <section className="card">
-        <div className="filter-tabs" style={{ marginBottom: 16 }}>
-          <button
-            type="button"
-            className={`filter-tab ${classFilter === 'all' ? 'active' : ''}`}
-            onClick={() => setClassFilter('all')}
-          >
-            All
-          </button>
-          <button
-            type="button"
-            className={`filter-tab ${classFilter === '10th' ? 'active' : ''}`}
-            onClick={() => setClassFilter('10th')}
-          >
-            10th
-          </button>
-          <button
-            type="button"
-            className={`filter-tab ${classFilter === '12th' ? 'active' : ''}`}
-            onClick={() => setClassFilter('12th')}
-          >
-            12th
-          </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+          <div className="filter-tabs" style={{ marginBottom: 0 }}>
+            <button
+              type="button"
+              className={`filter-tab ${classFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setClassFilter('all')}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`filter-tab ${classFilter === '10th' ? 'active' : ''}`}
+              onClick={() => setClassFilter('10th')}
+            >
+              10th
+            </button>
+            <button
+              type="button"
+              className={`filter-tab ${classFilter === '12th' ? 'active' : ''}`}
+              onClick={() => setClassFilter('12th')}
+            >
+              12th
+            </button>
+          </div>
+
+          <div className="input-group" style={{ marginBottom: 0, minWidth: 280, flex: '0 1 360px' }}>
+            <input
+              placeholder="Search subject name or code..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </div>
         </div>
 
         <DataTable
           columns={columns}
-          data={subjects}
-          emptyMessage={loading ? 'Loading subjects...' : 'No subjects found'}
+          data={filteredSubjects}
+          emptyMessage={
+            loading
+              ? 'Loading subjects...'
+              : search.trim()
+                ? `No subjects match "${search.trim()}"`
+                : 'No subjects found'
+          }
           rowKey={(row) => row._id}
         />
       </section>

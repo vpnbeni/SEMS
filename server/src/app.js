@@ -46,6 +46,7 @@ const supportRoutes = require('./routes/supportRoutes');
 const sessionRoutes = require('./routes/sessionRoutes');
 const attendanceRoutes = require('./routes/attendanceRoutes');
 const timetableRoutes = require('./routes/timetableRoutes');
+const remunerationRoutes = require('./routes/remunerationRoutes');
 // const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
 
 // Create Express app
@@ -282,6 +283,7 @@ tenantScopedRouter.use('/billing', requireTenantFeature('billing'), billingRoute
 tenantScopedRouter.use('/sessions', sessionRoutes);
 tenantScopedRouter.use('/attendance', requireTenantFeature('attendance'), attendanceRoutes);
 tenantScopedRouter.use('/timetable', requireTenantFeature('timetable_classes'), timetableRoutes);
+tenantScopedRouter.use('/remuneration', requireTenantFeature('remuneration'), remunerationRoutes);
 // tenantScopedRouter.use('/calendar', calendarRoutes); // Temporarily disabled for debugging
 
 app.use('/api', tenantScopedRouter);

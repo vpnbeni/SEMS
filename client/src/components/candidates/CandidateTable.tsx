@@ -111,7 +111,7 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
             Get started by importing candidates from a PDF file or adding them manually.
           </p>
           <button
-            onClick={() => navigate('/candidates/new')}
+            onClick={() => navigate('/candidate-details/new')}
             className="btn btn-primary"
           >
             Add First Candidate
@@ -155,7 +155,7 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
             {candidates.map((candidate) => (
               <tr
                 key={candidate._id}
-                onClick={() => navigate(`/candidates/${candidate._id}`)}
+                onClick={() => navigate(`/candidate-details/${candidate._id}`)}
                 className="hover:bg-secondary-50 dark:hover:bg-secondary-800 transition-colors cursor-pointer"
               >
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -298,7 +298,7 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        navigate(`/candidates/${candidate._id}/edit`)
+                        navigate(`/candidate-details/${candidate._id}/edit`)
                       }}
                       className="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300"
                       title="Edit"

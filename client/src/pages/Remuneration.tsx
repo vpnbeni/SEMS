@@ -5,6 +5,7 @@ import Loader from '../components/common/Loader'
 import dutiesService from '../services/dutiesService'
 import { useCentreDetails } from '../hooks/useCentreDetails'
 import teacherService, { type Teacher } from '../services/teacherService'
+import { useRemunerationRates } from '../hooks/useRemunerationRates'
 
 const DUTY_TABS = [
   { key: 'CS', dutyType: 'Centre Superintendent' },
@@ -49,11 +50,70 @@ const REMUNERATION_GROUPS: RemunerationGroup[] = [
   { key: 'class_iv', title: 'Class IV', dutyTypes: ['Class IV'] },
 ]
 
+const DUTIES_SUMMARY_ITEMS = [
+  { dutyType: 'Centre Superintendent', groupKey: 'cs' },
+  { dutyType: 'Deputy Centre Superintendent', groupKey: 'dcs' },
+  { dutyType: 'Invigilator', groupKey: 'inv' },
+  { dutyType: 'ASI (CCTV)', groupKey: 'asi_cctv' },
+  { dutyType: 'ASI (Frisking Male)', groupKey: 'asi_frisk' },
+  { dutyType: 'ASI (Frisking Female)', groupKey: 'asi_frisk' },
+  { dutyType: 'Clerk', groupKey: 'clerk' },
+  { dutyType: 'Class IV', groupKey: 'class_iv' },
+] as const
+
 const formatMoney = (value: number) => (value ? value.toLocaleString('en-IN') : '—')
+const normalizeDutyType = (value: string | undefined) => String(value || '').trim()
+const hasDutyType = (teacher: Teacher | undefined, dutyType: string) => {
+  if (!teacher) return false
+  const target = normalizeDutyType(dutyType)
+  if (!target) return false
+  if (normalizeDutyType(teacher.dutyType) === target) return true
+  if (!Array.isArray(teacher.dutyHistory)) return false
+  return teacher.dutyHistory.some((d) => normalizeDutyType(d) === target)
+}
+
+const getDutyLabelsForGroup = (groupKey: string): string[] => {
+  switch (groupKey) {
+    case 'cs':
+      return ['CS', 'QP Collection', 'AB Deposit']
+    case 'dcs':
+      return ['DCS']
+    case 'inv':
+      return ['Invigilator']
+    case 'asi_cctv':
+      return ['ASI (CCTV)']
+    case 'asi_frisk':
+      return ['ASI (Frisking)']
+    case 'clerk':
+      return ['Clerk']
+    case 'class_iv':
+      return ['Class IV']
+    default:
+      return ['—']
+  }
+}
+
+const sumRates = (
+  byDutyType: Record<string, { remuneration: number; conveyance: number; refreshment: number }>,
+  keys: string[]
+) => {
+  return keys.reduce(
+    (acc, key) => {
+      const rate = byDutyType[key] || { remuneration: 0, conveyance: 0, refreshment: 0 }
+      acc.remuneration += Number(rate.remuneration || 0)
+      acc.conveyance += Number(rate.conveyance || 0)
+      acc.refreshment += Number(rate.refreshment || 0)
+      return acc
+    },
+    { remuneration: 0, conveyance: 0, refreshment: 0 }
+  )
+}
 
 const Remuneration: React.FC = () => {
   const navigate = useNavigate()
   const { data: centreDetails } = useCentreDetails()
+  const { data: ratesData } = useRemunerationRates()
+  const ratesByDutyType = ratesData?.byDutyType ?? {}
   const teachersQuery = useQuery({
     queryKey: ['teachers', 'all-for-remuneration'] as const,
     queryFn: async (): Promise<Teacher[]> => {
@@ -112,17 +172,11 @@ const Remuneration: React.FC = () => {
       }
     }
 
-    const teacherById = new Map<string, { name: string; oasisId: string; dutyType?: string; schoolCode: string; schoolName: string }>()
+    const teacherById = new Map<string, Teacher>()
     teachers.forEach((t) => {
       const id = String(t?._id || '').trim()
       if (!id) return
-      teacherById.set(id, {
-        name: String(t.name || '').trim(),
-        oasisId: String(t.oasisId || '').trim(),
-        dutyType: t.dutyType,
-        schoolCode: String(t.schoolCode || '').trim(),
-        schoolName: String(t.schoolName || '').trim(),
-      })
+      teacherById.set(id, t)
     })
 
     // Only include functionaries that still exist in the fetched teacher list
@@ -133,17 +187,35 @@ const Remuneration: React.FC = () => {
       if (!teacher) continue
       for (const [dutyType, dutyCount] of byType.entries()) {
         if (!dutyCount) continue
+        // Guard against stray selections saved under the wrong dutyType.
+        // Only count duties for types that exist in the functionary's current dutyType or dutyHistory.
+        if (!hasDutyType(teacher, dutyType)) continue
+        const effectiveRate =
+          dutyType === 'Centre Superintendent'
+            ? (() => {
+              const sums = sumRates(ratesByDutyType, ['CS', 'QP Collection', 'AB Deposit'])
+              const csBase = ratesByDutyType['Centre Superintendent'] || { remuneration: 0, conveyance: 0, refreshment: 0 }
+              return {
+                remuneration: sums.remuneration,
+                conveyance: sums.conveyance,
+                refreshment: Number(csBase.refreshment || 0),
+              }
+            })()
+            : (ratesByDutyType[dutyType] || { remuneration: 0, conveyance: 0, refreshment: 0 })
+        const remuneration = dutyCount * Number(effectiveRate.remuneration || 0)
+        const conveyance = dutyCount * Number(effectiveRate.conveyance || 0)
+        const refreshment = dutyCount * Number(effectiveRate.refreshment || 0)
         computed.push({
           functionaryId,
-          functionaryName: teacher.name || '—',
+          functionaryName: String(teacher.name || '').trim() || '—',
           oasisId: dutyType === 'Class IV' ? 'N/A' : (teacher.oasisId || '—'),
           functionaryType: dutyType,
-          schoolCode: teacher.schoolCode || '',
-          schoolName: teacher.schoolName || '',
+          schoolCode: String(teacher.schoolCode || '').trim(),
+          schoolName: String(teacher.schoolName || '').trim(),
           dutyCount,
-          remuneration: 0, // Rates not specified yet
-          conveyance: 0,
-          refreshment: 0,
+          remuneration,
+          conveyance,
+          refreshment,
         })
       }
     }
@@ -155,7 +227,7 @@ const Remuneration: React.FC = () => {
     })
 
     return computed
-  }, [teachers, selectionQueries])
+  }, [teachers, selectionQueries, ratesByDutyType])
 
   const invigilatorGroups = useMemo(() => {
     const invRows = rows.filter((r) => String(r.functionaryType || '').trim() === 'Invigilator')
@@ -186,6 +258,40 @@ const Remuneration: React.FC = () => {
     return byKey
   }, [rows])
 
+  const dutiesSummary = useMemo(() => {
+    const summaryRows = DUTIES_SUMMARY_ITEMS.map(({ dutyType, groupKey }) => {
+      const matchingRows = rows.filter((row) => normalizeDutyType(row.functionaryType) === dutyType)
+      const dutyCount = matchingRows.reduce((sum, row) => sum + Number(row.dutyCount || 0), 0)
+      const remuneration = matchingRows.reduce((sum, row) => sum + Number(row.remuneration || 0), 0)
+      const conveyance = matchingRows.reduce((sum, row) => sum + Number(row.conveyance || 0), 0)
+      const refreshment = matchingRows.reduce((sum, row) => sum + Number(row.refreshment || 0), 0)
+
+      return {
+        dutyType,
+        groupKey,
+        dutyCount,
+        remuneration,
+        conveyance,
+        refreshment,
+        total: remuneration + conveyance + refreshment,
+      }
+    })
+
+    const grandTotal = summaryRows.reduce(
+      (acc, row) => {
+        acc.dutyCount += row.dutyCount
+        acc.remuneration += row.remuneration
+        acc.conveyance += row.conveyance
+        acc.refreshment += row.refreshment
+        acc.total += row.total
+        return acc
+      },
+      { dutyCount: 0, remuneration: 0, conveyance: 0, refreshment: 0, total: 0 }
+    )
+
+    return { rows: summaryRows, grandTotal }
+  }, [rows])
+
   const isLoading = teachersQuery.isLoading || loadingSelections
   const error = (teachersQuery.error as Error | null) || teachersQuery.error || selectionsError
 
@@ -205,6 +311,12 @@ const Remuneration: React.FC = () => {
     [openDetails]
   )
 
+  const scrollToGroup = useCallback((groupKey: string) => {
+    const element = document.getElementById(`remuneration-group-${groupKey}`)
+    if (!element) return
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
   return (
     <div className="space-y-6">
       {isLoading ? (
@@ -221,8 +333,110 @@ const Remuneration: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200/70 dark:border-gray-700/60 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                  Duties Summary
+                </h3>
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  Duty-wise totals computed from the assigned remuneration records shown below.
+                </p>
+              </div>
+              <span className="inline-flex items-center rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 px-2.5 py-1 text-xs font-semibold">
+                {dutiesSummary.grandTotal.dutyCount} duties
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50/80 dark:bg-gray-700/70 sticky top-0 backdrop-blur">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Sr No
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Duty Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      No Of Duties
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Remuneration
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Conveyance
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Refreshment
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {dutiesSummary.rows.map((row, index) => (
+                    <tr
+                      key={`duties-summary-${row.dutyType}`}
+                      className={`${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/60 dark:bg-gray-700/30'}`}
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {index + 1}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                        <button
+                          type="button"
+                          onClick={() => scrollToGroup(row.groupKey)}
+                          className="text-left text-indigo-700 hover:text-indigo-800 hover:underline dark:text-indigo-300 dark:hover:text-indigo-200"
+                        >
+                          {row.dutyType}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                        {row.dutyCount || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {formatMoney(row.remuneration)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {formatMoney(row.conveyance)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {formatMoney(row.refreshment)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                        {formatMoney(row.total)}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-100/80 dark:bg-gray-700/60">
+                    <td colSpan={2} className="px-6 py-4 text-sm font-semibold text-gray-900 dark:text-white">
+                      Grand Total
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
+                      {dutiesSummary.grandTotal.dutyCount || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                      {formatMoney(dutiesSummary.grandTotal.remuneration)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                      {formatMoney(dutiesSummary.grandTotal.conveyance)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                      {formatMoney(dutiesSummary.grandTotal.refreshment)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
+                      {formatMoney(dutiesSummary.grandTotal.total)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {grouped.map(({ group, rows: groupRows }, groupIdx) => (
-            <div key={group.key} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 overflow-hidden">
+            <div id={`remuneration-group-${group.key}`} key={group.key} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm ring-1 ring-gray-200/70 dark:ring-gray-700/60 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200/70 dark:border-gray-700/60 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-800 flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3 min-w-0">
                   <span className="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 font-bold shrink-0">
@@ -302,7 +516,7 @@ const Remuneration: React.FC = () => {
                                       title="Open details"
                                     >
                                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{index + 1}</td>
-                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{row.functionaryName}</td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{String(row.functionaryName || '').toUpperCase()}</td>
                                       <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">{row.oasisId}</td>
                                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">{row.dutyCount}</td>
                                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">{formatMoney(row.remuneration)}</td>
@@ -338,6 +552,9 @@ const Remuneration: React.FC = () => {
                               No of Duties
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                              Duty
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                               Remuneration
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -352,42 +569,114 @@ const Remuneration: React.FC = () => {
                           </tr>
                         </thead>
                         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                          {groupRows.map((row, index) => (
-                            <tr
-                              key={`${row.functionaryId}::${row.functionaryType}`}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => openDetails(row.functionaryId)}
-                              onKeyDown={(e) => handleRowKeyDown(e, row.functionaryId)}
-                              className={`cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 ${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/60 dark:bg-gray-700/30'} hover:bg-indigo-50/60 dark:hover:bg-indigo-900/15`}
-                              title="Open details"
-                            >
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {index + 1}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {row.functionaryName}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
-                                {row.oasisId}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
-                                {row.dutyCount}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {formatMoney(row.remuneration)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {formatMoney(row.conveyance)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {formatMoney(row.refreshment)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {formatMoney(row.remuneration + row.conveyance + row.refreshment)}
-                              </td>
-                            </tr>
-                          ))}
+                          {group.key === 'cs'
+                            ? groupRows.flatMap((row, index) => {
+                              const csDuties = ['CS', 'QP Collection', 'AB Deposit'] as const
+                              const refreshmentPerDay = Number((ratesByDutyType['Centre Superintendent']?.refreshment ?? 0) || 0)
+                              const refreshmentTotal = row.dutyCount * refreshmentPerDay
+                              const csRowTotal = row.remuneration + row.conveyance + row.refreshment
+
+                              return csDuties.map((label, subIdx) => {
+                                const subRate = ratesByDutyType[label] || { remuneration: 0, conveyance: 0, refreshment: 0 }
+                                const subRem = row.dutyCount * Number(subRate.remuneration || 0)
+                                const subConv = row.dutyCount * Number(subRate.conveyance || 0)
+                                const zebra = index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/60 dark:bg-gray-700/30'
+
+                                return (
+                                  <tr
+                                    key={`${row.functionaryId}::cs-sub::${label}`}
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => openDetails(row.functionaryId)}
+                                    onKeyDown={(e) => handleRowKeyDown(e, row.functionaryId)}
+                                    className={`cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 ${zebra} hover:bg-indigo-50/60 dark:hover:bg-indigo-900/15`}
+                                    title="Open details"
+                                  >
+                                    {subIdx === 0 && (
+                                      <>
+                                        <td rowSpan={csDuties.length} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                          {index + 1}
+                                        </td>
+                                        <td rowSpan={csDuties.length} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                          {String(row.functionaryName || '').toUpperCase()}
+                                        </td>
+                                        <td rowSpan={csDuties.length} className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
+                                          {row.oasisId}
+                                        </td>
+                                        <td rowSpan={csDuties.length} className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                                          {row.dutyCount}
+                                        </td>
+                                      </>
+                                    )}
+
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white font-semibold">
+                                      {label}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                      {formatMoney(subRem)}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                      {formatMoney(subConv)}
+                                    </td>
+                                    {subIdx === 0 && (
+                                      <>
+                                        <td rowSpan={csDuties.length} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                          {formatMoney(refreshmentTotal)}
+                                        </td>
+                                        <td rowSpan={csDuties.length} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                          {formatMoney(csRowTotal)}
+                                        </td>
+                                      </>
+                                    )}
+                                  </tr>
+                                )
+                              })
+                            })
+                            : groupRows.map((row, index) => (
+                              <tr
+                                key={`${row.functionaryId}::${row.functionaryType}`}
+                                role="button"
+                                tabIndex={0}
+                                onClick={() => openDetails(row.functionaryId)}
+                                onKeyDown={(e) => handleRowKeyDown(e, row.functionaryId)}
+                                className={`cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 ${index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50/60 dark:bg-gray-700/30'} hover:bg-indigo-50/60 dark:hover:bg-indigo-900/15`}
+                                title="Open details"
+                              >
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                  {index + 1}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                  {String(row.functionaryName || '').toUpperCase()}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
+                                  {row.oasisId}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                                  {row.dutyCount}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                  <div className="space-y-0.5">
+                                    {getDutyLabelsForGroup(group.key).map((label) => (
+                                      <div key={label} className="leading-tight">
+                                        {label}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                  {formatMoney(row.remuneration)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                  {formatMoney(row.conveyance)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                  {formatMoney(row.refreshment)}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                                  {formatMoney(row.remuneration + row.conveyance + row.refreshment)}
+                                </td>
+                              </tr>
+                            ))}
                         </tbody>
                       </table>
                     </div>
@@ -396,6 +685,7 @@ const Remuneration: React.FC = () => {
               )}
             </div>
           ))}
+
         </div>
       )}
     </div>

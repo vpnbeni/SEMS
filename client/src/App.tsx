@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { HashRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'
+import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { getCurrentUser, selectIsAuthenticated, selectAuthLoading, selectUser } from './redux/slices/authSlice'
 import { useAcademicSession } from './contexts/AcademicSessionContext'
@@ -44,6 +44,10 @@ import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
 import AnswerSheetDetails from './pages/AnswerSheetDetails'
 import Attendance from './pages/Attendance'
+import PwdInfo from './pages/PwdInfo'
+import Umcs from './pages/Umcs'
+import Stickers from './pages/Stickers'
+import Performas from './pages/Performas'
 import DispatchSlip from './pages/DispatchSlip'
 import Remuneration from './pages/Remuneration'
 import RemunerationDetails from './pages/RemunerationDetails'
@@ -59,6 +63,12 @@ import Pricing from './pages/Pricing'
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './routes/ProtectedRoute'
 import Loader from './components/common/Loader'
+
+const LegacyCandidatesRedirect = () => {
+  const location = useLocation()
+  const nextPath = location.pathname.replace(/^\/candidates/, '/candidate-details')
+  return <Navigate to={`${nextPath}${location.search}${location.hash}`} replace />
+}
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()
@@ -209,8 +219,9 @@ function App() {
               <Route path="teachers" element={<Navigate to="/exam-functionaries" replace />} />
               <Route path="teachers/:id" element={<Navigate to="/exam-functionaries/:id" replace />} />
               {/* Students feature removed */}
-              <Route path="candidates" element={<Candidates />} />
-              <Route path="candidates/:id" element={<CandidateDetail />} />
+              <Route path="candidate-details" element={<Candidates />} />
+              <Route path="candidate-details/:id" element={<CandidateDetail />} />
+              <Route path="candidates/*" element={<LegacyCandidatesRedirect />} />
               <Route path="dispatch-slip" element={<DispatchSlip />} />
               <Route path="remuneration" element={<Remuneration />} />
               <Route path="remuneration/:id" element={<RemunerationDetails />} />
@@ -224,6 +235,10 @@ function App() {
               <Route path="answersheets" element={<AnswerSheets />} />
               <Route path="answersheets/:id" element={<AnswerSheetDetails />} />
               <Route path="attendance" element={<Attendance />} />
+              <Route path="pwd-info" element={<PwdInfo />} />
+              <Route path="umcs" element={<Umcs />} />
+              <Route path="stickers" element={<Stickers />} />
+              <Route path="performas" element={<Performas />} />
               <Route path="centre-guidelines" element={<CentreGuidelines />} />
               <Route path="cbse-circulars" element={<CBSECirculars />} />
               <Route path="cbse-portals" element={<CBSEPortals />} />

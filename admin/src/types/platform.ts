@@ -167,6 +167,34 @@ export interface MasterUndertaking {
   updatedAt?: string
 }
 
+export type MasterRemunerationDutyType =
+  | 'CS'
+  | 'QP Collection'
+  | 'AB Deposit'
+  | 'Centre Superintendent'
+  | 'Deputy Centre Superintendent'
+  | 'Observer'
+  | 'Invigilator'
+  | 'ASI (CCTV)'
+  | 'ASI (Frisking Male)'
+  | 'ASI (Frisking Female)'
+  | 'Clerk'
+  | 'Class IV'
+
+export interface MasterRemunerationRate {
+  _id: string
+  dutyType: MasterRemunerationDutyType
+  rates: {
+    remuneration: number
+    conveyance: number
+    refreshment: number
+  }
+  isActive: boolean
+  updatedBy?: string | null
+  createdAt: string
+  updatedAt?: string
+}
+
 export type RolloutModule = 'subjects' | 'datesheet' | 'guidelines' | 'undertaking'
 export type RolloutStatus = 'in_progress' | 'completed' | 'partial_failure'
 

@@ -8,6 +8,7 @@ import { getFirstEnabledPath, isFeatureEnabledForPath } from '../constants/featu
 const CORE_ALLOWED_PREFIXES = [
   '/',
   '/dashboard',
+  '/candidate-details',
   '/candidates',
   '/subjects',
   '/datesheets',

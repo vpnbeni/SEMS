@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react'
 import Loader from '../components/common/Loader'
 import dutiesService from '../services/dutiesService'
 import teacherService, { type Teacher } from '../services/teacherService'
+import { useRemunerationRates } from '../hooks/useRemunerationRates'
 
 const DUTY_TABS = [
   { key: 'CS', dutyType: 'Centre Superintendent' },
@@ -34,6 +35,32 @@ const getDayLabel = (dateKey: string) => {
   return d.toLocaleDateString('en-IN', { weekday: 'short' })
 }
 
+const normalizeDutyType = (value: string | undefined) => String(value || '').trim()
+const hasDutyType = (teacher: Teacher | null | undefined, dutyType: string) => {
+  if (!teacher) return false
+  const target = normalizeDutyType(dutyType)
+  if (!target) return false
+  if (normalizeDutyType(teacher.dutyType) === target) return true
+  if (!Array.isArray(teacher.dutyHistory)) return false
+  return teacher.dutyHistory.some((d) => normalizeDutyType(d) === target)
+}
+
+const sumRates = (
+  byDutyType: Record<string, { remuneration: number; conveyance: number; refreshment: number }>,
+  keys: string[]
+) => {
+  return keys.reduce(
+    (acc, key) => {
+      const rate = byDutyType[key] || { remuneration: 0, conveyance: 0, refreshment: 0 }
+      acc.remuneration += Number(rate.remuneration || 0)
+      acc.conveyance += Number(rate.conveyance || 0)
+      acc.refreshment += Number(rate.refreshment || 0)
+      return acc
+    },
+    { remuneration: 0, conveyance: 0, refreshment: 0 }
+  )
+}
+
 type DayRow = {
   dateKey: string
   dateLabel: string
@@ -47,6 +74,8 @@ const RemunerationDetails: React.FC = () => {
   const navigate = useNavigate()
   const { id } = useParams<{ id: string }>()
   const functionaryId = String(id || '').trim()
+  const { data: ratesData } = useRemunerationRates()
+  const ratesByDutyType = ratesData?.byDutyType ?? {}
 
   const teacherQuery = useQuery({
     queryKey: ['teacher', functionaryId] as const,
@@ -78,6 +107,9 @@ const RemunerationDetails: React.FC = () => {
     if (!functionaryId) return result
 
     DUTY_TABS.forEach((tab, idx) => {
+      // If the functionary was never assigned this duty type historically, don't show it
+      // even if stray selections exist.
+      if (!hasDutyType(teacherQuery.data, tab.dutyType)) return
       const selectionMap = selectionQueries[idx]?.data ?? {}
       const dateSet = new Set<string>()
       for (const [slotKey, checked] of Object.entries(selectionMap)) {
@@ -89,22 +121,34 @@ const RemunerationDetails: React.FC = () => {
         if (dateKey) dateSet.add(dateKey)
       }
 
+      const rate =
+        tab.dutyType === 'Centre Superintendent'
+          ? (() => {
+            const sums = sumRates(ratesByDutyType, ['CS', 'QP Collection', 'AB Deposit'])
+            const csBase = ratesByDutyType['Centre Superintendent'] || { remuneration: 0, conveyance: 0, refreshment: 0 }
+            return {
+              remuneration: sums.remuneration,
+              conveyance: sums.conveyance,
+              refreshment: Number(csBase.refreshment || 0),
+            }
+          })()
+          : (ratesByDutyType[tab.dutyType] || { remuneration: 0, conveyance: 0, refreshment: 0 })
       const days: DayRow[] = Array.from(dateSet)
         .sort((a, b) => a.localeCompare(b))
         .map((dateKey) => ({
           dateKey,
           dateLabel: formatDateLabel(dateKey),
           dayLabel: getDayLabel(dateKey),
-          remuneration: 0,
-          conveyance: 0,
-          refreshment: 0,
+          remuneration: Number(rate.remuneration || 0),
+          conveyance: Number(rate.conveyance || 0),
+          refreshment: Number(rate.refreshment || 0),
         }))
 
       if (days.length > 0) result.push({ dutyType: tab.dutyType, days })
     })
 
     return result
-  }, [functionaryId, selectionQueries])
+  }, [functionaryId, selectionQueries, ratesByDutyType, teacherQuery.data])
 
   const overallTotals = useMemo(() => {
     let remuneration = 0

@@ -50,7 +50,7 @@ const Sidebar: React.FC = () => {
   const sidebarCountsAccess = useMemo(
     () => ({
       examFunctionaries: isPathAllowed('/exam-functionaries'),
-      candidates: isPathAllowed('/candidates'),
+      candidates: isPathAllowed('/candidate-details'),
       subjects: isPathAllowed('/subjects'),
       answerSheets: isPathAllowed('/answersheets'),
       datesheetDays: isPathAllowed('/datesheets'),
@@ -75,7 +75,7 @@ const Sidebar: React.FC = () => {
   // Refresh counts when location changes (user navigates)
   useEffect(() => {
     // Refresh counts after a delay when navigating to relevant pages
-    const relevantPaths = ['/candidates', '/subjects', '/exam-functionaries', '/duties', '/answersheets', '/datesheets', '/examrooms']
+    const relevantPaths = ['/candidate-details', '/subjects', '/exam-functionaries', '/duties', '/answersheets', '/datesheets', '/examrooms']
     if (relevantPaths.some(path => location.pathname.includes(path))) {
       const timer = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
@@ -387,8 +387,51 @@ const Sidebar: React.FC = () => {
           badge: null,
         },
         {
-          name: 'Candidates',
-          href: '/candidates',
+          name: 'PwD Info',
+          href: '/pwd-info',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 18.75A2.25 2.25 0 0015.75 21h-7.5A2.25 2.25 0 006 18.75V8.25A2.25 2.25 0 018.25 6h7.5A2.25 2.25 0 0118 8.25v10.5z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9.75a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-2.25 9v-2.25a2.25 2.25 0 114.5 0v2.25" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: "UMC's",
+          href: '/umcs',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m0 3.75h.008v.008H12v-.008z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.29 3.86l-7.5 13A1.5 1.5 0 004.08 19.5h15.84a1.5 1.5 0 001.29-2.64l-7.5-13a1.5 1.5 0 00-2.58 0z" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: 'Stickers',
+          href: '/stickers',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7.5 6.75h9m-9 5.25h9m-9 5.25h4.5" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.25 3.75h13.5A2.25 2.25 0 0121 6v12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18V6a2.25 2.25 0 012.25-2.25z" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: "Performa's",
+          href: '/performas',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-3-8h3m-9 13h10.5A2.25 2.25 0 0019.5 18.75V8.121a2.25 2.25 0 00-.659-1.591l-2.371-2.371a2.25 2.25 0 00-1.591-.659H9A2.25 2.25 0 006.75 5.75v13A2.25 2.25 0 009 21z" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: 'Candidate Details',
+          href: '/candidate-details',
           icon: (
             <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />

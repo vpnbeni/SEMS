@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { selectUser } from '@/redux/slices/authSlice'
 import { useAcademicSession } from '@/contexts/AcademicSessionContext'
@@ -9,8 +9,10 @@ import { useCentreDetails } from '@/hooks/useCentreDetails'
 
 const Header: React.FC = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [genericSearchValue, setGenericSearchValue] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const user = useSelector(selectUser)
   const isDashboardRoute = location.pathname === '/dashboard'
   const canAccessCentreDetails = isFeatureEnabledForPath('/centre-details', user?.featureToggles)
@@ -32,8 +34,8 @@ const Header: React.FC = () => {
     const segments = path.split('/').filter(Boolean)
     const seg = (segments[0] || 'dashboard').toLowerCase()
 
-    // Detail routes: /answersheets/:id, /candidates/:id, /exam-functionaries/:id
-    const listPathsWithDetail = ['answersheets', 'candidates', 'exam-functionaries']
+    // Detail routes: /answersheets/:id, /candidate-details/:id, /exam-functionaries/:id
+    const listPathsWithDetail = ['answersheets', 'candidate-details', 'exam-functionaries']
     const isDetailRoute =
       segments.length >= 2 &&
       listPathsWithDetail.includes(seg) &&
@@ -83,9 +85,9 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
-      case 'candidates':
+      case 'candidate-details':
         return {
-          pageTitle: 'Candidates',
+          pageTitle: 'Candidate Details',
           pageSubtitle: 'Manage examination candidates and PDF imports',
           showBackButton: isDetailRoute,
           backTo: backToPath,
@@ -129,6 +131,34 @@ const Header: React.FC = () => {
         return {
           pageTitle: 'Dispatch Slip',
           pageSubtitle: 'Centre datesheet (date-wise). Download a dispatch slip PDF per subject.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'pwd-info':
+        return {
+          pageTitle: 'PwD Info',
+          pageSubtitle: 'Manage PwD candidate support, scribes, and extra time details at the centre.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'umcs':
+        return {
+          pageTitle: "UMC's",
+          pageSubtitle: 'Handle unfair means cases and generate the required forwarding performa.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'stickers':
+        return {
+          pageTitle: 'Stickers',
+          pageSubtitle: 'Generate date-wise roll number sticker grids for exam-day printing.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'performas':
+        return {
+          pageTitle: "Performa's",
+          pageSubtitle: 'Generate relieving letters and answer sheet submission letters for centre operations.',
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
@@ -214,6 +244,42 @@ const Header: React.FC = () => {
         }
     }
   }, [location.pathname])
+
+  const headerSearchConfig = useMemo(() => {
+    const path = location.pathname
+    if (path === '/stickers') {
+      return {
+        enabled: true,
+        placeholder: 'Search subject name or code...',
+        paramKey: 'q',
+      }
+    }
+
+    return {
+      enabled: false,
+      placeholder: 'Search...',
+      paramKey: null,
+    }
+  }, [location.pathname])
+
+  const headerSearchValue = headerSearchConfig.enabled
+    ? searchParams.get(headerSearchConfig.paramKey || '') || ''
+    : genericSearchValue
+
+  const handleHeaderSearchChange = (value: string) => {
+    if (!headerSearchConfig.enabled || !headerSearchConfig.paramKey) {
+      setGenericSearchValue(value)
+      return
+    }
+
+    const nextParams = new URLSearchParams(searchParams)
+    if (value.trim()) {
+      nextParams.set(headerSearchConfig.paramKey, value)
+    } else {
+      nextParams.delete(headerSearchConfig.paramKey)
+    }
+    setSearchParams(nextParams, { replace: true })
+  }
 
   const notifications = [
     { id: 1, message: 'New exam scheduled for Grade 12', time: '2 hours ago', type: 'info' },
@@ -398,7 +464,9 @@ const Header: React.FC = () => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search..."
+                  value={headerSearchValue}
+                  onChange={(event) => handleHeaderSearchChange(event.target.value)}
+                  placeholder={headerSearchConfig.placeholder}
                   className="pl-9 pr-4 py-2 w-28 sm:w-32 text-sm bg-gray-50/80 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 rounded-xl focus:ring-0 focus:border-primary-400 focus:bg-white dark:focus:bg-gray-800 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)] transition-all duration-200 placeholder:text-gray-400 dark:text-white"
                 />
               </div>

@@ -80,6 +80,22 @@ const tenantFeatureUpdateSchema = Joi.object({
     .unknown(false),
 });
 
+const masterRemunerationRateRowSchema = Joi.object({
+  dutyType: Joi.string().trim().required(),
+  remuneration: Joi.number().min(0).optional(),
+  conveyance: Joi.number().min(0).optional(),
+  refreshment: Joi.number().min(0).optional(),
+  rates: Joi.object({
+    remuneration: Joi.number().min(0).optional(),
+    conveyance: Joi.number().min(0).optional(),
+    refreshment: Joi.number().min(0).optional(),
+  }).optional(),
+}).required();
+
+const masterRemunerationUpdateSchema = Joi.object({
+  rates: Joi.array().items(masterRemunerationRateRowSchema).min(1).required(),
+});
+
 module.exports = {
   platformLoginSchema,
   createTenantSchema,
@@ -92,4 +108,5 @@ module.exports = {
   tenantQuerySchema,
   tenantIdParamSchema,
   tenantFeatureUpdateSchema,
+  masterRemunerationUpdateSchema,
 };

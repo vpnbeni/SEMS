@@ -1,48 +1,27 @@
+import featureCatalog from './tenantFeatureCatalog.json'
+
 export type TenantFeatureToggles = Record<string, boolean> | null | undefined
 
-const FEATURE_RULES = [
-  { key: 'dashboard', prefixes: ['/dashboard'] },
-  { key: 'school_hub', prefixes: ['/school-hub'] },
-  { key: 'timetable_classes', prefixes: ['/time-table/classes'] },
-  { key: 'timetable_subjects', prefixes: ['/time-table/subjects'] },
-  { key: 'timetable_bell_timings', prefixes: ['/time-table/bell-timings'] },
-  { key: 'timetable_class_wise', prefixes: ['/time-table/class-wise'] },
-  { key: 'timetable_teacher_wise', prefixes: ['/time-table/teacher-wise'] },
-  { key: 'timetable_period_allocation', prefixes: ['/time-table/period-distribution', '/time-table/distribution', '/time-table/period-allocation', '/time-table/subject-allocation', '/time-table/departments'] },
-  { key: 'centre_details', prefixes: ['/centre-details'] },
-  { key: 'exam_functionaries', prefixes: ['/exam-functionaries', '/teachers', '/staff'] },
-  { key: 'centre_guidelines', prefixes: ['/centre-guidelines'] },
-  { key: 'cbse_circulars', prefixes: ['/cbse-circulars'] },
-  { key: 'cbse_portals', prefixes: ['/cbse-portals'] },
-  { key: 'subjects', prefixes: ['/subjects'] },
-  { key: 'undertaking', prefixes: ['/undertaking'] },
-  { key: 'datesheets', prefixes: ['/datesheets'] },
-  { key: 'form66', prefixes: ['/form66'] },
-  { key: 'examrooms', prefixes: ['/examrooms', '/rooms'] },
-  { key: 'answersheets', prefixes: ['/answersheets'] },
-  { key: 'seatingplan', prefixes: ['/seatingplan'] },
-  { key: 'duties', prefixes: ['/duties'] },
-  { key: 'attendance', prefixes: ['/attendance'] },
-  { key: 'candidates', prefixes: ['/candidates'] },
-  { key: 'dispatch_slip', prefixes: ['/dispatch-slip'] },
-  { key: 'remuneration', prefixes: ['/remuneration'] },
-  { key: 'billing', prefixes: ['/billing'] },
-  { key: 'account_settings', prefixes: ['/account-settings'] },
-  { key: 'help_support', prefixes: ['/help-support'] },
-] as const
+type FeatureCatalogEntry = {
+  key: string
+  label: string
+  path: string
+  group: string
+  prefixes: string[]
+  fallbackPriority?: number
+}
 
-const FALLBACK_ROUTE_PRIORITY = [
-  '/dashboard',
-  '/school-hub',
-  '/centre-details',
-  '/exam-functionaries',
-  '/candidates',
-  '/subjects',
-  '/datesheets',
-  '/answersheets',
-  '/billing',
-  '/help-support',
-]
+const FEATURE_CATALOG = featureCatalog as FeatureCatalogEntry[]
+
+const FEATURE_RULES = FEATURE_CATALOG.map(({ key, prefixes }) => ({
+  key,
+  prefixes,
+}))
+
+const FALLBACK_ROUTE_PRIORITY = FEATURE_CATALOG
+  .filter((entry) => typeof entry.fallbackPriority === 'number')
+  .sort((left, right) => (left.fallbackPriority ?? Number.MAX_SAFE_INTEGER) - (right.fallbackPriority ?? Number.MAX_SAFE_INTEGER))
+  .map((entry) => entry.path)
 
 const matchesPrefix = (pathname: string, prefix: string): boolean => {
   return pathname === prefix || pathname.startsWith(`${prefix}/`)
