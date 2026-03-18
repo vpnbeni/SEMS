@@ -638,34 +638,78 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
       }
     }
 
-        // Automatically link subjects for imported candidates (best-effort)
+        // Automatically create and link subjects for imported candidates (best-effort)
     let linkedCount = 0;
+    let createdSubjectsCount = 0;
     if (savedCandidates.length > 0) {
       try {
         console.log('Linking subjects for imported candidates...');
-        
-        // Get all subjects for reference
+
+        // Get all existing subjects for reference
         const subjects = await SubjectModel.find({ isActive: true });
         const subjectMap = new Map();
         subjects.forEach(subject => {
           const key = `${subject.code}-${subject.class}`;
           subjectMap.set(key, subject);
         });
-        
+
+        // Collect unique code+class pairs that have no matching Subject yet
+        const missingSubjects = new Map(); // key -> { code, class }
+        for (const candidate of savedCandidates) {
+          if (!candidate.subjectCodes || !candidate.class) continue;
+          for (const subjectCode of candidate.subjectCodes) {
+            const code = (subjectCode.code || '').toString().trim().toUpperCase();
+            if (!code) continue;
+            const key = `${code}-${candidate.class}`;
+            if (!subjectMap.has(key) && !missingSubjects.has(key)) {
+              missingSubjects.set(key, { code, class: candidate.class });
+            }
+          }
+        }
+
+        // Auto-create stub subjects for any missing code+class pairs
+        if (missingSubjects.size > 0) {
+          const stubs = Array.from(missingSubjects.values()).map(({ code, class: cls }) => ({
+            code,
+            class: cls,
+            name: `Subject ${code}`,
+            duration: 3,
+            answerSheet: 'none',
+            isActive: true,
+          }));
+          console.log(`Auto-creating ${stubs.length} stub subjects...`);
+          try {
+            const inserted = await SubjectModel.insertMany(stubs, { ordered: false });
+            createdSubjectsCount = inserted.length;
+          } catch (insertErr) {
+            // ordered: false — partial inserts are fine; duplicate-key errors are expected on re-import
+            createdSubjectsCount = insertErr.insertedDocs ? insertErr.insertedDocs.length : 0;
+          }
+          // Refresh the subject map with newly created stubs
+          const updatedSubjects = await SubjectModel.find({ isActive: true });
+          subjectMap.clear();
+          updatedSubjects.forEach(subject => {
+            subjectMap.set(`${subject.code}-${subject.class}`, subject);
+          });
+          console.log(`Created ${createdSubjectsCount} stub subjects, subject map refreshed`);
+        }
+
         // Link subjects for each candidate
         for (const candidate of savedCandidates) {
           if (candidate.subjectCodes && candidate.subjectCodes.length > 0) {
             const linkedSubjects = [];
-            
+
             for (const subjectCode of candidate.subjectCodes) {
-              const key = `${subjectCode.code}-${candidate.class}`;
+              const code = (subjectCode.code || '').toString().trim().toUpperCase();
+              if (!code) continue;
+              const key = `${code}-${candidate.class}`;
               const subject = subjectMap.get(key);
-              
+
               if (subject) {
                 linkedSubjects.push(subject._id);
               }
             }
-            
+
             if (linkedSubjects.length > 0) {
               candidate.subjects = linkedSubjects;
               await candidate.save();
@@ -673,7 +717,7 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
             }
           }
         }
-        
+
         console.log(`Linked subjects for ${linkedCount}/${savedCandidates.length} candidates`);
       } catch (linkError) {
         console.error('Subject linking skipped due to error:', linkError.message);
@@ -689,6 +733,7 @@ const importCandidatesFromPDF = asyncHandler(async (req, res) => {
         candidates: savedCandidates,
         errorDetails: errors,
         linkedSubjects: linkedCount,
+        createdSubjects: createdSubjectsCount,
         pdfUrl: cloudinaryResult?.secure_url || null
       }
     });
