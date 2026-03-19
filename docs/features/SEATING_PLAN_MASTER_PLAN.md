@@ -6,7 +6,7 @@
 ```
 Master Plan (Notice Board)
     ↓
-    ├── Room Folder Slip (derived)
+    ├── Invigilator Slip (derived)
     ├── Room Door Slip (derived)
     └── CBSE Copy (derived)
 ```
@@ -54,7 +54,7 @@ Master Plan (Notice Board)
 #### Workflow
 1. **User provides 4 PDF templates**:
    - Notice Board format
-   - Room Folder Slip format
+   - Invigilator Slip format
    - Room Door Slip format
    - CBSE Copy format
 

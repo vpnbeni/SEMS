@@ -147,7 +147,7 @@ const SeatingPlan: React.FC = () => {
   )
 
   const { data: datesheetEntries = [], isLoading: loading, error: queryError, refetch } = useCentreDatesheetEntries()
-  const { data: templateSettings, isLoading: loadingTemplateSettings } = useSeatingPlanTemplateSettings()
+  const { data: templateSettings } = useSeatingPlanTemplateSettings()
   const updateTemplateSettingsMutation = useUpdateSeatingPlanTemplateSettingsMutation()
   const saveTemplateSettings = updateTemplateSettingsMutation.mutate
   const pdfMutation = useGenerateSeatingPlanPDFMutation({
@@ -175,8 +175,6 @@ const SeatingPlan: React.FC = () => {
 
   const error = queryError?.message ?? null
   const downloadingId = pdfMutation.isPending ? pdfMutation.variables?.datesheetId ?? null : null
-  const isSavingTemplateSettings = updateTemplateSettingsMutation.isPending
-
   useEffect(() => {
     const mainScrollContainer = document.getElementById(APP_MAIN_SCROLL_ID)
     if (!mainScrollContainer) return
@@ -260,66 +258,6 @@ const SeatingPlan: React.FC = () => {
     saveTemplateSettings,
   ])
 
-  const totalColumnWidth = useMemo(
-    () => cbseLayoutDraft.col1Width
-      + cbseLayoutDraft.col2Width
-      + cbseLayoutDraft.col3Width
-      + cbseLayoutDraft.col4Width
-      + cbseLayoutDraft.col5Width
-      + cbseLayoutDraft.col6Width,
-    [cbseLayoutDraft]
-  )
-  const totalInfoColumnWidth = useMemo(
-    () => cbseLayoutDraft.infoCol1Width
-      + cbseLayoutDraft.infoCol2Width
-      + cbseLayoutDraft.infoCol3Width
-      + cbseLayoutDraft.infoCol4Width
-      + cbseLayoutDraft.infoCol5Width,
-    [cbseLayoutDraft]
-  )
-  const totalRoomFolderColumnWidth = useMemo(
-    () => roomFolderLayoutDraft.col1Width
-      + roomFolderLayoutDraft.col2Width
-      + roomFolderLayoutDraft.col3Width
-      + roomFolderLayoutDraft.col4Width
-      + roomFolderLayoutDraft.col5Width
-      + roomFolderLayoutDraft.col6Width
-      + roomFolderLayoutDraft.col7Width
-      + roomFolderLayoutDraft.col8Width
-      + roomFolderLayoutDraft.col9Width,
-    [roomFolderLayoutDraft]
-  )
-  const totalRoomFolderInfoColumnWidth = useMemo(
-    () => roomFolderLayoutDraft.infoCol1Width
-      + roomFolderLayoutDraft.infoCol2Width
-      + roomFolderLayoutDraft.infoCol3Width
-      + roomFolderLayoutDraft.infoCol4Width
-      + roomFolderLayoutDraft.infoCol5Width
-      + roomFolderLayoutDraft.infoCol6Width
-      + roomFolderLayoutDraft.infoCol7Width,
-    [roomFolderLayoutDraft]
-  )
-  const totalRoomDoorColumnWidth = useMemo(
-    () => roomDoorLayoutDraft.col1Width + roomDoorLayoutDraft.col2Width + roomDoorLayoutDraft.col3Width,
-    [roomDoorLayoutDraft]
-  )
-  const totalRoomDoorInfoColumnWidth = useMemo(
-    () => roomDoorLayoutDraft.infoCol1Width
-      + roomDoorLayoutDraft.infoCol2Width
-      + roomDoorLayoutDraft.infoCol3Width
-      + roomDoorLayoutDraft.infoCol4Width
-      + roomDoorLayoutDraft.infoCol5Width
-      + roomDoorLayoutDraft.infoCol6Width,
-    [roomDoorLayoutDraft]
-  )
-  const totalMainGateColumnWidth = useMemo(
-    () => mainGateLayoutDraft.col1Width
-      + mainGateLayoutDraft.col2Width
-      + mainGateLayoutDraft.col3Width
-      + mainGateLayoutDraft.col4Width,
-    [mainGateLayoutDraft]
-  )
-
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('en-IN', {
@@ -392,7 +330,7 @@ const SeatingPlan: React.FC = () => {
     const formatLabel = format === 'mainGate'
       ? 'Main Gate'
       : format === 'roomFolderSlip'
-        ? 'Room Folder Slip'
+        ? 'Invigilator Slip'
         : format === 'roomDoorSlip'
           ? 'Room Door Slip'
           : 'CBSE Format'
@@ -932,7 +870,7 @@ const SeatingPlan: React.FC = () => {
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">Room Folder Slip</p>
+              <p className="text-lg font-semibold text-gray-900 dark:text-white">Invigilator Slip</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'roomFolderSlip' ? 'Selected format' : 'Click to switch format'}</p>
             </div>
           </div>
@@ -1121,7 +1059,7 @@ const SeatingPlan: React.FC = () => {
                             onClick={() => handleDownloadPDF(entry._id, activeTab)}
                             disabled={pdfMutation.isPending}
                             className={`text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 ${pdfMutation.isPending && downloadingId !== entry._id ? 'cursor-not-allowed' : ''}`}
-                            title={`Download ${activeTab === 'mainGate' ? 'Main Gate' : activeTab === 'roomFolderSlip' ? 'Room Folder Slip' : activeTab === 'roomDoorSlip' ? 'Room Door Slip' : 'CBSE Format'}`}
+                            title={`Download ${activeTab === 'mainGate' ? 'Main Gate' : activeTab === 'roomFolderSlip' ? 'Invigilator Slip' : activeTab === 'roomDoorSlip' ? 'Room Door Slip' : 'CBSE Format'}`}
                           >
                             {downloadingId === entry._id ? (
                               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -1151,7 +1089,7 @@ const SeatingPlan: React.FC = () => {
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             {activeTab === 'mainGate' && 'Main Gate Format'}
-            {activeTab === 'roomFolderSlip' && 'Room Folder Slip Format'}
+            {activeTab === 'roomFolderSlip' && 'Invigilator Slip Format'}
             {activeTab === 'roomDoorSlip' && 'Room Door Slip Format'}
             {activeTab === 'cbseCopy' && 'CBSE Format'}
           </h3>
@@ -1160,26 +1098,6 @@ const SeatingPlan: React.FC = () => {
         <div className="p-6">
           {activeTab === 'mainGate' && (
             <div className="space-y-4">
-              {/* Admin-only preview instructions removed from user UI per request */}
-              <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-4 bg-white dark:bg-gray-900">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Main Gate Layout (Drag to resize)</h4>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {loadingTemplateSettings
-                      ? 'Loading settings...'
-                      : isSavingTemplateSettings
-                        ? 'Saving...'
-                        : 'Saved'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Drag vertical separators on first room table to resize columns for all room tables. Use row-height handle below.
-                </p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Width total: {totalMainGateColumnWidth}% (backend auto-normalizes to 100% when saving).
-                </p>
-              </div>
-
               {/* Main Gate Preview */}
               <div className="overflow-x-auto py-2">
                 <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto seating-plan-preview-page">
@@ -1330,25 +1248,6 @@ const SeatingPlan: React.FC = () => {
 
           {activeTab === 'roomFolderSlip' && (
             <div className="space-y-4">
-              <div className="border border-green-200 dark:border-green-800 rounded-lg p-4 bg-white dark:bg-gray-900">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Room Folder Slip Layout (Drag to resize)</h4>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {loadingTemplateSettings
-                      ? 'Loading settings...'
-                      : isSavingTemplateSettings
-                        ? 'Saving...'
-                        : 'Saved'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Drag vertical separators inside seating table to resize columns. Use row-height handle below table.
-                </p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Seating width total: {totalRoomFolderColumnWidth}% | Info width total: {totalRoomFolderInfoColumnWidth}% (backend auto-normalizes to 100% when saving).
-                </p>
-              </div>
-
               <div className="overflow-x-auto py-2">
                 <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto seating-plan-preview-page">
                   <h2 className="text-lg font-bold text-center mb-4 text-gray-900 dark:text-white">SEATING PLAN</h2>
@@ -1573,25 +1472,6 @@ const SeatingPlan: React.FC = () => {
 
           {activeTab === 'roomDoorSlip' && (
             <div className="space-y-4">
-              <div className="border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 bg-white dark:bg-gray-900">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Room Door Slip Layout (Drag to resize)</h4>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {loadingTemplateSettings
-                      ? 'Loading settings...'
-                      : isSavingTemplateSettings
-                        ? 'Saving...'
-                        : 'Saved'}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Drag vertical separators inside seating table to resize columns. Use row-height handle below table.
-                </p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Seating width total: {totalRoomDoorColumnWidth}% | Info width total: {totalRoomDoorInfoColumnWidth}% (backend auto-normalizes to 100% when saving).
-                </p>
-              </div>
-
               <div className="overflow-x-auto py-2">
                 <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto seating-plan-preview-page">
                   <h2 className="text-xl font-bold text-center mb-4 text-gray-900 dark:text-white">SEATING PLAN</h2>
@@ -1763,28 +1643,6 @@ const SeatingPlan: React.FC = () => {
 
           {activeTab === 'cbseCopy' && (
             <div className="space-y-4">
-              {/* Admin-only preview instructions removed from user UI per request */}
-
-              <div className="border border-purple-200 dark:border-purple-800 rounded-lg p-4 bg-white dark:bg-gray-900">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">CBSE Format Layout (Drag to resize)</h4>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {loadingTemplateSettings
-                      ? 'Loading settings...'
-                      : isSavingTemplateSettings
-                        ? 'Saving...'
-                        : 'Saved'}
-                  </span>
-                </div>
-
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                  Drag vertical separators in both tables (including Centre Name/Date section) to resize columns. Drag the horizontal handle below seating table to resize row height.
-                </p>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Seating width total: {totalColumnWidth}% | Info width total: {totalInfoColumnWidth}% (backend auto-normalizes to 100% when saving).
-                </p>
-              </div>
-
               {/* CBSE Format Preview */}
               <div className="overflow-x-auto py-2">
                 <style>{`.sp-cbse-info-cols { --sp-cbse-info-col-1: ${cbseLayoutDraft.infoCol1Width}%; --sp-cbse-info-col-2: ${cbseLayoutDraft.infoCol2Width}%; --sp-cbse-info-col-3: ${cbseLayoutDraft.infoCol3Width}%; --sp-cbse-info-col-4: ${cbseLayoutDraft.infoCol4Width}%; --sp-cbse-info-col-5: ${cbseLayoutDraft.infoCol5Width}%; } .sp-cbse-data-cols { --sp-cbse-data-col-1: ${cbseLayoutDraft.col1Width}%; --sp-cbse-data-col-2: ${cbseLayoutDraft.col2Width}%; --sp-cbse-data-col-3: ${cbseLayoutDraft.col3Width}%; --sp-cbse-data-col-4: ${cbseLayoutDraft.col4Width}%; --sp-cbse-data-col-5: ${cbseLayoutDraft.col5Width}%; --sp-cbse-data-col-6: ${cbseLayoutDraft.col6Width}%; --sp-cbse-header-font-size: ${cbseLayoutDraft.headerFontSize}pt; --sp-cbse-subheader-font-size: ${cbseLayoutDraft.subHeaderFontSize}pt; --sp-cbse-row-height: ${cbseLayoutDraft.rowHeight}px; --sp-cbse-cell-padding-y: ${cbseLayoutDraft.cellPaddingY}px; --sp-cbse-cell-padding-x: ${cbseLayoutDraft.cellPaddingX}px; --sp-cbse-body-font-size: ${cbseLayoutDraft.bodyFontSize}pt; } ${cbseInfoColumnBoundaries.map((b, i) => `.sp-cbse-info-b-${i} { left: ${b}%; }`).join(' ')} ${cbseColumnBoundaries.map((b, i) => `.sp-cbse-data-b-${i} { left: ${b}%; }`).join(' ')}`}</style>

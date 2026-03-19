@@ -80,7 +80,7 @@ Upload and process Form 66 files, grouped by exam date and subject.
 Value: Improves exam-day readiness using attendance-linked records.
 
 ### Step 5: Seating Plan Generation
-Generate downloadable seating plan PDFs in multiple formats such as Main Gate, Room Folder Slip, Room Door Slip, and CBSE Copy.
+Generate downloadable seating plan PDFs in multiple formats such as Main Gate, Invigilator Slip, Room Door Slip, and CBSE Copy.
 
 Value: Produces print-ready outputs for fast room-level execution.
 

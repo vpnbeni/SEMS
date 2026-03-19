@@ -9,7 +9,7 @@ The seating plan PDF generation system has been fully integrated with 4 differen
 
 #### 1. PDF Templates (HTML)
 - `server/src/templates/main-gate.html` - Main Gate notice format
-- `server/src/templates/room-folder-slip.html` - Room Folder Slip (2 per page)
+- `server/src/templates/room-folder-slip.html` - Invigilator Slip (2 per page)
 - `server/src/templates/room-door-slip.html` - Room Door Slip (2 per page)
 - `server/src/templates/cbse-copy.html` - CBSE Copy format (most important)
 
@@ -32,7 +32,7 @@ PUT  /api/seating-plan/rooms/:id - Update room
 DELETE /api/seating-plan/rooms/:id - Delete room
 
 GET /api/seating-plan/generate/main-gate/:datesheetId - Generate Main Gate PDF
-GET /api/seating-plan/generate/room-folder-slip/:datesheetId - Generate Room Folder Slip PDF
+GET /api/seating-plan/generate/room-folder-slip/:datesheetId - Generate Invigilator Slip PDF
 GET /api/seating-plan/generate/room-door-slip/:datesheetId - Generate Room Door Slip PDF
 GET /api/seating-plan/generate/cbse-copy/:datesheetId - Generate CBSE Copy PDF
 ```
@@ -54,7 +54,7 @@ GET /api/seating-plan/generate/cbse-copy/:datesheetId - Generate CBSE Copy PDF
 - **Content**: Room-wise seating with 8 rows × 3 columns (24 candidates per room)
 - **Features**: School header, exam details, room allocations
 
-### 2. Room Folder Slip Format
+### 2. Invigilator Slip Format
 - **Purpose**: Inclusion in room supervisor folders
 - **Layout**: 2 slips per A4 page
 - **Content**: Detailed seating with Roll No, QP Code, Sheet No
@@ -107,7 +107,7 @@ GET /api/seating-plan/generate/cbse-copy/:datesheetId - Generate CBSE Copy PDF
 
 ### 2. Generate PDFs
 1. Navigate to Seating Plan page
-2. Select desired format tab (Main Gate, Room Folder Slip, etc.)
+2. Select desired format tab (Main Gate, Invigilator Slip, etc.)
 3. Click download button next to any exam entry
 4. PDF will be generated and downloaded automatically
 

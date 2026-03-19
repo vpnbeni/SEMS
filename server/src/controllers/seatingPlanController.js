@@ -618,7 +618,7 @@ exports.generateMainGate = async (req, res) => {
   }
 };
 
-// Generate Room Folder Slip PDF
+// Generate Invigilator Slip PDF
 exports.generateRoomFolderSlip = async (req, res) => {
   try {
     const { datesheetId } = req.params;
@@ -633,10 +633,10 @@ exports.generateRoomFolderSlip = async (req, res) => {
     templateData.templateSettings = templateSettings.roomFolderSlip;
     const pdfBuffer = await pdfGenerator.generateRoomFolderSlip(templateData);
 
-    sendPDFResponse(res, pdfBuffer, 'room-folder-slip.pdf');
+    sendPDFResponse(res, pdfBuffer, 'invigilator-slip.pdf');
   } catch (error) {
-    console.error('Generate Room Folder Slip PDF Error:', error);
-    sendGenerationError(res, error, 'Failed to generate Room Folder Slip PDF');
+    console.error('Generate Invigilator Slip PDF Error:', error);
+    sendGenerationError(res, error, 'Failed to generate Invigilator Slip PDF');
   }
 };
 

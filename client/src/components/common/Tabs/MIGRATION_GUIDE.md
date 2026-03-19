@@ -264,7 +264,7 @@ const [activeTab, setActiveTab] = useState<'mainGate' | 'roomFolderSlip' | 'room
 
 The page uses card-based tabs (large clickable cards) to switch between different seating plan types:
 - Main Gate Display
-- Room Folder Slip
+- Invigilator Slip
 - Room Door Slip
 - CBSE Format
 
