@@ -32,13 +32,15 @@ const {
   tenantQuerySchema,
   tenantIdParamSchema,
   tenantFeatureUpdateSchema,
-  masterRemunerationUpdateSchema
+  masterRemunerationUpdateSchema,
+  masterPackingDispatchUpdateSchema
 } = require('../validations/adminValidation');
 const masterSubjectsController = require('../controllers/admin/masterSubjectsController');
 const masterDatesheetController = require('../controllers/admin/masterDatesheetController');
 const masterGuidelinesController = require('../controllers/admin/masterGuidelinesController');
 const masterUndertakingsController = require('../controllers/admin/masterUndertakingsController');
 const masterRemunerationController = require('../controllers/admin/masterRemunerationController');
+const masterPackingDispatchController = require('../controllers/admin/masterPackingDispatchController');
 const rolloutController = require('../controllers/admin/rolloutController');
 const masterTeacherTemplateController = require('../controllers/admin/masterTeacherTemplateController');
 const billingAdminController = require('../controllers/admin/billingAdminController');
@@ -194,6 +196,14 @@ router.delete('/master-undertakings/:id', masterUndertakingsController.deleteUnd
 // Master Remuneration rates routes
 router.get('/master-remuneration', masterRemunerationController.listRates);
 router.put('/master-remuneration', validateJoi(masterRemunerationUpdateSchema), masterRemunerationController.upsertRates);
+
+// Master Packing & Dispatch routes
+router.get('/master-packing-dispatch', masterPackingDispatchController.getCurrentSettings);
+router.put(
+  '/master-packing-dispatch',
+  validateJoi(masterPackingDispatchUpdateSchema),
+  masterPackingDispatchController.upsertSettings
+);
 
 // Rollout routes
 router.post('/rollouts/initiate', rolloutController.initiateRollout);

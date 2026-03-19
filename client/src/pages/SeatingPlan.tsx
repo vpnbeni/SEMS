@@ -395,7 +395,7 @@ const SeatingPlan: React.FC = () => {
         ? 'Room Folder Slip'
         : format === 'roomDoorSlip'
           ? 'Room Door Slip'
-          : 'CBSE Copy'
+          : 'CBSE Format'
 
     const examDate = entry
       ? (() => {
@@ -972,7 +972,7 @@ const SeatingPlan: React.FC = () => {
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">CBSE Copy</p>
+              <p className="text-lg font-semibold text-gray-900 dark:text-white">CBSE Format</p>
               <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'cbseCopy' ? 'Selected format' : 'Click to switch format'}</p>
             </div>
           </div>
@@ -1121,7 +1121,7 @@ const SeatingPlan: React.FC = () => {
                             onClick={() => handleDownloadPDF(entry._id, activeTab)}
                             disabled={pdfMutation.isPending}
                             className={`text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 ${pdfMutation.isPending && downloadingId !== entry._id ? 'cursor-not-allowed' : ''}`}
-                            title={`Download ${activeTab === 'mainGate' ? 'Main Gate' : activeTab === 'roomFolderSlip' ? 'Room Folder Slip' : activeTab === 'roomDoorSlip' ? 'Room Door Slip' : 'CBSE Copy'}`}
+                            title={`Download ${activeTab === 'mainGate' ? 'Main Gate' : activeTab === 'roomFolderSlip' ? 'Room Folder Slip' : activeTab === 'roomDoorSlip' ? 'Room Door Slip' : 'CBSE Format'}`}
                           >
                             {downloadingId === entry._id ? (
                               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -1153,18 +1153,14 @@ const SeatingPlan: React.FC = () => {
             {activeTab === 'mainGate' && 'Main Gate Format'}
             {activeTab === 'roomFolderSlip' && 'Room Folder Slip Format'}
             {activeTab === 'roomDoorSlip' && 'Room Door Slip Format'}
-            {activeTab === 'cbseCopy' && 'CBSE Copy Format'}
+            {activeTab === 'cbseCopy' && 'CBSE Format'}
           </h3>
         </div>
 
         <div className="p-6">
           {activeTab === 'mainGate' && (
             <div className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
-                <p className="text-sm text-blue-800 dark:text-blue-200">
-                  This format is designed for display at the main gate and notice boards. All rooms are shown on a single document for easy reference.
-                </p>
-              </div>
+              {/* Admin-only preview instructions removed from user UI per request */}
               <div className="border border-blue-200 dark:border-blue-800 rounded-lg p-4 bg-white dark:bg-gray-900">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Main Gate Layout (Drag to resize)</h4>
@@ -1189,9 +1185,9 @@ const SeatingPlan: React.FC = () => {
                 <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto seating-plan-preview-page">
                   {/* Header */}
                   <div className="text-center mb-4">
-                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">INTERNATIONAL BHARTI SCHOOL, ROHTAK</h2>
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">Centre Name</h2>
                     <p className="text-sm text-gray-700 dark:text-gray-300">Seating Plan CBSE Board Exam</p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">Centre No: 827403</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">Centre No: 202601</p>
                   </div>
 
                   {/* Exam Details */}
@@ -1231,9 +1227,9 @@ const SeatingPlan: React.FC = () => {
                         {[...Array(8)].map((_, i) => (
                           <tr key={i}>
                             <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm">Roll No</td>
-                            <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248737 + i}</td>
-                            <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248745 + i}</td>
-                            <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248753 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{20261001 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{20261009 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{20261017 + i}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1271,9 +1267,9 @@ const SeatingPlan: React.FC = () => {
                       {[...Array(8)].map((_, i) => (
                         <tr key={i}>
                           <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm">Roll No</td>
-                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248761 + i}</td>
-                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248769 + i}</td>
-                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248777 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{20261025 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{20261033 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{20261041 + i}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1302,9 +1298,9 @@ const SeatingPlan: React.FC = () => {
                       {[...Array(8)].map((_, i) => (
                         <tr key={i}>
                           <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center font-bold text-gray-900 dark:text-white text-sm">Roll No</td>
-                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248785 + i}</td>
-                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248793 + i}</td>
-                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{17248801 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{20261049 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{20261057 + i}</td>
+                          <td className="sp-row-height-cell border border-black dark:border-gray-400 p-1.5 text-center text-gray-700 dark:text-gray-300 font-mono text-sm">{20261065 + i}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1334,11 +1330,6 @@ const SeatingPlan: React.FC = () => {
 
           {activeTab === 'roomFolderSlip' && (
             <div className="space-y-4">
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                <p className="text-sm text-green-800 dark:text-green-200">
-                  This format is designed for inclusion in room supervisor folders.
-                </p>
-              </div>
               <div className="border border-green-200 dark:border-green-800 rounded-lg p-4 bg-white dark:bg-gray-900">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Room Folder Slip Layout (Drag to resize)</h4>
@@ -1378,10 +1369,10 @@ const SeatingPlan: React.FC = () => {
                         <tr>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Centre</td>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={3}>
-                            International Bharti School, Rohtak
+                            Centre Name
                           </td>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Centre No</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">829261</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">202601</td>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: XII</td>
                         </tr>
                         <tr>
@@ -1446,13 +1437,13 @@ const SeatingPlan: React.FC = () => {
                       <tbody>
                         {[...Array(8)].map((_, i) => (
                           <tr key={i}>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683240 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{20261025 + i}</td>
                             <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{(i % 3) + 1}</td>
                             <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A00{41 + i}</td>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683263 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{20261033 + i}</td>
                             <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{((i + 1) % 3) + 1}</td>
                             <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A00{49 + i}</td>
-                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683284 + i}</td>
+                            <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{20261041 + i}</td>
                             <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{((i + 2) % 3) + 1}</td>
                             <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A00{57 + i}</td>
                           </tr>
@@ -1504,10 +1495,10 @@ const SeatingPlan: React.FC = () => {
                       <tr>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Centre</td>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={3}>
-                          International Bharti School, Rohtak
+                          Centre Name
                         </td>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Centre No</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">829261</td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">202601</td>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: XII</td>
                       </tr>
                       <tr>
@@ -1562,13 +1553,13 @@ const SeatingPlan: React.FC = () => {
                     <tbody>
                       {[...Array(8)].map((_, i) => (
                         <tr key={`second-slip-row-${i}`}>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683340 + i}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{20261049 + i}</td>
                           <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{(i % 3) + 1}</td>
                           <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A10{41 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683363 + i}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{20261057 + i}</td>
                           <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{((i + 1) % 3) + 1}</td>
                           <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A10{49 + i}</td>
-                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{31683384 + i}</td>
+                          <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{20261065 + i}</td>
                           <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">{((i + 2) % 3) + 1}</td>
                           <td className="border border-gray-800 dark:border-gray-400 p-1.5 text-center sp-row-height-cell">A10{57 + i}</td>
                         </tr>
@@ -1582,11 +1573,6 @@ const SeatingPlan: React.FC = () => {
 
           {activeTab === 'roomDoorSlip' && (
             <div className="space-y-4">
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                  This format is designed for display on examination room doors.
-                </p>
-              </div>
               <div className="border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 bg-white dark:bg-gray-900">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Room Door Slip Layout (Drag to resize)</h4>
@@ -1625,10 +1611,10 @@ const SeatingPlan: React.FC = () => {
                         <tr>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Centre</td>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
-                            International Bharti School, Rohtak
+                            Centre Name
                           </td>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Centre No</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">829261</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">202601</td>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: XII</td>
                         </tr>
                         <tr>
@@ -1681,9 +1667,9 @@ const SeatingPlan: React.FC = () => {
                       <tbody>
                         {[...Array(8)].map((_, i) => (
                           <tr key={i}>
-                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683240 + i}</td>
-                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683263 + i}</td>
-                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683284 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{20261025 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{20261033 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{20261041 + i}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1722,9 +1708,9 @@ const SeatingPlan: React.FC = () => {
                     <tbody>
                       <tr>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white">Name Of Centre</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>International Bharti School, Rohtak</td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>Centre Name</td>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Centre No</td>
-                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">829261</td>
+                        <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">202601</td>
                         <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold bg-gray-50 dark:bg-gray-800 text-center text-gray-900 dark:text-white">Class: XII</td>
                       </tr>
                       <tr>
@@ -1763,9 +1749,9 @@ const SeatingPlan: React.FC = () => {
                     <tbody>
                       {[...Array(8)].map((_, i) => (
                         <tr key={`second-door-row-${i}`}>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683340 + i}</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683363 + i}</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{31683384 + i}</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{20261049 + i}</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{20261057 + i}</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center sp-row-height-cell">{20261065 + i}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1777,15 +1763,11 @@ const SeatingPlan: React.FC = () => {
 
           {activeTab === 'cbseCopy' && (
             <div className="space-y-4">
-              <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-4 mb-4">
-                <p className="text-sm text-purple-800 dark:text-purple-200">
-                  This format is designed for submission to CBSE. Each room generates one page with 24 candidates (8 rows x 3 columns).
-                </p>
-              </div>
+              {/* Admin-only preview instructions removed from user UI per request */}
 
               <div className="border border-purple-200 dark:border-purple-800 rounded-lg p-4 bg-white dark:bg-gray-900">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">CBSE Copy Layout (Drag to resize)</h4>
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">CBSE Format Layout (Drag to resize)</h4>
                   <span className="text-xs text-gray-500 dark:text-gray-400">
                     {loadingTemplateSettings
                       ? 'Loading settings...'
@@ -1803,7 +1785,7 @@ const SeatingPlan: React.FC = () => {
                 </p>
               </div>
 
-              {/* CBSE Copy Preview */}
+              {/* CBSE Format Preview */}
               <div className="overflow-x-auto py-2">
                 <style>{`.sp-cbse-info-cols { --sp-cbse-info-col-1: ${cbseLayoutDraft.infoCol1Width}%; --sp-cbse-info-col-2: ${cbseLayoutDraft.infoCol2Width}%; --sp-cbse-info-col-3: ${cbseLayoutDraft.infoCol3Width}%; --sp-cbse-info-col-4: ${cbseLayoutDraft.infoCol4Width}%; --sp-cbse-info-col-5: ${cbseLayoutDraft.infoCol5Width}%; } .sp-cbse-data-cols { --sp-cbse-data-col-1: ${cbseLayoutDraft.col1Width}%; --sp-cbse-data-col-2: ${cbseLayoutDraft.col2Width}%; --sp-cbse-data-col-3: ${cbseLayoutDraft.col3Width}%; --sp-cbse-data-col-4: ${cbseLayoutDraft.col4Width}%; --sp-cbse-data-col-5: ${cbseLayoutDraft.col5Width}%; --sp-cbse-data-col-6: ${cbseLayoutDraft.col6Width}%; --sp-cbse-header-font-size: ${cbseLayoutDraft.headerFontSize}pt; --sp-cbse-subheader-font-size: ${cbseLayoutDraft.subHeaderFontSize}pt; --sp-cbse-row-height: ${cbseLayoutDraft.rowHeight}px; --sp-cbse-cell-padding-y: ${cbseLayoutDraft.cellPaddingY}px; --sp-cbse-cell-padding-x: ${cbseLayoutDraft.cellPaddingX}px; --sp-cbse-body-font-size: ${cbseLayoutDraft.bodyFontSize}pt; } ${cbseInfoColumnBoundaries.map((b, i) => `.sp-cbse-info-b-${i} { left: ${b}%; }`).join(' ')} ${cbseColumnBoundaries.map((b, i) => `.sp-cbse-data-b-${i} { left: ${b}%; }`).join(' ')}`}</style>
                 <div className="border-2 border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-white dark:bg-gray-900 mx-auto sp-preview-page-size">
@@ -1824,10 +1806,10 @@ const SeatingPlan: React.FC = () => {
                         <tr>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Name Of Centre</td>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center text-gray-700 dark:text-gray-300" colSpan={2}>
-                            International Bharti School<br />Gohana Road, Rohtak
+                            Centre Name
                           </td>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-center text-gray-900 dark:text-white">Centre No</td>
-                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">827403</td>
+                          <td className="border-2 border-gray-800 dark:border-gray-400 p-2 text-center font-bold text-gray-900 dark:text-white">202601</td>
                         </tr>
                         <tr>
                           <td className="border-2 border-gray-800 dark:border-gray-400 p-2 font-bold text-gray-900 dark:text-white">Name Of<br />Examination</td>
@@ -1885,11 +1867,11 @@ const SeatingPlan: React.FC = () => {
                       <tbody>
                         {[...Array(8)].map((_, i) => (
                           <tr key={i}>
-                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300 sp-cbse-body-cell">{17248737 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300 sp-cbse-body-cell">{20261001 + i}</td>
                             <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500 sp-cbse-body-cell" />
-                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300 sp-cbse-body-cell">{17248745 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300 sp-cbse-body-cell">{20261009 + i}</td>
                             <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500 sp-cbse-body-cell" />
-                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300 sp-cbse-body-cell">{17248753 + i}</td>
+                            <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-700 dark:text-gray-300 sp-cbse-body-cell">{20261017 + i}</td>
                             <td className="border-2 border-gray-800 dark:border-gray-400 text-center text-gray-400 dark:text-gray-500 sp-cbse-body-cell" />
                           </tr>
                         ))}
@@ -1938,7 +1920,7 @@ const SeatingPlan: React.FC = () => {
               </div>
 
               <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
-                Click the download button next to any exam to generate the CBSE Copy PDF with actual candidate data.
+                Click the download button next to any exam to generate the CBSE Format PDF with actual candidate data.
               </p>
             </div>
           )}

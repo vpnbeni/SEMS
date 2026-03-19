@@ -14,7 +14,7 @@ const createTeacherSchema = Joi.object({
       'any.required': 'Name is required'
     }),
   oasisId: Joi.alternatives().conditional('dutyType', {
-    is: 'Class IV',
+    is: Joi.string().trim().insensitive().valid('class iv', 'others'),
     then: Joi.string()
       .trim()
       .allow('', null)
@@ -32,7 +32,7 @@ const createTeacherSchema = Joi.object({
         'string.max': 'OASIS ID cannot exceed 50 digits',
         'string.pattern.base': 'OASIS ID must contain digits only',
         'any.required': 'OASIS ID is required'
-      }),
+      })
   }),
   employeeId: Joi.string()
     .trim()
@@ -52,7 +52,7 @@ const createTeacherSchema = Joi.object({
       'any.required': 'Designation is required'
     }),
   subjects: Joi.alternatives().conditional('dutyType', {
-    is: 'Class IV',
+    is: Joi.string().trim().insensitive().valid('class iv', 'others'),
     then: Joi.array()
       .items(
         Joi.string()
@@ -79,7 +79,7 @@ const createTeacherSchema = Joi.object({
         'array.base': 'Subjects must be an array',
         'array.min': 'At least one subject is required',
         'any.required': 'Subject is required'
-      }),
+      })
   }),
   subjectCode: Joi.string()
     .trim()
@@ -180,6 +180,7 @@ const createTeacherSchema = Joi.object({
       'ASI (Frisking Male)',
       'ASI (Frisking Female)',
       'Clerk',
+      'Others',
       'Class IV'
     )
     .allow('')
@@ -199,14 +200,20 @@ const updateTeacherSchema = Joi.object({
       'string.min': 'Name must be at least 2 characters long',
       'string.max': 'Name cannot exceed 100 characters'
     }),
-  oasisId: Joi.string()
-    .trim()
-    .min(3)
-    .max(50)
-    .pattern(/^\d+$/)
-    .messages({
-      'string.pattern.base': 'OASIS ID must contain digits only'
-    }),
+  oasisId: Joi.alternatives().conditional('dutyType', {
+    is: Joi.string().trim().insensitive().valid('class iv', 'others'),
+    then: Joi.string()
+      .trim()
+      .allow('', null),
+    otherwise: Joi.string()
+      .trim()
+      .min(3)
+      .max(50)
+      .pattern(/^\d+$/)
+      .messages({
+        'string.pattern.base': 'OASIS ID must contain digits only'
+      })
+  }),
   employeeId: Joi.string()
     .trim()
     .max(50)
@@ -334,6 +341,7 @@ const updateTeacherSchema = Joi.object({
       'ASI (Frisking Male)',
       'ASI (Frisking Female)',
       'Clerk',
+      'Others',
       'Class IV'
     )
     .allow('')

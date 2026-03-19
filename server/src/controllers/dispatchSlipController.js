@@ -2,6 +2,7 @@ const asyncHandler = require('../middleware/asyncHandler')
 const { HTTP_STATUS } = require('../utils/constants')
 const pdfGenerator = require('../utils/pdfGenerator')
 const { ensureTenantActiveDatesheet } = require('../services/cbseDatesheetRolloutService')
+const { mergePackingDispatchIntoCentreDetails } = require('../services/masterPackingDispatchService')
 
 const normalizeSubjectCode = (code) =>
   String(code || '')
@@ -91,7 +92,8 @@ exports.downloadDispatchSlipPdf = asyncHandler(async (req, res) => {
       })
     : 0
 
-  const centreDetails = await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean()
+  const centreDetailsRaw = await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean()
+  const centreDetails = await mergePackingDispatchIntoCentreDetails(centreDetailsRaw)
   const centreNo = String(centreDetails?.centreNo || centreDetails?.centreSchoolCode || '').trim()
   const centreName = String(centreDetails?.centreName || '').trim()
   const insuredAmount = String(centreDetails?.dispatchSlipInsuredAmount || '1000').trim()

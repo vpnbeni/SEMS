@@ -40,10 +40,9 @@ const Sidebar: React.FC = () => {
   const { currentSession, clearSession } = useAcademicSession()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
-    'Centre Details': true,
-    'Centre Records': true,
-  })
+  // Tracks expand/collapse state for group headers + nested sub-groups.
+  // "Ungroup all" -> we expand everything based on accessible navigation.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const isPathAllowed = (href: string) => isFeatureEnabledForPath(href, currentUser?.featureToggles)
   const canAccessCentreDetails = isPathAllowed('/centre-details')
 
@@ -255,6 +254,16 @@ const Sidebar: React.FC = () => {
           ),
           badge: toBadgeValue(counts.examFunctionaries),
         },
+      ],
+    },
+    {
+      name: 'Centre Records',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+      ),
+      children: [
         {
           name: 'Centre Guidelines',
           href: '/centre-guidelines',
@@ -306,16 +315,6 @@ const Sidebar: React.FC = () => {
           ),
           badge: null,
         },
-      ],
-    },
-    {
-      name: 'Centre Records',
-      icon: (
-        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-        </svg>
-      ),
-      children: [
         {
           name: 'Datesheets',
           href: '/datesheets',
@@ -488,6 +487,21 @@ const Sidebar: React.FC = () => {
 
   const filteredNavigation: NavEntry[] = navigation.reduce<NavEntry[]>((acc, entry) => {
     if (isGroup(entry)) {
+      // Flatten specific groups into independent top-level items.
+      // This removes the "Centre Details" / "Centre Records" accordions from the sidebar.
+      if (entry.name === 'Centre Details' || entry.name === 'Centre Records') {
+        entry.children.forEach((child) => {
+          if (isSubGroup(child)) {
+            child.children.forEach((grandChild) => {
+              if (isPathAllowed(grandChild.href)) acc.push(grandChild)
+            })
+            return
+          }
+          if (isPathAllowed(child.href)) acc.push(child)
+        })
+        return acc
+      }
+
       const filteredChildren = filterNavChildren(entry.children)
       const groupHrefAllowed = entry.href ? isPathAllowed(entry.href) : false
 
@@ -510,6 +524,25 @@ const Sidebar: React.FC = () => {
 
     return acc
   }, [])
+
+  // Expand all groups/sub-groups once accessible navigation is resolved.
+  useEffect(() => {
+    const next: Record<string, boolean> = {}
+
+    filteredNavigation.forEach((entry) => {
+      if (!isGroup(entry)) return
+
+      next[entry.name] = true
+      entry.children.forEach((child) => {
+        if (isSubGroup(child)) {
+          next[`${entry.name}/${child.name}`] = true
+        }
+      })
+    })
+
+    setOpenGroups(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredNavigation])
 
   const canAccessBilling = isPathAllowed('/billing')
   const canAccessAccountSettings = isPathAllowed('/account-settings')

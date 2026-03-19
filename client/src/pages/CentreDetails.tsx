@@ -29,15 +29,6 @@ interface CentreForm {
   deputyCentreSuperintendentContact: string
   centreClerk: string
   centreClerkContact: string
-  packingClothColor: string
-  packingMarker: string
-  packingClothColorClass10: string
-  packingMarkerClass10: string
-  packingClothColorClass12: string
-  packingMarkerClass12: string
-  dispatchSlipToAddress: string
-  dispatchSlipFromAddress: string
-  dispatchSlipInsuredAmount: string
 }
 
 const defaultForm: CentreForm = {
@@ -50,15 +41,6 @@ const defaultForm: CentreForm = {
   deputyCentreSuperintendentContact: '',
   centreClerk: '',
   centreClerkContact: '',
-  packingClothColor: '',
-  packingMarker: '',
-  packingClothColorClass10: '',
-  packingMarkerClass10: '',
-  packingClothColorClass12: '',
-  packingMarkerClass12: '',
-  dispatchSlipToAddress: '',
-  dispatchSlipFromAddress: '',
-  dispatchSlipInsuredAmount: '1000',
 }
 
 const sanitizePhoneInput = (value: string) => value.replace(/\D/g, '').slice(0, 10)
@@ -168,20 +150,36 @@ const CentreDetails: React.FC = () => {
 
   useEffect(() => {
     if (!centreDetails) return
-    setForm((prev) => ({
-      ...prev,
-      ...centreDetails,
-    }))
 
-    const hasAnySavedField = Object.values(centreDetails).some(
-      (value) => typeof value === 'string' && value.trim().length > 0
-    )
+    setForm({
+      centreNo: centreDetails.centreNo || '',
+      centreName: centreDetails.centreName || '',
+      centreSchoolCode: centreDetails.centreSchoolCode || '',
+      centreSuperintendent: centreDetails.centreSuperintendent || '',
+      centreSuperintendentContact: centreDetails.centreSuperintendentContact || '',
+      deputyCentreSuperintendent: centreDetails.deputyCentreSuperintendent || '',
+      deputyCentreSuperintendentContact: centreDetails.deputyCentreSuperintendentContact || '',
+      centreClerk: centreDetails.centreClerk || '',
+      centreClerkContact: centreDetails.centreClerkContact || '',
+    })
+
+    const hasAnySavedField = [
+      centreDetails.centreNo,
+      centreDetails.centreName,
+      centreDetails.centreSchoolCode,
+      centreDetails.centreSuperintendent,
+      centreDetails.centreSuperintendentContact,
+      centreDetails.deputyCentreSuperintendent,
+      centreDetails.deputyCentreSuperintendentContact,
+      centreDetails.centreClerk,
+      centreDetails.centreClerkContact,
+    ].some((value) => String(value || '').trim().length > 0)
+
     setHasSavedCentreDetails(Boolean(centreDetails._id) || hasAnySavedField)
   }, [centreDetails])
 
   return (
     <div className="cd-page">
-      {/* Hero Banner */}
       <div className="cd-hero">
         <div className="cd-hero-content">
           <div className="cd-hero-icon">
@@ -191,32 +189,25 @@ const CentreDetails: React.FC = () => {
           </div>
           <div className="cd-hero-text">
             <h2>Centre Details</h2>
-            <p>Manage your centre profile, staff &amp; packing config</p>
+            <p>Manage your centre profile and staff contacts</p>
           </div>
           <div className="cd-hero-stats">
             <div className="cd-hero-stat">
               <span className="cd-hero-stat-label">Total Candidates</span>
-              <span className="cd-hero-stat-value">
-                {loading ? '...' : totalCandidates}
-              </span>
+              <span className="cd-hero-stat-value">{loading ? '...' : totalCandidates}</span>
             </div>
             <div className="cd-hero-stat">
               <span className="cd-hero-stat-label">Schools</span>
-              <span className="cd-hero-stat-value">
-                {loading ? '...' : tableRows.length}
-              </span>
+              <span className="cd-hero-stat-value">{loading ? '...' : tableRows.length}</span>
             </div>
             <div className="cd-hero-stat">
               <span className="cd-hero-stat-label">Exam Days</span>
-              <span className="cd-hero-stat-value">
-                {loading ? '...' : examDays}
-              </span>
+              <span className="cd-hero-stat-value">{loading ? '...' : examDays}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Centre Information Card */}
       <div className="cd-card">
         <div className="cd-card-header">
           <div className="cd-card-header-left">
@@ -280,7 +271,6 @@ const CentreDetails: React.FC = () => {
             </div>
           </div>
 
-          {/* Staff Details Section Divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 28, marginBottom: 8 }}>
             <div className="cd-card-icon cd-card-icon--purple" style={{ width: 32, height: 32, borderRadius: 8 }}>
               <svg style={{ width: 16, height: 16 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -291,7 +281,6 @@ const CentreDetails: React.FC = () => {
             <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.06)' }} />
           </div>
 
-          {/* Centre Superintendent */}
           <div className="cd-staff-row">
             <div className="cd-field">
               <label htmlFor="centre-superintendent" className="cd-field-label">Centre Superintendent</label>
@@ -303,7 +292,6 @@ const CentreDetails: React.FC = () => {
             </div>
           </div>
 
-          {/* Deputy Centre Superintendent */}
           <div className="cd-staff-row">
             <div className="cd-field">
               <label htmlFor="deputy-centre-superintendent" className="cd-field-label">Deputy Centre Superintendent</label>
@@ -315,7 +303,6 @@ const CentreDetails: React.FC = () => {
             </div>
           </div>
 
-          {/* Centre Clerk */}
           <div className="cd-staff-row">
             <div className="cd-field">
               <label htmlFor="centre-clerk" className="cd-field-label">Centre Clerk</label>
@@ -327,148 +314,10 @@ const CentreDetails: React.FC = () => {
             </div>
           </div>
 
-          {/* Packing Details Section Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 28, marginBottom: 8 }}>
-            <div className="cd-card-icon cd-card-icon--amber" style={{ width: 32, height: 32, borderRadius: 8 }}>
-              <svg style={{ width: 16, height: 16 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-            </div>
-            <span className="cd-field-label" style={{ margin: 0 }}>Packing Details (Exam Day)</span>
-            <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.06)' }} />
-          </div>
-
-          <div className="cd-grid-2" style={{ marginTop: 12 }}>
-            <div className="cd-field">
-              <label htmlFor="packing-cloth-color" className="cd-field-label">Overall cloth colour (optional)</label>
-              <input id="packing-cloth-color" title="Default packing cloth colour" className="cd-input" placeholder="e.g. Blue" value={form.packingClothColor} onChange={(e) => handleChange('packingClothColor', e.target.value)} />
-            </div>
-            <div className="cd-field">
-              <label htmlFor="packing-marker" className="cd-field-label">Overall ink / marker (optional)</label>
-              <input id="packing-marker" title="Default packing marker / ink colour" className="cd-input" placeholder="e.g. Red" value={form.packingMarker} onChange={(e) => handleChange('packingMarker', e.target.value)} />
-            </div>
-          </div>
-
-          {/* Class-wise packing table */}
-          <table className="cd-packing-table">
-            <thead>
-              <tr>
-                <th>Class</th>
-                <th>Colour of cloth</th>
-                <th>Colour of ink</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Class X</td>
-                <td>
-                  <input
-                    id="packing-cloth-color-class10"
-                    title="Cloth colour for Class X packets"
-                    className="cd-input"
-                    placeholder="e.g. Blue"
-                    value={form.packingClothColorClass10}
-                    onChange={(e) => handleChange('packingClothColorClass10', e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    id="packing-marker-class10"
-                    title="Ink colour for Class X packets"
-                    className="cd-input"
-                    placeholder="e.g. Red"
-                    value={form.packingMarkerClass10}
-                    onChange={(e) => handleChange('packingMarkerClass10', e.target.value)}
-                  />
-                </td>
-              </tr>
-              <tr>
-                <td>Class XII</td>
-                <td>
-                  <input
-                    id="packing-cloth-color-class12"
-                    title="Cloth colour for Class XII packets"
-                    className="cd-input"
-                    placeholder="e.g. Pink"
-                    value={form.packingClothColorClass12}
-                    onChange={(e) => handleChange('packingClothColorClass12', e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    id="packing-marker-class12"
-                    title="Ink colour for Class XII packets"
-                    className="cd-input"
-                    placeholder="e.g. Blue"
-                    value={form.packingMarkerClass12}
-                    onChange={(e) => handleChange('packingMarkerClass12', e.target.value)}
-                  />
-                </td>
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Dispatch Slip Metadata Section Divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 28, marginBottom: 8 }}>
-            <div className="cd-card-icon cd-card-icon--blue" style={{ width: 32, height: 32, borderRadius: 8 }}>
-              <svg style={{ width: 16, height: 16 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <span className="cd-field-label" style={{ margin: 0 }}>Dispatch Slip Metadata</span>
-            <div style={{ flex: 1, height: 1, background: 'rgba(0,0,0,0.06)' }} />
-          </div>
-
-          <div className="cd-grid-2" style={{ marginTop: 12 }}>
-            <div className="cd-field">
-              <label htmlFor="dispatch-slip-insured" className="cd-field-label">Default Insured Amount (Rs)</label>
-              <input
-                id="dispatch-slip-insured"
-                title="Default insured amount (Rs)"
-                className="cd-input"
-                placeholder="e.g. 1000"
-                value={form.dispatchSlipInsuredAmount}
-                onChange={(e) => handleChange('dispatchSlipInsuredAmount', e.target.value)}
-              />
-            </div>
-            <div className="cd-field">
-              <label className="cd-field-label">Used in Dispatch Slip PDF</label>
-              <p className="cd-field-hint" style={{ marginTop: 6 }}>
-                These values are printed on the parcel dispatch slip (To/From address and insured amount).
-              </p>
-            </div>
-          </div>
-
-          <div className="cd-grid-2" style={{ marginTop: 12 }}>
-            <div className="cd-field">
-              <label htmlFor="dispatch-slip-to" className="cd-field-label">To Address (multiline)</label>
-              <textarea
-                id="dispatch-slip-to"
-                title="Dispatch slip To address"
-                className="cd-input"
-                style={{ minHeight: 120, resize: 'vertical' }}
-                placeholder="The RO GURUGRAM (CBSE)\n1st & 2nd FLOOR\nC-1 BUILDING, TOWER-A, INFOCITY – 1,\nSECTOR – 34,\nGURUGRAM, PIN: 122001\nHARYANA\nTel:- 0124-2973658"
-                value={form.dispatchSlipToAddress}
-                onChange={(e) => handleChange('dispatchSlipToAddress', e.target.value)}
-              />
-            </div>
-            <div className="cd-field">
-              <label htmlFor="dispatch-slip-from" className="cd-field-label">From Address (multiline)</label>
-              <textarea
-                id="dispatch-slip-from"
-                title="Dispatch slip From address"
-                className="cd-input"
-                style={{ minHeight: 120, resize: 'vertical' }}
-                placeholder="INTERNATIONAL BHARTI SCHOOL\n5KM MILESTONE, GOHANA ROAD\nROHTAK, HARYANA, PIN – 124001\nSchool Code: 40291\nMobile No: 9138981415, 16"
-                value={form.dispatchSlipFromAddress}
-                onChange={(e) => handleChange('dispatchSlipFromAddress', e.target.value)}
-              />
-            </div>
-          </div>
+          {/* Packing & Dispatch info banner removed per request */}
         </div>
       </div>
 
-      {/* Candidate Summary Card */}
       <div className="cd-card">
         <div className="cd-card-header">
           <div className="cd-card-header-left">
@@ -535,11 +384,11 @@ const CentreDetails: React.FC = () => {
                   <td style={{ color: '#6b7280', fontWeight: 500 }}>{row.srNo}</td>
                   <td style={{ fontWeight: 600, color: '#111827' }}>{row.schoolCode}</td>
                   <td>{row.schoolName}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{row.classXRollFrom || <span style={{ color: '#d1d5db' }}>—</span>}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{row.classXRollTo || <span style={{ color: '#d1d5db' }}>—</span>}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{row.classXRollFrom || <span style={{ color: '#d1d5db' }}>-</span>}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{row.classXRollTo || <span style={{ color: '#d1d5db' }}>-</span>}</td>
                   <td style={{ textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{row.classX}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{row.classXIIRollFrom || <span style={{ color: '#d1d5db' }}>—</span>}</td>
-                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{row.classXIIRollTo || <span style={{ color: '#d1d5db' }}>—</span>}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{row.classXIIRollFrom || <span style={{ color: '#d1d5db' }}>-</span>}</td>
+                  <td style={{ fontVariantNumeric: 'tabular-nums' }}>{row.classXIIRollTo || <span style={{ color: '#d1d5db' }}>-</span>}</td>
                   <td style={{ textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{row.classXII}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>{row.total}</td>
                 </tr>
@@ -549,7 +398,6 @@ const CentreDetails: React.FC = () => {
         </div>
       </div>
 
-      {/* Exam Days Highlight Card */}
       <div className="cd-exam-days">
         <div className="cd-exam-days-icon">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -195,6 +195,18 @@ export interface MasterRemunerationRate {
   updatedAt?: string
 }
 
+export interface MasterPackingDispatch {
+  packingClothColor: string
+  packingMarker: string
+  packingClothColorClass10: string
+  packingMarkerClass10: string
+  packingClothColorClass12: string
+  packingMarkerClass12: string
+  dispatchSlipToAddress: string
+  dispatchSlipFromAddress: string
+  dispatchSlipInsuredAmount: string
+}
+
 export type RolloutModule = 'subjects' | 'datesheet' | 'guidelines' | 'undertaking'
 export type RolloutStatus = 'in_progress' | 'completed' | 'partial_failure'
 

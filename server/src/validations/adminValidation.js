@@ -96,6 +96,20 @@ const masterRemunerationUpdateSchema = Joi.object({
   rates: Joi.array().items(masterRemunerationRateRowSchema).min(1).required(),
 });
 
+const optionalText = (max) => Joi.string().allow('').max(max).optional();
+
+const masterPackingDispatchUpdateSchema = Joi.object({
+  packingClothColor: optionalText(80),
+  packingMarker: optionalText(80),
+  packingClothColorClass10: optionalText(80),
+  packingMarkerClass10: optionalText(80),
+  packingClothColorClass12: optionalText(80),
+  packingMarkerClass12: optionalText(80),
+  dispatchSlipToAddress: optionalText(2000),
+  dispatchSlipFromAddress: optionalText(2000),
+  dispatchSlipInsuredAmount: optionalText(50),
+});
+
 module.exports = {
   platformLoginSchema,
   createTenantSchema,
@@ -109,4 +123,5 @@ module.exports = {
   tenantIdParamSchema,
   tenantFeatureUpdateSchema,
   masterRemunerationUpdateSchema,
+  masterPackingDispatchUpdateSchema,
 };

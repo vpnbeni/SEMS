@@ -19,6 +19,7 @@ import type {
   TenantWithFeatureSummary,
   UploadResult,
   MasterRemunerationRate,
+  MasterPackingDispatch,
 } from '../types/platform'
 
 const configuredApiBaseUrl = (import.meta.env.VITE_PLATFORM_API_URL || '').trim()
@@ -325,6 +326,18 @@ export const masterRemunerationApi = {
     refreshment: number
   }>): Promise<MasterRemunerationRate[]> {
     const response = await platformApi.put<ApiResponse<MasterRemunerationRate[]>>('/master-remuneration', { rates })
+    return response.data.data
+  },
+}
+
+export const masterPackingDispatchApi = {
+  async get(): Promise<MasterPackingDispatch> {
+    const response = await platformApi.get<ApiResponse<MasterPackingDispatch>>('/master-packing-dispatch')
+    return response.data.data
+  },
+
+  async upsert(payload: MasterPackingDispatch): Promise<MasterPackingDispatch> {
+    const response = await platformApi.put<ApiResponse<MasterPackingDispatch>>('/master-packing-dispatch', payload)
     return response.data.data
   },
 }

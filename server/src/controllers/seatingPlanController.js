@@ -662,7 +662,7 @@ exports.generateRoomDoorSlip = async (req, res) => {
   }
 };
 
-// Generate CBSE Copy PDF
+// Generate CBSE Format PDF
 exports.generateCBSECopy = async (req, res) => {
   try {
     const { datesheetId } = req.params;
@@ -677,9 +677,9 @@ exports.generateCBSECopy = async (req, res) => {
     templateData.templateSettings = templateSettings.cbseCopy;
     const pdfBuffer = await pdfGenerator.generateCBSECopy(templateData);
 
-    sendPDFResponse(res, pdfBuffer, 'cbse-copy.pdf');
+    sendPDFResponse(res, pdfBuffer, 'cbse-format.pdf');
   } catch (error) {
-    console.error('Generate CBSE Copy PDF Error:', error);
-    sendGenerationError(res, error, 'Failed to generate CBSE Copy PDF');
+    console.error('Generate CBSE Format PDF Error:', error);
+    sendGenerationError(res, error, 'Failed to generate CBSE Format PDF');
   }
 };

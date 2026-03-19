@@ -266,7 +266,7 @@ The page uses card-based tabs (large clickable cards) to switch between differen
 - Main Gate Display
 - Room Folder Slip
 - Room Door Slip
-- CBSE Copy Format
+- CBSE Format
 
 ### Current Tab Style
 

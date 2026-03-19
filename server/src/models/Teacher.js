@@ -15,13 +15,15 @@ const teacherSchema = new mongoose.Schema({
   oasisId: {
     type: String,
     required: function requiredOasisId() {
-      return String(this.dutyType || '').trim() !== 'Class IV';
+      const dutyType = typeof this.get === 'function' ? (this.get('dutyType') || '') : (this.dutyType || '');
+      const dutyTypeLower = String(dutyType || '').trim().toLowerCase();
+      return dutyTypeLower !== 'class iv' && dutyTypeLower !== 'others';
     },
     unique: true,
     sparse: true,
     trim: true,
     match: [/^\d+$/, 'OASIS ID must contain digits only'],
-    default: null,
+    default: null
   },
   // School employee id (HR). Optional.
   // Use null for "not set" so legacy unique index constraints (if any) don't collide on ''.
@@ -29,7 +31,7 @@ const teacherSchema = new mongoose.Schema({
     type: String,
     trim: true,
     default: null,
-    sparse: true,
+    sparse: true
   },
   designation: {
     type: String,
@@ -193,7 +195,8 @@ const teacherSchema = new mongoose.Schema({
         'ASI (Frisking Male)',
         'ASI (Frisking Female)',
         'Clerk',
-        'Class IV'
+        'Class IV',
+        'Others'
       ],
       message: '{VALUE} is not a valid duty type'
     },
@@ -213,7 +216,8 @@ const teacherSchema = new mongoose.Schema({
         'ASI (Frisking Male)',
         'ASI (Frisking Female)',
         'Clerk',
-        'Class IV'
+        'Class IV',
+        'Others'
       ],
       message: '{VALUE} is not a valid duty type'
     }
@@ -224,7 +228,7 @@ const teacherSchema = new mongoose.Schema({
     examDate: { type: String, required: true },
     roomNo: { type: String, required: true },
     rollNumbers: [{ type: String }],
-    _id: false,
+    _id: false
   }]
 }, {
   timestamps: true,
@@ -282,7 +286,7 @@ teacherSchema.virtual('yearsOfService').get(function () {
 // Pre-save middleware to format name
 teacherSchema.pre('save', function (next) {
   if (this.isModified('name')) {
-    this.name = this.name.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+    this.name = this.name.toLowerCase().replace(/\b\w/g, (l) => l.toUpperCase());
   }
   if (this.isModified('mobileNo') && !this.phone) {
     this.phone = this.mobileNo;
@@ -349,14 +353,14 @@ teacherSchema.methods.assignSubjects = function (subjectIds) {
 // Instance method to remove subjects
 teacherSchema.methods.removeSubjects = function (subjectIds) {
   this.subjects = this.subjects.filter(
-    subject => !subjectIds.includes(subject.toString())
+    (subject) => !subjectIds.includes(subject.toString())
   );
   return this.save();
 };
 
 // Instance method to check if teacher teaches a subject
 teacherSchema.methods.teachesSubject = function (subjectId) {
-  return this.subjects.some(subject => subject.toString() === subjectId.toString());
+  return this.subjects.some((subject) => subject.toString() === subjectId.toString());
 };
 
 teacherSchema.plugin(academicSessionPlugin);

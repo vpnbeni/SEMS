@@ -41,6 +41,7 @@ const DESIGNATION_OPTIONS = [
   "Vice Principal",
   "PGT",
   "TGT",
+  "PRT",
   "Others",
 ] as const;
 
@@ -53,6 +54,7 @@ const DUTY_TYPE_OPTIONS = [
   'ASI (Frisking Male)',
   'ASI (Frisking Female)',
   'Clerk',
+  'Others',
   'Class IV',
 ] as const;
 
@@ -97,7 +99,6 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const [formData, setFormData] = useState({
     name: "",
     oasisId: "",
-    employeeId: "",
     designation: "",
     subjectIds: [] as string[],
     subjectCode: "",
@@ -199,7 +200,6 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     setFormData({
       name: selectedTeacher.name || "",
       oasisId: (selectedTeacher as any).oasisId || "",
-      employeeId: selectedTeacher.employeeId || "",
       designation: selectedTeacher.designation || "",
       subjectIds,
       subjectCode,
@@ -251,6 +251,10 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     () => String(formData.dutyType || "").trim().toLowerCase() === "class iv",
     [formData.dutyType]
   );
+  const isDesignationOthers = useMemo(
+    () => String(formData.dutyType || "").trim().toLowerCase() === "others",
+    [formData.dutyType]
+  );
   const subjectsDisabled = useMemo(
     () => isSubjectOptionalDuty(formData.dutyType),
     [formData.dutyType]
@@ -291,7 +295,6 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     setFormData({
       name: "",
       oasisId: "",
-      employeeId: "",
       designation: "",
       subjectIds: [],
       subjectCode: "",
@@ -349,12 +352,14 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const validateForm = () => {
     const nextErrors: Record<string, string> = {};
     if (!formData.name.trim()) nextErrors.name = "Teacher name is required";
-    if (!isClassIvFunctionary) {
+    if (!isClassIvFunctionary && !isDesignationOthers) {
       if (!formData.oasisId.trim()) nextErrors.oasisId = "OASIS ID is required";
       else if (!/^\d+$/.test(formData.oasisId.trim())) nextErrors.oasisId = "OASIS ID must contain digits only";
     }
     if (!formData.designation.trim()) nextErrors.designation = "Designation is required";
-    if (!subjectsDisabled && !formData.subjectIds.length) nextErrors.subjectIds = "At least one subject is required";
+    if (!subjectsDisabled && !isDesignationOthers && !formData.subjectIds.length) {
+      nextErrors.subjectIds = "At least one subject is required";
+    }
     if (!formData.schoolName.trim()) nextErrors.schoolName = "School is required";
     if (!formData.schoolCode.trim()) nextErrors.schoolCode = "School code is required";
     setErrors(nextErrors);
@@ -365,17 +370,16 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     e.preventDefault();
     if (!validateForm()) return;
 
-    const resolvedOasisId = isClassIvFunctionary
+    const resolvedOasisId = (isClassIvFunctionary || isDesignationOthers)
       ? ""
       : formData.oasisId.trim();
 
     const payload = {
       name: formData.name.trim(),
       oasisId: resolvedOasisId,
-      employeeId: formData.employeeId.trim(),
       designation: isClassIvFunctionary ? "Class IV" : formData.designation.trim(),
-      subjects: isClassIvFunctionary ? [] : formData.subjectIds,
-      subjectCode: isClassIvFunctionary ? "N/A" : formData.subjectCode,
+      subjects: (isClassIvFunctionary || isDesignationOthers) ? [] : formData.subjectIds,
+      subjectCode: (isClassIvFunctionary || isDesignationOthers) ? "N/A" : formData.subjectCode,
       schoolName: formData.schoolName.trim(),
       schoolCode: formData.schoolCode.trim(),
       bankName: formData.bankName.trim() || DEFAULT_HIDDEN_VALUES.bankName,
@@ -439,7 +443,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
 
           <div>
             <label htmlFor={`${fieldIdPrefix}oasisId`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              OASIS ID {!isClassIvFunctionary && <span className="text-error-500">*</span>}
+              OASIS ID {!(isClassIvFunctionary || isDesignationOthers) && <span className="text-error-500">*</span>}
             </label>
             <input
               id={`${fieldIdPrefix}oasisId`}
@@ -447,26 +451,12 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
-              value={isClassIvFunctionary ? "N/A" : formData.oasisId}
+              value={(isClassIvFunctionary || isDesignationOthers) ? "N/A" : formData.oasisId}
               onChange={handleInputChange}
-              disabled={isClassIvFunctionary}
-              className={`input w-full ${errors.oasisId ? "input-error" : ""} ${isClassIvFunctionary ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed" : ""}`}
+              disabled={isClassIvFunctionary || isDesignationOthers}
+              className={`input w-full ${errors.oasisId ? "input-error" : ""} ${(isClassIvFunctionary || isDesignationOthers) ? "bg-gray-100 dark:bg-gray-800 cursor-not-allowed" : ""}`}
             />
             {errors.oasisId && <p className="text-error-500 text-xs mt-1">{errors.oasisId}</p>}
-          </div>
-
-          <div>
-            <label htmlFor={`${fieldIdPrefix}employeeId`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              Employee ID
-            </label>
-            <input
-              id={`${fieldIdPrefix}employeeId`}
-              name="employeeId"
-              type="text"
-              value={formData.employeeId}
-              onChange={handleInputChange}
-              className="input w-full"
-            />
           </div>
 
           <div>
@@ -491,7 +481,9 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
             {errors.designation && <p className="text-error-500 text-xs mt-1">{errors.designation}</p>}
           </div>
 
-          <div>
+          {!isDesignationOthers && (
+            <>
+            <div>
             <label htmlFor={`${fieldIdPrefix}subjectSearch`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
               Subjects <span className="text-error-500">*</span>
             </label>
@@ -566,6 +558,8 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
             </label>
             <input id={`${fieldIdPrefix}subjectCode`} name="subjectCode" value={formData.subjectCode} readOnly className="input w-full bg-gray-100 dark:bg-gray-800 cursor-not-allowed" />
           </div>
+
+          </>)}
 
           <div>
             <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">

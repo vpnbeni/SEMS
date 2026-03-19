@@ -10,6 +10,7 @@ const { getMasterUndertakingModel } = require('../models/platform/MasterUndertak
 const { getDataRolloutModel } = require('../models/platform/DataRollout');
 const { getMasterTeacherTemplateModel } = require('../models/platform/MasterTeacherTemplate');
 const { getMasterRemunerationRateModel } = require('../models/platform/MasterRemunerationRate');
+const { getMasterPackingDispatchModel } = require('../models/platform/MasterPackingDispatch');
 
 const getPlatformModels = () => {
   const connection = getPlatformConnection();
@@ -27,6 +28,7 @@ const getPlatformModels = () => {
     DataRollout: getDataRolloutModel(connection),
     MasterTeacherTemplate: getMasterTeacherTemplateModel(connection),
     MasterRemunerationRate: getMasterRemunerationRateModel(connection),
+    MasterPackingDispatch: getMasterPackingDispatchModel(connection),
   };
 };
 
