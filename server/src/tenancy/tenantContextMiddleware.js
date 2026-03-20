@@ -33,6 +33,14 @@ const platformContextMiddleware = async (req, res, next) => {
     const rootApiDomain = (process.env.ROOT_API_DOMAIN || 'api.vpnbeni.com').toLowerCase();
     const isRequestToRootApiHost = resolution.host === rootApiDomain;
 
+    console.log('[platform-debug]', {
+      host: req.headers.host,
+      xForwardedHost: req.headers['x-forwarded-host'],
+      origin: req.headers.origin,
+      referer: req.headers.referer,
+      resolution,
+    });
+
     // Platform admin routes must be served when request is to root API host (or localhost).
     // Allow when: request host is root API (e.g. api.capabble.cloud) even if origin/referer
     // imply a tenant (e.g. ib.capabble.cloud), so resolve-tenant and admin auth work from tenant app.
