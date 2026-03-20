@@ -357,10 +357,10 @@ const Header: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/centre-details')}
-                  className="min-w-0 rounded-xl border border-dashed border-primary-300 dark:border-primary-700 bg-primary-50/60 dark:bg-primary-900/20 px-3 py-2 shadow-sm hover:bg-primary-100/60 dark:hover:bg-primary-900/40 transition-colors group"
+                  className="min-w-0 rounded-lg border border-dashed border-primary-300 dark:border-primary-700 bg-primary-50/60 dark:bg-primary-900/20 px-2.5 py-1.5 shadow-sm hover:bg-primary-100/60 dark:hover:bg-primary-900/40 transition-colors group"
                 >
-                  <span className="flex items-center gap-2 text-base sm:text-lg font-semibold text-primary-600 dark:text-primary-400 group-hover:text-primary-700 dark:group-hover:text-primary-300">
-                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 group-hover:text-primary-700 dark:group-hover:text-primary-300">
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                     </svg>
                     Set up Centre Details

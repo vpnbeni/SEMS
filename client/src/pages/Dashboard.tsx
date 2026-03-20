@@ -1,14 +1,148 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { X } from 'lucide-react'
+import toast from 'react-hot-toast'
 import { ExamTimeline } from '@/components/dashboard'
 import type { ExamTimelineItem } from '@/components/dashboard'
 import { useTodaysExams, useDailyDuties, useDailyAnswerSheetSummary } from '@/hooks/useDashboard'
 import { useCentreDatesheetEntries } from '@/hooks/useSeatingPlan'
-import { useOnboardingStatus } from '@/hooks/useOnboarding'
+import { useOnboardingStatus, useJobStatus } from '@/hooks/useOnboarding'
 import type { CentreDatesheetEntry } from '@/services/centreDatesheetService'
 import type { TodaysExamsResponse, TodaysExam } from '@/services/dashboardService'
 import type { DailyDutiesResponse } from '@/services/dutiesService'
 import type { DailySummaryResponse, DailySummaryClassData } from '@/services/answerSheetService'
+
+// ─── Attendance Progress Widget ──────────────────────────────────────────────
+
+const ATTENDANCE_JOB_KEY = 'cntr_attendance_job'
+
+const STAGE_LABELS: Record<string, string> = {
+  connecting: 'Connecting…',
+  reading_x: 'Reading Class X PDF…',
+  parsing_x: 'Parsing Class X…',
+  uploading_x: 'Uploading Class X photos…',
+  phase_x_done: 'Class X complete…',
+  reading_xii: 'Reading Class XII PDF…',
+  parsing_xii: 'Parsing Class XII…',
+  uploading_xii: 'Uploading Class XII photos…',
+  done: 'Finalising…',
+  queued: 'Queued',
+}
+
+interface AttendanceProgressWidgetProps {
+  jobId: string
+  onDone: () => void
+}
+
+const AttendanceProgressWidget: React.FC<AttendanceProgressWidgetProps> = ({ jobId, onDone }) => {
+  const { data, isError } = useJobStatus(jobId)
+  const [dismissed, setDismissed] = useState(false)
+
+  useEffect(() => {
+    if (data?.state === 'completed') {
+      const r = data.result
+      const xCount = r?.classX?.uploaded ?? 0
+      const xiiCount = r?.classXII?.uploaded ?? 0
+      toast.success(
+        xCount + xiiCount > 0
+          ? `Attendance processed! ${xCount + xiiCount} photos uploaded.`
+          : 'Attendance sheets processed (no photos found — tabular format).',
+        { duration: 6000 }
+      )
+      localStorage.removeItem(ATTENDANCE_JOB_KEY)
+      setTimeout(() => { setDismissed(true); onDone() }, 3500)
+    } else if (data?.state === 'failed') {
+      toast.error('Attendance processing failed. Please retry from Onboarding.', { duration: 8000 })
+      localStorage.removeItem(ATTENDANCE_JOB_KEY)
+      setTimeout(() => { setDismissed(true); onDone() }, 4000)
+    }
+  }, [data?.state, data?.result, onDone])
+
+  if (dismissed || isError) return null
+
+  const percent = (data?.progress as any)?.percent ?? 0
+  const stage = (data?.progress as any)?.stage ?? 'queued'
+  const state = data?.state ?? 'waiting'
+  const processed = (data?.progress as any)?.processed as number | undefined
+  const total = (data?.progress as any)?.total as number | undefined
+
+  const isFinished = state === 'completed' || state === 'failed'
+  const radius = 26
+  const circ = 2 * Math.PI * radius
+  const offset = circ - (Math.min(percent, 100) / 100) * circ
+  const stageLabel = STAGE_LABELS[stage] ?? 'Processing…'
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50 select-none">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-2xl rounded-2xl px-4 py-3 flex items-center gap-3 min-w-[230px] max-w-[280px]">
+        {/* Circular progress ring */}
+        <div className="relative flex-shrink-0 w-14 h-14">
+          <svg className="w-14 h-14 -rotate-90" viewBox="0 0 64 64">
+            {/* Track */}
+            <circle
+              cx="32" cy="32" r={radius}
+              fill="none" strokeWidth="5"
+              className="stroke-gray-100 dark:stroke-gray-800"
+            />
+            {/* Progress arc */}
+            <circle
+              cx="32" cy="32" r={radius}
+              fill="none" strokeWidth="5"
+              strokeDasharray={circ}
+              strokeDashoffset={offset}
+              strokeLinecap="round"
+              className={`transition-all duration-700 ease-in-out ${
+                state === 'failed'
+                  ? 'stroke-red-500'
+                  : state === 'completed'
+                  ? 'stroke-green-500'
+                  : 'stroke-blue-500'
+              }`}
+            />
+          </svg>
+          {/* Centre label */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            {state === 'completed' ? (
+              <span className="text-base font-bold text-green-500">✓</span>
+            ) : state === 'failed' ? (
+              <span className="text-base font-bold text-red-500">✗</span>
+            ) : (
+              <span className="text-[11px] font-bold text-gray-700 dark:text-gray-200">
+                {percent}%
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Text */}
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">
+            Processing Attendance
+          </p>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate mt-0.5">
+            {stageLabel}
+          </p>
+          {typeof processed === 'number' && typeof total === 'number' && total > 0 && (
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5">
+              {processed} / {total} photos
+            </p>
+          )}
+        </div>
+
+        {/* Dismiss button (only visible once job ends) */}
+        {isFinished && (
+          <button
+            onClick={() => { setDismissed(true); onDone() }}
+            className="flex-shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -727,10 +861,28 @@ const Dashboard: React.FC = () => {
   const { data: onboardingStatus } = useOnboardingStatus()
 
   useEffect(() => {
-    if (onboardingStatus && !onboardingStatus.isComplete) {
+    if (onboardingStatus && !onboardingStatus.hasSession) {
       navigate('/onboarding', { replace: true })
     }
   }, [onboardingStatus, navigate])
+
+  // --- attendance background job ---
+  // Read jobId from localStorage on mount (set by OnboardingWizard after queuing)
+  const [pendingJobId, setPendingJobId] = useState<string | null>(() => {
+    try {
+      const stored = localStorage.getItem(ATTENDANCE_JOB_KEY)
+      if (!stored) return null
+      const parsed = JSON.parse(stored) as { jobId: string; enqueuedAt: number }
+      // Discard stale jobs older than 24 hours
+      if (Date.now() - parsed.enqueuedAt > 24 * 60 * 60 * 1000) {
+        localStorage.removeItem(ATTENDANCE_JOB_KEY)
+        return null
+      }
+      return parsed.jobId ?? null
+    } catch {
+      return null
+    }
+  })
 
   // --- data fetching ---
   const {
@@ -794,6 +946,13 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="h-full min-h-0 flex flex-col bg-gray-50 dark:bg-gray-900">
+      {/* Floating attendance progress widget — only shown while a job is pending */}
+      {pendingJobId && (
+        <AttendanceProgressWidget
+          jobId={pendingJobId}
+          onDone={() => setPendingJobId(null)}
+        />
+      )}
       <div className="flex-1 min-h-0 flex flex-col p-4 md:p-5 overflow-y-auto space-y-4">
         {/* ── Exam Timeline Date Strip ── */}
         <div className="flex-shrink-0">

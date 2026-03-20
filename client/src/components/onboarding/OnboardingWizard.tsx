@@ -1,9 +1,18 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useOnboardingStatus, useStartOnboarding, useCompleteStep, useCompleteOnboarding } from '@/hooks/useOnboarding';
-import { CheckCircle, AlertCircle, Clock, FileText, XCircle } from 'lucide-react';
+import {
+  useOnboardingStatus,
+  useStartOnboarding,
+  useCompleteStep,
+  useCompleteOnboarding,
+  useQueueAttendanceUpload,
+} from '@/hooks/useOnboarding';
+import { CheckCircle, AlertCircle, Clock, FileText, XCircle, Upload } from 'lucide-react';
 import Dialog from '@/components/common/Dialog/Dialog';
 import toast from 'react-hot-toast';
+
+// localStorage key for persisting the queued job ID across navigation
+const ATTENDANCE_JOB_KEY = 'cntr_attendance_job';
 
 interface StepConfig {
   number: number;
@@ -11,6 +20,8 @@ interface StepConfig {
   description: string;
   fileType: 'pdf' | 'txt';
   stepKey: string;
+  /** If true this step manages two files (class X + XII combined) */
+  isCombined?: boolean;
 }
 
 const STEPS: StepConfig[] = [
@@ -44,17 +55,11 @@ const STEPS: StepConfig[] = [
   },
   {
     number: 5,
-    title: 'Upload Attendance Sheet (Class X)',
-    description: 'Upload attendance sheet PDF with candidate photos for Class X',
+    title: 'Upload Attendance Sheets',
+    description: 'Upload attendance PDFs for both Class X and Class XII. Photos will be extracted in the background — you can continue using the app immediately.',
     fileType: 'pdf',
-    stepKey: 'attendanceUploadX',
-  },
-  {
-    number: 6,
-    title: 'Upload Attendance Sheet (Class XII)',
-    description: 'Upload attendance sheet PDF with candidate photos for Class XII',
-    fileType: 'pdf',
-    stepKey: 'attendanceUploadXII',
+    stepKey: 'attendanceUploadX', // used only for completion-check; worker sets both
+    isCombined: true,
   },
 ];
 
@@ -64,23 +69,28 @@ export function OnboardingWizard() {
   const startOnboarding = useStartOnboarding();
   const completeStep = useCompleteStep();
   const completeOnboarding = useCompleteOnboarding();
+  const queueAttendanceUpload = useQueueAttendanceUpload();
 
   const [currentStep, setCurrentStep] = useState(1);
+  // Single-file steps (1–4)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Combined attendance step (step 5)
+  const [selectedFileX, setSelectedFileX] = useState<File | null>(null);
+  const [selectedFileXII, setSelectedFileXII] = useState<File | null>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
 
   const session = statusData?.session;
 
-  // Sync currentStep to the first incomplete step when session data loads
+  // Sync to first incomplete step when session loads
   useEffect(() => {
     if (!session?.steps) return;
     const firstIncomplete = STEPS.findIndex(
       (step) => session.steps[step.stepKey as keyof typeof session.steps]?.status !== 'completed'
     );
-    // If all steps are completed, stay on the last step; otherwise go to first incomplete
     const targetStep = firstIncomplete === -1 ? STEPS.length : firstIncomplete + 1;
     setCurrentStep(targetStep);
   }, [session?.steps]);
+
   const isComplete = statusData?.isComplete;
 
   const handleStartOnboarding = useCallback(() => {
@@ -89,11 +99,10 @@ export function OnboardingWizard() {
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-    }
+    if (file) setSelectedFile(file);
   }, []);
 
+  // ── Steps 1–4 upload ──────────────────────────────────────────────────────
   const handleUpload = useCallback(async () => {
     if (!selectedFile) {
       toast.error('Please select a file');
@@ -109,33 +118,49 @@ export function OnboardingWizard() {
       formData.append('txt', selectedFile);
     }
 
-    const isLastStep = currentStep === STEPS.length;
-
     completeStep.mutate(
       { stepNumber: currentStep, formData },
       {
         onSuccess: () => {
           setSelectedFile(null);
-          if (!isLastStep) {
-            setCurrentStep(currentStep + 1);
-          } else {
-            // Last step uploaded — immediately complete the session
-            completeOnboarding.mutate(undefined, {
-              onSuccess: () => navigate('/dashboard'),
-            });
-          }
+          setCurrentStep(currentStep + 1);
         },
       }
     );
-  }, [currentStep, selectedFile, completeStep, completeOnboarding, navigate]);
+  }, [currentStep, selectedFile, completeStep]);
 
-  const handleComplete = useCallback(() => {
-    completeOnboarding.mutate(undefined, {
-      onSuccess: () => {
-        navigate('/dashboard');
+  // ── Step 5: combined attendance queue ────────────────────────────────────
+  const handleQueueAttendance = useCallback(async () => {
+    if (!selectedFileX || !selectedFileXII) {
+      toast.error('Please select both the Class X and Class XII attendance PDFs');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('pdfX', selectedFileX);
+    formData.append('pdfXII', selectedFileXII);
+
+    queueAttendanceUpload.mutate(formData, {
+      onSuccess: (data) => {
+        // Persist the job ID so Dashboard can show the progress widget
+        localStorage.setItem(
+          ATTENDANCE_JOB_KEY,
+          JSON.stringify({ jobId: data.jobId, enqueuedAt: Date.now() })
+        );
+
+        // Mark session complete even though photo processing is still running
+        completeOnboarding.mutate(undefined, {
+          onSuccess: () => {
+            toast.success(
+              'Attendance sheets submitted! Photos are being processed in the background.',
+              { duration: 5000 }
+            );
+            navigate('/dashboard');
+          },
+        });
       },
     });
-  }, [completeOnboarding, navigate]);
+  }, [selectedFileX, selectedFileXII, queueAttendanceUpload, completeOnboarding, navigate]);
 
   const handlePrevious = useCallback(() => {
     setCurrentStep(Math.max(1, currentStep - 1));
@@ -149,7 +174,7 @@ export function OnboardingWizard() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
       </div>
     );
   }
@@ -193,7 +218,13 @@ export function OnboardingWizard() {
 
   const currentStepConfig = STEPS[currentStep - 1];
   const currentStepStatus = getStepStatus(currentStepConfig.stepKey);
-  const currentStepWarnings = session?.steps[currentStepConfig.stepKey as keyof typeof session.steps]?.validationWarnings ?? [];
+  const currentStepWarnings =
+    session?.steps[currentStepConfig.stepKey as keyof typeof session.steps]
+      ?.validationWarnings ?? [];
+  const isCombinedStep = currentStepConfig.isCombined === true;
+  const isLastStep = currentStep === STEPS.length;
+  const isBusy =
+    completeStep.isPending || queueAttendanceUpload.isPending || completeOnboarding.isPending;
 
   return (
     <div className="max-w-4xl mx-auto mt-8 p-6">
@@ -204,8 +235,12 @@ export function OnboardingWizard() {
         <div className="flex items-center justify-between">
           {STEPS.map((step, index) => {
             const status = getStepStatus(step.stepKey);
+            // For the combined step, also check the XII status
+            const isCompleted =
+              status === 'completed' &&
+              (!step.isCombined ||
+                getStepStatus('attendanceUploadXII') === 'completed');
             const isActive = currentStep === step.number;
-            const isCompleted = status === 'completed';
 
             return (
               <div key={step.number} className="flex items-center">
@@ -225,14 +260,12 @@ export function OnboardingWizard() {
                       <span>{step.number}</span>
                     )}
                   </div>
-                  <span className="text-xs mt-2 text-center max-w-[100px]">
-                    {step.title}
-                  </span>
+                  <span className="text-xs mt-2 text-center max-w-[100px]">{step.title}</span>
                 </div>
                 {index < STEPS.length - 1 && (
                   <div
                     className={`h-1 w-12 mx-2 ${
-                      status === 'completed' ? 'bg-green-500' : 'bg-gray-200'
+                      isCompleted ? 'bg-green-500' : 'bg-gray-200'
                     }`}
                   />
                 )}
@@ -242,21 +275,22 @@ export function OnboardingWizard() {
         </div>
       </div>
 
-      {/* Current Step */}
+      {/* Current Step Card */}
       <div className="bg-white rounded-lg shadow-lg p-8">
         <h2 className="text-2xl font-bold mb-2">{currentStepConfig.title}</h2>
         <p className="text-gray-600 mb-6">{currentStepConfig.description}</p>
 
-        {/* Slow-step warning for steps 5 & 6 */}
-        {(currentStep === 5 || currentStep === 6) && (
-          <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg">
+        {/* Background-processing info banner for combined attendance step */}
+        {isCombinedStep && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <div className="flex items-start gap-2">
-              <Clock className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+              <Clock className="w-5 h-5 text-blue-600 mt-0.5 shrink-0" />
               <div>
-                <p className="font-semibold text-amber-800">This step takes longer than usual</p>
-                <p className="text-sm text-amber-700 mt-1">
-                  Attendance sheets contain candidate photos and require extra processing time.
-                  Please <strong>do not close or refresh this tab</strong> until the upload completes.
+                <p className="font-semibold text-blue-800">Processed in the background</p>
+                <p className="text-sm text-blue-700 mt-1">
+                  After you submit both PDFs you'll be taken to the dashboard immediately.
+                  A progress indicator will appear at the bottom-right while photos are extracted.
+                  You can safely close or navigate — the job will continue on the server.
                 </p>
               </div>
             </div>
@@ -280,25 +314,65 @@ export function OnboardingWizard() {
           </div>
         )}
 
-        {/* File Upload */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Select {currentStepConfig.fileType.toUpperCase()} File
-          </label>
-          <input
-            type="file"
-            accept={currentStepConfig.fileType === 'pdf' ? '.pdf' : '.txt'}
-            onChange={handleFileSelect}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-          />
-          {selectedFile && (
-            <p className="mt-2 text-sm text-gray-600">
-              Selected: {selectedFile.name}
-            </p>
-          )}
-        </div>
+        {/* ── File Input(s) ──────────────────────────────────────────────── */}
+        {isCombinedStep ? (
+          <div className="mb-6 space-y-4">
+            {/* Class X PDF */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Class X Attendance Sheet <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={(e) => setSelectedFileX(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {selectedFileX && (
+                <p className="mt-1 text-sm text-gray-600 flex items-center gap-1">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  {selectedFileX.name}
+                </p>
+              )}
+            </div>
 
-        {/* Actions */}
+            {/* Class XII PDF */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Class XII Attendance Sheet <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="file"
+                accept=".pdf"
+                onChange={(e) => setSelectedFileXII(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {selectedFileXII && (
+                <p className="mt-1 text-sm text-gray-600 flex items-center gap-1">
+                  <CheckCircle className="w-4 h-4 text-green-500" />
+                  {selectedFileXII.name}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Select {currentStepConfig.fileType.toUpperCase()} File
+            </label>
+            <input
+              type="file"
+              accept={currentStepConfig.fileType === 'pdf' ? '.pdf' : '.txt'}
+              onChange={handleFileSelect}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            />
+            {selectedFile && (
+              <p className="mt-2 text-sm text-gray-600">Selected: {selectedFile.name}</p>
+            )}
+          </div>
+        )}
+
+        {/* ── Actions ───────────────────────────────────────────────────── */}
         <div className="flex justify-between">
           <div className="flex items-center gap-3">
             <button
@@ -316,35 +390,32 @@ export function OnboardingWizard() {
             </button>
           </div>
 
-          {currentStep < STEPS.length ? (
+          {isCombinedStep ? (
             <button
-              onClick={handleUpload}
-              disabled={!selectedFile || completeStep.isPending}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              onClick={handleQueueAttendance}
+              disabled={!selectedFileX || !selectedFileXII || isBusy}
+              className="inline-flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
             >
-              {completeStep.isPending ? 'Uploading...' : 'Upload & Continue'}
-            </button>
-          ) : selectedFile ? (
-            <button
-              onClick={handleUpload}
-              disabled={completeStep.isPending || completeOnboarding.isPending}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-            >
-              {completeStep.isPending || completeOnboarding.isPending ? 'Processing...' : 'Upload & Complete'}
+              <Upload className="w-4 h-4" />
+              {isBusy ? 'Submitting...' : 'Submit & Go to Dashboard'}
             </button>
           ) : (
             <button
-              onClick={handleComplete}
-              disabled={currentStepStatus !== 'completed' || completeOnboarding.isPending}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              onClick={handleUpload}
+              disabled={!selectedFile || isBusy}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
-              {completeOnboarding.isPending ? 'Completing...' : 'Complete Onboarding'}
+              {isBusy
+                ? 'Uploading...'
+                : isLastStep
+                ? 'Upload & Complete'
+                : 'Upload & Continue'}
             </button>
           )}
         </div>
       </div>
 
-      {/* Validation Report Button */}
+      {/* Validation Report */}
       {session?.validationReport && (
         <div className="mt-6 text-center">
           <button
@@ -357,7 +428,6 @@ export function OnboardingWizard() {
         </div>
       )}
 
-      {/* Validation Report Dialog */}
       <Dialog
         isOpen={isReportOpen}
         onClose={() => setIsReportOpen(false)}
@@ -382,19 +452,21 @@ export function OnboardingWizard() {
       >
         {session?.validationReport && (
           <div className="space-y-5">
-            {/* Overall status badge */}
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium
-              ${session.validationReport.overallStatus === 'errors'
-                ? 'bg-red-100 text-red-700'
-                : session.validationReport.overallStatus === 'warnings'
-                ? 'bg-yellow-100 text-yellow-700'
-                : 'bg-green-100 text-green-700'
+            <div
+              className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium
+              ${
+                session.validationReport.overallStatus === 'errors'
+                  ? 'bg-red-100 text-red-700'
+                  : session.validationReport.overallStatus === 'warnings'
+                  ? 'bg-yellow-100 text-yellow-700'
+                  : 'bg-green-100 text-green-700'
               }`}
             >
-              {session.validationReport.overallStatus === 'valid' ? 'All data looks good' : `Status: ${session.validationReport.overallStatus}`}
+              {session.validationReport.overallStatus === 'valid'
+                ? 'All data looks good'
+                : `Status: ${session.validationReport.overallStatus}`}
             </div>
 
-            {/* Candidate counts */}
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Class X Candidates</p>
@@ -403,14 +475,15 @@ export function OnboardingWizard() {
                 </p>
               </div>
               <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Class XII Candidates</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Class XII Candidates
+                </p>
                 <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {session.validationReport.candidateCountXII ?? '—'}
                 </p>
               </div>
             </div>
 
-            {/* Form 66 mismatches */}
             {(session.validationReport.form66MismatchesX?.length ?? 0) > 0 && (
               <MismatchSection
                 title="Form 66 Mismatches — Class X"
@@ -423,8 +496,6 @@ export function OnboardingWizard() {
                 items={session.validationReport.form66MismatchesXII!}
               />
             )}
-
-            {/* Attendance mismatches */}
             {(session.validationReport.attendanceMismatchesX?.length ?? 0) > 0 && (
               <MismatchSection
                 title="Attendance Mismatches — Class X"

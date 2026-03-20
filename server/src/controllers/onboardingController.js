@@ -6,6 +6,8 @@ const { parseAttendanceSheetPdf } = require('../utils/attendanceSheetParser');
 const { generateOnboardingReport } = require('../utils/onboardingValidator');
 const pdfParse = require('pdf-parse');
 const { cloudinary } = require('../config/cloudinary');
+const { attendanceQueue } = require('../queues/attendanceQueue');
+const { Job } = require('bullmq');
 
 /**
  * Get current onboarding session status
@@ -566,6 +568,90 @@ const completeOnboarding = asyncHandler(async (req, res) => {
 });
 
 /**
+ * Queue both attendance PDFs for background processing (replaces Steps 5 & 6).
+ *
+ * Accepts: multipart/form-data with fields `pdfX` (Class X) and `pdfXII` (Class XII).
+ * Returns immediately with { jobId } — the heavy work runs in attendanceWorker.
+ */
+const queueAttendanceUpload = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+  const tenantDbName = req.tenant?.dbName;
+  const OnboardingSessionModel = req.models?.OnboardingSession || OnboardingSession;
+
+  if (!tenantDbName) {
+    return res.status(400).json({ success: false, message: 'Tenant context not available' });
+  }
+
+  if (!req.files?.pdfX || !req.files?.pdfXII) {
+    return res.status(400).json({
+      success: false,
+      message: 'Please upload both Class X (pdfX) and Class XII (pdfXII) attendance PDFs',
+    });
+  }
+
+  const session = await OnboardingSessionModel.findOne({
+    userId,
+    completedAt: null,
+  }).sort({ createdAt: -1 });
+
+  if (!session) {
+    return res.status(404).json({ success: false, message: 'No active onboarding session found' });
+  }
+
+  // Pass temp file paths directly to the worker — no Cloudinary upload in the request cycle.
+  // express-fileupload is configured with useTempFiles: true so tempFilePath is always set.
+  const pdfXFile = req.files.pdfX;
+  const pdfXIIFile = req.files.pdfXII;
+
+  if (!pdfXFile.tempFilePath || !pdfXIIFile.tempFilePath) {
+    return res.status(500).json({
+      success: false,
+      message: 'Temp file paths not available. Ensure useTempFiles is enabled in express-fileupload config.',
+    });
+  }
+
+  const job = await attendanceQueue.add('process-attendance', {
+    tenantDbName,
+    sessionId: session._id.toString(),
+    userId: userId.toString(),
+    classXTempPath: pdfXFile.tempFilePath,
+    classXIITempPath: pdfXIIFile.tempFilePath,
+    userEmail: req.user.email || null,
+  });
+
+  res.json({
+    success: true,
+    jobId: job.id,
+    status: 'queued',
+    message: 'Attendance sheets queued for background processing. You can safely navigate away.',
+  });
+});
+
+/**
+ * Poll the status and progress of a queued attendance job.
+ * GET /onboarding/jobs/:jobId/status
+ */
+const getJobStatus = asyncHandler(async (req, res) => {
+  const { jobId } = req.params;
+
+  const job = await Job.fromId(attendanceQueue, jobId);
+  if (!job) {
+    return res.status(404).json({ success: false, message: 'Job not found or has expired' });
+  }
+
+  const state = await job.getState();
+
+  res.json({
+    success: true,
+    jobId: job.id,
+    state,
+    progress: job.progress ?? null,
+    result: state === 'completed' ? job.returnvalue : null,
+    failedReason: state === 'failed' ? job.failedReason : null,
+  });
+});
+
+/**
  * Get onboarding history
  */
 const getOnboardingHistory = asyncHandler(async (req, res) => {
@@ -588,5 +674,7 @@ module.exports = {
   completeStep,
   getValidationReport,
   completeOnboarding,
-  getOnboardingHistory
+  getOnboardingHistory,
+  queueAttendanceUpload,
+  getJobStatus,
 };

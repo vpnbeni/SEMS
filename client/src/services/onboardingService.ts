@@ -1,5 +1,30 @@
 import api from './api';
 
+export type JobState = 'waiting' | 'active' | 'completed' | 'failed' | 'delayed' | 'unknown';
+
+export interface AttendanceJobProgress {
+  stage: string;
+  percent: number;
+  processed?: number;
+  total?: number;
+}
+
+export interface AttendanceJobStatusResponse {
+  success: boolean;
+  jobId: string;
+  state: JobState;
+  progress: AttendanceJobProgress | null;
+  result: { classX: { uploaded: number }; classXII: { uploaded: number } } | null;
+  failedReason: string | null;
+}
+
+export interface QueueAttendanceResponse {
+  success: boolean;
+  jobId: string;
+  status: 'queued';
+  message: string;
+}
+
 export interface OnboardingStep {
   status: 'pending' | 'completed' | 'skipped';
   completedAt?: string;
@@ -79,6 +104,22 @@ const onboardingService = {
   // Get onboarding history
   getHistory: async () => {
     const response = await api.get('/onboarding/history');
+    return response.data;
+  },
+
+  // Queue both attendance PDFs for background processing (replaces steps 5 & 6).
+  // Returns immediately with a jobId — no 5-minute wait.
+  queueAttendanceUpload: async (formData: FormData): Promise<QueueAttendanceResponse> => {
+    const response = await api.post('/onboarding/attendance-upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000, // 1 min — just for uploading the raw PDFs to Cloudinary
+    });
+    return response.data;
+  },
+
+  // Poll the status of a background attendance processing job.
+  getJobStatus: async (jobId: string): Promise<AttendanceJobStatusResponse> => {
+    const response = await api.get(`/onboarding/jobs/${jobId}/status`);
     return response.data;
   },
 };
