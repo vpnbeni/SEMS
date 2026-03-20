@@ -16,7 +16,7 @@ const buildTenantResolutionDebugContext = (req, resolution) => {
   return {
     method: req.method,
     originalUrl: req.originalUrl || req.url,
-    rootApiDomain: (process.env.ROOT_API_DOMAIN || 'api.vpnbeni.com').toLowerCase(),
+    rootApiDomain: (process.env.ROOT_API_DOMAIN || 'api.capabble.cloud').toLowerCase(),
     hostHeader: headers.host || null,
     xForwardedHostHeader: normalizedForwardedHost || null,
     originHeader: headers.origin || null,
@@ -30,10 +30,13 @@ const buildTenantResolutionDebugContext = (req, resolution) => {
 const platformContextMiddleware = async (req, res, next) => {
   try {
     const resolution = resolveTenantFromRequest(req);
-    const rootApiDomain = (process.env.ROOT_API_DOMAIN || 'api.vpnbeni.com').toLowerCase();
+    const rootApiDomain = (process.env.ROOT_API_DOMAIN || 'api.capabble.cloud').toLowerCase();
+    const rootAppDomain = (process.env.ROOT_APP_DOMAIN || 'cntr.capabble.cloud').toLowerCase();
     const isRequestToRootApiHost = resolution.host === rootApiDomain;
 
     console.log('[platform-debug]', {
+      rootApiDomain,
+      rootAppDomain,
       host: req.headers.host,
       xForwardedHost: req.headers['x-forwarded-host'],
       origin: req.headers.origin,
