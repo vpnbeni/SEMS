@@ -8,6 +8,7 @@ import { TenantsPage } from './pages/TenantsPage'
 import { BillingTenantsPage } from './pages/BillingTenantsPage'
 import { BillingCatalogPage } from './pages/BillingCatalogPage'
 import { FeaturesPage } from './pages/FeaturesPage'
+import { SchoolDirectoryPage } from './pages/SchoolDirectoryPage'
 import { RemunerationPage } from './pages/RemunerationPage'
 import { PackingDispatchPage } from './pages/PackingDispatchPage'
 import { platformAuthApi } from './services/platformApi'
@@ -104,6 +105,7 @@ function App() {
       { label: 'Rollouts', icon: 'R', path: '/rollouts', matcher: (path: string) => path.startsWith('/rollouts') },
       { label: 'Billing Tenants', icon: '$', path: '/billing/tenants', matcher: (path: string) => path === '/billing/tenants' },
       { label: 'Billing Catalog', icon: '%', path: '/billing/catalog', matcher: (path: string) => path === '/billing/catalog' },
+      { label: 'School Directory', icon: 'S', path: '/school-directory', matcher: (path: string) => path === '/school-directory' },
     ],
     [],
   )
@@ -153,6 +155,10 @@ function App() {
 
     if (currentPath === '/billing/catalog') {
       return <BillingCatalogPage />
+    }
+
+    if (currentPath === '/school-directory') {
+      return <SchoolDirectoryPage />
     }
 
     return <TenantsPage admin={admin} navigateTo={navigateTo} currentPath={currentPath} />

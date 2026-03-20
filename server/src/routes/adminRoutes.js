@@ -9,6 +9,7 @@ const {
   listTenants,
   getTenantById,
   resolveTenantByEmail,
+  lookupSchoolDirectoryByCode,
   createTenant,
   startPublicTenantSignup,
   resendPublicTenantSignupOtp,
@@ -27,13 +28,16 @@ const {
   publicTenantSignupResendOtpSchema,
   publicTenantSignupExchangeSchema,
   publicTenantResolveByEmailSchema,
+  publicSchoolDirectoryLookupParamSchema,
   updateTenantSchema,
   deleteTenantSchema,
   tenantQuerySchema,
   tenantIdParamSchema,
   tenantFeatureUpdateSchema,
   masterRemunerationUpdateSchema,
-  masterPackingDispatchUpdateSchema
+  masterPackingDispatchUpdateSchema,
+  schoolDirectoryTypeSettingsSchema,
+  schoolDirectoryManualTypeSchema
 } = require('../validations/adminValidation');
 const masterSubjectsController = require('../controllers/admin/masterSubjectsController');
 const masterDatesheetController = require('../controllers/admin/masterDatesheetController');
@@ -41,6 +45,8 @@ const masterGuidelinesController = require('../controllers/admin/masterGuideline
 const masterUndertakingsController = require('../controllers/admin/masterUndertakingsController');
 const masterRemunerationController = require('../controllers/admin/masterRemunerationController');
 const masterPackingDispatchController = require('../controllers/admin/masterPackingDispatchController');
+const masterSchoolDirectoryController = require('../controllers/admin/masterSchoolDirectoryController');
+const schoolDirectoryTypeSettingsController = require('../controllers/admin/schoolDirectoryTypeSettingsController');
 const rolloutController = require('../controllers/admin/rolloutController');
 const masterTeacherTemplateController = require('../controllers/admin/masterTeacherTemplateController');
 const billingAdminController = require('../controllers/admin/billingAdminController');
@@ -112,6 +118,12 @@ router.post(
   publicTenantResolveLimiter,
   validateJoi(publicTenantResolveByEmailSchema),
   resolveTenantByEmail
+);
+router.get(
+  '/public/school-directory/:schoolCode',
+  publicTenantResolveLimiter,
+  validateParams(publicSchoolDirectoryLookupParamSchema),
+  lookupSchoolDirectoryByCode
 );
 router.post(
   '/public/tenant-signup/start',
@@ -203,6 +215,23 @@ router.put(
   '/master-packing-dispatch',
   validateJoi(masterPackingDispatchUpdateSchema),
   masterPackingDispatchController.upsertSettings
+);
+
+// Master School Directory routes
+router.post('/master-school-directory/upload', masterSchoolDirectoryController.uploadSchoolDirectory);
+router.get('/master-school-directory', masterSchoolDirectoryController.listSchools);
+router.delete('/master-school-directory', masterSchoolDirectoryController.deleteSchools);
+router.patch(
+  '/master-school-directory/:id/type',
+  validateParams(tenantIdParamSchema),
+  validateJoi(schoolDirectoryManualTypeSchema),
+  masterSchoolDirectoryController.updateSchoolType
+);
+router.get('/master-school-directory/type-settings', schoolDirectoryTypeSettingsController.getSettings);
+router.put(
+  '/master-school-directory/type-settings',
+  validateJoi(schoolDirectoryTypeSettingsSchema),
+  schoolDirectoryTypeSettingsController.updateSettings
 );
 
 // Rollout routes

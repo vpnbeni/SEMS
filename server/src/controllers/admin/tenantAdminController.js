@@ -371,6 +371,35 @@ const resolveTenantByEmail = asyncHandler(async (req, res) => {
   });
 });
 
+const lookupSchoolDirectoryByCode = asyncHandler(async (req, res) => {
+  const schoolCode = String(req.params.schoolCode || '').trim().toUpperCase();
+  const { MasterSchoolDirectory } = req.platformModels;
+
+  const school = await MasterSchoolDirectory.findOne({
+    schoolCode,
+    isActive: true,
+  })
+    .select('schoolCode affiliationNo name')
+    .lean();
+
+  if (!school) {
+    return res.status(404).json({
+      success: false,
+      message: 'No school found for this school code'
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'School fetched successfully',
+    data: {
+      schoolCode: school.schoolCode || '',
+      affiliationNo: school.affiliationNo || '',
+      name: school.name || ''
+    }
+  });
+});
+
 const createTenant = asyncHandler(async (req, res) => {
   const {
     slug,
@@ -425,16 +454,41 @@ const createTenant = asyncHandler(async (req, res) => {
 
 const startPublicTenantSignup = asyncHandler(async (req, res) => {
   const {
+    schoolCode,
+    affiliationNo,
     slug,
     name,
     adminEmail,
     adminPassword
   } = req.body;
+  const { MasterSchoolDirectory } = req.platformModels;
+
+  const normalizedSchoolCode = String(schoolCode || '').trim().toUpperCase();
+  const normalizedAffiliationNo = String(affiliationNo || '').trim();
+  const normalizedSchoolName = String(name || '').trim();
 
   try {
+    const schoolRecord = await MasterSchoolDirectory.findOne({
+      schoolCode: normalizedSchoolCode,
+      isActive: true,
+    });
+
+    if (!schoolRecord) {
+      return sendSignupError(
+        res,
+        400,
+        'Selected school code was not found in the school directory. Please verify it and try again.',
+        'school_not_found'
+      );
+    }
+
+    schoolRecord.affiliationNo = normalizedAffiliationNo;
+    schoolRecord.name = normalizedSchoolName;
+    await schoolRecord.save();
+
     const result = await provisionTenant({
       slug,
-      name,
+      name: normalizedSchoolName,
       adminEmail,
       adminPassword,
       createdBy: null
@@ -868,6 +922,7 @@ module.exports = {
   listTenants,
   getTenantById,
   resolveTenantByEmail,
+  lookupSchoolDirectoryByCode,
   createTenant,
   startPublicTenantSignup,
   resendPublicTenantSignupOtp,
