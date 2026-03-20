@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { headers } from "next/headers";
 import {
   ArrowRight,
@@ -11,9 +10,9 @@ import {
   Workflow,
 } from "lucide-react";
 
-function getAppOrigin(host: string): string {
-  if (host.startsWith("stage.")) return "https://stagesems.capabble.cloud";
-  return "https://sems.capabble.cloud";
+function getCntrOrigin(host: string): string {
+  if (host.startsWith("stage.")) return "https://stagecntr.capabble.cloud";
+  return "https://cntr.capabble.cloud";
 }
 
 const workflowSteps = [
@@ -55,9 +54,9 @@ const benefits = [
 export default async function Home() {
   const headersList = await headers();
   const host = headersList.get("host") || "";
-  const appOrigin = getAppOrigin(host);
-  const loginUrl = `${appOrigin}/login`;
-  const signupUrl = "/signup";
+  const cntrOrigin = getCntrOrigin(host);
+  const loginUrl = `${cntrOrigin}/#/login`;
+  const signupUrl = `${cntrOrigin}/#/signup`;
 
   return (
     <main className="landing-shell relative min-h-screen overflow-hidden">
@@ -78,14 +77,14 @@ export default async function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            <a href={loginUrl} className="cta-secondary">
+            <a href={loginUrl} className="cta-secondary" title="Login to Cntr – Exam Centre Control">
               <LogIn className="h-4 w-4" />
-              Login
+              Login to Cntr
             </a>
-            <Link href={signupUrl} className="cta-primary">
+            <a href={signupUrl} className="cta-primary" title="Register your centre on Cntr">
               <UserPlus className="h-4 w-4" />
               Register
-            </Link>
+            </a>
           </div>
         </header>
 
@@ -109,13 +108,13 @@ export default async function Home() {
             </p>
 
             <div className="flex flex-wrap items-center gap-4">
-              <a href={loginUrl} className="cta-primary cta-lg">
-                Continue to Login
+              <a href={loginUrl} className="cta-primary cta-lg" title="Login to Cntr – Exam Centre Control">
+                Login to Cntr Panel
                 <ArrowRight className="h-4 w-4" />
               </a>
-              <Link href={signupUrl} className="cta-secondary cta-lg">
-                Create New Account
-              </Link>
+              <a href={signupUrl} className="cta-secondary cta-lg" title="Register your centre on Cntr">
+                Create Cntr Account
+              </a>
             </div>
           </div>
         </section>
@@ -170,15 +169,16 @@ export default async function Home() {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <a href={loginUrl} className="rounded-full bg-white px-6 py-3 text-sm font-bold text-sky-700 transition hover:-translate-y-0.5 hover:bg-slate-100">
-                  Login
+                <a href={loginUrl} className="rounded-full bg-white px-6 py-3 text-sm font-bold text-sky-700 transition hover:-translate-y-0.5 hover:bg-slate-100" title="Login to Cntr – Exam Centre Control">
+                  Login to Cntr
                 </a>
-                <Link
+                <a
                   href={signupUrl}
                   className="rounded-full border border-white/50 bg-white/10 px-6 py-3 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-white/20"
+                  title="Register your centre on Cntr"
                 >
-                  Register
-                </Link>
+                  Register on Cntr
+                </a>
               </div>
             </div>
           </div>

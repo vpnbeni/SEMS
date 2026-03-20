@@ -2,6 +2,29 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { featuresAdminApi } from '../services/platformApi'
 import type { TenantFeaturePage, TenantWithFeatureSummary } from '../types/platform'
 
+const SUPPLEMENTAL_FEATURE_PAGES: TenantFeaturePage[] = [
+  { key: 'pwd_info', label: 'PwD Info', path: '/pwd-info', group: 'Centre Records' },
+  { key: 'umcs', label: "UMC's", path: '/umcs', group: 'Centre Records' },
+  { key: 'stickers', label: 'Stickers', path: '/stickers', group: 'Centre Records' },
+  { key: 'performas', label: "Performa's", path: '/performas', group: 'Centre Records' },
+  { key: 'candidates', label: 'Candidate Details', path: '/candidate-details', group: 'Centre Records' },
+  { key: 'dispatch_slip', label: 'Dispatch Slip', path: '/dispatch-slip', group: 'Centre Records' },
+  { key: 'remuneration', label: 'Remuneration', path: '/remuneration', group: 'Centre Records' },
+]
+
+const mergeFeaturePages = (pages: TenantFeaturePage[]): TenantFeaturePage[] => {
+  const byKey = new Map<string, TenantFeaturePage>()
+
+  pages.forEach((page) => byKey.set(page.key, page))
+  SUPPLEMENTAL_FEATURE_PAGES.forEach((page) => {
+    if (!byKey.has(page.key)) {
+      byKey.set(page.key, page)
+    }
+  })
+
+  return Array.from(byKey.values())
+}
+
 export function FeaturesPage() {
   const [search, setSearch] = useState('')
   const [pages, setPages] = useState<TenantFeaturePage[]>([])
@@ -36,7 +59,7 @@ export function FeaturesPage() {
 
   const loadPages = async () => {
     const response = await featuresAdminApi.listPages()
-    setPages(response)
+    setPages(mergeFeaturePages(response))
   }
 
   const loadTenants = async (searchText = search) => {

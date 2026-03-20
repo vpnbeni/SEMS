@@ -1,20 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import { selectUser } from '@/redux/slices/authSlice'
 import { useAcademicSession } from '@/contexts/AcademicSessionContext'
 import { useTimetable } from '@/contexts/TimetableContext'
 import { isFeatureEnabledForPath } from '@/constants/featureAccess'
 import { useCentreDetails } from '@/hooks/useCentreDetails'
+import { useOnboardingStatus } from '@/hooks/useOnboarding'
 
 const Header: React.FC = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [genericSearchValue, setGenericSearchValue] = useState('')
   const location = useLocation()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const user = useSelector(selectUser)
   const isDashboardRoute = location.pathname === '/dashboard'
   const canAccessCentreDetails = isFeatureEnabledForPath('/centre-details', user?.featureToggles)
-  const defaultDashboardCentreLabel = '829261 - International Bharti School, Rohtak'
   const { currentSession } = useAcademicSession()
   const { periodsPerWeek, setPeriodsPerWeek } = useTimetable()
   const [editingPeriodsPerWeek, setEditingPeriodsPerWeek] = useState(false)
@@ -33,8 +35,8 @@ const Header: React.FC = () => {
     const segments = path.split('/').filter(Boolean)
     const seg = (segments[0] || 'dashboard').toLowerCase()
 
-    // Detail routes: /answersheets/:id, /candidates/:id, /exam-functionaries/:id
-    const listPathsWithDetail = ['answersheets', 'candidates', 'exam-functionaries']
+    // Detail routes: /answersheets/:id, /candidate-details/:id, /exam-functionaries/:id
+    const listPathsWithDetail = ['answersheets', 'candidate-details', 'exam-functionaries']
     const isDetailRoute =
       segments.length >= 2 &&
       listPathsWithDetail.includes(seg) &&
@@ -84,9 +86,9 @@ const Header: React.FC = () => {
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
-      case 'candidates':
+      case 'candidate-details':
         return {
-          pageTitle: 'Candidates',
+          pageTitle: 'Candidate Details',
           pageSubtitle: 'Manage examination candidates and PDF imports',
           showBackButton: isDetailRoute,
           backTo: backToPath,
@@ -123,6 +125,48 @@ const Header: React.FC = () => {
         return {
           pageTitle: 'Seating Plan',
           pageSubtitle: 'Generate and manage seating plan PDFs',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'dispatch-slip':
+        return {
+          pageTitle: 'Dispatch Slip',
+          pageSubtitle: 'Centre datesheet (date-wise). Download a dispatch slip PDF per subject.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'pwd-info':
+        return {
+          pageTitle: 'PwD Info',
+          pageSubtitle: 'Manage PwD candidate support, scribes, and extra time details at the centre.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'umcs':
+        return {
+          pageTitle: "UMC's",
+          pageSubtitle: 'Handle unfair means cases and generate the required forwarding performa.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'stickers':
+        return {
+          pageTitle: 'Stickers',
+          pageSubtitle: 'Generate date-wise roll number sticker grids for exam-day printing.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'performas':
+        return {
+          pageTitle: "Performa's",
+          pageSubtitle: 'Generate relieving letters and answer sheet submission letters for centre operations.',
+          showBackButton: isDetailRoute,
+          backTo: backToPath,
+        }
+      case 'remuneration':
+        return {
+          pageTitle: 'Remuneration',
+          pageSubtitle: 'Summary of duties assigned to each exam functionary.',
           showBackButton: isDetailRoute,
           backTo: backToPath,
         }
@@ -202,6 +246,42 @@ const Header: React.FC = () => {
     }
   }, [location.pathname])
 
+  const headerSearchConfig = useMemo(() => {
+    const path = location.pathname
+    if (path === '/stickers') {
+      return {
+        enabled: true,
+        placeholder: 'Search subject name or code...',
+        paramKey: 'q',
+      }
+    }
+
+    return {
+      enabled: false,
+      placeholder: 'Search...',
+      paramKey: null,
+    }
+  }, [location.pathname])
+
+  const headerSearchValue = headerSearchConfig.enabled
+    ? searchParams.get(headerSearchConfig.paramKey || '') || ''
+    : genericSearchValue
+
+  const handleHeaderSearchChange = (value: string) => {
+    if (!headerSearchConfig.enabled || !headerSearchConfig.paramKey) {
+      setGenericSearchValue(value)
+      return
+    }
+
+    const nextParams = new URLSearchParams(searchParams)
+    if (value.trim()) {
+      nextParams.set(headerSearchConfig.paramKey, value)
+    } else {
+      nextParams.delete(headerSearchConfig.paramKey)
+    }
+    setSearchParams(nextParams, { replace: true })
+  }
+
   const notifications = [
     { id: 1, message: 'New exam scheduled for Grade 12', time: '2 hours ago', type: 'info' },
     { id: 2, message: 'Room allocation updated', time: '4 hours ago', type: 'warning' },
@@ -215,6 +295,10 @@ const Header: React.FC = () => {
     return `${weekday}, ${date}`
   }, [])
 
+  const { data: onboardingStatus } = useOnboardingStatus()
+  const showOnboardingBanner =
+    !!onboardingStatus?.hasSession && !onboardingStatus?.isComplete
+
   const { data: centreDetails } = useCentreDetails({
     enabled: isDashboardRoute && canAccessCentreDetails,
   })
@@ -225,7 +309,7 @@ const Header: React.FC = () => {
     return [centreNo, centreName].filter(Boolean).join(' - ')
   }, [canAccessCentreDetails, centreDetails, isDashboardRoute])
 
-  const dashboardHeaderLabel = (dashboardCentreLabel || defaultDashboardCentreLabel).trim()
+  const dashboardHeaderLabel = dashboardCentreLabel.trim()
 
   useEffect(() => {
     setDraftPeriodsPerWeek(periodsPerWeek)
@@ -263,11 +347,26 @@ const Header: React.FC = () => {
               </button>
             )}
             {isDashboardRoute ? (
-              <div className="min-w-0 rounded-xl border border-secondary-200/70 dark:border-secondary-700 bg-white/70 dark:bg-secondary-800/40 px-3 py-2 shadow-sm">
-                <h1 className="text-base sm:text-lg md:text-2xl font-bold text-secondary-900 dark:text-white truncate tracking-tight">
-                  {dashboardHeaderLabel}
-                </h1>
-              </div>
+              dashboardHeaderLabel ? (
+                <div className="min-w-0 rounded-xl border border-secondary-200/70 dark:border-secondary-700 bg-white/70 dark:bg-secondary-800/40 px-3 py-2 shadow-sm">
+                  <h1 className="text-base sm:text-lg md:text-2xl font-bold text-secondary-900 dark:text-white truncate tracking-tight">
+                    {dashboardHeaderLabel}
+                  </h1>
+                </div>
+              ) : canAccessCentreDetails ? (
+                <button
+                  type="button"
+                  onClick={() => navigate('/centre-details')}
+                  className="min-w-0 rounded-lg border border-dashed border-primary-300 dark:border-primary-700 bg-primary-50/60 dark:bg-primary-900/20 px-2.5 py-1.5 shadow-sm hover:bg-primary-100/60 dark:hover:bg-primary-900/40 transition-colors group"
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-medium text-primary-600 dark:text-primary-400 group-hover:text-primary-700 dark:group-hover:text-primary-300">
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    Set up Centre Details
+                  </span>
+                </button>
+              ) : null
             ) : (
               <div className="min-w-0">
                 <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white truncate tracking-tight">
@@ -342,6 +441,21 @@ const Header: React.FC = () => {
                 )}
               </div>
             )}
+            {/* Onboarding Banner */}
+            {showOnboardingBanner && location.pathname !== '/onboarding' && (
+              <button
+                type="button"
+                onClick={() => navigate('/onboarding')}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors whitespace-nowrap"
+              >
+                <span className="relative flex h-2 w-2 flex-shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                </span>
+                Complete Onboarding
+              </button>
+            )}
+
             {/* Academic Session Badge */}
             {currentSession && (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200/60 dark:border-primary-800/40">
@@ -370,7 +484,9 @@ const Header: React.FC = () => {
                 </div>
                 <input
                   type="text"
-                  placeholder="Search..."
+                  value={headerSearchValue}
+                  onChange={(event) => handleHeaderSearchChange(event.target.value)}
+                  placeholder={headerSearchConfig.placeholder}
                   className="pl-9 pr-4 py-2 w-28 sm:w-32 text-sm bg-gray-50/80 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 rounded-xl focus:ring-0 focus:border-primary-400 focus:bg-white dark:focus:bg-gray-800 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)] transition-all duration-200 placeholder:text-gray-400 dark:text-white"
                 />
               </div>

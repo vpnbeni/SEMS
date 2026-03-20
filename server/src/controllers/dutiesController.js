@@ -165,7 +165,7 @@ const getDutyTypeSelectionsByDate = async (examDateKey, dutyType) => {
     dutyType,
     examDate: examDateKey,
   })
-    .populate('functionary', 'name employeeId schoolName schoolCode')
+    .populate('functionary', 'name oasisId employeeId schoolName schoolCode')
     .lean();
 
   return docs
@@ -479,8 +479,8 @@ const getDailyDuties = asyncHandler(async (req, res) => {
   const examDateKey = examDate.toISOString().slice(0, 10);
   const duties = await DutyAssignment.find({ examDate, isActive: true })
     .populate('room', 'roomNo roomName floor allocationOrderByDate')
-    .populate('functionary', 'name employeeId department designation')
-    .populate('functionary2', 'name employeeId department designation')
+    .populate('functionary', 'name oasisId employeeId department designation')
+    .populate('functionary2', 'name oasisId employeeId department designation')
     .lean();
 
   const sortedDuties = [...duties].sort((a, b) => {
@@ -545,7 +545,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
   const allocationMode = await getDutyAllocationMode();
   const lookupIds = Array.from(new Set([...firstFunctionaryIds, ...secondFunctionaryIds]));
   const functionaries = await Teacher.find({ _id: { $in: lookupIds }, isActive: true })
-    .select('name employeeId department designation schoolCode subjectCode supervisionHistory dutyType isActive')
+    .select('name oasisId employeeId department designation schoolCode subjectCode supervisionHistory dutyType isActive')
     .lean();
   if (functionaries.length !== lookupIds.length) {
     return res.status(400).json({ success: false, message: 'Some selected functionaries are invalid or inactive.' });
@@ -558,7 +558,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
       invalidFunctionaries: invalidInvigilators.map((functionary) => ({
         _id: functionary._id,
         name: functionary.name,
-        employeeId: functionary.employeeId,
+        oasisId: functionary.oasisId || functionary.employeeId,
         dutyType: functionary.dutyType,
       })),
     });
@@ -746,7 +746,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
         return {
           _id: funcId,
           name: fn.name,
-          employeeId: fn.employeeId,
+          oasisId: fn.oasisId || fn.employeeId,
           schoolCode: normalizeSchoolCode(fn.schoolCode),
           eligibleRoomCount: eligibleCount,
           totalRooms: nRooms,
@@ -902,8 +902,8 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
 
   const duties = await DutyAssignment.find({ examDate, isActive: true })
     .populate('room', 'roomNo roomName floor allocationOrderByDate')
-    .populate('functionary', 'name employeeId department designation')
-    .populate('functionary2', 'name employeeId department designation')
+    .populate('functionary', 'name oasisId employeeId department designation')
+    .populate('functionary2', 'name oasisId employeeId department designation')
     .lean();
   const sortedDuties = [...duties].sort((a, b) => {
     const orderDiff = parseAllocationOrder(a?.room, examDateKey) - parseAllocationOrder(b?.room, examDateKey);
@@ -958,8 +958,8 @@ const downloadFunctionaryDutyRecord = asyncHandler(async (req, res) => {
         .lean(),
       DutyAssignment.find({ examDate, isActive: true })
         .populate('room', '_id roomNo roomName floor')
-        .populate('functionary', 'name employeeId schoolName schoolCode')
-        .populate('functionary2', 'name employeeId schoolName schoolCode')
+        .populate('functionary', 'name oasisId employeeId schoolName schoolCode')
+        .populate('functionary2', 'name oasisId employeeId schoolName schoolCode')
         .lean(),
       getDutyTypeSelectionsByDate(examDateKey, 'Centre Superintendent'),
       getDutyTypeSelectionsByDate(examDateKey, 'Deputy Centre Superintendent'),
@@ -986,10 +986,10 @@ const downloadFunctionaryDutyRecord = asyncHandler(async (req, res) => {
       floor: normalizeText(room?.floor),
       inv1School: getSchoolInitials(invigilator1),
       inv1Name: normalizeText(invigilator1?.name),
-      inv1EmployeeId: normalizeText(invigilator1?.employeeId),
+      inv1EmployeeId: normalizeText(invigilator1?.oasisId || invigilator1?.employeeId),
       inv2School: getSchoolInitials(invigilator2),
       inv2Name: normalizeText(invigilator2?.name),
-      inv2EmployeeId: normalizeText(invigilator2?.employeeId),
+      inv2EmployeeId: normalizeText(invigilator2?.oasisId || invigilator2?.employeeId),
     };
   });
 

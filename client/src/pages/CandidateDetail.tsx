@@ -114,7 +114,7 @@ const CandidateDetail: React.FC = () => {
       setCandidate(response.data.data)
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Failed to fetch candidate details')
-      navigate('/candidates')
+      navigate('/candidate-details')
     } finally {
       setLoading(false)
     }
@@ -199,6 +199,13 @@ const CandidateDetail: React.FC = () => {
     })
   }, [candidate?.subjects])
 
+  const importedSubjectCodes = useMemo(() => {
+    const codes = (candidate?.subjectCodes || []).map(sc =>
+      typeof sc === 'string' ? sc : sc.code
+    )
+    return new Set(codes)
+  }, [candidate?.subjectCodes])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-96">
@@ -215,10 +222,10 @@ const CandidateDetail: React.FC = () => {
             Candidate Not Found
           </h1>
           <button
-            onClick={() => navigate('/candidates')}
+            onClick={() => navigate('/candidate-details')}
             className="btn btn-primary"
           >
-            Back to Candidates
+            Back to Candidate Details
           </button>
         </div>
       </div>
@@ -232,10 +239,10 @@ const CandidateDetail: React.FC = () => {
       <div className="flex items-center space-x-4">
       <button
       type="button"
-      onClick={() => navigate('/candidates')}
+      onClick={() => navigate('/candidate-details')}
       className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 transition-colors"
-      aria-label="Back to candidates list"
-      title="Back to candidates list"
+      aria-label="Back to candidate details list"
+      title="Back to candidate details list"
       >
       <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -265,7 +272,7 @@ const CandidateDetail: React.FC = () => {
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
           <button
-            onClick={() => navigate(`/candidates/${candidate._id}/edit`)}
+            onClick={() => navigate(`/candidate-details/${candidate._id}/edit`)}
             className="btn btn-secondary"
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -613,16 +620,18 @@ const CandidateDetail: React.FC = () => {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={() => setSubjectToRemove({ _id: subject._id, name: subject.name, code: subject.code })}
-                            className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 dark:text-red-400 transition-colors"
-                            title="Remove subject"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
+                          {!importedSubjectCodes.has(subject.code) && (
+                            <button
+                              type="button"
+                              onClick={() => setSubjectToRemove({ _id: subject._id, name: subject.name, code: subject.code })}
+                              className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 text-red-500 dark:text-red-400 transition-colors"
+                              title="Remove manually assigned subject"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -732,10 +741,10 @@ const CandidateDetail: React.FC = () => {
       <Dialog
         isOpen={assignSubjectOpen}
         onClose={() => { setAssignSubjectOpen(false); setAssignSearch('') }}
-        title="Assign Subject"
         size="sm"
         maxHeight="80vh"
       >
+        <Dialog.Header>Assign Subject</Dialog.Header>
         <Dialog.Body className="flex flex-col gap-0 p-0">
           {/* Search */}
           <div className="px-6 py-3 border-b border-secondary-200 dark:border-secondary-700">
@@ -800,24 +809,10 @@ const CandidateDetail: React.FC = () => {
       <Dialog
         isOpen={!!subjectToRemove}
         onClose={() => setSubjectToRemove(null)}
-        title="Remove Subject"
         variant="warning"
         size="sm"
-        actions={[
-          {
-            label: 'Cancel',
-            variant: 'secondary',
-            onClick: () => setSubjectToRemove(null),
-            disabled: updateCandidateMutation.isPending,
-          },
-          {
-            label: 'Remove Subject',
-            variant: 'error',
-            onClick: handleRemoveSubject,
-            loading: updateCandidateMutation.isPending,
-          },
-        ]}
       >
+        <Dialog.Header variant="warning">Remove Subject</Dialog.Header>
         <Dialog.Body className="space-y-4">
           <p className="text-sm text-gray-700 dark:text-gray-300">
             You are about to remove the following subject from this candidate:
@@ -842,6 +837,30 @@ const CandidateDetail: React.FC = () => {
             </div>
           </div>
         </Dialog.Body>
+        <Dialog.Footer>
+          <button
+            type="button"
+            onClick={() => setSubjectToRemove(null)}
+            disabled={updateCandidateMutation.isPending}
+            className="btn btn-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleRemoveSubject}
+            disabled={updateCandidateMutation.isPending}
+            className="btn btn-error"
+          >
+            {updateCandidateMutation.isPending && (
+              <svg className="w-4 h-4 mr-2 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+            )}
+            Remove Subject
+          </button>
+        </Dialog.Footer>
       </Dialog>
     </div>
   )

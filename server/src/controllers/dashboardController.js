@@ -9,6 +9,7 @@ const CentreDetail = require('../models/CentreDetail');
 const seatingPlanBuilder = require('../utils/seatingPlanBuilder');
 const { generateResponse } = require('../utils/helpers');
 const { HTTP_STATUS } = require('../utils/constants');
+const { mergePackingDispatchIntoCentreDetails } = require('../services/masterPackingDispatchService');
 
 // @desc    Get today's exams with candidate counts and room allocations
 // @route   GET /api/dashboard/todays-exams
@@ -111,7 +112,8 @@ const getTodaysExams = asyncHandler(async (req, res) => {
   const rooms = await Room.find({ isActive: true }).sort({ roomNo: 1 });
 
   // Packing details and duties count for the day (once)
-  const centreDetails = await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean();
+  const centreDetailsRaw = await CentreDetail.findOne({}).sort({ updatedAt: -1 }).lean();
+  const centreDetails = await mergePackingDispatchIntoCentreDetails(centreDetailsRaw);
   const packing = {
     clothColor: centreDetails?.packingClothColor || '',
     marker: centreDetails?.packingMarker || '',

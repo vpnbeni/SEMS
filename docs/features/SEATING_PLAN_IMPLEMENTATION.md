@@ -226,7 +226,7 @@ async function generateSeatingPlan(examDate, subjectCode, classLevel) {
 /seatingplan
 ├── Tabs
 │   ├── Notice Board Format
-│   ├── Room Folder Slip Format
+│   ├── Invigilator Slip Format
 │   ├── Room Door Slip Format
 │   └── CBSE Copy Format
 ├── Datesheet Table (existing)
@@ -247,7 +247,7 @@ async function generateSeatingPlan(examDate, subjectCode, classLevel) {
 
 3. **Export Options**
    - Notice Board format (PDF)
-   - Room Folder Slip (PDF)
+   - Invigilator Slip (PDF)
    - Room Door Slip (PDF)
    - CBSE Copy (Excel/PDF)
 
@@ -274,7 +274,7 @@ Room 102 (Ground Floor) - 24 Candidates
 ...
 ```
 
-### 2. Room Folder Slip Format
+### 2. Invigilator Slip Format
 ```
 ROOM: 101
 FLOOR: Ground Floor

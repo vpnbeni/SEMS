@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { HashRouter as Router, Routes, Route, Navigate, Link } from 'react-router-dom'
+import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import { getCurrentUser, selectIsAuthenticated, selectAuthLoading, selectUser } from './redux/slices/authSlice'
 import { useAcademicSession } from './contexts/AcademicSessionContext'
@@ -44,6 +44,13 @@ import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
 import AnswerSheetDetails from './pages/AnswerSheetDetails'
 import Attendance from './pages/Attendance'
+import PwdInfo from './pages/PwdInfo'
+import Umcs from './pages/Umcs'
+import Stickers from './pages/Stickers'
+import Performas from './pages/Performas'
+import DispatchSlip from './pages/DispatchSlip'
+import Remuneration from './pages/Remuneration'
+import RemunerationDetails from './pages/RemunerationDetails'
 import DropdownExamples from './pages/DropdownExamples'
 import DialogShowcase from './pages/DialogShowcase'
 import Billing from './pages/Billing'
@@ -51,11 +58,18 @@ import AccountSettings from './pages/AccountSettings'
 import HelpSupport from './pages/HelpSupport'
 import SessionSelector from './pages/SessionSelector'
 import Pricing from './pages/Pricing'
+import { OnboardingPage, ValidationReportPage } from './pages/Onboarding'
 
 // Components
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './routes/ProtectedRoute'
 import Loader from './components/common/Loader'
+
+const LegacyCandidatesRedirect = () => {
+  const location = useLocation()
+  const nextPath = location.pathname.replace(/^\/candidates/, '/candidate-details')
+  return <Navigate to={`${nextPath}${location.search}${location.hash}`} replace />
+}
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()
@@ -70,18 +84,10 @@ function App() {
     // Initialize auth on app startup
     authService.initializeAuth()
 
-    // Always refresh current user (and feature toggles) when token exists.
-    const refreshCurrentUser = () => {
-      const token = authService.getToken()
-      if (!token) return
+    // Refresh current user (and feature toggles) once on mount when token exists.
+    const token = authService.getToken()
+    if (token) {
       dispatch(getCurrentUser())
-    }
-
-    refreshCurrentUser()
-    window.addEventListener('focus', refreshCurrentUser)
-
-    return () => {
-      window.removeEventListener('focus', refreshCurrentUser)
     }
   }, [dispatch])
 
@@ -101,7 +107,6 @@ function App() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Routes>
           {/* Public Routes */}
-          <Route path="/cntr" element={<CntrLanding />} />
           <Route path="/pricing" element={<Pricing />} />
           <Route
             path="/"
@@ -109,7 +114,7 @@ function App() {
               isAuthenticated ? (
                 hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
               ) : (
-                <Login />
+                <CntrLanding />
               )
             }
           />
@@ -119,7 +124,7 @@ function App() {
               isAuthenticated ? (
                 hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
               ) : (
-                <Navigate to="/" replace />
+                <Login />
               )
             }
           />
@@ -178,6 +183,32 @@ function App() {
             }
           />
 
+          {/* Onboarding (authenticated, has session, but needs onboarding) */}
+          <Route
+            path="/onboarding"
+            element={
+              !isAuthenticated ? (
+                <Navigate to="/" replace />
+              ) : !hasSession ? (
+                <Navigate to="/select-session" replace />
+              ) : (
+                <OnboardingPage />
+              )
+            }
+          />
+          <Route
+            path="/onboarding/validation"
+            element={
+              !isAuthenticated ? (
+                <Navigate to="/" replace />
+              ) : !hasSession ? (
+                <Navigate to="/select-session" replace />
+              ) : (
+                <ValidationReportPage />
+              )
+            }
+          />
+
           {/* Protected Routes */}
           <Route path="/" element={<ProtectedRoute />}>
             <Route
@@ -215,8 +246,12 @@ function App() {
               <Route path="teachers" element={<Navigate to="/exam-functionaries" replace />} />
               <Route path="teachers/:id" element={<Navigate to="/exam-functionaries/:id" replace />} />
               {/* Students feature removed */}
-              <Route path="candidates" element={<Candidates />} />
-              <Route path="candidates/:id" element={<CandidateDetail />} />
+              <Route path="candidate-details" element={<Candidates />} />
+              <Route path="candidate-details/:id" element={<CandidateDetail />} />
+              <Route path="candidates/*" element={<LegacyCandidatesRedirect />} />
+              <Route path="dispatch-slip" element={<DispatchSlip />} />
+              <Route path="remuneration" element={<Remuneration />} />
+              <Route path="remuneration/:id" element={<RemunerationDetails />} />
               <Route path="form66" element={<Form66 />} />
               <Route path="seatingplan" element={<SeatingPlan />} />
               <Route path="subjects" element={<Subjects />} />
@@ -227,6 +262,10 @@ function App() {
               <Route path="answersheets" element={<AnswerSheets />} />
               <Route path="answersheets/:id" element={<AnswerSheetDetails />} />
               <Route path="attendance" element={<Attendance />} />
+              <Route path="pwd-info" element={<PwdInfo />} />
+              <Route path="umcs" element={<Umcs />} />
+              <Route path="stickers" element={<Stickers />} />
+              <Route path="performas" element={<Performas />} />
               <Route path="centre-guidelines" element={<CentreGuidelines />} />
               <Route path="cbse-circulars" element={<CBSECirculars />} />
               <Route path="cbse-portals" element={<CBSEPortals />} />

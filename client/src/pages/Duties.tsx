@@ -524,7 +524,11 @@ const Duties: React.FC = () => {
   const tabCounts = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const tab of DUTY_TABS) {
-      counts[tab.key] = allFunctionaries.filter((f) => f.dutyType === tab.dutyType).length
+      counts[tab.key] = allFunctionaries.filter((f) => (
+        tab.key === 'ASI'
+          ? isCurrentInvigilator(f)
+          : hasDutyType(f, tab.dutyType)
+      )).length
     }
     return counts
   }, [allFunctionaries])
@@ -567,7 +571,7 @@ const Duties: React.FC = () => {
     const term = search.trim().toLowerCase()
     if (term) {
       list = list.filter((f) => {
-        const haystack = `${f.name} ${f.employeeId || ''}`.toLowerCase()
+        const haystack = `${f.name} ${f.oasisId || ''} ${f.employeeId || ''}`.toLowerCase()
         return haystack.includes(term)
       })
     }
@@ -1519,7 +1523,7 @@ const Duties: React.FC = () => {
                     <td
                       className="sticky left-[22.5rem] z-[5] w-28 min-w-28 border border-gray-400 dark:border-gray-500 px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-700 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.06)] dark:shadow-[2px_0_4px_-2px_rgba(0,0,0,0.2)]"
                     >
-                      {activeTab === 'CL4' ? 'N/A' : (func.employeeId || '-')}
+                      {activeTab === 'CL4' ? 'N/A' : (func.oasisId || func.employeeId || '-')}
                     </td>
                     {examDates.map((dateKey) => {
                       const key = `${func._id}::${dateKey}`
@@ -1757,7 +1761,7 @@ const Duties: React.FC = () => {
                           </select>
                         </td>
                         <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-900 dark:text-white whitespace-nowrap">
-                          {selectedFunctionary?.employeeId || '-'}
+                          {selectedFunctionary?.oasisId || selectedFunctionary?.employeeId || '-'}
                         </td>
                         <td className="border border-gray-300 dark:border-gray-600 px-4 py-2">
                           <select
@@ -1785,7 +1789,7 @@ const Duties: React.FC = () => {
                           </select>
                         </td>
                         <td className="border border-gray-300 dark:border-gray-600 px-4 py-2 text-sm text-gray-900 dark:text-white whitespace-nowrap">
-                          {selectedFunctionarySecond?.employeeId || '-'}
+                          {selectedFunctionarySecond?.oasisId || selectedFunctionarySecond?.employeeId || '-'}
                         </td>
                       </tr>
                     )
@@ -1982,11 +1986,11 @@ const Duties: React.FC = () => {
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{room.floor || ''}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{getSchoolInitials(invigilator)}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{String(invigilator?.name || '').toUpperCase()}</td>
-                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.employeeId || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.oasisId || invigilator?.employeeId || ''}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1" />
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{getSchoolInitials(invigilator)}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{String(invigilator?.name || '').toUpperCase()}</td>
-                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.employeeId || ''}</td>
+                            <td className="border border-gray-600 dark:border-gray-400 px-1 py-1">{invigilator?.oasisId || invigilator?.employeeId || ''}</td>
                             <td className="border border-gray-600 dark:border-gray-400 px-1 py-1" />
                           </tr>
                         )})}

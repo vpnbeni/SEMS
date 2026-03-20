@@ -4,6 +4,7 @@ export interface AbsenteeRecord {
   candidateId: string
   examDate: string
   subjectCode: string
+  class?: 'X' | 'XII'
 }
 
 export interface SaveAbsenteeRecord {

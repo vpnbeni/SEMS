@@ -9,6 +9,7 @@ import candidateService, {
   type CandidateListParams,
   type CandidateListResponse,
 } from '../services/candidateService'
+import onboardingService from '../services/onboardingService'
 import { sidebarKeys } from './useSidebarCounts'
 import type { Candidate, CandidateStats } from '../types/candidate'
 
@@ -222,9 +223,23 @@ export function useImportCandidatesMutation(
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (file: File) => candidateService.importFromPDF(file),
-    onSuccess: () => {
+    onSuccess: async (...args) => {
       queryClient.invalidateQueries({ queryKey: candidateKeys.all })
       queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
+
+      // If there's an active incomplete onboarding session, mark it complete
+      // so the "Complete Onboarding" nav banner disappears
+      const onboardingCache = queryClient.getQueryData<any>(['onboarding', 'status'])
+      if (onboardingCache?.hasSession && !onboardingCache?.isComplete) {
+        try {
+          await onboardingService.completeOnboarding()
+          queryClient.invalidateQueries({ queryKey: ['onboarding'] })
+        } catch {
+          // Non-critical — silently ignore if auto-complete fails
+        }
+      }
+
+      options?.onSuccess?.(...args)
     },
     ...options,
   })

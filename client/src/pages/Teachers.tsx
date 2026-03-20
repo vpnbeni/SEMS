@@ -208,6 +208,7 @@ const Teachers: React.FC = () => {
     if (needle) {
       filtered = filtered.filter((teacher) => {
         const name = String(teacher.name || '').toLowerCase();
+        const oasisId = String(teacher.oasisId || '').toLowerCase();
         const employeeId = String(teacher.employeeId || '').toLowerCase();
         const mobile = String(teacher.mobileNo || teacher.phone || '').toLowerCase();
         const schoolName = String(teacher.schoolName || '').toLowerCase();
@@ -217,6 +218,7 @@ const Teachers: React.FC = () => {
 
         return (
           name.includes(needle) ||
+          oasisId.includes(needle) ||
           employeeId.includes(needle) ||
           mobile.includes(needle) ||
           schoolName.includes(needle) ||
@@ -715,7 +717,7 @@ const Teachers: React.FC = () => {
 
         <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-20rem)]">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-800">
+            <thead className="sticky top-0 z-20 bg-gray-50 dark:bg-gray-800">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   <input
@@ -732,7 +734,7 @@ const Teachers: React.FC = () => {
                 </th>
                 {[
                   { label: "Teacher Name", field: "name" },
-                  { label: "OASIS ID", field: "employeeId" },
+                  { label: "OASIS ID", field: "oasisId" },
                   { label: "Duty Type", field: "dutyType" },
                   { label: "Designation", field: "designation" },
                   { label: "Subject Code", field: "subjectCode" },
@@ -830,14 +832,18 @@ const Teachers: React.FC = () => {
                           <div className="text-sm font-medium text-gray-900 dark:text-white">
                             {String(teacher.name || "").toUpperCase()}
                           </div>
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {teacher.mobileNo || teacher.phone || "N/A"}
-                          </div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {teacher.employeeId}
+                      {(() => {
+                        const currentDuty =
+                          dutyTypeOverrides[teacher._id || teacher.id!] ?? teacher.dutyType ?? "";
+                        const duty = String(currentDuty).trim().toLowerCase();
+                        const isClassIv = duty === "class iv";
+                        const isOthers = duty === "others";
+                        return isClassIv || isOthers ? "N/A" : teacher.oasisId || "—";
+                      })()}
                     </td>
                     <td
                       className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"

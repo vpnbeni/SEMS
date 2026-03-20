@@ -79,6 +79,22 @@ const centreDetailSchema = new mongoose.Schema({
     trim: true,
     default: '',
   },
+  // Dispatch slip metadata (used for parcel label)
+  dispatchSlipToAddress: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  dispatchSlipFromAddress: {
+    type: String,
+    trim: true,
+    default: '',
+  },
+  dispatchSlipInsuredAmount: {
+    type: String,
+    trim: true,
+    default: '1000',
+  },
 }, {
   timestamps: true,
 });

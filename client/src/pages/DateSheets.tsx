@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { Tabs } from '../components/common/Tabs'
 import DatesheetImportModal from '../components/datesheets/ImportModal'
@@ -36,6 +36,10 @@ const DateSheets: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
   const [isDownloadingCentrePDF, setIsDownloadingCentrePDF] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [centrePdfPreviewOpen, setCentrePdfPreviewOpen] = useState(false)
+  const [centrePdfPreviewUrl, setCentrePdfPreviewUrl] = useState<string | null>(null)
+  const [centrePdfPreviewError, setCentrePdfPreviewError] = useState<string | null>(null)
 
   const cbseParams = useMemo(() => ({
     page,
@@ -174,11 +178,35 @@ const DateSheets: React.FC = () => {
     }
   }
 
+  const getCentreDatesheetPdfFilename = () =>
+    `centre-datesheet-datewise-${new Date().toISOString().slice(0, 10)}.pdf`
+
+  const closeCentrePdfPreview = useCallback(() => {
+    setCentrePdfPreviewOpen(false)
+    setCentrePdfPreviewError(null)
+    setCentrePdfPreviewUrl((previousUrl) => {
+      if (previousUrl) URL.revokeObjectURL(previousUrl)
+      return null
+    })
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (centrePdfPreviewUrl) URL.revokeObjectURL(centrePdfPreviewUrl)
+    }
+  }, [centrePdfPreviewUrl])
+
   const downloadCentreDatesheetPDF = async () => {
     if (isDownloadingCentrePDF) return
 
     try {
       setIsDownloadingCentrePDF(true)
+      setCentrePdfPreviewOpen(true)
+      setCentrePdfPreviewError(null)
+      setCentrePdfPreviewUrl((previousUrl) => {
+        if (previousUrl) URL.revokeObjectURL(previousUrl)
+        return null
+      })
       const response = await datesheetService.getCentreDatesheet({
         page: 1,
         limit: 10000,
@@ -423,10 +451,12 @@ const DateSheets: React.FC = () => {
         srNo += 1
       }
 
-      doc.save(`centre-datesheet-datewise-${new Date().toISOString().slice(0, 10)}.pdf`)
-      toast.success('Centre datesheet PDF downloaded successfully.')
+      const pdfBlob = doc.output('blob')
+      const blobUrl = URL.createObjectURL(pdfBlob)
+      setCentrePdfPreviewUrl(blobUrl)
     } catch (error: any) {
       const message = error?.response?.data?.message || error?.message || 'Failed to download centre datesheet PDF.'
+      setCentrePdfPreviewError(message)
       toast.error(message)
     } finally {
       setIsDownloadingCentrePDF(false)
@@ -569,6 +599,17 @@ const DateSheets: React.FC = () => {
     })
   }
   // Note: Full Datesheet tab (activeTab === 'all') uses server-side sorting, so no client-side sorting needed
+
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase()
+  const visibleTableRows = useMemo(() => {
+    if (!normalizedSearchTerm) return tableRows
+
+    return tableRows.filter((row) => {
+      const subjectName = String(row.subjectName || '').toLowerCase()
+      const subjectCode = String(row.subjectCode || '').toLowerCase()
+      return subjectName.includes(normalizedSearchTerm) || subjectCode.includes(normalizedSearchTerm)
+    })
+  }, [normalizedSearchTerm, tableRows])
 
   // Handle sort
   const handleSort = (field: 'date' | 'class' | 'subjectName' | 'subjectCode' | 'duration') => {
@@ -798,7 +839,36 @@ const DateSheets: React.FC = () => {
             size="sm"
             ariaLabel="Date sheet views"
           />
-          <div className="flex gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row gap-3 shrink-0 sm:items-center">
+            <div className="relative w-full sm:w-72">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value)
+                  setPage(1)
+                }}
+                placeholder="Search subject name or code..."
+                className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-9 pr-9 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  aria-label="Clear datesheet search"
+                >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
             {activeTab === 'centre' && (
               <button
                 onClick={downloadCentreDatesheetPDF}
@@ -822,20 +892,24 @@ const DateSheets: React.FC = () => {
             </svg>
             <span className="text-sm font-medium">Loading datesheet data...</span>
           </div>
-        ) : tableRows.length === 0 ? (
+        ) : visibleTableRows.length === 0 ? (
           <div className="p-16 text-center">
             <div className="mx-auto h-24 w-24 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
               <svg className="h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Exam Schedule Found</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              {normalizedSearchTerm ? 'No Matching Datesheet Entries' : 'No Exam Schedule Found'}
+            </h3>
             <p className="text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-8 leading-relaxed">
-              {activeTab === 'all'
-                ? 'No exam dates available. Import a CBSE Full Datesheet PDF to see exam dates, or add subjects manually.'
-                : activeTab === 'centre'
-                  ? 'No centre datesheet available. The centre datesheet is automatically generated based on candidate subject choices.'
-                  : `No exam schedule found for ${activeTab === 'centre10th' ? 'Centre 10th Datesheet' : 'Centre 12th Datesheet'}.`
+              {normalizedSearchTerm
+                ? `No subject name or code matches "${searchTerm.trim()}".`
+                : activeTab === 'all'
+                  ? 'No exam dates available. Import a CBSE Full Datesheet PDF to see exam dates, or add subjects manually.'
+                  : activeTab === 'centre'
+                    ? 'No centre datesheet available. The centre datesheet is automatically generated based on candidate subject choices.'
+                    : `No exam schedule found for ${activeTab === 'centre10th' ? 'Centre 10th Datesheet' : 'Centre 12th Datesheet'}.`
               }
             </p>
           </div>
@@ -926,7 +1000,7 @@ const DateSheets: React.FC = () => {
                   const todayStr = new Date().toDateString()
                   let centreNextExamDateStr: string | null = null
                   if (isCentreTab) {
-                    const futureDates = tableRows
+                    const futureDates = visibleTableRows
                       .map((r: any) => r.examDate ? new Date(r.examDate) : null)
                       .filter((d: Date | null): d is Date => d !== null && d.toDateString() !== todayStr && d >= new Date(new Date().toDateString()))
                     if (futureDates.length > 0) {
@@ -934,7 +1008,7 @@ const DateSheets: React.FC = () => {
                       centreNextExamDateStr = minDate.toDateString()
                     }
                   }
-                  return tableRows.map((row: any, index: number) => {
+                  return visibleTableRows.map((row: any, index: number) => {
                   let rowClassName = "hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                   let textClassName = "text-gray-900 dark:text-white"
                   let classBadgeColor = "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
@@ -963,16 +1037,16 @@ const DateSheets: React.FC = () => {
                   const currentDate = row.examDate ? new Date(row.examDate).toDateString() : null
                   const uniqueDatesBefore = new Set<string>()
                   for (let i = 0; i < index; i++) {
-                    const checkDate = tableRows[i].examDate ? new Date(tableRows[i].examDate).toDateString() : null
+                    const checkDate = visibleTableRows[i].examDate ? new Date(visibleTableRows[i].examDate).toDateString() : null
                     if (checkDate) uniqueDatesBefore.add(checkDate)
                   }
                   if (currentDate && uniqueDatesBefore.has(currentDate)) {
                     for (let i = 0; i < index; i++) {
-                      const checkDate = tableRows[i].examDate ? new Date(tableRows[i].examDate).toDateString() : null
+                      const checkDate = visibleTableRows[i].examDate ? new Date(visibleTableRows[i].examDate).toDateString() : null
                       if (checkDate === currentDate) {
                         const uniqueDatesBeforeFirst = new Set<string>()
                         for (let j = 0; j < i; j++) {
-                          const prevDate = tableRows[j].examDate ? new Date(tableRows[j].examDate).toDateString() : null
+                          const prevDate = visibleTableRows[j].examDate ? new Date(visibleTableRows[j].examDate).toDateString() : null
                           if (prevDate) uniqueDatesBeforeFirst.add(prevDate)
                         }
                         srNo = uniqueDatesBeforeFirst.size + 1
@@ -1049,7 +1123,7 @@ const DateSheets: React.FC = () => {
         )}
       </div>
       {/* Pagination - Show for all tabs when there are multiple pages */}
-      {!loading && !cbseLoading && !centreLoading && pagination.pages > 1 && (
+      {!loading && !cbseLoading && !centreLoading && !normalizedSearchTerm && pagination.pages > 1 && (
         <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 sm:px-6 mt-4">
           <div className="flex items-center justify-between">
             <div className="flex-1 flex justify-between sm:hidden">
@@ -1161,6 +1235,67 @@ const DateSheets: React.FC = () => {
                   </button>
                 </nav>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {centrePdfPreviewOpen && (centrePdfPreviewUrl || isDownloadingCentrePDF || centrePdfPreviewError) && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-6xl h-[88vh] bg-white dark:bg-gray-900 rounded-xl shadow-xl overflow-hidden flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between flex-shrink-0">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate pr-4">
+                Centre Datesheet PDF Preview
+              </h4>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {centrePdfPreviewUrl && (
+                  <>
+                    <a
+                      href={centrePdfPreviewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    >
+                      Open in New Tab
+                    </a>
+                    <a
+                      href={centrePdfPreviewUrl}
+                      download={getCentreDatesheetPdfFilename()}
+                      className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      Download PDF
+                    </a>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={closeCentrePdfPreview}
+                  className="inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="w-full flex-1 overflow-auto bg-gray-100 dark:bg-gray-800 p-4 min-h-0">
+              {isDownloadingCentrePDF ? (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-3 text-sm text-gray-600 dark:text-gray-300">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+                  <p>Generating preview...</p>
+                </div>
+              ) : centrePdfPreviewError ? (
+                <div className="h-full w-full flex flex-col items-center justify-center gap-2 p-6 text-center text-sm text-gray-600 dark:text-gray-300">
+                  <svg className="w-12 h-12 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <p>{centrePdfPreviewError}</p>
+                </div>
+              ) : centrePdfPreviewUrl ? (
+                <iframe
+                  src={`${centrePdfPreviewUrl}#toolbar=0`}
+                  className="w-full h-full min-h-[60vh] border-0 rounded-lg bg-white dark:bg-gray-900"
+                  title="Centre datesheet PDF preview"
+                />
+              ) : null}
             </div>
           </div>
         </div>

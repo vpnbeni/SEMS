@@ -2,17 +2,18 @@ import React, { useEffect, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Activity, ChevronRight, Eye, EyeOff, Globe, Lock, Mail, Shield, Building2 } from 'lucide-react'
-import { clearError, login, selectAuth } from '../redux/slices/authSlice'
+import { Activity, ChevronRight, Eye, EyeOff, Lock, Mail, Building2, ShieldCheck, RefreshCw } from 'lucide-react'
+import { clearError, login, selectAuth, setCredentials } from '../redux/slices/authSlice'
 import authService from '../services/authService'
 import { useAcademicSession } from '../contexts/AcademicSessionContext'
 import sessionService from '../services/sessionService'
-import { getRememberPreference, setRememberPreference } from '../utils/authStorage'
+import { getRememberPreference, persistAuthData, setRememberPreference } from '../utils/authStorage'
 import { resolveTenantSlug } from '../utils/tenantRuntime'
 import type { AppDispatch } from '../redux/store'
 import type { LoginCredentials } from '../types/auth'
 import Loader from '../components/common/Loader'
 import fullLogo from '../assets/full logo.png'
+import loginImage from '../assets/login.png'
 
 const syncTenantInUrl = (tenantSlug: string | null) => {
   const url = new URL(window.location.href)
@@ -26,17 +27,6 @@ const syncTenantInUrl = (tenantSlug: string | null) => {
   window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
 }
 
-const galleryImages = [
-  {
-    url: '/assets/images/login/hero1.png',
-    title: 'Bharat Edutech',
-  },
-  {
-    url: '/assets/images/login/hero2.png',
-    title: 'Board Excellence',
-  },
-]
-
 const Login: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [resolvingTenant, setResolvingTenant] = useState(false)
@@ -48,6 +38,14 @@ const Login: React.FC = () => {
     email: '',
     password: '',
   })
+
+  // Email verification flow
+  const [verifyEmailStep, setVerifyEmailStep] = useState(false)
+  const [verifyOtp, setVerifyOtp] = useState('')
+  const [verifyError, setVerifyError] = useState<string | null>(null)
+  const [verifyLoading, setVerifyLoading] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [verifySuccessMessage, setVerifySuccessMessage] = useState<string | null>(null)
 
   const dispatch = useDispatch<AppDispatch>()
   const navigate = useNavigate()
@@ -135,16 +133,90 @@ const Login: React.FC = () => {
       }
 
       navigate('/select-session', { replace: true })
-    } catch (loginError) {
+    } catch (loginError: any) {
+      const errorCode = loginError?.response?.data?.errorCode
       const message =
-        (loginError as any)?.response?.data?.message
+        loginError?.response?.data?.message
         || (loginError as Error)?.message
         || 'Login failed. Check your credentials and try again.'
 
-      setTenantLookupError(message)
+      if (errorCode === 'email_not_verified') {
+        setVerifyEmailStep(true)
+        setVerifyError(null)
+        setVerifySuccessMessage('A verification code has been sent to your email. Enter it below to continue.')
+      } else {
+        setTenantLookupError(message)
+      }
       console.error('Login failed:', loginError)
     } finally {
       setResolvingTenant(false)
+    }
+  }
+
+  const handleVerifyEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const email = String(formData.email || '').trim().toLowerCase()
+    const normalizedOtp = verifyOtp.trim()
+
+    if (!email || !/^\d{6}$/.test(normalizedOtp) || verifyLoading) return
+
+    setVerifyLoading(true)
+    setVerifyError(null)
+    setVerifySuccessMessage(null)
+
+    try {
+      const response = await authService.verifyEmail(email, normalizedOtp)
+      const data = response.data as any
+      const userWithBilling = {
+        ...data.user,
+        ...(data.billing ? { billing: data.billing } : {}),
+      }
+      persistAuthData({ token: data.token, refreshToken: data.refreshToken, user: userWithBilling, remember: rememberMe })
+      dispatch(setCredentials({ user: userWithBilling, token: data.token }))
+
+      try {
+        const available = await sessionService.getAvailableSessions()
+        const fallbackCurrent = available?.data?.find((s: any) => s.isCurrent)?.label || null
+        const currentLabel = available?.meta?.currentLabel || fallbackCurrent
+        if (currentLabel) {
+          await sessionService.createSession(currentLabel)
+          setSession(currentLabel)
+          navigate('/dashboard', { replace: true })
+          return
+        }
+      } catch {
+        // ignore session error
+      }
+      navigate('/select-session', { replace: true })
+    } catch (err: any) {
+      const code = err?.response?.data?.errorCode
+      const msg = err?.response?.data?.message || 'Verification failed. Please try again.'
+      if (code === 'otp_attempts_exceeded' || code === 'otp_expired' || code === 'otp_not_requested') {
+        setVerifyError(msg + ' Try logging in again to get a new code.')
+      } else {
+        setVerifyError(msg)
+      }
+    } finally {
+      setVerifyLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    const email = String(formData.email || '').trim().toLowerCase()
+    if (!email || resendLoading) return
+
+    setResendLoading(true)
+    setVerifyError(null)
+    setVerifySuccessMessage(null)
+
+    try {
+      await authService.resendEmailVerificationOtp(email)
+      setVerifyOtp('')
+      setVerifySuccessMessage('A new verification code has been sent to your email.')
+    } catch (err: any) {
+      setVerifyError(err?.response?.data?.message || 'Could not resend code. Please try again.')
+    } finally {
+      setResendLoading(false)
     }
   }
 
@@ -155,84 +227,46 @@ const Login: React.FC = () => {
   }
 
   return (
-    <div className="login-shell min-h-screen w-full flex bg-[#050505] text-white selection:bg-primary-500/30">
-      <div className="login-left hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-gray-900 to-black border-r border-white/5">
+    <div className="login-shell min-h-screen w-full flex bg-white text-slate-900 selection:bg-primary-500/20">
+      <div className="login-left relative hidden overflow-hidden border-r border-slate-200/80 bg-gradient-to-br from-slate-50 via-white to-slate-100 text-slate-900 lg:flex lg:w-1/2">
         <div className="absolute inset-0 z-0">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-600/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary-600/10 rounded-full blur-[120px]" />
+          <div className="absolute top-[-10%] left-[-10%] h-[40%] w-[40%] rounded-full bg-primary-500/10 blur-[120px]" />
+          <div className="absolute bottom-[-10%] right-[-10%] h-[40%] w-[40%] rounded-full bg-sky-400/10 blur-[120px]" />
         </div>
 
-        <div className="relative z-10 w-full flex flex-col justify-between p-8 xl:p-12">
+        <div className="relative z-10 flex h-full w-full flex-col gap-8 p-8 xl:p-12">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-3"
+            className="flex flex-col items-start gap-3"
           >
             <img
               src={fullLogo}
               alt="Cntr - Exam Centre Control"
-              className="w-auto h-24"
+              className="h-24 w-auto"
             />
-          </motion.div>
-
-          <div className="space-y-8 xl:space-y-12">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <h1 className="login-hero-title text-[2rem] font-bold leading-tight mb-4">
-                The Future of <br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-400 to-secondary-400">
-                  Exam Centre Management System
-                </span>
-              </h1>
-              <p className="text-gray-400 text-base xl:text-lg max-w-md">
-                Experience Cntr — a minimalistic, powerful, and secure platform designed for Bharat&apos;s modern
-                educational ecosystem.
-              </p>
-            </motion.div>
-
-            <div className="login-gallery grid grid-cols-2 gap-4">
-              {galleryImages.map((img, idx) => (
-                <motion.div
-                  key={img.title}
-                  whileHover={{ scale: 1.05, y: -5 }}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.4 + idx * 0.1 }}
-                  className="login-gallery-card group relative h-56 xl:h-64 rounded-2xl overflow-hidden border border-white/10 shadow-2xl"
-                >
-                  <img
-                    src={img.url}
-                    alt={img.title}
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-4">
-                    <h3 className="font-semibold text-white">{img.title}</h3>
-                  </div>
-                </motion.div>
-              ))}
+            <div>
+              <p className="text-2xl font-bold tracking-[0.08em] text-primary-900">Exam Centre Control</p>
             </div>
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-            className="flex items-center gap-6 text-sm text-gray-500"
-          >
-            <div className="flex items-center gap-2"><Shield className="w-4 h-4" /> Secure</div>
-            <div className="flex items-center gap-2"><Activity className="w-4 h-4" /> Indian Market Optimized</div>
-            <div className="flex items-center gap-2"><Globe className="w-4 h-4" /> Localized</div>
           </motion.div>
+
+          <div className="flex flex-1 items-center justify-center">
+            <motion.img
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
+              src={loginImage}
+              alt="Login illustration"
+              className="login-side-image w-full max-w-2xl object-contain"
+            />
+          </div>
         </div>
       </div>
 
-      <div className="login-right flex-1 flex flex-col items-center justify-center p-6 xl:p-8 relative overflow-hidden">
-        <div className="lg:hidden absolute top-0 left-0 w-full h-full -z-10">
-          <div className="absolute top-0 left-1/4 w-64 h-64 bg-primary-500/10 rounded-full blur-[80px]" />
-          <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-secondary-500/10 rounded-full blur-[80px]" />
+      <div className="login-right relative flex flex-1 flex-col items-center justify-center overflow-hidden bg-white p-6 xl:p-8">
+        <div className="absolute left-0 top-0 -z-10 h-full w-full lg:hidden">
+          <div className="absolute left-1/4 top-0 h-64 w-64 rounded-full bg-primary-500/10 blur-[80px]" />
+          <div className="absolute bottom-0 right-1/4 h-64 w-64 rounded-full bg-secondary-500/10 blur-[80px]" />
         </div>
 
         <motion.div
@@ -240,21 +274,95 @@ const Login: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
-          <div className="text-center mb-8 xl:mb-10">
-            <div className="lg:hidden flex justify-center mb-6">
+          <div className="mb-8 text-center xl:mb-10">
+            <div className="mb-6 flex justify-center lg:hidden">
               <img
                 src={fullLogo}
                 alt="Cntr - Exam Centre Control"
-                className="w-auto h-24"
+                className="h-24 w-auto"
               />
             </div>
-            <h2 className="text-3xl font-bold mb-2">Welcome to Cntr</h2>
-            <p className="text-gray-400">Enter your username/email and password to login.</p>
+            <h2 className="mb-2 text-3xl font-bold text-slate-900">Welcome to Cntr</h2>
+            <p className="text-slate-500">Enter your username/email and password to login.</p>
           </div>
 
-          <div className="glass-morphism login-form-card rounded-3xl p-6 xl:p-8 border border-white/10 shadow-2xl relative">
-            <div className="absolute -top-12 -right-12 w-24 h-24 bg-primary-500/20 rounded-full blur-3xl" />
+          <div className="glass-morphism login-form-card relative rounded-3xl border border-slate-200 p-6 shadow-2xl shadow-slate-200/80 xl:p-8">
+            <div className="absolute -right-12 -top-12 h-24 w-24 rounded-full bg-primary-500/20 blur-3xl" />
 
+            {verifyEmailStep ? (
+              <div className="space-y-5">
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <ShieldCheck className="h-10 w-10 text-primary-500" />
+                  <h3 className="text-xl font-bold text-slate-900">Verify Your Email</h3>
+                  <p className="text-sm text-slate-500">
+                    Enter the 6-digit code sent to <span className="font-medium text-slate-700">{formData.email}</span>
+                  </p>
+                </div>
+
+                <AnimatePresence mode="wait">
+                  {verifySuccessMessage && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                      <div className="flex gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700">
+                        <Activity className="h-5 w-5 flex-shrink-0" />
+                        <p>{verifySuccessMessage}</p>
+                      </div>
+                    </motion.div>
+                  )}
+                  {verifyError && (
+                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                      <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+                        <Activity className="h-5 w-5 flex-shrink-0" />
+                        <p>{verifyError}</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <form onSubmit={handleVerifyEmail} className="space-y-4">
+                  <input
+                    type="text"
+                    value={verifyOtp}
+                    onChange={(e) => setVerifyOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    inputMode="numeric"
+                    pattern="\d{6}"
+                    placeholder="Enter 6-digit code"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 text-center text-lg tracking-[0.25em] text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20"
+                    autoComplete="one-time-code"
+                    required
+                  />
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    type="submit"
+                    disabled={verifyLoading}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-500/25 transition-all hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {verifyLoading ? 'Verifying...' : 'Verify and Sign In'}
+                    <ChevronRight className="h-5 w-5" />
+                  </motion.button>
+                </form>
+
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResendVerification}
+                    disabled={resendLoading}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm text-slate-600 transition-all hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    {resendLoading ? 'Sending...' : 'Resend Code'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setVerifyEmailStep(false); setVerifyOtp(''); setVerifyError(null); setVerifySuccessMessage(null); }}
+                    className="text-center text-sm text-slate-500 hover:text-slate-700"
+                  >
+                    Back to login
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
             <AnimatePresence mode="wait">
               {activeError && (
                 <motion.div
@@ -263,8 +371,8 @@ const Login: React.FC = () => {
                   exit={{ opacity: 0, height: 0 }}
                   className="mb-6 overflow-hidden"
                 >
-                  <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 flex gap-3 text-red-400 text-sm">
-                    <Activity className="w-5 h-5 flex-shrink-0" />
+                  <div className="flex gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+                    <Activity className="h-5 w-5 flex-shrink-0" />
                     <p>{activeError}</p>
                   </div>
                 </motion.div>
@@ -273,10 +381,10 @@ const Login: React.FC = () => {
 
             <form onSubmit={handleLogin} className="space-y-5 xl:space-y-6">
               <div className="space-y-2">
-                <label htmlFor="email" className="text-sm font-medium text-gray-300 ml-1 block">Username / Email</label>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 transition-colors group-focus-within:text-primary-400">
-                    <Mail className="w-5 h-5" />
+                <label htmlFor="email" className="ml-1 block text-sm font-medium text-slate-700">Username / Email</label>
+                <div className="group relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 transition-colors group-focus-within:text-primary-500">
+                    <Mail className="h-5 w-5" />
                   </div>
                   <input
                     id="email"
@@ -285,7 +393,7 @@ const Login: React.FC = () => {
                     required
                     value={formData.email}
                     onChange={handleInputChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20"
                     placeholder="username or name@institution.com"
                   />
                 </div>
@@ -299,10 +407,10 @@ const Login: React.FC = () => {
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-2 overflow-hidden"
                   >
-                    <label htmlFor="schoolCode" className="text-sm font-medium text-gray-300 ml-1 block">School Code</label>
-                    <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 transition-colors group-focus-within:text-primary-400">
-                        <Building2 className="w-5 h-5" />
+                    <label htmlFor="schoolCode" className="ml-1 block text-sm font-medium text-slate-700">School Code</label>
+                    <div className="group relative">
+                      <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 transition-colors group-focus-within:text-primary-500">
+                        <Building2 className="h-5 w-5" />
                       </div>
                       <input
                         id="schoolCode"
@@ -310,24 +418,24 @@ const Login: React.FC = () => {
                         type="text"
                         value={schoolCode}
                         onChange={handleSchoolCodeChange}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20"
                         placeholder="e.g. ib, springdale"
                         autoFocus
                       />
                     </div>
-                    <p className="text-xs text-gray-500 ml-1">Your school or institution code, provided by your administrator.</p>
+                    <p className="ml-1 text-xs text-slate-500">Your school or institution code, provided by your administrator.</p>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               <div className="space-y-2">
-                <div className="flex justify-between items-center ml-1">
-                  <label htmlFor="password" className="text-sm font-medium text-gray-300">Password</label>
-                  <Link to="/forgot-password" className="text-xs text-primary-400 hover:text-primary-300 transition-colors">Forgot Password?</Link>
+                <div className="ml-1 flex items-center justify-between">
+                  <label htmlFor="password" className="text-sm font-medium text-slate-700">Password</label>
+                  <Link to="/forgot-password" className="text-xs text-primary-600 transition-colors hover:text-primary-500">Forgot Password?</Link>
                 </div>
-                <div className="relative group">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 transition-colors group-focus-within:text-primary-400">
-                    <Lock className="w-5 h-5" />
+                <div className="group relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 transition-colors group-focus-within:text-primary-500">
+                    <Lock className="h-5 w-5" />
                   </div>
                   <input
                     id="password"
@@ -336,29 +444,29 @@ const Login: React.FC = () => {
                     required
                     value={formData.password}
                     onChange={handleInputChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-12 focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-12 text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20"
                     placeholder="********"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((prev) => !prev)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-500 hover:text-white transition-colors"
+                    className="absolute inset-y-0 right-0 flex items-center pr-4 text-slate-400 transition-colors hover:text-slate-700"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center ml-1">
+              <div className="ml-1 flex items-center">
                 <input
                   id="remember"
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(event) => setRememberMe(event.target.checked)}
-                  className="w-4 h-4 rounded border-white/10 bg-white/5 text-primary-500 focus:ring-primary-500/50 transition-all"
+                  className="h-4 w-4 rounded border-slate-300 bg-white text-primary-500 transition-all focus:ring-primary-500/30"
                 />
-                <label htmlFor="remember" className="ml-2 text-sm text-gray-400 cursor-pointer">Stay signed in</label>
+                <label htmlFor="remember" className="ml-2 cursor-pointer text-sm text-slate-600">Stay signed in</label>
               </div>
 
               <motion.button
@@ -366,25 +474,27 @@ const Login: React.FC = () => {
                 whileTap={{ scale: 0.98 }}
                 type="submit"
                 disabled={resolvingTenant || loading}
-                className="w-full bg-primary-600 hover:bg-primary-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-primary-500/25 transition-all flex items-center justify-center gap-2 group disabled:cursor-not-allowed disabled:opacity-70"
+                className="group flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-500/25 transition-all hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-70"
               >
-                {loading ? 'Signing In...' : resolvingTenant ? 'Finding User...' : 'Login'}
-                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                {loading || resolvingTenant ? 'Logging in...' : 'Login'}
+                <ChevronRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
               </motion.button>
             </form>
 
-            <div className="mt-6 rounded-xl border border-cyan-400/20 bg-cyan-500/10 p-4">
-              <p className="text-sm text-cyan-100">
+            <div className="mt-6 rounded-xl border border-cyan-200 bg-cyan-50 p-4">
+              <p className="text-sm text-cyan-900">
                 New user?{' '}
-                <Link to="/signup" className="font-semibold text-cyan-300 hover:text-cyan-200 underline underline-offset-2">
+                <Link to="/signup" className="font-semibold text-cyan-700 underline underline-offset-2 hover:text-cyan-600">
                   Create your account.
                 </Link>
               </p>
             </div>
+              </>
+            )}
           </div>
 
-          <p className="text-center mt-8 xl:mt-10 text-sm text-gray-500">
-            © 2026 Bharat Examination Core Management System
+          <p className="mt-8 text-center text-sm text-slate-500 xl:mt-10">
+            Copyright 2026 Bharat Examination Core Management System
           </p>
         </motion.div>
       </div>
@@ -393,7 +503,7 @@ const Login: React.FC = () => {
         dangerouslySetInnerHTML={{
           __html: `
         .glass-morphism {
-          background: rgba(255, 255, 255, 0.03);
+          background: rgba(255, 255, 255, 0.88);
           backdrop-filter: blur(12px);
           -webkit-backdrop-filter: blur(12px);
         }
@@ -408,13 +518,8 @@ const Login: React.FC = () => {
             min-height: 100vh;
           }
 
-          .login-hero-title {
-            font-size: 2rem;
-            line-height: 1.02;
-          }
-
-          .login-gallery-card {
-            height: 13.5rem;
+          .login-side-image {
+            max-height: calc(100vh - 15rem);
           }
 
           .login-form-card {

@@ -4,6 +4,7 @@ export interface Teacher {
   _id: string
   id?: string
   name: string
+  oasisId?: string
   employeeId: string
   designation: string
   subjects: (string | { _id: string; name: string; code: string; class?: string })[]

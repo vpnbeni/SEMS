@@ -96,10 +96,10 @@ class CandidateService {
     formData.append('pdf', file)
 
     return api.post('/candidates/import', formData, {
+      timeout: 300000, // 5 minutes for PDF processing
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-      timeout: 300000, // 5 minutes for PDF processing
     })
   }
 
@@ -140,15 +140,112 @@ class CandidateService {
 
   // Export candidates to CSV
   async exportToCsv(filters?: Record<string, any>) {
-    const queryString = filters 
+    const queryString = filters
       ? new URLSearchParams(filters).toString()
       : ''
     const url = queryString ? `/candidates/export?${queryString}` : '/candidates/export'
-    
+
     return api.get(url, {
       responseType: 'blob',
     })
   }
+
+  // Remove a subject code from all candidates of a given class
+  async removeSubjectCode(subjectCode: string, classLevel: string, cascadeCleanup = false) {
+    return api.delete('/candidates/subject-code', {
+      data: { subjectCode, class: classLevel, cascadeCleanup },
+    })
+  }
+
+  // Reimport: dry-run compare PDF against existing candidates
+  async reimportCompare(file: File) {
+    const formData = new FormData()
+    formData.append('pdf', file)
+    return api.post('/candidates/reimport-compare', formData, {
+      timeout: 300000,
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  }
+
+  // Reimport: check impact of proposed changes
+  async reimportImpact(changes: ReimportChange[]) {
+    return api.post('/candidates/reimport-impact', { changes })
+  }
+
+  // Reimport: apply selected fixes
+  async reimportApply(changes: ReimportChange[]) {
+    return api.post('/candidates/reimport-apply', { changes })
+  }
+}
+
+export interface SubjectChange {
+  code: string
+  medium?: string
+}
+
+export interface CandidateDiff {
+  rollNumber: string
+  candidateName: string
+  dbCandidateId: string
+  class: string
+  type: 'subject_mismatch' | 'field_mismatch' | 'both'
+  subjectChanges: {
+    added: SubjectChange[]
+    removed: SubjectChange[]
+    unchanged: SubjectChange[]
+  }
+  fieldChanges: Record<string, { db: string; pdf: string }>
+}
+
+export interface ComparisonResult {
+  parseStats: {
+    totalParsed: number
+    totalInDb: number
+    matchedCount: number
+    pdfClass: string
+  }
+  differences: CandidateDiff[]
+  newCandidates: Array<{
+    rollNumber: string
+    name: string
+    class: string
+    schoolCode: string
+    schoolName: string
+    subjectCodes: Array<{ code: string; medium: string }>
+  }>
+  missingFromPdf: Array<{
+    rollNumber: string
+    name: string
+    class: string
+    dbCandidateId: string
+  }>
+}
+
+export interface ImpactItem {
+  rollNumber: string
+  subjectCode: string
+  action: string
+  seatingPlanAllocations: number
+  form66Records: number
+  answerSheetLinks: number
+  severity: 'none' | 'low' | 'high'
+}
+
+export interface ImpactResult {
+  impacts: ImpactItem[]
+  summary: {
+    totalSeatingAllocationsAffected: number
+    totalForm66Affected: number
+    totalAnswerSheetsAffected: number
+    overallSeverity: 'none' | 'low' | 'high'
+  }
+}
+
+export interface ReimportChange {
+  rollNumber: string
+  action: 'remove_subjects' | 'add_subjects'
+  subjectCodes: string[]
+  cascadeCleanup?: boolean
 }
 
 export default new CandidateService()

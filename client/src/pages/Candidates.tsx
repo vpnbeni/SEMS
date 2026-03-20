@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import CandidateTable from '../components/candidates/CandidateTable'
 import ImportModal from '../components/candidates/ImportModal'
+import ReimportCompareModal from '../components/candidates/ReimportCompareModal'
 import { Tabs } from '../components/common/Tabs'
 import { Dropdown } from '../components/common/Dropdown'
 import {
@@ -30,6 +31,7 @@ const CANDIDATES_WITHOUT_SUBJECTS_ACCORDION_THRESHOLD = 5
 const Candidates: React.FC = () => {
   const navigate = useNavigate()
   const [showImportModal, setShowImportModal] = useState(false)
+  const [showReimportModal, setShowReimportModal] = useState(false)
   const [withoutSubjectsAccordionOpen, setWithoutSubjectsAccordionOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
@@ -124,32 +126,30 @@ const Candidates: React.FC = () => {
   }
 
   const handleImport = async (file: File) => {
-    importMutation.mutate(file, {
-      onSuccess: (response: any) => {
-        const payload = response?.data?.data ?? response?.data
-        const imported = payload?.imported ?? 0
-        const skipped = payload?.errors ?? 0
-        if (imported === 0 && skipped === 0) {
-          toast('No candidates found in PDF', { icon: 'ℹ️' })
-        } else if (imported === 0) {
-          toast.success(`All ${skipped} candidates already exist — nothing new to import`)
-        } else if (skipped === 0) {
-          toast.success(`Successfully added ${imported} new candidate${imported !== 1 ? 's' : ''}`)
-        } else {
-          toast.success(`Added ${imported} new candidate${imported !== 1 ? 's' : ''} (${skipped} already existed, skipped)`)
-        }
-        setShowImportModal(false)
-      },
-      onError: (error: any) => {
-        if (error?.code === 'ECONNABORTED') {
-          toast.error('Request timeout. The PDF file might be too large or complex.')
-        } else if (error?.message === 'canceled') {
-          toast.error('Upload was canceled. Please try again.')
-        } else {
-          toast.error(error?.response?.data?.message || 'Failed to import candidates')
-        }
-      },
-    })
+    try {
+      const response: any = await importMutation.mutateAsync(file)
+      const payload = response?.data?.data ?? response?.data
+      const imported = payload?.imported ?? 0
+      const skipped = payload?.errors ?? 0
+      if (imported === 0 && skipped === 0) {
+        toast('No candidates found in PDF', { icon: 'ℹ️' })
+      } else if (imported === 0) {
+        toast.success(`All ${skipped} candidates already exist — nothing new to import`)
+      } else if (skipped === 0) {
+        toast.success(`Successfully added ${imported} new candidate${imported !== 1 ? 's' : ''}`)
+      } else {
+        toast.success(`Added ${imported} new candidate${imported !== 1 ? 's' : ''} (${skipped} already existed, skipped)`)
+      }
+      setShowImportModal(false)
+    } catch (error: any) {
+      if (error?.code === 'ECONNABORTED') {
+        toast.error('Request timeout. The PDF file might be too large or complex.')
+      } else if (error?.message === 'canceled') {
+        toast.error('Upload was canceled. Please try again.')
+      } else {
+        toast.error(error?.response?.data?.message || 'Failed to import candidates')
+      }
+    }
   }
 
   const handleDelete = async (id: string) => {
@@ -383,6 +383,15 @@ const Candidates: React.FC = () => {
               Import PDF
             </button>
             <button
+              onClick={() => setShowReimportModal(true)}
+              className="inline-flex items-center px-4 py-2 border border-amber-600 shadow-sm text-sm font-medium rounded-lg text-amber-600 bg-white dark:bg-secondary-800 hover:bg-amber-50 dark:hover:bg-amber-900/20 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition-colors"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Re-Import & Compare
+            </button>
+            <button
               onClick={() => navigate('/candidates/new')}
               className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
             >
@@ -551,6 +560,14 @@ const Candidates: React.FC = () => {
           onClose={() => setShowImportModal(false)}
           onImport={handleImport}
           importing={importMutation.isPending}
+        />
+      )}
+
+      {/* Re-Import & Compare Modal */}
+      {showReimportModal && (
+        <ReimportCompareModal
+          isOpen={showReimportModal}
+          onClose={() => setShowReimportModal(false)}
         />
       )}
     </div>

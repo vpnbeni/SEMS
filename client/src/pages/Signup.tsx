@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import fullLogo from '../assets/full logo.png'
@@ -91,9 +91,10 @@ const Signup: React.FC = () => {
       toast.success('Verification email sent. Check your inbox.')
       navigate(`/signup/complete?ticket=${encodeURIComponent(result.ticket)}`)
     } catch (err: unknown) {
-      const msg = err && typeof err === 'object' && 'response' in err
-        ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
-        : null
+      const msg =
+        err && typeof err === 'object' && 'response' in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : null
       toast.error(msg || 'Signup failed. Please try again.')
     } finally {
       setSubmitting(false)
@@ -101,28 +102,26 @@ const Signup: React.FC = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col lg:flex-row overflow-hidden bg-gradient-to-br from-slate-100 via-white to-slate-100">
-      {/* Left: image (not background) */}
-      <div className="hidden lg:flex flex-1 min-w-0 items-center justify-center p-4 lg:p-6">
+    <div className="min-h-screen overflow-hidden bg-gradient-to-br from-slate-100 via-white to-slate-100 lg:grid lg:grid-cols-[minmax(0,1.05fr)_minmax(560px,0.95fr)]">
+      <div className="hidden min-w-0 items-center justify-center p-6 lg:flex xl:p-10">
         <img
           src={signupImg}
           alt="Sign up"
-          className="max-h-[60vh] w-auto max-w-full object-contain"
+          className="max-h-[76vh] w-auto max-w-full object-contain"
         />
       </div>
 
-      {/* Right: sign up form in glass box — compact, no scroll */}
-      <div className="flex-1 flex min-h-0 flex-col items-center justify-center p-2 sm:p-4">
-        <div className="w-full max-w-md rounded-2xl border border-white/40 bg-white/70 backdrop-blur-xl shadow-2xl shadow-slate-900/10 p-3 sm:p-4">
-          <div className="flex justify-center mb-0.5">
-            <img src={fullLogo} alt="Cntr" className="h-7 w-auto" />
+      <div className="flex min-h-screen flex-col justify-center px-4 py-8 sm:px-6 lg:px-10 xl:px-14">
+        <div className="mx-auto flex w-full max-w-xl flex-col rounded-[28px] border border-white/50 bg-white/80 p-5 shadow-2xl shadow-slate-900/10 backdrop-blur-xl sm:p-6 lg:min-h-[78vh] lg:max-w-2xl lg:justify-between lg:p-8">
+          <div className="mb-2 flex justify-center lg:mb-4">
+            <img src={fullLogo} alt="Cntr" className="h-12 w-auto" />
           </div>
-          <h1 className="text-base font-bold text-slate-900 text-center mb-2">Create your exam centre account.</h1>
+          <h1 className="mb-4 text-center text-lg font-bold text-slate-900 sm:text-xl lg:mb-6">Create your exam centre account.</h1>
 
-          <form onSubmit={handleSubmit} className="space-y-1.5">
-            <div className="grid grid-cols-2 gap-2">
+          <form onSubmit={handleSubmit} className="flex flex-1 flex-col justify-center space-y-3 lg:space-y-5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:gap-4">
               <div>
-                <label htmlFor="schoolCode" className="block text-[11px] font-medium text-slate-700 mb-0.5">
+                <label htmlFor="schoolCode" className="mb-1 block text-xs font-medium text-slate-700">
                   School Code
                 </label>
                 <input
@@ -132,12 +131,12 @@ const Signup: React.FC = () => {
                   maxLength={5}
                   value={schoolCode}
                   onChange={(e) => setSchoolCode(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                  className="w-full rounded border border-slate-200 bg-slate-50/50 px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   placeholder="5 digits"
                 />
               </div>
               <div>
-                <label htmlFor="affiliationNo" className="block text-[11px] font-medium text-slate-700 mb-0.5">
+                <label htmlFor="affiliationNo" className="mb-1 block text-xs font-medium text-slate-700">
                   Affiliation No
                 </label>
                 <input
@@ -147,13 +146,14 @@ const Signup: React.FC = () => {
                   maxLength={6}
                   value={affiliationNo}
                   onChange={(e) => setAffiliationNo(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  className="w-full rounded border border-slate-200 bg-slate-50/50 px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   placeholder="6 digits"
                 />
               </div>
             </div>
+
             <div>
-              <label htmlFor="nameOfSchool" className="block text-[11px] font-medium text-slate-700 mb-0.5">
+              <label htmlFor="nameOfSchool" className="mb-1 block text-xs font-medium text-slate-700">
                 Name of School
               </label>
               <input
@@ -161,12 +161,13 @@ const Signup: React.FC = () => {
                 type="text"
                 value={nameOfSchool}
                 onChange={(e) => setNameOfSchool(e.target.value)}
-                className="w-full rounded border border-slate-200 bg-slate-50/50 px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 placeholder="Enter school name."
               />
             </div>
+
             <div>
-              <label htmlFor="adminEmail" className="block text-[11px] font-medium text-slate-700 mb-0.5">
+              <label htmlFor="adminEmail" className="mb-1 block text-xs font-medium text-slate-700">
                 Email Address
               </label>
               <input
@@ -174,12 +175,13 @@ const Signup: React.FC = () => {
                 type="email"
                 value={adminEmail}
                 onChange={(e) => setAdminEmail(e.target.value)}
-                className="w-full rounded border border-slate-200 bg-slate-50/50 px-2.5 py-1.5 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition"
+                className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 placeholder="admin@school.com"
               />
             </div>
+
             <div>
-              <label htmlFor="password" className="block text-[11px] font-medium text-slate-700 mb-0.5">
+              <label htmlFor="password" className="mb-1 block text-xs font-medium text-slate-700">
                 Create Password
               </label>
               <div className="relative">
@@ -188,20 +190,21 @@ const Signup: React.FC = () => {
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full rounded border border-slate-200 bg-slate-50/50 px-2.5 py-1.5 pr-8 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 pr-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   placeholder="Create password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((p) => !p)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <div className="mt-1 flex items-center gap-1.5">
-                <span className="text-[10px] text-slate-500">Strength:</span>
+
+              <div className="mt-2 flex items-center gap-2 lg:mt-3">
+                <span className="text-[11px] text-slate-500">Strength:</span>
                 <div className="flex gap-0.5">
                   <div
                     className={`h-1 w-8 rounded-full ${
@@ -220,7 +223,7 @@ const Signup: React.FC = () => {
                   />
                 </div>
                 <span
-                  className={`text-[10px] font-medium ${
+                  className={`text-[11px] font-medium ${
                     strength === 'weak' ? 'text-red-500' : strength === 'medium' ? 'text-amber-600' : 'text-emerald-600'
                   }`}
                 >
@@ -228,8 +231,9 @@ const Signup: React.FC = () => {
                 </span>
               </div>
             </div>
+
             <div>
-              <label htmlFor="confirmPassword" className="block text-[11px] font-medium text-slate-700 mb-0.5">
+              <label htmlFor="confirmPassword" className="mb-1 block text-xs font-medium text-slate-700">
                 Confirm Password
               </label>
               <div className="relative">
@@ -238,31 +242,32 @@ const Signup: React.FC = () => {
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full rounded border border-slate-200 bg-slate-50/50 px-2.5 py-1.5 pr-8 text-xs text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 outline-none transition"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 pr-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   placeholder="Re-enter password"
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword((p) => !p)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                   aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                 >
-                  {showConfirmPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
             </div>
+
             <button
               type="submit"
               disabled={submitting}
-              className="w-full rounded bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 text-xs shadow-lg shadow-blue-500/25 transition disabled:opacity-70 disabled:cursor-not-allowed mt-1"
+              className="mt-1 w-full rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {submitting ? 'Creating account…' : 'Create Account'}
+              {submitting ? 'Creating account...' : 'Create Account'}
             </button>
           </form>
 
-          <p className="mt-2 text-center text-[11px] text-slate-600">
+          <p className="mt-5 text-center text-sm text-slate-600 lg:mt-6">
             Already have an account?{' '}
-            <Link to="/" className="font-semibold text-blue-600 hover:text-blue-700">
+            <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
               Login
             </Link>
           </p>

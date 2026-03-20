@@ -220,7 +220,7 @@ Advanced algorithm for exam seating:
 
 **PDF Exports (4 formats):**
 - Main Gate Copy: All rooms with roll numbers
-- Room Folder Slip: Individual room details
+- Invigilator Slip: Individual room details
 - Room Door Slip: Door signage
 - CBSE Copy: Official format with serial numbers and QP codes
 

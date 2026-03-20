@@ -10,6 +10,8 @@ import {
   ClipboardCheck,
   UserCheck,
   CheckCircle2,
+  Copyright,
+  Heart,
 } from 'lucide-react'
 import fullLogo from '../assets/full logo.png'
 import dashboardPreview from '../assets/dashboard.png'
@@ -29,7 +31,7 @@ const modules = [
   {
     title: 'Form-66',
     description: 'Generate official Form-66 instantly with verified candidate and centre details.',
-    bullets: ['Auto-fill candidate data', 'Ready-to-print format', 'No manual word file typing'],
+    bullets: ['Auto Datewise Slpit', 'No manual typing & formatting', 'Ready to Print format'],
     icon: FileText,
     iconBg: 'bg-purple-100',
     iconColor: 'text-purple-600',
@@ -87,68 +89,67 @@ const modules = [
 const CntrLanding: React.FC = () => {
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-900">
-      {/* ─── 1. Hero / Preview Section ─── */}
       <section className="border-b border-slate-200/80 bg-white">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12 lg:py-16">
-          <div className="grid gap-10 lg:grid-cols-2 lg:gap-12 items-center">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-12">
             <div>
-            <img
-              src={fullLogo}
-              alt="Cntr – Exam Centre Control"
-              className="h-28 w-auto"
-            />
-              <h1 className="mt-8 text-3xl sm:text-4xl font-bold tracking-tight text-slate-900">
+              <img
+                src={fullLogo}
+                alt="Cntr - Exam Centre Control"
+                className="h-28 w-auto"
+              />
+              <p className="mt-4 text-lg font-semibold tracking-[0.08em] text-primary-900 sm:text-xl">
+                Exam Centre Control
+              </p>
+              <h1 className="mt-8 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
                 Control The Entire Examination Process Effortlessly
               </h1>
-              <h2 className="mt-4 text-slate-600 max-w-xl text-base sm:text-lg">
+              <h2 className="mt-4 max-w-xl text-base text-slate-600 sm:text-lg">
                 Manage datesheets, rooms, answer sheets, seating plans, invigilator duties, attendance and candidate records.
               </h2>
               <div className="mt-8 flex flex-wrap items-center gap-4">
                 <a
                   href={APP_URL}
-                  className="inline-flex items-center justify-center rounded-xl bg-emerald-500 px-6 py-3.5 text-sm font-semibold text-white shadow-md hover:bg-emerald-600 transition-colors"
+                  className="inline-flex items-center justify-center rounded-xl bg-emerald-500 px-6 py-3.5 text-sm font-semibold text-white shadow-md transition-colors hover:bg-emerald-600"
                 >
                   User Manual
                 </a>
-                
               </div>
             </div>
 
-            {/* Dashboard preview image */}
             <div className="flex items-center justify-center lg:justify-end">
               <img
                 src={dashboardPreview}
                 alt="Cntr dashboard preview"
-                className="block w-full h-auto max-w-3xl"
+                className="block h-auto w-full max-w-3xl"
               />
             </div>
           </div>
         </div>
       </section>
 
-      {/* ─── 2. Cards Section ─── */}
-      <section className="py-16 lg:py-20 bg-gradient-to-b from-sky-50/50 via-white to-violet-50/30">
+      <section className="bg-gradient-to-b from-sky-50/50 via-white to-violet-50/30 py-16 lg:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <p className="text-xs font-semibold tracking-[0.2em] uppercase text-sky-500">
+          <div className="mb-12 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-500">
               Modules
             </p>
-            <h2 className="mt-2 text-2xl sm:text-3xl font-bold text-slate-900">
+            <h2 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
               Powerful Modules Designed for Examination Centres
             </h2>
-            <p className="mt-3 text-sm sm:text-base text-slate-600 max-w-2xl mx-auto">
-              Everything a centre controller needs on exam day – from room allocation to answer sheets –
+            <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-600 sm:text-base">
+              Everything a centre controller needs on exam day - from room allocation to answer sheets -
               organised into focused, easy-to-use workspaces.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {modules.map((mod) => {
               const Icon = mod.icon
               return (
                 <article
                   key={mod.title}
-                  className="group relative rounded-2xl border border-slate-100 bg-white p-6 shadow-sm hover:shadow-lg transition-all duration-200"
+                  className="group relative rounded-2xl border border-slate-100 bg-white p-6 shadow-sm transition-all duration-200 hover:shadow-lg"
                 >
                   <div className="flex items-start gap-3">
                     <div className={`inline-flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl ${mod.iconBg} ${mod.iconColor}`}>
@@ -160,31 +161,30 @@ const CntrLanding: React.FC = () => {
                       </h3>
                     </div>
                   </div>
-                  <p className="mt-3 text-sm text-slate-600 leading-snug">
+                  <p className="mt-3 text-sm leading-snug text-slate-600">
                     {mod.description}
                   </p>
                   <ul className="mt-4 space-y-2">
-                    {mod.bullets.map((b) => (
-                      <li key={b} className="flex items-start gap-2 text-sm text-slate-600">
+                    {mod.bullets.map((bullet) => (
+                      <li key={bullet} className="flex items-start gap-2 text-sm text-slate-600">
                         <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-emerald-500" />
-                        <span>{b}</span>
+                        <span>{bullet}</span>
                       </li>
                     ))}
                   </ul>
-              </article>
+                </article>
               )
             })}
           </div>
         </div>
       </section>
 
-      {/* ─── 3. Bottom Section ─── */}
-      <section className="py-16 lg:py-20 bg-white border-t border-slate-200">
+      <section className="border-t border-slate-200 bg-white py-16 lg:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 text-center mb-10">
+          <h2 className="mb-10 text-center text-2xl font-bold text-slate-900 sm:text-3xl">
             Run the exam centre smoothly and efficiently.
           </h2>
-          <ul className="flex flex-wrap justify-center gap-x-8 gap-y-3 mb-14 text-slate-600">
+          <ul className="mb-14 flex flex-wrap justify-center gap-x-8 gap-y-3 text-slate-600">
             <li className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-emerald-500" />
               Automatic exam planning
@@ -203,31 +203,29 @@ const CntrLanding: React.FC = () => {
             </li>
           </ul>
 
-          <div className="grid gap-10 lg:grid-cols-2 lg:gap-12 items-center">
-            {/* App preview image */}
+          <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-12">
             <div className="flex items-center justify-center lg:justify-start">
               <img
                 src={dashboardPreview2}
                 alt="Cntr room allocation preview"
-                className="block w-full h-auto max-w-md"
+                className="block h-auto w-full max-w-md"
               />
             </div>
 
-            {/* CTA block */}
             <div className="text-center lg:text-left">
-              <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
+              <h3 className="text-xl font-bold text-slate-900 sm:text-2xl">
                 Ready to Manage Your Examination Centre Efficiently?
               </h3>
-              <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-4">
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-4 lg:justify-start">
                 <Link
-                  to="/"
-                  className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white shadow-md hover:bg-blue-700 transition-colors"
+                  to="/login"
+                  className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-semibold text-white shadow-md transition-colors hover:bg-blue-700"
                 >
                   Login
                 </Link>
                 <Link
                   to="/signup"
-                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white shadow-md hover:bg-slate-800 transition-colors"
+                  className="inline-flex items-center justify-center rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white shadow-md transition-colors hover:bg-slate-800"
                 >
                   Sign Up
                 </Link>
@@ -237,8 +235,15 @@ const CntrLanding: React.FC = () => {
         </div>
       </section>
 
-      <footer className="py-6 border-t border-slate-200 bg-slate-50 text-center text-sm text-slate-500">
-        © {new Date().getFullYear()} Cntr – Exam Centre Control. Powered by CAPABBLE.   </footer>
+      <footer className="border-t border-slate-200 bg-slate-50 py-6 text-center text-sm text-slate-500">
+        <span className="inline-flex flex-wrap items-center justify-center gap-1">
+          <Copyright className="h-4 w-4" />
+          <span>{new Date().getFullYear()} Cntr - Exam Centre Control. Powered by Capabble.</span>
+          <span>Designed &amp; Developed with</span>
+          <Heart className="h-4 w-4 fill-red-500 text-red-500" />
+          <span>in Bharat.</span>
+        </span>
+      </footer>
     </div>
   )
 }

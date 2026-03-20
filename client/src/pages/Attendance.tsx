@@ -286,7 +286,7 @@ const Attendance: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 20h16" />
                 </svg>
               )}
-              Download
+              Generate
             </button>
 
             {/* Upload button */}

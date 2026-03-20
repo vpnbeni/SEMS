@@ -18,6 +18,18 @@ const PASSWORD_RESET_ERROR_CODES = {
   OTP_NOT_REQUESTED: 'otp_not_requested',
 };
 
+const EMAIL_VERIFICATION_ERROR_CODES = {
+  EMAIL_NOT_VERIFIED: 'email_not_verified',
+  ALREADY_VERIFIED: 'already_verified',
+  OTP_REQUIRED: 'otp_required',
+  OTP_INVALID: 'invalid_otp',
+  OTP_EXPIRED: 'otp_expired',
+  OTP_ATTEMPTS_EXCEEDED: 'otp_attempts_exceeded',
+  OTP_NOT_REQUESTED: 'otp_not_requested',
+  USER_NOT_FOUND: 'user_not_found',
+  USER_INACTIVE: 'user_inactive',
+};
+
 const parsePositiveInt = (value, fallback) => {
   const parsed = parseInt(value, 10);
   if (Number.isFinite(parsed) && parsed > 0) {
@@ -28,6 +40,8 @@ const parsePositiveInt = (value, fallback) => {
 
 const resolvePasswordResetOtpTtlMinutes = () => parsePositiveInt(process.env.PASSWORD_RESET_OTP_TTL_MINUTES, 10);
 const resolvePasswordResetOtpMaxAttempts = () => parsePositiveInt(process.env.PASSWORD_RESET_OTP_MAX_ATTEMPTS, 5);
+const resolveEmailVerificationOtpTtlMinutes = () => parsePositiveInt(process.env.EMAIL_VERIFICATION_OTP_TTL_MINUTES, 10);
+const resolveEmailVerificationOtpMaxAttempts = () => parsePositiveInt(process.env.EMAIL_VERIFICATION_OTP_MAX_ATTEMPTS, 5);
 const hashValue = (value) => crypto.createHash('sha256').update(String(value)).digest('hex');
 const generatePasswordResetOtp = () => crypto.randomInt(0, 1000000).toString().padStart(6, '0');
 
@@ -77,6 +91,32 @@ const sendPasswordResetOtpEmail = async ({ email, otp, otpExpiresAt }) => {
     text,
     html,
   });
+};
+
+const sendEmailVerificationOtpEmail = async ({ email, otp, otpExpiresAt }) => {
+  const expiresInMinutes = getOtpExpiryMinutes(otpExpiresAt);
+  const expiryLine = expiresInMinutes && expiresInMinutes > 0
+    ? `This code expires in ${expiresInMinutes} minute${expiresInMinutes === 1 ? '' : 's'}.`
+    : 'Use this code as soon as possible.';
+
+  const subject = 'BECMS Email Verification Code';
+  const text = [
+    `Your BECMS email verification code is ${otp}.`,
+    expiryLine,
+    'If you did not request this, you can safely ignore this email.',
+  ].join('\n');
+
+  const html = [
+    '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;">',
+    '<h2 style="margin:0 0 12px;">BECMS Email Verification</h2>',
+    '<p style="margin:0 0 12px;">Use the code below to verify your email address:</p>',
+    `<p style="margin:0 0 12px;font-size:28px;letter-spacing:6px;font-weight:700;">${otp}</p>`,
+    `<p style="margin:0 0 12px;">${expiryLine}</p>`,
+    '<p style="margin:0;">If you did not request this, you can safely ignore this email.</p>',
+    '</div>',
+  ].join('');
+
+  await sendMail({ to: email, subject, text, html });
 };
 
 const buildBillingSnapshot = async (tenantSlug) => {
@@ -172,12 +212,37 @@ const login = asyncHandler(async (req, res) => {
     );
   }
 
-  // Check password
+  // Check password first so we don't leak whether an email is unverified for wrong-password attempts
   const isPasswordMatch = await user.matchPassword(password);
   if (!isPasswordMatch) {
     return res.status(HTTP_STATUS.UNAUTHORIZED).json(
       generateResponse(false, ERROR_MESSAGES.INVALID_CREDENTIALS)
     );
+  }
+
+  // Block login if email is not verified — send a fresh OTP so they can complete verification
+  if (!user.isEmailVerified) {
+    const otp = generatePasswordResetOtp();
+    const ttlMinutes = resolveEmailVerificationOtpTtlMinutes();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
+
+    user.emailVerificationOtpHash = hashValue(otp);
+    user.emailVerificationOtpExpiresAt = expiresAt;
+    user.emailVerificationOtpAttemptCount = 0;
+    await user.save({ validateBeforeSave: false });
+
+    try {
+      await sendEmailVerificationOtpEmail({ email: user.email, otp, otpExpiresAt: expiresAt });
+    } catch (emailError) {
+      console.error(`[auth:login] email_verification_otp_delivery_failed email=${user.email} message=${emailError.message}`);
+    }
+
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      ...generateResponse(false, 'Please verify your email to continue. A verification code has been sent to your email.'),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.EMAIL_NOT_VERIFIED,
+      otpExpiresAt: expiresAt,
+    });
   }
 
   // Update last login
@@ -573,6 +638,155 @@ const resetPassword = asyncHandler(async (req, res) => {
   );
 });
 
+// @desc    Verify email with OTP (sent during login for unverified accounts)
+// @route   POST /api/auth/verify-email
+// @access  Public
+const verifyEmail = asyncHandler(async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const otp = String(req.body.otp || '').trim();
+  const now = new Date();
+  const maxAttempts = resolveEmailVerificationOtpMaxAttempts();
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      ...generateResponse(false, 'No account associated with this email'),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.USER_NOT_FOUND,
+    });
+  }
+
+  if (!user.isActive) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      ...generateResponse(false, ERROR_MESSAGES.USER_INACTIVE),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.USER_INACTIVE,
+    });
+  }
+
+  if (user.isEmailVerified) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'Email is already verified. Please login normally.'),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.ALREADY_VERIFIED,
+    });
+  }
+
+  if (!user.emailVerificationOtpHash || !user.emailVerificationOtpExpiresAt) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'No verification code found. Please try logging in again to receive a new code.'),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.OTP_NOT_REQUESTED,
+    });
+  }
+
+  if ((user.emailVerificationOtpAttemptCount || 0) >= maxAttempts) {
+    return res.status(HTTP_STATUS.TOO_MANY_REQUESTS).json({
+      ...generateResponse(false, 'Too many incorrect attempts. Please try logging in again to receive a new code.'),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.OTP_ATTEMPTS_EXCEEDED,
+    });
+  }
+
+  if (new Date(user.emailVerificationOtpExpiresAt) <= now) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'Verification code has expired. Please try logging in again to receive a new code.'),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.OTP_EXPIRED,
+    });
+  }
+
+  if (!otp) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'Verification code is required'),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.OTP_REQUIRED,
+    });
+  }
+
+  const otpHash = hashValue(otp);
+  if (otpHash !== user.emailVerificationOtpHash) {
+    const nextAttemptCount = (user.emailVerificationOtpAttemptCount || 0) + 1;
+    user.emailVerificationOtpAttemptCount = nextAttemptCount;
+    await user.save({ validateBeforeSave: false });
+
+    if (nextAttemptCount >= maxAttempts) {
+      return res.status(HTTP_STATUS.TOO_MANY_REQUESTS).json({
+        ...generateResponse(false, 'Too many incorrect attempts. Please try logging in again to receive a new code.'),
+        errorCode: EMAIL_VERIFICATION_ERROR_CODES.OTP_ATTEMPTS_EXCEEDED,
+      });
+    }
+
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'Invalid verification code'),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.OTP_INVALID,
+    });
+  }
+
+  // Mark email verified and clear OTP state
+  user.isEmailVerified = true;
+  user.emailVerificationOtpHash = null;
+  user.emailVerificationOtpExpiresAt = null;
+  user.emailVerificationOtpAttemptCount = 0;
+  user.lastLogin = new Date();
+  await user.save({ validateBeforeSave: false });
+
+  const billing = await buildBillingSnapshot(req.tenant?.slug);
+
+  createTokenResponse(user, HTTP_STATUS.OK, res, req.tenant?.slug, {
+    billing,
+    featureToggles: req.tenant?.featureToggles || null,
+  });
+});
+
+// @desc    Resend email verification OTP
+// @route   POST /api/auth/resend-email-verification
+// @access  Public
+const resendEmailVerificationOtp = asyncHandler(async (req, res) => {
+  const email = String(req.body.email || '').trim().toLowerCase();
+
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json({
+      ...generateResponse(false, 'No account associated with this email'),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.USER_NOT_FOUND,
+    });
+  }
+
+  if (!user.isActive) {
+    return res.status(HTTP_STATUS.FORBIDDEN).json({
+      ...generateResponse(false, ERROR_MESSAGES.USER_INACTIVE),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.USER_INACTIVE,
+    });
+  }
+
+  if (user.isEmailVerified) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      ...generateResponse(false, 'Email is already verified. Please login normally.'),
+      errorCode: EMAIL_VERIFICATION_ERROR_CODES.ALREADY_VERIFIED,
+    });
+  }
+
+  const otp = generatePasswordResetOtp();
+  const ttlMinutes = resolveEmailVerificationOtpTtlMinutes();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ttlMinutes * 60 * 1000);
+
+  user.emailVerificationOtpHash = hashValue(otp);
+  user.emailVerificationOtpExpiresAt = expiresAt;
+  user.emailVerificationOtpAttemptCount = 0;
+  await user.save({ validateBeforeSave: false });
+
+  try {
+    await sendEmailVerificationOtpEmail({ email: user.email, otp, otpExpiresAt: expiresAt });
+  } catch (emailError) {
+    console.error(`[auth:resend-email-verification] otp_delivery_failed email=${user.email} message=${emailError.message}`);
+    return res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
+      ...generateResponse(false, 'Unable to send verification code right now. Please try again.'),
+      errorCode: 'otp_delivery_failed',
+    });
+  }
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, 'A new verification code has been sent to your email', {
+      otpExpiresAt: expiresAt,
+    })
+  );
+});
+
 // @desc    Get all users (Admin only)
 // @route   GET /api/auth/users
 // @access  Private/Admin
@@ -704,6 +918,8 @@ module.exports = {
   forgotPassword,
   resendForgotPasswordOtp,
   resetPassword,
+  verifyEmail,
+  resendEmailVerificationOtp,
   getUsers,
   updateUser,
   deleteUser,

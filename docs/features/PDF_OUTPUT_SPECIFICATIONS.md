@@ -29,7 +29,7 @@ Orientation: Portrait
 Margins: TBD based on provided template
 ```
 
-#### 2. Room Folder Slip Format
+#### 2. Invigilator Slip Format
 ```
 Page Size: A4 (210mm × 297mm)
 Orientation: Portrait
@@ -189,7 +189,7 @@ Each generated PDF should include:
 
 ### File Size Expectations
 - Notice Board: ~50-200 KB (text-heavy)
-- Room Folder Slip: ~30-100 KB per room
+- Invigilator Slip: ~30-100 KB per room
 - Room Door Slip: ~20-50 KB per room
 - CBSE Copy: ~100-500 KB (table-heavy)
 

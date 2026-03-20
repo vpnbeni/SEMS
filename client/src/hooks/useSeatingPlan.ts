@@ -67,9 +67,9 @@ export type SeatingPlanFormat = 'mainGate' | 'roomFolderSlip' | 'roomDoorSlip' |
 
 const FORMAT_FILENAMES: Record<SeatingPlanFormat, string> = {
   mainGate: 'main-gate.pdf',
-  roomFolderSlip: 'room-folder-slip.pdf',
+  roomFolderSlip: 'invigilator-slip.pdf',
   roomDoorSlip: 'room-door-slip.pdf',
-  cbseCopy: 'cbse-copy.pdf',
+  cbseCopy: 'cbse-format.pdf',
 }
 
 const extractPdfErrorMessage = async (error: any): Promise<string> => {

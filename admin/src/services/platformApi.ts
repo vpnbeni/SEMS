@@ -18,6 +18,8 @@ import type {
   TenantListResponse,
   TenantWithFeatureSummary,
   UploadResult,
+  MasterRemunerationRate,
+  MasterPackingDispatch,
 } from '../types/platform'
 
 const configuredApiBaseUrl = (import.meta.env.VITE_PLATFORM_API_URL || '').trim()
@@ -308,6 +310,35 @@ export const masterUndertakingsApi = {
     await platformApi.delete(`/master-undertakings/${id}`, {
       params: { removeFromCloudinary },
     })
+  },
+}
+
+export const masterRemunerationApi = {
+  async list(): Promise<MasterRemunerationRate[]> {
+    const response = await platformApi.get<ApiResponse<MasterRemunerationRate[]>>('/master-remuneration')
+    return response.data.data
+  },
+
+  async upsert(rates: Array<{
+    dutyType: string
+    remuneration: number
+    conveyance: number
+    refreshment: number
+  }>): Promise<MasterRemunerationRate[]> {
+    const response = await platformApi.put<ApiResponse<MasterRemunerationRate[]>>('/master-remuneration', { rates })
+    return response.data.data
+  },
+}
+
+export const masterPackingDispatchApi = {
+  async get(): Promise<MasterPackingDispatch> {
+    const response = await platformApi.get<ApiResponse<MasterPackingDispatch>>('/master-packing-dispatch')
+    return response.data.data
+  },
+
+  async upsert(payload: MasterPackingDispatch): Promise<MasterPackingDispatch> {
+    const response = await platformApi.put<ApiResponse<MasterPackingDispatch>>('/master-packing-dispatch', payload)
+    return response.data.data
   },
 }
 

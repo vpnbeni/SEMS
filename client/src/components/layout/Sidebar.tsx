@@ -40,6 +40,8 @@ const Sidebar: React.FC = () => {
   const { currentSession, clearSession } = useAcademicSession()
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
+  // Tracks expand/collapse state for group headers + nested sub-groups.
+  // "Ungroup all" -> we expand everything based on accessible navigation.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const isPathAllowed = (href: string) => isFeatureEnabledForPath(href, currentUser?.featureToggles)
   const canAccessCentreDetails = isPathAllowed('/centre-details')
@@ -47,7 +49,7 @@ const Sidebar: React.FC = () => {
   const sidebarCountsAccess = useMemo(
     () => ({
       examFunctionaries: isPathAllowed('/exam-functionaries'),
-      candidates: isPathAllowed('/candidates'),
+      candidates: isPathAllowed('/candidate-details'),
       subjects: isPathAllowed('/subjects'),
       answerSheets: isPathAllowed('/answersheets'),
       datesheetDays: isPathAllowed('/datesheets'),
@@ -72,7 +74,7 @@ const Sidebar: React.FC = () => {
   // Refresh counts when location changes (user navigates)
   useEffect(() => {
     // Refresh counts after a delay when navigating to relevant pages
-    const relevantPaths = ['/candidates', '/subjects', '/exam-functionaries', '/duties', '/answersheets', '/datesheets', '/examrooms']
+    const relevantPaths = ['/candidate-details', '/subjects', '/exam-functionaries', '/duties', '/answersheets', '/datesheets', '/examrooms']
     if (relevantPaths.some(path => location.pathname.includes(path))) {
       const timer = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: sidebarKeys.all })
@@ -252,6 +254,16 @@ const Sidebar: React.FC = () => {
           ),
           badge: toBadgeValue(counts.examFunctionaries),
         },
+      ],
+    },
+    {
+      name: 'Centre Records',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+      ),
+      children: [
         {
           name: 'Centre Guidelines',
           href: '/centre-guidelines',
@@ -303,16 +315,6 @@ const Sidebar: React.FC = () => {
           ),
           badge: null,
         },
-      ],
-    },
-    {
-      name: 'Centre Records',
-      icon: (
-        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-        </svg>
-      ),
-      children: [
         {
           name: 'Datesheets',
           href: '/datesheets',
@@ -384,14 +386,77 @@ const Sidebar: React.FC = () => {
           badge: null,
         },
         {
-          name: 'Candidates',
-          href: '/candidates',
+          name: 'PwD Info',
+          href: '/pwd-info',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 18.75A2.25 2.25 0 0015.75 21h-7.5A2.25 2.25 0 006 18.75V8.25A2.25 2.25 0 018.25 6h7.5A2.25 2.25 0 0118 8.25v10.5z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9.75a1.5 1.5 0 110 3 1.5 1.5 0 010-3zm-2.25 9v-2.25a2.25 2.25 0 114.5 0v2.25" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: "UMC's",
+          href: '/umcs',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3.75m0 3.75h.008v.008H12v-.008z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.29 3.86l-7.5 13A1.5 1.5 0 004.08 19.5h15.84a1.5 1.5 0 001.29-2.64l-7.5-13a1.5 1.5 0 00-2.58 0z" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: 'Stickers',
+          href: '/stickers',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7.5 6.75h9m-9 5.25h9m-9 5.25h4.5" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.25 3.75h13.5A2.25 2.25 0 0121 6v12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18V6a2.25 2.25 0 012.25-2.25z" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: "Performa's",
+          href: '/performas',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-3-8h3m-9 13h10.5A2.25 2.25 0 0019.5 18.75V8.121a2.25 2.25 0 00-.659-1.591l-2.371-2.371a2.25 2.25 0 00-1.591-.659H9A2.25 2.25 0 006.75 5.75v13A2.25 2.25 0 009 21z" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: 'Candidate Details',
+          href: '/candidate-details',
           icon: (
             <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
             </svg>
           ),
           badge: toBadgeValue(counts.candidates),
+        },
+        {
+          name: 'Dispatch Slip',
+          href: '/dispatch-slip',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: 'Remuneration',
+          href: '/remuneration',
+          icon: (
+            <span className="inline-flex items-center justify-center w-4 h-4 text-[13px] font-semibold leading-none">
+              ₹
+            </span>
+          ),
+          badge: null,
         },
       ],
     },
@@ -422,8 +487,29 @@ const Sidebar: React.FC = () => {
 
   const filteredNavigation: NavEntry[] = navigation.reduce<NavEntry[]>((acc, entry) => {
     if (isGroup(entry)) {
+      // Flatten specific groups into independent top-level items.
+      // This removes the "Centre Details" / "Centre Records" accordions from the sidebar.
+      if (entry.name === 'Centre Details' || entry.name === 'Centre Records') {
+        entry.children.forEach((child) => {
+          if (isSubGroup(child)) {
+            child.children.forEach((grandChild) => {
+              if (isPathAllowed(grandChild.href)) acc.push(grandChild)
+            })
+            return
+          }
+          if (isPathAllowed(child.href)) acc.push(child)
+        })
+        return acc
+      }
+
       const filteredChildren = filterNavChildren(entry.children)
       const groupHrefAllowed = entry.href ? isPathAllowed(entry.href) : false
+
+      // If the group has a gating href and it's not allowed, hide the entire group
+      // (even if individual children would otherwise pass their own feature checks)
+      if (entry.href && !groupHrefAllowed) {
+        return acc
+      }
 
       if (filteredChildren.length === 0 && !groupHrefAllowed) {
         return acc
@@ -444,6 +530,25 @@ const Sidebar: React.FC = () => {
 
     return acc
   }, [])
+
+  // Expand all groups/sub-groups once accessible navigation is resolved.
+  useEffect(() => {
+    const next: Record<string, boolean> = {}
+
+    filteredNavigation.forEach((entry) => {
+      if (!isGroup(entry)) return
+
+      next[entry.name] = true
+      entry.children.forEach((child) => {
+        if (isSubGroup(child)) {
+          next[`${entry.name}/${child.name}`] = true
+        }
+      })
+    })
+
+    setOpenGroups(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredNavigation])
 
   const canAccessBilling = isPathAllowed('/billing')
   const canAccessAccountSettings = isPathAllowed('/account-settings')

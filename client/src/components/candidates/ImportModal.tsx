@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { useDropzone } from 'react-dropzone'
 import Loader from '../common/Loader'
 
@@ -17,15 +17,16 @@ const ImportModal: React.FC<ImportModalProps> = ({
 }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  const onDrop = (acceptedFiles: File[]) => {
+  const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0]
     if (file && file.type === 'application/pdf') {
       setSelectedFile(file)
     }
-  }
+  }, [])
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
+    noClick: true,
     accept: {
       'application/pdf': ['.pdf']
     },
@@ -36,7 +37,6 @@ const ImportModal: React.FC<ImportModalProps> = ({
   const handleImport = async () => {
     if (selectedFile) {
       await onImport(selectedFile)
-      setSelectedFile(null)
     }
   }
 
@@ -98,7 +98,7 @@ const ImportModal: React.FC<ImportModalProps> = ({
                 isDragActive
                   ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
                   : 'border-gray-300 dark:border-gray-600 hover:border-primary-400 dark:hover:border-primary-500'
-              } ${importing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              } ${importing ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <input {...getInputProps()} />
               
@@ -114,10 +114,8 @@ const ImportModal: React.FC<ImportModalProps> = ({
                     {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                   </p>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setSelectedFile(null)
-                    }}
+                    type="button"
+                    onClick={() => setSelectedFile(null)}
                     disabled={importing}
                     className="mt-2 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
                   >
@@ -141,9 +139,14 @@ const ImportModal: React.FC<ImportModalProps> = ({
                       <p className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                         {isDragActive ? 'Drop the PDF here' : 'Drag & drop a PDF file here'}
                       </p>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                      <button
+                        type="button"
+                        onClick={open}
+                        disabled={importing}
+                        className="mt-1 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium disabled:opacity-50"
+                      >
                         or click to select a file
-                      </p>
+                      </button>
                     </>
                   )}
                 </div>
