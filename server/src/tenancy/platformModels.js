@@ -11,6 +11,8 @@ const { getDataRolloutModel } = require('../models/platform/DataRollout');
 const { getMasterTeacherTemplateModel } = require('../models/platform/MasterTeacherTemplate');
 const { getMasterRemunerationRateModel } = require('../models/platform/MasterRemunerationRate');
 const { getMasterPackingDispatchModel } = require('../models/platform/MasterPackingDispatch');
+const { getMasterSchoolDirectoryModel } = require('../models/platform/MasterSchoolDirectory');
+const { getSchoolDirectoryTypeSettingsModel } = require('../models/platform/SchoolDirectoryTypeSettings');
 
 const getPlatformModels = () => {
   const connection = getPlatformConnection();
@@ -29,6 +31,8 @@ const getPlatformModels = () => {
     MasterTeacherTemplate: getMasterTeacherTemplateModel(connection),
     MasterRemunerationRate: getMasterRemunerationRateModel(connection),
     MasterPackingDispatch: getMasterPackingDispatchModel(connection),
+    MasterSchoolDirectory: getMasterSchoolDirectoryModel(connection),
+    SchoolDirectoryTypeSettings: getSchoolDirectoryTypeSettingsModel(connection),
   };
 };
 

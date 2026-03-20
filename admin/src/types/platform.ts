@@ -207,6 +207,29 @@ export interface MasterPackingDispatch {
   dispatchSlipInsuredAmount: string
 }
 
+export interface MasterSchoolDirectory {
+  _id: string
+  srNo: number
+  affiliationNo: string
+  schoolCode: string
+  state: string
+  district: string
+  status: string
+  name: string
+  headName: string
+  website: string
+  addressDetails: string
+  manualType?: 'Govt.' | 'Private' | ''
+  sourceFileName?: string
+  lastImportedAt?: string
+  createdAt: string
+  updatedAt?: string
+}
+
+export interface SchoolDirectoryTypeSettings {
+  govtKeywords: string[]
+}
+
 export type RolloutModule = 'subjects' | 'datesheet' | 'guidelines' | 'undertaking'
 export type RolloutStatus = 'in_progress' | 'completed' | 'partial_failure'
 

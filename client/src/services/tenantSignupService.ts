@@ -12,6 +12,8 @@ const tenantSignupApi = axios.create({
 })
 
 export interface TenantSignupStartPayload {
+  schoolCode?: string
+  affiliationNo?: string
   name: string
   slug: string
   adminEmail: string
@@ -42,6 +44,12 @@ export interface TenantSignupResendOtpResponse {
   otpExpiresAt: string
 }
 
+export interface SchoolDirectoryLookupResult {
+  schoolCode: string
+  affiliationNo: string
+  name: string
+}
+
 export interface TenantSignupExchangeResponse {
   token: string
   refreshToken: string
@@ -67,6 +75,11 @@ const tenantSignupService = {
 
   async resendOtp(payload: TenantSignupResendOtpPayload): Promise<TenantSignupResendOtpResponse> {
     const response = await tenantSignupApi.post('/public/tenant-signup/resend-otp', payload)
+    return response.data.data
+  },
+
+  async lookupSchoolByCode(schoolCode: string): Promise<SchoolDirectoryLookupResult> {
+    const response = await tenantSignupApi.get(`/public/school-directory/${encodeURIComponent(schoolCode.trim())}`)
     return response.data.data
   },
 }

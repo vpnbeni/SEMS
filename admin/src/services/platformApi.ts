@@ -20,6 +20,8 @@ import type {
   UploadResult,
   MasterRemunerationRate,
   MasterPackingDispatch,
+  MasterSchoolDirectory,
+  SchoolDirectoryTypeSettings,
 } from '../types/platform'
 
 const configuredApiBaseUrl = (import.meta.env.VITE_PLATFORM_API_URL || '').trim()
@@ -245,6 +247,50 @@ export const masterDatesheetApi = {
 
   async delete(id: string): Promise<void> {
     await platformApi.delete(`/master-datesheet/${id}`)
+  },
+}
+
+export const masterSchoolDirectoryApi = {
+  async list(): Promise<MasterSchoolDirectory[]> {
+    const response = await platformApi.get<ApiResponse<MasterSchoolDirectory[]>>('/master-school-directory')
+    return response.data.data
+  },
+
+  async upload(formData: FormData): Promise<UploadResult<{ source: 'pdf' | 'csv'; total: number; inserted: number; updated: number; skipped: number; errors?: Array<{ row?: number; message: string }> }>> {
+    const response = await platformApi.post<UploadResult<{ source: 'pdf' | 'csv'; total: number; inserted: number; updated: number; skipped: number; errors?: Array<{ row?: number; message: string }> }>>(
+      '/master-school-directory/upload',
+      formData,
+      {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      },
+    )
+    return response.data
+  },
+
+  async deleteMany(ids: string[]): Promise<{ deletedCount: number }> {
+    const response = await platformApi.delete<ApiResponse<{ deletedCount: number }>>('/master-school-directory', {
+      data: { ids },
+    })
+    return response.data.data
+  },
+
+  async getTypeSettings(): Promise<SchoolDirectoryTypeSettings> {
+    const response = await platformApi.get<ApiResponse<SchoolDirectoryTypeSettings>>('/master-school-directory/type-settings')
+    return response.data.data
+  },
+
+  async updateTypeSettings(govtKeywords: string[]): Promise<SchoolDirectoryTypeSettings> {
+    const response = await platformApi.put<ApiResponse<SchoolDirectoryTypeSettings>>('/master-school-directory/type-settings', {
+      govtKeywords,
+    })
+    return response.data.data
+  },
+
+  async updateSchoolType(id: string, type: 'Govt.' | 'Private'): Promise<MasterSchoolDirectory> {
+    const response = await platformApi.patch<ApiResponse<MasterSchoolDirectory>>(`/master-school-directory/${id}/type`, {
+      type,
+    })
+    return response.data.data
   },
 }
 

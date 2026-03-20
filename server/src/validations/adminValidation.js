@@ -17,6 +17,8 @@ const createTenantSchema = Joi.object({
 });
 
 const publicTenantSignupStartSchema = Joi.object({
+  schoolCode: Joi.string().pattern(/^\d{5}$/).required(),
+  affiliationNo: Joi.string().pattern(/^\d{6}$/).required(),
   slug: Joi.string().pattern(tenantSlugRegex).required(),
   name: Joi.string().min(2).max(120).required(),
   adminEmail: Joi.string().email().required(),
@@ -46,6 +48,10 @@ const publicTenantSignupResendOtpSchema = Joi.object({
 
 const publicTenantResolveByEmailSchema = Joi.object({
   email: Joi.string().email().required(),
+});
+
+const publicSchoolDirectoryLookupParamSchema = Joi.object({
+  schoolCode: Joi.string().pattern(/^\d{5}$/).required(),
 });
 
 const updateTenantSchema = Joi.object({
@@ -110,6 +116,14 @@ const masterPackingDispatchUpdateSchema = Joi.object({
   dispatchSlipInsuredAmount: optionalText(50),
 });
 
+const schoolDirectoryTypeSettingsSchema = Joi.object({
+  govtKeywords: Joi.array().items(Joi.string().trim().min(1).max(120)).min(1).required(),
+});
+
+const schoolDirectoryManualTypeSchema = Joi.object({
+  type: Joi.string().valid('Govt.', 'Private').required(),
+});
+
 module.exports = {
   platformLoginSchema,
   createTenantSchema,
@@ -117,6 +131,7 @@ module.exports = {
   publicTenantSignupExchangeSchema,
   publicTenantSignupResendOtpSchema,
   publicTenantResolveByEmailSchema,
+  publicSchoolDirectoryLookupParamSchema,
   updateTenantSchema,
   deleteTenantSchema,
   tenantQuerySchema,
@@ -124,4 +139,6 @@ module.exports = {
   tenantFeatureUpdateSchema,
   masterRemunerationUpdateSchema,
   masterPackingDispatchUpdateSchema,
+  schoolDirectoryTypeSettingsSchema,
+  schoolDirectoryManualTypeSchema,
 };
