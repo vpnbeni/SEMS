@@ -826,10 +826,16 @@ const deleteTenant = asyncHandler(async (req, res) => {
   }
 
   const platformConnection = getPlatformConnection();
-  const tenantDbConnection = platformConnection.useDb(tenant.dbName, { useCache: true });
 
   try {
-    await tenantDbConnection.dropDatabase();
+    // Remove from Mongoose cache before dropping to avoid stale model references
+    removeTenantFromCache(tenant.dbName);
+
+    // Use the native MongoDB client directly — more reliable than useDb().dropDatabase()
+    const mongoClient = platformConnection.getClient();
+    const nativeDb = mongoClient.db(tenant.dbName);
+    await nativeDb.dropDatabase();
+
     const deleteDirectoryPromise = TenantUserDirectory
       ? TenantUserDirectory.deleteMany({ tenantSlug: tenant.slug })
       : Promise.resolve();
@@ -839,7 +845,6 @@ const deleteTenant = asyncHandler(async (req, res) => {
       deleteDirectoryPromise,
       Tenant.findByIdAndDelete(tenant._id)
     ]);
-    removeTenantFromCache(tenant.dbName);
 
     if (typeof platformConnection.removeDb === 'function') {
       try {
@@ -858,7 +863,8 @@ const deleteTenant = asyncHandler(async (req, res) => {
         dbName: tenant.dbName
       }
     });
-  } catch {
+  } catch (err) {
+    console.error(`[deleteTenant] Failed to delete tenant '${tenant.slug}' (db: ${tenant.dbName}):`, err);
     return res.status(500).json({
       success: false,
       message: `Failed to delete tenant database '${tenant.dbName}'. Tenant record was not removed.`
