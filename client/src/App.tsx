@@ -58,6 +58,7 @@ import AccountSettings from './pages/AccountSettings'
 import HelpSupport from './pages/HelpSupport'
 import SessionSelector from './pages/SessionSelector'
 import Pricing from './pages/Pricing'
+import { OnboardingPage, ValidationReportPage } from './pages/Onboarding'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -178,6 +179,32 @@ function App() {
                 <Navigate to="/dashboard" replace />
               ) : (
                 <SessionSelector />
+              )
+            }
+          />
+
+          {/* Onboarding (authenticated, has session, but needs onboarding) */}
+          <Route
+            path="/onboarding"
+            element={
+              !isAuthenticated ? (
+                <Navigate to="/" replace />
+              ) : !hasSession ? (
+                <Navigate to="/select-session" replace />
+              ) : (
+                <OnboardingPage />
+              )
+            }
+          />
+          <Route
+            path="/onboarding/validation"
+            element={
+              !isAuthenticated ? (
+                <Navigate to="/" replace />
+              ) : !hasSession ? (
+                <Navigate to="/select-session" replace />
+              ) : (
+                <ValidationReportPage />
               )
             }
           />

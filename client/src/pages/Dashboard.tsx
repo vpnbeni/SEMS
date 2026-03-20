@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ExamTimeline } from '@/components/dashboard'
 import type { ExamTimelineItem } from '@/components/dashboard'
 import { useTodaysExams, useDailyDuties, useDailyAnswerSheetSummary } from '@/hooks/useDashboard'
 import { useCentreDatesheetEntries } from '@/hooks/useSeatingPlan'
+import { useOnboardingStatus } from '@/hooks/useOnboarding'
 import type { CentreDatesheetEntry } from '@/services/centreDatesheetService'
 import type { TodaysExamsResponse, TodaysExam } from '@/services/dashboardService'
 import type { DailyDutiesResponse } from '@/services/dutiesService'
@@ -719,7 +720,17 @@ const TableSkeleton: React.FC<{ rows?: number; cols?: number }> = ({
 // Main Dashboard Component
 // ---------------------------------------------------------------------------
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate()
   const [selectedDate, setSelectedDate] = useState<string>(todayIso())
+
+  // --- onboarding check ---
+  const { data: onboardingStatus } = useOnboardingStatus()
+
+  useEffect(() => {
+    if (onboardingStatus && !onboardingStatus.isComplete) {
+      navigate('/onboarding', { replace: true })
+    }
+  }, [onboardingStatus, navigate])
 
   // --- data fetching ---
   const {

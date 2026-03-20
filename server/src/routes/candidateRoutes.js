@@ -7,10 +7,16 @@ const {
   updateCandidate,
   deleteCandidate,
   importCandidatesFromPDF,
-  getCandidateStats
+  getCandidateStats,
+  removeSubjectCodeFromCandidates
 } = require('../controllers/candidateController');
 
 const { linkCandidateSubjects } = require('../controllers/linkCandidateSubjects');
+const {
+  reimportCompare,
+  reimportImpact,
+  reimportApply,
+} = require('../controllers/candidateReimportController');
 
 const { protect, authorize } = require('../middleware/auth');
 const { validateCandidate } = require('../validations/candidateValidation');
@@ -37,6 +43,22 @@ router
 router
   .route('/link-subjects')
   .post(authorize('admin', 'staff'), linkCandidateSubjects);
+
+router
+  .route('/subject-code')
+  .delete(authorize('admin'), removeSubjectCodeFromCandidates);
+
+router
+  .route('/reimport-compare')
+  .post(authorize('admin'), reimportCompare);
+
+router
+  .route('/reimport-impact')
+  .post(authorize('admin'), reimportImpact);
+
+router
+  .route('/reimport-apply')
+  .post(authorize('admin'), reimportApply);
 
 router
   .route('/:id/subject-serials')
