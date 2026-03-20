@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useOnboardingStatus, useStartOnboarding, useCompleteStep, useCompleteOnboarding } from '@/hooks/useOnboarding';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+import { CheckCircle, AlertCircle, Clock, FileText, XCircle } from 'lucide-react';
+import Dialog from '@/components/common/Dialog/Dialog';
 import toast from 'react-hot-toast';
 
 interface StepConfig {
@@ -66,6 +67,7 @@ export function OnboardingWizard() {
 
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
   const session = statusData?.session;
 
@@ -245,6 +247,22 @@ export function OnboardingWizard() {
         <h2 className="text-2xl font-bold mb-2">{currentStepConfig.title}</h2>
         <p className="text-gray-600 mb-6">{currentStepConfig.description}</p>
 
+        {/* Slow-step warning for steps 5 & 6 */}
+        {(currentStep === 5 || currentStep === 6) && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-300 rounded-lg">
+            <div className="flex items-start gap-2">
+              <Clock className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold text-amber-800">This step takes longer than usual</p>
+                <p className="text-sm text-amber-700 mt-1">
+                  Attendance sheets contain candidate photos and require extra processing time.
+                  Please <strong>do not close or refresh this tab</strong> until the upload completes.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Validation Warnings */}
         {currentStepWarnings.length > 0 && (
           <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -282,13 +300,21 @@ export function OnboardingWizard() {
 
         {/* Actions */}
         <div className="flex justify-between">
-          <button
-            onClick={handlePrevious}
-            disabled={currentStep === 1}
-            className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-          >
-            Previous
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePrevious}
+              disabled={currentStep === 1}
+              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="px-6 py-2 text-gray-500 hover:text-gray-700 text-sm underline underline-offset-2"
+            >
+              Finish later
+            </button>
+          </div>
 
           {currentStep < STEPS.length ? (
             <button
@@ -318,17 +344,144 @@ export function OnboardingWizard() {
         </div>
       </div>
 
-      {/* Validation Report Link */}
+      {/* Validation Report Button */}
       {session?.validationReport && (
         <div className="mt-6 text-center">
-          <Link
-            to="/onboarding/validation"
-            className="text-blue-600 hover:underline"
+          <button
+            onClick={() => setIsReportOpen(true)}
+            className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 hover:underline text-sm"
           >
+            <FileText className="w-4 h-4" />
             View Validation Report
-          </Link>
+          </button>
         </div>
       )}
+
+      {/* Validation Report Dialog */}
+      <Dialog
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        title="Validation Report"
+        size="lg"
+        variant={
+          session?.validationReport?.overallStatus === 'errors'
+            ? 'error'
+            : session?.validationReport?.overallStatus === 'warnings'
+            ? 'warning'
+            : 'success'
+        }
+        icon={
+          session?.validationReport?.overallStatus === 'errors' ? (
+            <XCircle className="w-5 h-5 text-red-500" />
+          ) : session?.validationReport?.overallStatus === 'warnings' ? (
+            <AlertCircle className="w-5 h-5 text-yellow-500" />
+          ) : (
+            <CheckCircle className="w-5 h-5 text-green-500" />
+          )
+        }
+      >
+        {session?.validationReport && (
+          <div className="space-y-5">
+            {/* Overall status badge */}
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium
+              ${session.validationReport.overallStatus === 'errors'
+                ? 'bg-red-100 text-red-700'
+                : session.validationReport.overallStatus === 'warnings'
+                ? 'bg-yellow-100 text-yellow-700'
+                : 'bg-green-100 text-green-700'
+              }`}
+            >
+              {session.validationReport.overallStatus === 'valid' ? 'All data looks good' : `Status: ${session.validationReport.overallStatus}`}
+            </div>
+
+            {/* Candidate counts */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Class X Candidates</p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  {session.validationReport.candidateCountX ?? '—'}
+                </p>
+              </div>
+              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Class XII Candidates</p>
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  {session.validationReport.candidateCountXII ?? '—'}
+                </p>
+              </div>
+            </div>
+
+            {/* Form 66 mismatches */}
+            {(session.validationReport.form66MismatchesX?.length ?? 0) > 0 && (
+              <MismatchSection
+                title="Form 66 Mismatches — Class X"
+                items={session.validationReport.form66MismatchesX!}
+              />
+            )}
+            {(session.validationReport.form66MismatchesXII?.length ?? 0) > 0 && (
+              <MismatchSection
+                title="Form 66 Mismatches — Class XII"
+                items={session.validationReport.form66MismatchesXII!}
+              />
+            )}
+
+            {/* Attendance mismatches */}
+            {(session.validationReport.attendanceMismatchesX?.length ?? 0) > 0 && (
+              <MismatchSection
+                title="Attendance Mismatches — Class X"
+                items={session.validationReport.attendanceMismatchesX!}
+              />
+            )}
+            {(session.validationReport.attendanceMismatchesXII?.length ?? 0) > 0 && (
+              <MismatchSection
+                title="Attendance Mismatches — Class XII"
+                items={session.validationReport.attendanceMismatchesXII!}
+              />
+            )}
+
+            {session.validationReport.overallStatus === 'valid' &&
+              !session.validationReport.form66MismatchesX?.length &&
+              !session.validationReport.form66MismatchesXII?.length &&
+              !session.validationReport.attendanceMismatchesX?.length &&
+              !session.validationReport.attendanceMismatchesXII?.length && (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  No mismatches found. All imported data is consistent.
+                </p>
+              )}
+          </div>
+        )}
+      </Dialog>
+    </div>
+  );
+}
+
+function MismatchSection({ title, items }: { title: string; items: any[] }) {
+  return (
+    <div>
+      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1">
+        <AlertCircle className="w-4 h-4 text-yellow-500" />
+        {title}
+        <span className="ml-1 text-xs font-normal text-gray-500">({items.length})</span>
+      </h4>
+      <div className="max-h-48 overflow-y-auto rounded border border-gray-200 dark:border-gray-700">
+        <table className="min-w-full text-xs">
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            {items.map((item, i) => (
+              <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                {typeof item === 'object' ? (
+                  Object.entries(item).map(([k, v]) => (
+                    <td key={k} className="px-3 py-1.5 text-gray-600 dark:text-gray-300">
+                      <span className="font-medium text-gray-500 dark:text-gray-400">{k}:</span>{' '}
+                      {String(v)}
+                    </td>
+                  ))
+                ) : (
+                  <td className="px-3 py-1.5 text-gray-600 dark:text-gray-300">{String(item)}</td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

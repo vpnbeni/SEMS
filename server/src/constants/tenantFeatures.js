@@ -11,9 +11,13 @@ const TENANT_FEATURE_PAGES = Object.freeze(
 
 const TENANT_FEATURE_KEYS = Object.freeze(TENANT_FEATURE_PAGES.map((entry) => entry.key));
 
+// Features listed here are disabled by default for new tenants.
+// Platform admins can enable them per-tenant from the admin panel.
+const FEATURES_DISABLED_BY_DEFAULT = new Set(['school_hub']);
+
 const createAllEnabledFeatureToggles = () => {
   return TENANT_FEATURE_KEYS.reduce((acc, key) => {
-    acc[key] = true;
+    acc[key] = !FEATURES_DISABLED_BY_DEFAULT.has(key);
     return acc;
   }, {});
 };

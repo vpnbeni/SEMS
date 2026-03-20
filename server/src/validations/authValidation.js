@@ -231,6 +231,35 @@ const userQuerySchema = paginationSchema.keys({
     })
 });
 
+// Verify email validation schema
+const verifyEmailSchema = Joi.object({
+  email: Joi.string()
+    .email()
+    .required()
+    .messages({
+      'string.email': 'Please provide a valid email address',
+      'any.required': 'Email is required'
+    }),
+  otp: Joi.string()
+    .pattern(/^\d{6}$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Verification code must be a 6-digit number',
+      'any.required': 'Verification code is required'
+    })
+});
+
+// Resend email verification OTP validation schema
+const resendEmailVerificationSchema = Joi.object({
+  email: Joi.string()
+    .email()
+    .required()
+    .messages({
+      'string.email': 'Please provide a valid email address',
+      'any.required': 'Email is required'
+    })
+});
+
 module.exports = {
   loginSchema,
   registerSchema,
@@ -238,6 +267,8 @@ module.exports = {
   forgotPasswordSchema,
   forgotPasswordResendOtpSchema,
   resetPasswordSchema,
+  verifyEmailSchema,
+  resendEmailVerificationSchema,
   refreshTokenSchema,
   updateProfileSchema,
   objectIdSchema,

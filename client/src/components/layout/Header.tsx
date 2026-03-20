@@ -6,6 +6,7 @@ import { useAcademicSession } from '@/contexts/AcademicSessionContext'
 import { useTimetable } from '@/contexts/TimetableContext'
 import { isFeatureEnabledForPath } from '@/constants/featureAccess'
 import { useCentreDetails } from '@/hooks/useCentreDetails'
+import { useOnboardingStatus } from '@/hooks/useOnboarding'
 
 const Header: React.FC = () => {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -294,6 +295,10 @@ const Header: React.FC = () => {
     return `${weekday}, ${date}`
   }, [])
 
+  const { data: onboardingStatus } = useOnboardingStatus()
+  const showOnboardingBanner =
+    !!onboardingStatus?.hasSession && !onboardingStatus?.isComplete
+
   const { data: centreDetails } = useCentreDetails({
     enabled: isDashboardRoute && canAccessCentreDetails,
   })
@@ -436,6 +441,21 @@ const Header: React.FC = () => {
                 )}
               </div>
             )}
+            {/* Onboarding Banner */}
+            {showOnboardingBanner && location.pathname !== '/onboarding' && (
+              <button
+                type="button"
+                onClick={() => navigate('/onboarding')}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 text-xs font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors whitespace-nowrap"
+              >
+                <span className="relative flex h-2 w-2 flex-shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                </span>
+                Complete Onboarding
+              </button>
+            )}
+
             {/* Academic Session Badge */}
             {currentSession && (
               <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200/60 dark:border-primary-800/40">

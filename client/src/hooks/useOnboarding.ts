@@ -1,6 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import onboardingService from '@/services/onboardingService';
-import toast from 'react-hot-toast';
 
 export const useOnboardingStatus = () => {
   return useQuery({
@@ -17,10 +16,6 @@ export const useStartOnboarding = () => {
       onboardingService.startSession(sessionType),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['onboarding'] });
-      toast.success('Onboarding session started');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to start onboarding');
     },
   });
 };
@@ -31,12 +26,8 @@ export const useCompleteStep = () => {
   return useMutation({
     mutationFn: ({ stepNumber, formData }: { stepNumber: number; formData: FormData }) =>
       onboardingService.completeStep(stepNumber, formData),
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['onboarding'] });
-      toast.success(`${data.result?.recordCount || 0} records processed successfully`);
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to complete step');
     },
   });
 };
@@ -56,10 +47,6 @@ export const useCompleteOnboarding = () => {
     mutationFn: onboardingService.completeOnboarding,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['onboarding'] });
-      toast.success('Onboarding completed successfully!');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.message || 'Failed to complete onboarding');
     },
   });
 };

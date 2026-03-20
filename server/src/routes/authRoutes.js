@@ -12,6 +12,8 @@ const {
   forgotPassword,
   resendForgotPasswordOtp,
   resetPassword,
+  verifyEmail,
+  resendEmailVerificationOtp,
   getUsers,
   updateUser,
   deleteUser,
@@ -27,6 +29,8 @@ const {
   forgotPasswordSchema,
   forgotPasswordResendOtpSchema,
   resetPasswordSchema,
+  verifyEmailSchema,
+  resendEmailVerificationSchema,
   refreshTokenSchema,
   updateProfileSchema,
   objectIdSchema,
@@ -91,6 +95,8 @@ router.post(
   resendForgotPasswordOtp
 );
 router.post('/reset-password', resetPasswordLimiter, validateJoi(resetPasswordSchema), resetPassword);
+router.post('/verify-email', validateJoi(verifyEmailSchema), verifyEmail);
+router.post('/resend-email-verification', validateJoi(resendEmailVerificationSchema), resendEmailVerificationOtp);
 
 // Protected routes (require authentication)
 router.use(protect);

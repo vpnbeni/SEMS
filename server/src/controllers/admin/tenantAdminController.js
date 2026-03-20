@@ -684,7 +684,9 @@ const exchangePublicTenantSignup = asyncHandler(async (req, res) => {
   const token = generateTenantToken(tokenPayload);
   const refreshToken = generateRefreshToken(tokenPayload);
 
-  await user.addRefreshToken(refreshToken);
+  // Mark email as verified since OTP was successfully validated
+  user.isEmailVerified = true;
+  await user.addRefreshToken(refreshToken); // saves the user including isEmailVerified
   await onboardTenantBillingBestEffort({
     tenant: tenantRecord,
     tenantAdmin: user,

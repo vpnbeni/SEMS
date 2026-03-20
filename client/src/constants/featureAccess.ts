@@ -18,6 +18,10 @@ const FEATURE_RULES = FEATURE_CATALOG.map(({ key, prefixes }) => ({
   prefixes,
 }))
 
+// Opt-in features are hidden by default and only shown when explicitly enabled
+// by a platform admin. Add feature keys here to make them opt-in.
+const OPT_IN_FEATURES = new Set(['school_hub'])
+
 const FALLBACK_ROUTE_PRIORITY = FEATURE_CATALOG
   .filter((entry) => typeof entry.fallbackPriority === 'number')
   .sort((left, right) => (left.fallbackPriority ?? Number.MAX_SAFE_INTEGER) - (right.fallbackPriority ?? Number.MAX_SAFE_INTEGER))
@@ -41,6 +45,11 @@ export const isFeatureEnabledForPath = (pathname: string, toggles: TenantFeature
   const featureKey = resolveFeatureKeyFromPath(pathname)
   if (!featureKey) {
     return true
+  }
+
+  // Opt-in features must be explicitly enabled (true); absence or null means hidden
+  if (OPT_IN_FEATURES.has(featureKey)) {
+    return toggles?.[featureKey] === true
   }
 
   return toggles?.[featureKey] !== false
