@@ -120,7 +120,7 @@ const selectBestResolution = (resolutions) => {
 };
 
 const resolveTenantFromRequest = (req) => {
-  const rootApiDomain = (process.env.ROOT_API_DOMAIN || 'api.vpnbeni.com').toLowerCase();
+  const rootApiDomain = (process.env.ROOT_API_DOMAIN || 'api.capabble.cloud').toLowerCase();
   const hostCandidates = buildHostCandidates(req);
 
   if (!hostCandidates.length) {
