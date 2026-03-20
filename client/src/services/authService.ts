@@ -129,6 +129,21 @@ class AuthService {
     return response.data
   }
 
+  // Verify email with OTP (for unverified accounts blocked at login)
+  async verifyEmail(email: string, otp: string): Promise<AuthResponse> {
+    const response = await api.post('/auth/verify-email', { email, otp })
+    if (response.data.success && response.data.data?.token) {
+      api.defaults.headers.common['Authorization'] = `Bearer ${response.data.data.token}`
+    }
+    return response.data
+  }
+
+  // Resend email verification OTP
+  async resendEmailVerificationOtp(email: string): Promise<ApiResponse> {
+    const response = await api.post('/auth/resend-email-verification', { email })
+    return response.data
+  }
+
   // Check if user is authenticated
   isAuthenticated(): boolean {
     const token = getAuthToken()

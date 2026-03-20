@@ -86,7 +86,8 @@ const provisionTenant = async ({
       email,
       password: generatedPassword,
       role: 'admin',
-      isActive: true
+      isActive: true,
+      isEmailVerified: false
     });
 
     await syncTenantUserDirectoryEntry({

@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { BookOpen, Calendar, ChevronRight, CheckCircle2, ArrowRight, Loader2, Copy } from 'lucide-react'
 import { useAvailableSessions, useCreateSession, useCarryForward } from '../hooks/useSessions'
 import { useAcademicSession } from '../contexts/AcademicSessionContext'
+import { useOnboardingStatus } from '../hooks/useOnboarding'
 import toast from 'react-hot-toast'
 
 const SessionSelector: React.FC = () => {
@@ -12,6 +13,7 @@ const SessionSelector: React.FC = () => {
   const { data, isLoading, error } = useAvailableSessions()
   const createSession = useCreateSession()
   const carryForward = useCarryForward()
+  const { data: onboardingStatus } = useOnboardingStatus()
 
   const [selectedLabel, setSelectedLabel] = useState<string | null>(null)
   const [showCarryForward, setShowCarryForward] = useState(false)
@@ -52,7 +54,13 @@ const SessionSelector: React.FC = () => {
 
       // Set session in context (updates localStorage + invalidates React Query)
       setSession(selectedLabel)
-      navigate('/dashboard', { replace: true })
+
+      // Check if user needs onboarding
+      if (onboardingStatus && !onboardingStatus.isComplete) {
+        navigate('/onboarding', { replace: true })
+      } else {
+        navigate('/dashboard', { replace: true })
+      }
     } catch (err: any) {
       toast.error(err?.response?.data?.error || 'Failed to enter session')
     } finally {

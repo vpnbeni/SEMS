@@ -505,6 +505,12 @@ const Sidebar: React.FC = () => {
       const filteredChildren = filterNavChildren(entry.children)
       const groupHrefAllowed = entry.href ? isPathAllowed(entry.href) : false
 
+      // If the group has a gating href and it's not allowed, hide the entire group
+      // (even if individual children would otherwise pass their own feature checks)
+      if (entry.href && !groupHrefAllowed) {
+        return acc
+      }
+
       if (filteredChildren.length === 0 && !groupHrefAllowed) {
         return acc
       }

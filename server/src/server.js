@@ -62,7 +62,19 @@ const initializeServer = async () => {
 };
 
 // Initialize server
-initializeServer();
+initializeServer().then(() => {
+  // Start attendance background worker after DB is ready.
+  // Skip on Vercel (serverless — no persistent workers).
+  if (!process.env.VERCEL) {
+    try {
+      require('./workers/attendanceWorker');
+      console.log('✅ Attendance background worker started'.green.bold);
+    } catch (workerErr) {
+      // Worker failing to start (e.g. Redis not available) should not kill the server.
+      console.warn('⚠️  Attendance worker failed to start (Redis may be unavailable):'.yellow, workerErr.message);
+    }
+  }
+});
 
 // Start server
 const PORT = process.env.PORT || 5000;
@@ -86,6 +98,8 @@ process.on('unhandledRejection', (err) => {
 // Handle SIGTERM
 process.on('SIGTERM', () => {
   console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
+  const worker = require('./workers/attendanceWorker');
+  worker.close().catch(() => {});
   server.close(() => {
     console.log('💥 Process terminated!');
   });
@@ -94,6 +108,8 @@ process.on('SIGTERM', () => {
 // Handle SIGINT (Ctrl+C)
 process.on('SIGINT', () => {
   console.log('\n👋 SIGINT RECEIVED. Shutting down gracefully');
+  const worker = require('./workers/attendanceWorker');
+  worker.close().catch(() => {});
   server.close(() => {
     console.log('💥 Process terminated!');
     process.exit(0);
