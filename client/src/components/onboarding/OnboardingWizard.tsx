@@ -217,7 +217,6 @@ export function OnboardingWizard() {
   }
 
   const currentStepConfig = STEPS[currentStep - 1];
-  const currentStepStatus = getStepStatus(currentStepConfig.stepKey);
   const currentStepWarnings =
     session?.steps[currentStepConfig.stepKey as keyof typeof session.steps]
       ?.validationWarnings ?? [];
