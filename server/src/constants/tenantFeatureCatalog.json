@@ -1,0 +1,243 @@
+[
+  {
+    "key": "dashboard",
+    "label": "Dashboard",
+    "path": "/dashboard",
+    "group": "Core",
+    "prefixes": ["/dashboard"],
+    "fallbackPriority": 10
+  },
+  {
+    "key": "school_hub",
+    "label": "School Hub",
+    "path": "/school-hub",
+    "group": "School Hub",
+    "prefixes": ["/school-hub"],
+    "fallbackPriority": 20
+  },
+  {
+    "key": "timetable_classes",
+    "label": "Time Table - Classes",
+    "path": "/time-table/classes",
+    "group": "School Hub",
+    "prefixes": ["/time-table/classes"],
+    "fallbackPriority": 0
+  },
+  {
+    "key": "timetable_subjects",
+    "label": "Time Table - Subjects",
+    "path": "/time-table/subjects",
+    "group": "School Hub",
+    "prefixes": ["/time-table/subjects"]
+  },
+  {
+    "key": "timetable_bell_timings",
+    "label": "Time Table - Bell Timings",
+    "path": "/time-table/bell-timings",
+    "group": "School Hub",
+    "prefixes": ["/time-table/bell-timings"]
+  },
+  {
+    "key": "timetable_class_wise",
+    "label": "Time Table - Class Wise",
+    "path": "/time-table/class-wise",
+    "group": "School Hub",
+    "prefixes": ["/time-table/class-wise"]
+  },
+  {
+    "key": "timetable_teacher_wise",
+    "label": "Time Table - Teacher Wise",
+    "path": "/time-table/teacher-wise",
+    "group": "School Hub",
+    "prefixes": ["/time-table/teacher-wise"]
+  },
+  {
+    "key": "timetable_period_allocation",
+    "label": "Time Table - Period Allocation",
+    "path": "/time-table/period-distribution",
+    "group": "School Hub",
+    "prefixes": [
+      "/time-table/period-distribution",
+      "/time-table/distribution",
+      "/time-table/period-allocation",
+      "/time-table/subject-allocation",
+      "/time-table/departments"
+    ]
+  },
+  {
+    "key": "centre_details",
+    "label": "Centre Details",
+    "path": "/centre-details",
+    "group": "Centre Details",
+    "prefixes": ["/centre-details"],
+    "fallbackPriority": 30
+  },
+  {
+    "key": "exam_functionaries",
+    "label": "Exam Functionaries",
+    "path": "/exam-functionaries",
+    "group": "Centre Details",
+    "prefixes": ["/exam-functionaries", "/teachers", "/staff"],
+    "fallbackPriority": 40
+  },
+  {
+    "key": "centre_guidelines",
+    "label": "Centre Guidelines",
+    "path": "/centre-guidelines",
+    "group": "Centre Details",
+    "prefixes": ["/centre-guidelines"]
+  },
+  {
+    "key": "cbse_circulars",
+    "label": "CBSE Circulars",
+    "path": "/cbse-circulars",
+    "group": "Centre Details",
+    "prefixes": ["/cbse-circulars"]
+  },
+  {
+    "key": "cbse_portals",
+    "label": "CBSE Portals",
+    "path": "/cbse-portals",
+    "group": "Centre Details",
+    "prefixes": ["/cbse-portals"]
+  },
+  {
+    "key": "subjects",
+    "label": "Subjects",
+    "path": "/subjects",
+    "group": "Centre Details",
+    "prefixes": ["/subjects"],
+    "fallbackPriority": 50
+  },
+  {
+    "key": "undertaking",
+    "label": "Undertaking Form",
+    "path": "/undertaking",
+    "group": "Centre Details",
+    "prefixes": ["/undertaking"]
+  },
+  {
+    "key": "datesheets",
+    "label": "Datesheets",
+    "path": "/datesheets",
+    "group": "Centre Records",
+    "prefixes": ["/datesheets"],
+    "fallbackPriority": 60
+  },
+  {
+    "key": "form66",
+    "label": "Form 66",
+    "path": "/form66",
+    "group": "Centre Records",
+    "prefixes": ["/form66"]
+  },
+  {
+    "key": "examrooms",
+    "label": "Exam Room/Hall",
+    "path": "/examrooms",
+    "group": "Centre Records",
+    "prefixes": ["/examrooms", "/rooms"]
+  },
+  {
+    "key": "answersheets",
+    "label": "Answer Sheets",
+    "path": "/answersheets",
+    "group": "Centre Records",
+    "prefixes": ["/answersheets"],
+    "fallbackPriority": 70
+  },
+  {
+    "key": "seatingplan",
+    "label": "Seating Plan",
+    "path": "/seatingplan",
+    "group": "Centre Records",
+    "prefixes": ["/seatingplan"]
+  },
+  {
+    "key": "duties",
+    "label": "Duties",
+    "path": "/duties",
+    "group": "Centre Records",
+    "prefixes": ["/duties"]
+  },
+  {
+    "key": "attendance",
+    "label": "Attendance",
+    "path": "/attendance",
+    "group": "Centre Records",
+    "prefixes": ["/attendance"]
+  },
+  {
+    "key": "pwd_info",
+    "label": "PwD Info",
+    "path": "/pwd-info",
+    "group": "Centre Records",
+    "prefixes": ["/pwd-info"]
+  },
+  {
+    "key": "umcs",
+    "label": "UMC's",
+    "path": "/umcs",
+    "group": "Centre Records",
+    "prefixes": ["/umcs"]
+  },
+  {
+    "key": "stickers",
+    "label": "Stickers",
+    "path": "/stickers",
+    "group": "Centre Records",
+    "prefixes": ["/stickers"]
+  },
+  {
+    "key": "performas",
+    "label": "Performa's",
+    "path": "/performas",
+    "group": "Centre Records",
+    "prefixes": ["/performas"]
+  },
+  {
+    "key": "candidates",
+    "label": "Candidate Details",
+    "path": "/candidate-details",
+    "group": "Centre Records",
+    "prefixes": ["/candidate-details", "/candidates"],
+    "fallbackPriority": 45
+  },
+  {
+    "key": "dispatch_slip",
+    "label": "Dispatch Slip",
+    "path": "/dispatch-slip",
+    "group": "Centre Records",
+    "prefixes": ["/dispatch-slip"]
+  },
+  {
+    "key": "remuneration",
+    "label": "Remuneration",
+    "path": "/remuneration",
+    "group": "Centre Records",
+    "prefixes": ["/remuneration"]
+  },
+  {
+    "key": "billing",
+    "label": "Billing",
+    "path": "/billing",
+    "group": "Account",
+    "prefixes": ["/billing"],
+    "fallbackPriority": 80
+  },
+  {
+    "key": "account_settings",
+    "label": "Account Settings",
+    "path": "/account-settings",
+    "group": "Account",
+    "prefixes": ["/account-settings"]
+  },
+  {
+    "key": "help_support",
+    "label": "Help & Support",
+    "path": "/help-support",
+    "group": "Account",
+    "prefixes": ["/help-support"],
+    "fallbackPriority": 90
+  }
+]
