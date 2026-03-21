@@ -1,4 +1,4 @@
-const FEATURE_CATALOG = Object.freeze(require('../../../client/src/constants/tenantFeatureCatalog.json'));
+const FEATURE_CATALOG = Object.freeze(require('./tenantFeatureCatalog.json'));
 
 const TENANT_FEATURE_PAGES = Object.freeze(
   FEATURE_CATALOG.map(({ key, label, path, group }) => ({
