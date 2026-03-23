@@ -1,5 +1,7 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Document, Page, pdfjs } from 'react-pdf'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import {
   Calendar,
   FileText,
@@ -10,6 +12,7 @@ import {
   ClipboardCheck,
   UserCheck,
   CheckCircle2,
+  Eye,
   Copyright,
   Heart,
 } from 'lucide-react'
@@ -17,7 +20,9 @@ import fullLogo from '../assets/full logo.png'
 import dashboardPreview from '../assets/dashboard.png'
 import dashboardPreview2 from '../assets/dashboard2.png'
 
-const APP_URL = 'https://sems.capabble.cloud'
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
+
+const PREVIEW_PDF_URL = `${import.meta.env.BASE_URL}Preview.pdf`
 
 const modules = [
   {
@@ -87,6 +92,22 @@ const modules = [
 ]
 
 const CntrLanding: React.FC = () => {
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false)
+  const [previewPageCount, setPreviewPageCount] = useState(0)
+  const [previewRenderError, setPreviewRenderError] = useState<string | null>(null)
+
+  const openPreviewDialog = () => {
+    setPreviewPageCount(0)
+    setPreviewRenderError(null)
+    setShowPreviewDialog(true)
+  }
+
+  const closePreviewDialog = () => {
+    setShowPreviewDialog(false)
+    setPreviewPageCount(0)
+    setPreviewRenderError(null)
+  }
+
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-900">
       <section className="border-b border-slate-200/80 bg-white">
@@ -108,12 +129,14 @@ const CntrLanding: React.FC = () => {
                 Manage datesheets, rooms, answer sheets, seating plans, invigilator duties, attendance and candidate records.
               </h2>
               <div className="mt-8 flex flex-wrap items-center gap-4">
-                <a
-                  href={APP_URL}
+                <button
+                  type="button"
+                  onClick={openPreviewDialog}
                   className="inline-flex items-center justify-center rounded-xl bg-emerald-500 px-6 py-3.5 text-sm font-semibold text-white shadow-md transition-colors hover:bg-emerald-600"
                 >
-                  User Manual
-                </a>
+                  <Eye className="mr-2 h-4 w-4" />
+                  Preview
+                </button>
               </div>
             </div>
 
@@ -244,6 +267,78 @@ const CntrLanding: React.FC = () => {
           <span>in Bharat.</span>
         </span>
       </footer>
+
+      {showPreviewDialog && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="flex h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <h4 className="text-sm font-semibold text-gray-900">
+                Product Preview PDF
+              </h4>
+              <div className="flex items-center gap-2">
+                <a
+                  href={PREVIEW_PDF_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                >
+                  Open in New Tab
+                </a>
+                <a
+                  href={PREVIEW_PDF_URL}
+                  download="Preview.pdf"
+                  className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700"
+                >
+                  Download PDF
+                </a>
+                <button
+                  type="button"
+                  onClick={closePreviewDialog}
+                  className="inline-flex items-center rounded-md border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+            <div className="w-full flex-1 overflow-auto bg-gray-100 p-4">
+              {previewRenderError ? (
+                <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-gray-600">
+                  {previewRenderError}
+                </div>
+              ) : (
+                <Document
+                  file={PREVIEW_PDF_URL}
+                  loading={
+                    <div className="flex h-full w-full items-center justify-center text-sm text-gray-600">
+                      Loading PDF preview...
+                    </div>
+                  }
+                  onLoadSuccess={({ numPages }) => {
+                    setPreviewPageCount(numPages)
+                    setPreviewRenderError(null)
+                  }}
+                  onLoadError={(error) => {
+                    console.error('Failed to render landing page preview:', error)
+                    const message = (error as Error)?.message || 'Unknown PDF render error'
+                    setPreviewRenderError(`Failed to render preview in dialog (${message}). Use "Open in New Tab" or "Download PDF".`)
+                  }}
+                  className="flex flex-col items-center gap-4"
+                >
+                  {Array.from({ length: previewPageCount }).map((_, index) => (
+                    <Page
+                      key={`landing-preview-page-${index + 1}`}
+                      pageNumber={index + 1}
+                      width={980}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                    />
+                  ))}
+                </Document>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

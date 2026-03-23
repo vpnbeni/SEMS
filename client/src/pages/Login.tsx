@@ -240,11 +240,18 @@ const Login: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-start gap-3"
           >
-            <img
-              src={fullLogo}
-              alt="Cntr - Exam Centre Control"
-              className="h-24 w-auto"
-            />
+            <a
+              href="https://cntr.capabble.cloud"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-opacity hover:opacity-90"
+            >
+              <img
+                src={fullLogo}
+                alt="Cntr - Exam Centre Control"
+                className="h-24 w-auto"
+              />
+            </a>
             <div>
               <p className="text-2xl font-bold tracking-[0.08em] text-primary-900">Exam Centre Control</p>
             </div>
@@ -276,11 +283,18 @@ const Login: React.FC = () => {
         >
           <div className="mb-8 text-center xl:mb-10">
             <div className="mb-6 flex justify-center lg:hidden">
-              <img
-                src={fullLogo}
-                alt="Cntr - Exam Centre Control"
-                className="h-24 w-auto"
-              />
+              <a
+                href="https://cntr.capabble.cloud"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-opacity hover:opacity-90"
+              >
+                <img
+                  src={fullLogo}
+                  alt="Cntr - Exam Centre Control"
+                  className="h-24 w-auto"
+                />
+              </a>
             </div>
             <h2 className="mb-2 text-3xl font-bold text-slate-900">Welcome to Cntr</h2>
             <p className="text-slate-500">Enter your username/email and password to login.</p>
