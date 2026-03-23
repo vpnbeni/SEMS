@@ -946,37 +946,49 @@ const SeatingPlan: React.FC = () => {
                 No datesheet entries found. Please import a datesheet first.
               </div>
             ) : (
-              <table className="sp-schedule-table min-w-full">
+              <table className="sp-schedule-table w-max min-w-[980px]">
+                <colgroup>
+                  <col style={{ width: '56px' }} />
+                  <col style={{ width: '128px' }} />
+                  <col style={{ width: '112px' }} />
+                  <col style={{ width: '96px' }} />
+                  <col style={{ width: '220px' }} />
+                  <col style={{ width: '100px' }} />
+                  <col style={{ width: '160px' }} />
+                  <col style={{ width: '88px' }} />
+                  <col style={{ width: '92px' }} />
+                  <col style={{ width: '76px' }} />
+                </colgroup>
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
                       Sr No
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
                       Date
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
                       Day
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
                       Subject Code
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
                       Subject Name
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
                       Class
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
                       Time
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
                       Candidates
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
                       No Of Rooms
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
                       Download
                     </th>
                   </tr>
@@ -1003,10 +1015,10 @@ const SeatingPlan: React.FC = () => {
                           }`
                           }`}
                       >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         {index + 1}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                      <td className="px-3.5 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                         <div className="inline-flex items-center gap-2">
                           <span>{formatDate(entry.examDate)}</span>
                           {isTodayExam && (
@@ -1021,16 +1033,16 @@ const SeatingPlan: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                      <td className="px-3.5 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                         {entry.dayName || 'Unknown'}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
+                      <td className="px-3.5 py-3 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
                         {entry.subjectCode}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                      <td className="px-3.5 py-3 text-sm text-gray-900 dark:text-white">
                         {entry.subjectName}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <td className="px-3.5 py-3 whitespace-nowrap text-sm">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${entry.class === '10'
                           ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
                           : entry.class === '12'
@@ -1040,20 +1052,20 @@ const SeatingPlan: React.FC = () => {
                           Class {entry.class}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
+                      <td className="px-3.5 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                         {formatTime(entry.timeSlot.start)} - {formatTime(entry.timeSlot.end)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
+                      <td className="px-3.5 py-3 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
                         {entry.candidateCount}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-purple-600 dark:text-purple-400">
+                      <td className="px-3.5 py-3 whitespace-nowrap text-sm font-semibold text-purple-600 dark:text-purple-400">
                         {entry.roomsNeeded === 0 ? (
                           <span className="italic text-xs text-amber-600 dark:text-amber-400">Shared</span>
                         ) : (
                           entry.roomsNeeded
                         )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <td className="px-3 py-3 whitespace-nowrap text-sm">
                         <div className="flex space-x-2">
                           <button
                             onClick={() => handleDownloadPDF(entry._id, activeTab)}
