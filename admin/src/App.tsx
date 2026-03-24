@@ -16,6 +16,41 @@ import type { PlatformAdmin } from './types/platform'
 
 const getInitialPath = () => window.location.pathname || '/'
 
+const getLoginErrorMessage = (err: unknown): string => {
+  if (typeof err === 'object' && err) {
+    const response = 'response' in err
+      ? (err as {
+          response?: {
+            status?: number
+            statusText?: string
+            data?: { message?: string } | string
+          }
+        }).response
+      : undefined
+
+    const responseData = response?.data
+    if (typeof responseData === 'string' && responseData.trim()) {
+      return responseData
+    }
+
+    if (typeof responseData === 'object' && responseData?.message) {
+      return responseData.message
+    }
+
+    if (response?.status) {
+      return response.statusText
+        ? `Login failed (${response.status} ${response.statusText})`
+        : `Login failed (HTTP ${response.status})`
+    }
+
+    if ('message' in err && typeof err.message === 'string' && err.message.trim()) {
+      return err.message
+    }
+  }
+
+  return 'Login failed'
+}
+
 function App() {
   const [admin, setAdmin] = useState<PlatformAdmin | null>(null)
   const [loading, setLoading] = useState(false)
@@ -81,12 +116,7 @@ function App() {
       setAdmin(result.admin)
       navigateTo('/')
     } catch (err: unknown) {
-      if (typeof err === 'object' && err && 'response' in err) {
-        const response = (err as { response?: { data?: { message?: string } } }).response
-        setError(response?.data?.message || 'Login failed')
-      } else {
-        setError('Login failed')
-      }
+      setError(getLoginErrorMessage(err))
     } finally {
       setLoading(false)
     }

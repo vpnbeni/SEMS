@@ -1,9 +1,15 @@
 const { Worker } = require('bullmq');
 const fs = require('fs');
-const { getRedisConnection } = require('../queues/attendanceQueue');
+const { getRedisConnection, isAttendanceQueueEnabled } = require('../queues/attendanceQueue');
 const { getTenantConnectionAndModels } = require('../tenancy/tenantConnectionManager');
 const { parseAttendanceSheetPdf } = require('../utils/attendanceSheetParser');
 const { cloudinary } = require('../config/cloudinary');
+
+if (!isAttendanceQueueEnabled) {
+  throw new Error(
+    'Attendance queue is disabled. Set REDIS_URL or ATTENDANCE_QUEUE_ENABLED=true to run the worker.'
+  );
+}
 
 /**
  * Read PDF from a temp file path, extract photos, upload each to Cloudinary,

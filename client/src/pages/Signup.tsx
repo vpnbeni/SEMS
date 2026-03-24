@@ -174,7 +174,14 @@ const Signup: React.FC = () => {
       <div className="flex min-h-screen flex-col justify-center px-4 py-8 sm:px-6 lg:px-10 xl:px-14">
         <div className="mx-auto flex w-full max-w-xl flex-col rounded-[28px] border border-white/50 bg-white/80 p-5 shadow-2xl shadow-slate-900/10 backdrop-blur-xl sm:p-6 lg:min-h-[78vh] lg:max-w-2xl lg:justify-between lg:p-8">
           <div className="mb-2 flex justify-center lg:mb-4">
-            <img src={fullLogo} alt="Cntr" className="h-12 w-auto" />
+            <a
+              href="https://cntr.capabble.cloud"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="transition-opacity hover:opacity-90"
+            >
+              <img src={fullLogo} alt="Cntr" className="h-12 w-auto" />
+            </a>
           </div>
           <h1 className="mb-4 text-center text-lg font-bold text-slate-900 sm:text-xl lg:mb-6">Create your exam centre account.</h1>
 
@@ -194,21 +201,6 @@ const Signup: React.FC = () => {
                   className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   placeholder="5 digits"
                 />
-                <p
-                  className={`mt-1 text-[11px] ${
-                    lookupState === 'resolved'
-                      ? 'text-emerald-600'
-                      : lookupState === 'not_found' || lookupState === 'error'
-                        ? 'text-red-500'
-                        : 'text-slate-500'
-                  }`}
-                >
-                  {lookupState === 'loading' && 'Checking school directory...'}
-                  {lookupState === 'resolved' && 'School found. Affiliation number and school name were auto-filled.'}
-                  {lookupState === 'not_found' && 'No school found for this code in the school directory.'}
-                  {lookupState === 'error' && 'School lookup failed. Please try again.'}
-                  {lookupState === 'idle' && 'Enter the 5-digit school code to fetch school details.'}
-                </p>
               </div>
               <div>
                 <label htmlFor="affiliationNo" className="mb-1 block text-xs font-medium text-slate-700">
