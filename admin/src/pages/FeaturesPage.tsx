@@ -30,9 +30,12 @@ export function FeaturesPage() {
   const [pages, setPages] = useState<TenantFeaturePage[]>([])
   const [tenants, setTenants] = useState<TenantWithFeatureSummary[]>([])
   const [selectedTenantId, setSelectedTenantId] = useState<string>('')
+  const [defaultToggles, setDefaultToggles] = useState<Record<string, boolean>>({})
   const [toggles, setToggles] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(false)
+  const [defaultLoading, setDefaultLoading] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [defaultSavingKey, setDefaultSavingKey] = useState<string | null>(null)
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -62,6 +65,16 @@ export function FeaturesPage() {
     setPages(mergeFeaturePages(response))
   }
 
+  const loadDefaultFeatures = async () => {
+    setDefaultLoading(true)
+    try {
+      const response = await featuresAdminApi.getDefaultFeatures()
+      setDefaultToggles(response.toggles)
+    } finally {
+      setDefaultLoading(false)
+    }
+  }
+
   const loadTenants = async (searchText = search) => {
     const response = await featuresAdminApi.listTenants(searchText)
     setTenants(response)
@@ -83,7 +96,7 @@ export function FeaturesPage() {
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([loadPages(), loadTenants('')])
+    Promise.all([loadPages(), loadDefaultFeatures(), loadTenants('')])
       .catch((err: unknown) => {
         const message = typeof err === 'object' && err && 'response' in err
           ? ((err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to load features')
@@ -141,6 +154,28 @@ export function FeaturesPage() {
     }
   }
 
+  const saveDefaultToggles = async (
+    nextToggles: Record<string, boolean>,
+    successMessage: string,
+    key: string | null,
+  ) => {
+    setDefaultSavingKey(key)
+    setError('')
+    try {
+      const response = await featuresAdminApi.updateDefaultFeatures(nextToggles)
+      setDefaultToggles(response.toggles)
+      showSuccess(successMessage)
+    } catch (err: unknown) {
+      const message = typeof err === 'object' && err && 'response' in err
+        ? ((err as { response?: { data?: { message?: string } } }).response?.data?.message || 'Failed to update default features')
+        : 'Failed to update default features'
+      setError(message)
+      throw err
+    } finally {
+      setDefaultSavingKey(null)
+    }
+  }
+
   const handleToggle = async (featureKey: string, enabled: boolean) => {
     const previous = toggles
     const nextToggles = { ...previous, [featureKey]: enabled }
@@ -172,6 +207,93 @@ export function FeaturesPage() {
     }
   }
 
+  const handleDefaultToggle = async (featureKey: string, enabled: boolean) => {
+    const previous = defaultToggles
+    const nextToggles = { ...previous, [featureKey]: enabled }
+    setDefaultToggles(nextToggles)
+
+    try {
+      await saveDefaultToggles(
+        nextToggles,
+        `Default feature ${enabled ? 'enabled' : 'disabled'} successfully`,
+        featureKey,
+      )
+    } catch {
+      setDefaultToggles(previous)
+    }
+  }
+
+  const handleDefaultToggleAll = async (enabled: boolean) => {
+    const previous = defaultToggles
+    const nextToggles = pages.reduce<Record<string, boolean>>((acc, page) => {
+      acc[page.key] = enabled
+      return acc
+    }, {})
+    setDefaultToggles(nextToggles)
+
+    try {
+      await saveDefaultToggles(
+        nextToggles,
+        `All default features ${enabled ? 'enabled' : 'disabled'}`,
+        null,
+      )
+    } catch {
+      setDefaultToggles(previous)
+    }
+  }
+
+  const renderFeatureGroups = (
+    currentToggles: Record<string, boolean>,
+    activeSavingKey: string | null,
+    onToggle: (featureKey: string, enabled: boolean) => void,
+    disabled: boolean,
+  ) => (
+    <div className="grid" style={{ gap: 14 }}>
+      {Object.entries(groupedPages).map(([groupName, groupItems]) => (
+        <div key={groupName} style={{ border: '1px solid var(--border-color)', borderRadius: 10, padding: 12 }}>
+          <h3 style={{ margin: '0 0 10px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{groupName}</h3>
+          <div className="grid" style={{ gap: 8 }}>
+            {groupItems.map((page) => {
+              const enabled = currentToggles[page.key] !== false
+              const isSaving = activeSavingKey === page.key
+
+              return (
+                <div
+                  key={page.key}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    gap: 12,
+                    alignItems: 'center',
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border-color)',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{page.label}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{page.path}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className={enabled ? 'secondary' : 'ghost'}
+                    disabled={disabled}
+                    onClick={() => onToggle(page.key, !enabled)}
+                    style={{ minWidth: 108 }}
+                  >
+                    {isSaving ? 'Saving...' : enabled ? 'Enabled' : 'Disabled'}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+
+  const defaultDisabledCount = Object.values(defaultToggles).filter((value) => value === false).length
   const disabledCount = Object.values(toggles).filter((value) => value === false).length
 
   return (
@@ -188,6 +310,45 @@ export function FeaturesPage() {
           {success && <span className="success-text" style={{ margin: 0 }}>{success}</span>}
         </div>
       </div>
+
+      <section className="card" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12 }}>
+          <div>
+            <h2 className="card-title" style={{ marginBottom: 6 }}>Default Features</h2>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+              Controls which pages are enabled for newly created tenants.
+              Existing tenants can still be updated manually below.
+            </p>
+            <p style={{ margin: '6px 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+              {defaultLoading
+                ? 'Loading default feature configuration...'
+                : `${defaultDisabledCount} disabled of ${pages.length}`}
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              className="ghost"
+              disabled={defaultLoading || defaultSavingKey !== null}
+              onClick={() => handleDefaultToggleAll(false)}
+            >
+              Disable All
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              disabled={defaultLoading || defaultSavingKey !== null}
+              onClick={() => handleDefaultToggleAll(true)}
+            >
+              Enable All
+            </button>
+          </div>
+        </div>
+
+        {defaultLoading
+          ? <div className="empty-state">Loading default feature configuration...</div>
+          : renderFeatureGroups(defaultToggles, defaultSavingKey, handleDefaultToggle, defaultSavingKey !== null)}
+      </section>
 
       <div className="grid grid-2" style={{ gap: 20 }}>
         <section className="card">
@@ -288,49 +449,7 @@ export function FeaturesPage() {
           )}
 
           {selectedTenant && !detailLoading && (
-            <div className="grid" style={{ gap: 14 }}>
-              {Object.entries(groupedPages).map(([groupName, groupItems]) => (
-                <div key={groupName} style={{ border: '1px solid var(--border-color)', borderRadius: 10, padding: 12 }}>
-                  <h3 style={{ margin: '0 0 10px', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{groupName}</h3>
-                  <div className="grid" style={{ gap: 8 }}>
-                    {groupItems.map((page) => {
-                      const enabled = toggles[page.key] !== false
-                      const isSaving = savingKey === page.key
-
-                      return (
-                        <div
-                          key={page.key}
-                          style={{
-                            display: 'grid',
-                            gridTemplateColumns: '1fr auto',
-                            gap: 12,
-                            alignItems: 'center',
-                            padding: '10px 12px',
-                            borderRadius: 8,
-                            border: '1px solid var(--border-color)',
-                            background: 'rgba(255, 255, 255, 0.02)',
-                          }}
-                        >
-                          <div>
-                            <div style={{ fontWeight: 600 }}>{page.label}</div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{page.path}</div>
-                          </div>
-                          <button
-                            type="button"
-                            className={enabled ? 'secondary' : 'ghost'}
-                            disabled={savingKey !== null}
-                            onClick={() => handleToggle(page.key, !enabled)}
-                            style={{ minWidth: 108 }}
-                          >
-                            {isSaving ? 'Saving...' : enabled ? 'Enabled' : 'Disabled'}
-                          </button>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
+            renderFeatureGroups(toggles, savingKey, handleToggle, savingKey !== null)
           )}
         </section>
       </div>

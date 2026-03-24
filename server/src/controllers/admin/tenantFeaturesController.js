@@ -3,6 +3,10 @@ const {
   TENANT_FEATURE_PAGES,
   normalizeTenantFeatureToggles,
 } = require('../../constants/tenantFeatures');
+const {
+  getDefaultTenantFeatureToggles,
+  updateDefaultTenantFeatureToggles,
+} = require('../../services/tenantFeatureDefaultsService');
 
 const listFeaturePages = asyncHandler(async (req, res) => {
   res.status(200).json({
@@ -49,6 +53,18 @@ const listFeatureTenants = asyncHandler(async (req, res) => {
   });
 });
 
+const getDefaultFeatures = asyncHandler(async (req, res) => {
+  const toggles = await getDefaultTenantFeatureToggles({ platformModels: req.platformModels });
+
+  return res.status(200).json({
+    success: true,
+    data: {
+      toggles,
+      pages: TENANT_FEATURE_PAGES,
+    },
+  });
+});
+
 const getTenantFeatures = asyncHandler(async (req, res) => {
   const { Tenant } = req.platformModels;
   const { id } = req.params;
@@ -69,6 +85,23 @@ const getTenantFeatures = asyncHandler(async (req, res) => {
     data: {
       tenant,
       toggles: normalizeTenantFeatureToggles(tenant.featureToggles),
+      pages: TENANT_FEATURE_PAGES,
+    },
+  });
+});
+
+const updateDefaultFeatures = asyncHandler(async (req, res) => {
+  const toggles = await updateDefaultTenantFeatureToggles({
+    toggles: req.body.toggles,
+    updatedBy: req.platformUser?._id || null,
+    platformModels: req.platformModels,
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: 'Default feature flags updated successfully',
+    data: {
+      toggles,
       pages: TENANT_FEATURE_PAGES,
     },
   });
@@ -105,6 +138,8 @@ const updateTenantFeatures = asyncHandler(async (req, res) => {
 module.exports = {
   listFeaturePages,
   listFeatureTenants,
+  getDefaultFeatures,
   getTenantFeatures,
+  updateDefaultFeatures,
   updateTenantFeatures,
 };

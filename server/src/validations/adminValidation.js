@@ -17,8 +17,8 @@ const createTenantSchema = Joi.object({
 });
 
 const publicTenantSignupStartSchema = Joi.object({
-  schoolCode: Joi.string().pattern(/^\d{5}$/).required(),
-  affiliationNo: Joi.string().pattern(/^\d{6}$/).required(),
+  schoolCode: Joi.string().pattern(/^\d{5}$/).optional(),
+  affiliationNo: Joi.string().pattern(/^\d{6}$/).optional(),
   slug: Joi.string().pattern(tenantSlugRegex).required(),
   name: Joi.string().min(2).max(120).required(),
   adminEmail: Joi.string().email().required(),

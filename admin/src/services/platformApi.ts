@@ -1,5 +1,6 @@
 import axios from 'axios'
 import type {
+  DefaultTenantFeatureConfigResponse,
   BillingTenantDetails,
   BillingTenantListResponse,
   DataRollout,
@@ -165,6 +166,18 @@ export const tenantAdminApi = {
 export const featuresAdminApi = {
   async listPages(): Promise<TenantFeaturePage[]> {
     const response = await platformApi.get<ApiResponse<TenantFeaturePage[]>>('/features/pages')
+    return response.data.data
+  },
+
+  async getDefaultFeatures(): Promise<DefaultTenantFeatureConfigResponse> {
+    const response = await platformApi.get<ApiResponse<DefaultTenantFeatureConfigResponse>>('/features/defaults')
+    return response.data.data
+  },
+
+  async updateDefaultFeatures(toggles: Record<string, boolean>): Promise<DefaultTenantFeatureConfigResponse> {
+    const response = await platformApi.put<ApiResponse<DefaultTenantFeatureConfigResponse>>('/features/defaults', {
+      toggles,
+    })
     return response.data.data
   },
 

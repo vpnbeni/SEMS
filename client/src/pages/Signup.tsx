@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import fullLogo from '../assets/full logo.png'
@@ -31,6 +31,8 @@ function getPasswordStrength(password: string): PasswordStrength {
   return 'strong'
 }
 
+const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*]).{8,128}$/
+
 const Signup: React.FC = () => {
   const navigate = useNavigate()
   const [schoolCode, setSchoolCode] = useState('')
@@ -42,73 +44,16 @@ const Signup: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [lookupState, setLookupState] = useState<'idle' | 'loading' | 'resolved' | 'not_found' | 'error'>('idle')
-  const [resolvedSchoolCode, setResolvedSchoolCode] = useState('')
 
   const strength = useMemo(() => getPasswordStrength(password), [password])
   const slug = useMemo(() => toSlug(schoolCode.trim() || nameOfSchool.trim()), [schoolCode, nameOfSchool])
 
-  useEffect(() => {
-    const nextSchoolCode = schoolCode.trim()
-
-    if (nextSchoolCode.length !== 5) {
-      setAffiliationNo('')
-      setNameOfSchool('')
-      setResolvedSchoolCode('')
-      setLookupState('idle')
-      return
-    }
-
-    let cancelled = false
-    setLookupState('loading')
-    setAffiliationNo('')
-    setNameOfSchool('')
-    setResolvedSchoolCode('')
-
-    const timeoutId = window.setTimeout(async () => {
-      try {
-        const school = await tenantSignupService.lookupSchoolByCode(nextSchoolCode)
-        if (cancelled) {
-          return
-        }
-
-        setAffiliationNo(school.affiliationNo || '')
-        setNameOfSchool(school.name || '')
-        setResolvedSchoolCode(school.schoolCode || nextSchoolCode)
-        setLookupState('resolved')
-      } catch (err: unknown) {
-        if (cancelled) {
-          return
-        }
-
-        setAffiliationNo('')
-        setNameOfSchool('')
-        setResolvedSchoolCode('')
-
-        if (typeof err === 'object' && err && 'response' in err) {
-          const response = (err as { response?: { status?: number } }).response
-          setLookupState(response?.status === 404 ? 'not_found' : 'error')
-        } else {
-          setLookupState('error')
-        }
-      }
-    }, 250)
-
-    return () => {
-      cancelled = true
-      window.clearTimeout(timeoutId)
-    }
-  }, [schoolCode])
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const name = nameOfSchool.trim()
+
     if (!/^\d{5}$/.test(schoolCode.trim())) {
       toast.error('School code must be exactly 5 digits.')
-      return
-    }
-    if (lookupState !== 'resolved' || resolvedSchoolCode !== schoolCode.trim()) {
-      toast.error('Enter a valid school code from the school directory.')
       return
     }
     if (!/^\d{6}$/.test(affiliationNo.trim())) {
@@ -116,19 +61,19 @@ const Signup: React.FC = () => {
       return
     }
     if (!name) {
-      toast.error('Please enter the name of school.')
+      toast.error('Please enter the full school name.')
       return
     }
     if (!slug) {
-      toast.error('Please enter a school code.')
+      toast.error('Please enter a valid full school name.')
       return
     }
     if (!adminEmail.trim()) {
       toast.error('Please enter admin email.')
       return
     }
-    if (password.length < 8) {
-      toast.error('Password must be at least 8 characters.')
+    if (!strongPasswordRegex.test(password)) {
+      toast.error('Password must include uppercase, lowercase, number, and special character.')
       return
     }
     if (password !== confirmPassword) {
@@ -221,7 +166,7 @@ const Signup: React.FC = () => {
 
             <div>
               <label htmlFor="nameOfSchool" className="mb-1 block text-xs font-medium text-slate-700">
-                Full Name of School (as per CBSE records)
+                Full School Name
               </label>
               <input
                 id="nameOfSchool"
@@ -229,7 +174,7 @@ const Signup: React.FC = () => {
                 value={nameOfSchool}
                 onChange={(e) => setNameOfSchool(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                placeholder="Enter school name."
+                placeholder="Enter full school name"
               />
             </div>
 

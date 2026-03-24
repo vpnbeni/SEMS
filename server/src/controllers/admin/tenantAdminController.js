@@ -461,36 +461,18 @@ const startPublicTenantSignup = asyncHandler(async (req, res) => {
     adminEmail,
     adminPassword
   } = req.body;
-  const { MasterSchoolDirectory } = req.platformModels;
-
-  const normalizedSchoolCode = String(schoolCode || '').trim().toUpperCase();
+  const normalizedSchoolCode = String(schoolCode || '').trim();
   const normalizedAffiliationNo = String(affiliationNo || '').trim();
   const normalizedSchoolName = String(name || '').trim();
 
   try {
-    const schoolRecord = await MasterSchoolDirectory.findOne({
-      schoolCode: normalizedSchoolCode,
-      isActive: true,
-    });
-
-    if (!schoolRecord) {
-      return sendSignupError(
-        res,
-        400,
-        'Selected school code was not found in the school directory. Please verify it and try again.',
-        'school_not_found'
-      );
-    }
-
-    schoolRecord.affiliationNo = normalizedAffiliationNo;
-    schoolRecord.name = normalizedSchoolName;
-    await schoolRecord.save();
-
     const result = await provisionTenant({
       slug,
       name: normalizedSchoolName,
       adminEmail,
       adminPassword,
+      schoolCode: normalizedSchoolCode,
+      affiliationNo: normalizedAffiliationNo,
       createdBy: null
     });
 

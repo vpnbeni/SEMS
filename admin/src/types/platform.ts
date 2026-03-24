@@ -39,6 +39,11 @@ export interface TenantFeatureConfigResponse {
   pages: TenantFeaturePage[]
 }
 
+export interface DefaultTenantFeatureConfigResponse {
+  toggles: Record<string, boolean>
+  pages: TenantFeaturePage[]
+}
+
 export interface TenantListResponse {
   items: Tenant[]
   total: number

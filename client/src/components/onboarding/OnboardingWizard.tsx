@@ -182,7 +182,7 @@ export function OnboardingWizard() {
   if (!statusData?.hasSession) {
     return (
       <div className="max-w-2xl mx-auto mt-12 p-8 bg-white rounded-lg shadow-lg">
-        <h1 className="text-3xl font-bold mb-4">Welcome to SEMS</h1>
+        <h1 className="text-3xl font-bold mb-4">Welcome to Cntr - Smart Exam Centre Control</h1>
         <p className="text-gray-600 mb-6">
           Let's get started by importing your examination data. This wizard will guide you through
           uploading candidate lists, Form 66 records, and attendance sheets.
@@ -204,7 +204,7 @@ export function OnboardingWizard() {
         <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
         <h1 className="text-3xl font-bold mb-4">Onboarding Complete!</h1>
         <p className="text-gray-600 mb-6">
-          All data has been successfully imported. You can now start using SEMS.
+          All data has been successfully imported. You can now start using Cntr - Smart Exam Centre Control.
         </p>
         <button
           onClick={() => navigate('/dashboard')}
@@ -227,7 +227,7 @@ export function OnboardingWizard() {
 
   return (
     <div className="max-w-4xl mx-auto mt-8 p-6">
-      <h1 className="text-3xl font-bold mb-8">Data Import Wizard</h1>
+      <h1 className="text-3xl font-bold mb-8">Cntr - Setup</h1>
 
       {/* Progress Steps */}
       <div className="mb-8">
