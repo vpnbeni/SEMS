@@ -428,7 +428,11 @@ class SeatingPlanBuilder {
           };
         })
         .filter(e => e.candidateCount > 0)
-        .sort((a, b) => new Date(a.examDate).getTime() - new Date(b.examDate).getTime());
+        .sort((a, b) => {
+          const dateDiff = new Date(a.examDate).getTime() - new Date(b.examDate).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          return b.candidateCount - a.candidateCount;
+        });
 
       // For each answer sheet, calculate allocation for this specific exam
       const allocations = [];
