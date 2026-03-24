@@ -1684,10 +1684,12 @@ const Duties: React.FC = () => {
                     const selectedFunctionarySecondId = roomAssignmentsByDateSecond[selectedRoomDate]?.[room._id] || ''
                     const selectedFunctionary = functionaryById[selectedFunctionaryId]
                     const selectedFunctionarySecond = functionaryById[selectedFunctionarySecondId]
-                    const selectedFunctionaryAllowed = isCurrentInvigilator(selectedFunctionary) && isInvigilatorAllowedForRoom(room._id, selectedFunctionaryId, selectedRoomDate)
+                    const selectedFunctionaryAllowed =
+                      isCurrentInvigilator(selectedFunctionary) &&
+                      (allocationMode === 'manual' || isInvigilatorAllowedForRoom(room._id, selectedFunctionaryId, selectedRoomDate))
                     const selectedFunctionarySecondAllowed =
                       isCurrentInvigilator(selectedFunctionarySecond) &&
-                      isInvigilatorAllowedForRoom(room._id, selectedFunctionarySecondId, selectedRoomDate)
+                      (allocationMode === 'manual' || isInvigilatorAllowedForRoom(room._id, selectedFunctionarySecondId, selectedRoomDate))
                     const remainingForFirst = getRemainingInvigilatorIdsForSlot(selectedRoomDate, room._id, 'first')
                     const remainingForSecond = getRemainingInvigilatorIdsForSlot(selectedRoomDate, room._id, 'second')
 
@@ -1696,7 +1698,7 @@ const Duties: React.FC = () => {
                       if (!candidateId) return false
                       if (!remainingForFirst.has(candidateId)) return false
                       if (candidateId === String(selectedFunctionarySecondId || '').trim()) return false
-                      if (!isInvigilatorAllowedForRoom(room._id, candidateId, selectedRoomDate)) return false
+                      if (allocationMode !== 'manual' && !isInvigilatorAllowedForRoom(room._id, candidateId, selectedRoomDate)) return false
                       if (isFunctionaryAssignedElsewhere(selectedRoomDate, candidateId, room._id, 'first')) return false
                       return true
                     })
@@ -1706,7 +1708,7 @@ const Duties: React.FC = () => {
                       if (!candidateId) return false
                       if (!remainingForSecond.has(candidateId)) return false
                       if (candidateId === String(selectedFunctionaryId || '').trim()) return false
-                      if (!isInvigilatorAllowedForRoom(room._id, candidateId, selectedRoomDate)) return false
+                      if (allocationMode !== 'manual' && !isInvigilatorAllowedForRoom(room._id, candidateId, selectedRoomDate)) return false
                       if (isFunctionaryAssignedElsewhere(selectedRoomDate, candidateId, room._id, 'second')) return false
                       return true
                     })

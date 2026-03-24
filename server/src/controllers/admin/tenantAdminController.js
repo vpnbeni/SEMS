@@ -72,9 +72,9 @@ const sendSignupOtpEmail = async ({
   const safeTenantName = tenantName || tenantSlug || 'your tenant';
   const escapedTenantName = escapeHtml(safeTenantName);
 
-  const subject = 'BECMS Signup Verification Code';
+  const subject = 'Cntr Signup Verification Code';
   const text = [
-    `Your BECMS verification code is ${otpCode}.`,
+    `Your Cntr verification code is ${otpCode}.`,
     `This code expires in ${expiresInMinutes} minute(s).`,
     `Tenant: ${safeTenantName} (${tenantSlug})`,
     'If you did not request this signup, please ignore this email.'
@@ -82,7 +82,7 @@ const sendSignupOtpEmail = async ({
 
   const html = [
     '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;">',
-    '<h2 style="margin:0 0 12px;">BECMS Email Verification</h2>',
+    '<h2 style="margin:0 0 12px;">Cntr Email Verification</h2>',
     '<p style="margin:0 0 12px;">'
       + `Use the OTP below to complete tenant onboarding for <strong>${escapedTenantName}</strong>.`
       + '</p>',

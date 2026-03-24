@@ -68,16 +68,16 @@ const sendPasswordResetOtpEmail = async ({ email, otp, otpExpiresAt }) => {
     ? `This code expires in ${expiresInMinutes} minute${expiresInMinutes === 1 ? '' : 's'}.`
     : 'Use this code as soon as possible.';
 
-  const subject = 'BECMS Password Reset Verification Code';
+  const subject = 'Cntr Password Reset Verification Code';
   const text = [
-    `Your BECMS password reset verification code is ${otp}.`,
+    `Your Cntr password reset verification code is ${otp}.`,
     expiryLine,
     'If you did not request this reset, you can safely ignore this email.',
   ].join('\n');
 
   const html = [
     '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;">',
-    '<h2 style="margin:0 0 12px;">BECMS Password Reset</h2>',
+    '<h2 style="margin:0 0 12px;">Cntr Password Reset</h2>',
     '<p style="margin:0 0 12px;">Use the OTP below to reset your password:</p>',
     `<p style="margin:0 0 12px;font-size:28px;letter-spacing:6px;font-weight:700;">${otp}</p>`,
     `<p style="margin:0 0 12px;">${expiryLine}</p>`,
@@ -99,16 +99,16 @@ const sendEmailVerificationOtpEmail = async ({ email, otp, otpExpiresAt }) => {
     ? `This code expires in ${expiresInMinutes} minute${expiresInMinutes === 1 ? '' : 's'}.`
     : 'Use this code as soon as possible.';
 
-  const subject = 'BECMS Email Verification Code';
+  const subject = 'Cntr Email Verification Code';
   const text = [
-    `Your BECMS email verification code is ${otp}.`,
+    `Your Cntr email verification code is ${otp}.`,
     expiryLine,
     'If you did not request this, you can safely ignore this email.',
   ].join('\n');
 
   const html = [
     '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;">',
-    '<h2 style="margin:0 0 12px;">BECMS Email Verification</h2>',
+    '<h2 style="margin:0 0 12px;">Cntr Email Verification</h2>',
     '<p style="margin:0 0 12px;">Use the code below to verify your email address:</p>',
     `<p style="margin:0 0 12px;font-size:28px;letter-spacing:6px;font-weight:700;">${otp}</p>`,
     `<p style="margin:0 0 12px;">${expiryLine}</p>`,
@@ -147,7 +147,14 @@ const buildBillingSnapshot = async (tenantSlug) => {
 // @route   POST /api/auth/register
 // @access  Public (Admin only in production)
 const register = asyncHandler(async (req, res) => {
-  const { email, password, role } = req.body;
+  const { password, role } = req.body;
+  const email = String(req.body.email || '').trim().toLowerCase();
+
+  if (!email) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, 'Email is required')
+    );
+  }
 
   // Check if user already exists
   const existingUser = await User.findOne({ email });
