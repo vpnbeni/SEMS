@@ -143,6 +143,16 @@ const Sidebar: React.FC = () => {
           ),
           children: [
             {
+              name: 'Teachers',
+              href: '/time-table/teachers',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              ),
+              badge: null,
+            },
+            {
               name: 'Classes',
               href: '/time-table/classes',
               icon: (
@@ -208,6 +218,27 @@ const Sidebar: React.FC = () => {
               icon: (
                 <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              ),
+              badge: null,
+            },
+            {
+              name: 'Substitution',
+              href: '/time-table/substitution',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.023 9.348h4.992V4.356m-1.636 11.288A9 9 0 1119.5 10.5l1.515-1.152" />
+                </svg>
+              ),
+              badge: null,
+            },
+            {
+              name: 'Versions',
+              href: '/time-table/versions',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6.75 3.75h8.25L19.5 8.25v12A1.5 1.5 0 0118 21.75H6.75a1.5 1.5 0 01-1.5-1.5v-15a1.5 1.5 0 011.5-1.5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 3.75v4.5h4.5M8.25 12h7.5M8.25 15.75h7.5" />
                 </svg>
               ),
               badge: null,

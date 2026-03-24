@@ -15,6 +15,7 @@ import TenantSignupChat from './pages/TenantSignupChat'
 import TenantSignupComplete from './pages/TenantSignupComplete'
 import Signup from './pages/Signup'
 import CntrLanding from './pages/CntrLanding'
+import TmtblLanding from './pages/TmtblLanding'
 import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
 import Duties from './pages/Duties'
@@ -33,12 +34,15 @@ import SchoolHub from './pages/SchoolHub'
 import Staff from './pages/Staff'
 import Activities from './pages/Activities'
 import BellTimings from './pages/timetable/BellTimings'
+import TimetableTeachers from './pages/timetable/TimetableTeachers'
 import TimetableClasses from './pages/timetable/TimetableClasses'
 import TimetableSubjects from './pages/timetable/TimetableSubjects'
 import ClassWise from './pages/timetable/ClassWise'
 import TeacherWise from './pages/timetable/TeacherWise'
 import PeriodAllocation from './pages/timetable/PeriodAllocation'
 import Departments from './pages/timetable/Departments'
+import Substitution from './pages/timetable/Substitution'
+import Versions from './pages/timetable/Versions'
 import { TimetableProvider } from './contexts/TimetableContext'
 import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
@@ -70,6 +74,28 @@ const LegacyCandidatesRedirect = () => {
   const nextPath = location.pathname.replace(/^\/candidates/, '/candidate-details')
   return <Navigate to={`${nextPath}${location.search}${location.hash}`} replace />
 }
+
+const getPublicLandingVariant = (): 'cntr' | 'tmtbl' => {
+  if (typeof window === 'undefined') {
+    return 'cntr'
+  }
+
+  const params = new URLSearchParams(window.location.search)
+  const brand = params.get('brand')?.trim().toLowerCase()
+
+  if (brand === 'cntr' || brand === 'tmtbl') {
+    return brand
+  }
+
+  const hostname = window.location.hostname.toLowerCase()
+  if (hostname === 'tmtbl.capabble.cloud' || hostname.startsWith('tmtbl.')) {
+    return 'tmtbl'
+  }
+
+  return 'cntr'
+}
+
+const PublicLanding = () => (getPublicLandingVariant() === 'tmtbl' ? <TmtblLanding /> : <CntrLanding />)
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()
@@ -114,7 +140,7 @@ function App() {
               isAuthenticated ? (
                 hasSession ? <Navigate to="/dashboard" replace /> : <Navigate to="/select-session" replace />
               ) : (
-                <CntrLanding />
+                <PublicLanding />
               )
             }
           />
@@ -227,12 +253,15 @@ function App() {
               <Route path="school-hub" element={<SchoolHub />} />
               <Route path="staff" element={<Staff />} />
               <Route path="activities" element={<Activities />} />
+              <Route path="time-table/teachers" element={<TimetableTeachers />} />
               <Route path="time-table/classes" element={<TimetableClasses />} />
               <Route path="time-table/subjects" element={<TimetableSubjects />} />
               <Route path="time-table/departments" element={<Departments />} />
               <Route path="time-table/bell-timings" element={<BellTimings />} />
               <Route path="time-table/class-wise" element={<ClassWise />} />
               <Route path="time-table/teacher-wise" element={<TeacherWise />} />
+              <Route path="time-table/substitution" element={<Substitution />} />
+              <Route path="time-table/versions" element={<Versions />} />
               <Route path="time-table/period-distribution" element={<PeriodAllocation />} />
               <Route path="time-table/distribution" element={<Navigate to="/time-table/period-distribution" replace />} />
               <Route path="time-table/period-allocation" element={<Navigate to="/time-table/period-distribution" replace />} />

@@ -215,12 +215,15 @@ const Header: React.FC = () => {
       case 'time-table': {
         const subPage = segments[1] || ''
         const titleMap: Record<string, { title: string; subtitle: string }> = {
+          'teachers': { title: 'Teachers', subtitle: 'Manage the teacher directory used in timetable planning' },
           'classes': { title: 'Classes', subtitle: 'Manage classes and sections for timetable scheduling' },
           'subjects': { title: 'Subjects', subtitle: 'Manage subjects taught in the classes.' },
           'departments': { title: 'Departments', subtitle: 'Map staff with subjects and assign subject workload by class-section' },
           'bell-timings': { title: 'Bell Timings', subtitle: 'Configure school bell timings, period durations, and break schedules' },
           'class-wise': { title: 'Class Wise Timetable', subtitle: 'View and manage timetables organized by class and section' },
           'teacher-wise': { title: 'Teacher Wise Timetable', subtitle: 'View and manage timetables organized by teacher' },
+          'substitution': { title: 'Substitution', subtitle: 'Manage same-day teacher substitutions and temporary adjustments' },
+          'versions': { title: 'Versions', subtitle: 'Review draft, published, and archived timetable versions' },
           'period-distribution': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
           'distribution': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
           'period-allocation': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },

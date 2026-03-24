@@ -40,7 +40,29 @@ const getDutyOptionsForDesignation = (designation: string | undefined): string[]
 const LIMIT = 50;
 const getTeacherId = (teacher: Teacher) => teacher._id || teacher.id || "";
 
-const Teachers: React.FC = () => {
+type TeachersProps = {
+  hideStats?: boolean;
+  hideDutyType?: boolean;
+  hideSchoolCode?: boolean;
+  hideSchoolName?: boolean;
+  sourceTeachers?: Teacher[];
+  onDeleteSelected?: (ids: string[]) => Promise<void> | void;
+  disableApiMutations?: boolean;
+  disableRowEdit?: boolean;
+  entityLabelSingular?: string;
+};
+
+const Teachers: React.FC<TeachersProps> = ({
+  hideStats = false,
+  hideDutyType = false,
+  hideSchoolCode = false,
+  hideSchoolName = false,
+  sourceTeachers,
+  onDeleteSelected,
+  disableApiMutations = false,
+  disableRowEdit = false,
+  entityLabelSingular = "functionary",
+}) => {
   const dispatch = useDispatch<AppDispatch>();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
@@ -69,6 +91,7 @@ const Teachers: React.FC = () => {
   const [debouncedYearsOfExperience, setDebouncedYearsOfExperience] = useState("");
   const filterDropdownRef = useRef<HTMLDivElement>(null);
   const { data: centreDetails } = useCentreDetails();
+  const storeError = useSelector((state: RootState) => state.teachers.error);
 
   // Close filter dropdown on click outside
   useEffect(() => {
@@ -142,9 +165,12 @@ const Teachers: React.FC = () => {
     ]
   );
 
-  const { data, isLoading: loading, error: queryError } = useTeachers(queryParams);
-  const teachers = data?.items ?? null;
-  const pagination = data
+  const isLocalSource = Array.isArray(sourceTeachers);
+  const { data, isLoading: queryLoading, error: queryError } = useTeachers(queryParams, {
+    enabled: !isLocalSource,
+  });
+  const teachers = isLocalSource ? sourceTeachers : data?.items ?? null;
+  const apiPagination = data
     ? {
       currentPage: data.currentPage,
       totalPages: data.totalPages,
@@ -152,7 +178,8 @@ const Teachers: React.FC = () => {
       itemsPerPage: data.itemsPerPage,
     }
     : { currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: LIMIT };
-  const error = useSelector((state: RootState) => state.teachers.error) || queryError?.message || null;
+  const loading = isLocalSource ? false : queryLoading;
+  const error = isLocalSource ? null : storeError || queryError?.message || null;
 
   useEffect(() => {
     if (error) {
@@ -188,15 +215,19 @@ const Teachers: React.FC = () => {
     return "N/A";
   };
 
-  const displayTeachers = useMemo(() => {
+  const availableTeachers = useMemo(() => {
     if (!teachers) return [];
 
-    const transformed = teachers
+    return teachers
       .map(transformTeacher)
       // Hide soft-deleted functionaries even if API returns mixed records.
       .filter((teacher) => teacher.isActive !== false)
       // Optimistic UI: hide freshly deleted functionaries immediately.
       .filter((teacher) => !hiddenDeletedTeacherIds[teacher._id || teacher.id || '']);
+  }, [teachers, hiddenDeletedTeacherIds]);
+
+  const filteredTeachers = useMemo(() => {
+    const transformed = availableTeachers;
 
     const needle = (debouncedSearchTerm || '').trim().toLowerCase();
     const schoolFilter = filterSchoolCode.trim().toLowerCase();
@@ -263,7 +294,27 @@ const Teachers: React.FC = () => {
       if (pa !== pb) return pa - pb;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [teachers, hiddenDeletedTeacherIds, debouncedSearchTerm, filterSchoolCode, filterSubject, filterDesignation]);
+  }, [availableTeachers, debouncedSearchTerm, filterSchoolCode, filterSubject, filterDesignation]);
+  const pagination = isLocalSource
+    ? {
+      currentPage,
+      totalPages: Math.max(1, Math.ceil(filteredTeachers.length / LIMIT)),
+      totalItems: filteredTeachers.length,
+      itemsPerPage: LIMIT,
+    }
+    : apiPagination;
+  const displayTeachers = useMemo(() => {
+    if (!isLocalSource) return filteredTeachers;
+    const start = (currentPage - 1) * LIMIT;
+    return filteredTeachers.slice(start, start + LIMIT);
+  }, [filteredTeachers, isLocalSource, currentPage]);
+  useEffect(() => {
+    if (!isLocalSource) return;
+    const totalPages = Math.max(1, Math.ceil(filteredTeachers.length / LIMIT));
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [isLocalSource, filteredTeachers.length, currentPage]);
   const visibleTeacherIds = useMemo(
     () => displayTeachers.map((teacher) => getTeacherId(teacher)).filter(Boolean),
     [displayTeachers]
@@ -304,17 +355,24 @@ const Teachers: React.FC = () => {
 
   const activeCount = displayTeachers.filter((t) => isSelfSchoolTeacher(t)).length;
   const inactiveCount = Math.max(0, displayTeachers.length - activeCount);
+  const tableColumnCount = 10 - (hideDutyType ? 1 : 0) - (hideSchoolCode ? 1 : 0) - (hideSchoolName ? 1 : 0);
+  const entityLabelPlural = entityLabelSingular.endsWith("y")
+    ? `${entityLabelSingular.slice(0, -1)}ies`
+    : `${entityLabelSingular}s`;
 
   const invalidateTeachers = () => {
+    if (isLocalSource) return;
     queryClient.invalidateQueries({ queryKey: teacherKeys.all });
   };
 
   // Event handlers
   const handleAddTeacher = () => {
+    if (disableApiMutations) return;
     dispatch(showAddTeacherModal());
   };
 
   const handleEditTeacher = (teacher: Teacher) => {
+    if (disableRowEdit) return;
     dispatch(showEditTeacherModal(teacher));
   };
   const toggleTeacherSelection = (teacherId: string, checked: boolean) => {
@@ -339,20 +397,25 @@ const Teachers: React.FC = () => {
   const handleBulkDelete = async () => {
     if (selectedCount === 0 || isBulkDeleting) return;
     const confirmed = window.confirm(
-      `Delete ${selectedCount} selected functionar${selectedCount === 1 ? "y" : "ies"}? This cannot be undone.`
+      `Delete ${selectedCount} selected ${selectedCount === 1 ? entityLabelSingular : entityLabelPlural}? This cannot be undone.`
     );
     if (!confirmed) return;
     setIsBulkDeleting(true);
     try {
-      const results = await Promise.allSettled(
-        selectedTeacherList.map((teacherId) => teacherService.deleteById(teacherId))
-      );
-      const deletedIds: string[] = [];
+      let deletedIds: string[] = [];
       let failedCount = 0;
-      results.forEach((result, index) => {
-        if (result.status === "fulfilled") deletedIds.push(selectedTeacherList[index]);
-        else failedCount += 1;
-      });
+      if (onDeleteSelected) {
+        await onDeleteSelected(selectedTeacherList);
+        deletedIds = [...selectedTeacherList];
+      } else {
+        const results = await Promise.allSettled(
+          selectedTeacherList.map((teacherId) => teacherService.deleteById(teacherId))
+        );
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled") deletedIds.push(selectedTeacherList[index]);
+          else failedCount += 1;
+        });
+      }
       if (deletedIds.length > 0) {
         setHiddenDeletedTeacherIds((prev) => {
           const next = { ...prev };
@@ -369,12 +432,12 @@ const Teachers: React.FC = () => {
           return next;
         });
         toast.success(
-          `${deletedIds.length} functionar${deletedIds.length === 1 ? "y" : "ies"} deleted successfully`
+          `${deletedIds.length} ${deletedIds.length === 1 ? entityLabelSingular : entityLabelPlural} deleted successfully`
         );
         invalidateTeachers();
       }
       if (failedCount > 0) {
-        toast.error(`Failed to delete ${failedCount} selected functionar${failedCount === 1 ? "y" : "ies"}`);
+        toast.error(`Failed to delete ${failedCount} selected ${failedCount === 1 ? entityLabelSingular : entityLabelPlural}`);
       }
     } finally {
       setIsBulkDeleting(false);
@@ -476,7 +539,7 @@ const Teachers: React.FC = () => {
       )}
 
       {/* Stat cards (display only, like Datesheets – not clickable, small number animation) */}
-      <div className="mb-6 overflow-x-auto">
+      {!hideStats && <div className="mb-6 overflow-x-auto">
         <div className="flex flex-nowrap gap-6 min-w-max">
         <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm min-w-[240px]">
           <div className="flex items-center space-x-4">
@@ -520,7 +583,7 @@ const Teachers: React.FC = () => {
           </div>
         </div>
         </div>
-      </div>
+      </div>}
 
       {/* Teachers Table */}
       <div className="card overflow-hidden">
@@ -586,26 +649,31 @@ const Teachers: React.FC = () => {
                   Export
                 </button>
               )}
-              <button
-                onClick={downloadImportTemplate}
-                className="btn btn-outline"
-                disabled={loading || isTemplateDownloading || isTemplateUploading}
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v10m0 0l-4-4m4 4l4-4M5 19h14" />
-                </svg>
-                {isTemplateDownloading ? "Downloading..." : "Template"}
-              </button>
-              <button
-                onClick={() => document.getElementById("teacher-template-upload-input")?.click()}
-                className="btn btn-outline"
-                disabled={loading || isTemplateDownloading || isTemplateUploading}
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15V5m0 0l4 4m-4-4L8 9m-3 10h14" />
-                </svg>
-                {isTemplateUploading ? "Uploading..." : "Upload"}
-              </button>
+              {!disableApiMutations && (
+                <button
+                  onClick={downloadImportTemplate}
+                  className="btn btn-outline"
+                  disabled={loading || isTemplateDownloading || isTemplateUploading}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v10m0 0l-4-4m4 4l4-4M5 19h14" />
+                  </svg>
+                  {isTemplateDownloading ? "Downloading..." : "Template"}
+                </button>
+              )}
+              {!disableApiMutations && (
+                <button
+                  onClick={() => document.getElementById("teacher-template-upload-input")?.click()}
+                  className="btn btn-outline"
+                  disabled={loading || isTemplateDownloading || isTemplateUploading}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15V5m0 0l4 4m-4-4L8 9m-3 10h14" />
+                  </svg>
+                  {isTemplateUploading ? "Uploading..." : "Upload"}
+                </button>
+              )}
+              {!disableApiMutations && (
               <div className="relative" ref={filterDropdownRef}>
                 <button
                   onClick={() => setShowMoreFilters(!showMoreFilters)}
@@ -683,31 +751,34 @@ const Teachers: React.FC = () => {
                   </div>
                 )}
               </div>
-              <button
-                onClick={handleAddTeacher}
-                className="btn btn-primary"
-                disabled={loading}
-              >
-                <svg
-                  className="w-5 h-5 mr-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
+              )}
+              {!disableApiMutations && (
+                <button
+                  onClick={handleAddTeacher}
+                  className="btn btn-primary"
+                  disabled={loading}
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
-                </svg>
-                Add Functionary
-              </button>
+                  <svg
+                    className="w-5 h-5 mr-2"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    />
+                  </svg>
+                  Add Functionary
+                </button>
+              )}
               <button
                 onClick={handleBulkDelete}
                 className="btn btn-error"
                 disabled={loading || isBulkDeleting || selectedCount === 0}
-                title={selectedCount > 0 ? `Delete ${selectedCount} selected functionaries` : "Select functionaries first"}
+                title={selectedCount > 0 ? `Delete ${selectedCount} selected ${entityLabelPlural}` : `Select ${entityLabelPlural} first`}
               >
                 {isBulkDeleting ? "Deleting..." : `Delete Selected${selectedCount > 0 ? ` (${selectedCount})` : ""}`}
               </button>
@@ -735,12 +806,12 @@ const Teachers: React.FC = () => {
                 {[
                   { label: "Teacher Name", field: "name" },
                   { label: "OASIS ID", field: "oasisId" },
-                  { label: "Duty Type", field: "dutyType" },
+                  ...(!hideDutyType ? [{ label: "Duty Type", field: "dutyType" }] : []),
                   { label: "Designation", field: "designation" },
                   { label: "Subject Code", field: "subjectCode" },
                   { label: "Subject Name", field: "subjects" },
-                  { label: "School Code", field: "schoolCode" },
-                  { label: "School Name", field: "schoolName" },
+                  ...(!hideSchoolCode ? [{ label: "School Code", field: "schoolCode" }] : []),
+                  ...(!hideSchoolName ? [{ label: "School Name", field: "schoolName" }] : []),
                 ].map(({ label, field }) => (
                   <th
                     key={field}
@@ -769,7 +840,7 @@ const Teachers: React.FC = () => {
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
                 <tr>
-                  <td colSpan={10} className="px-6 py-16 text-center">
+                  <td colSpan={tableColumnCount} className="px-6 py-16 text-center">
                     <div className="flex flex-col items-center justify-center gap-3">
                       <svg
                         className="animate-spin h-10 w-10 text-primary-600"
@@ -802,8 +873,12 @@ const Teachers: React.FC = () => {
                 displayTeachers.map((teacher: Teacher, index: number) => (
                   <tr
                     key={teacher.id || teacher._id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                    onClick={() => handleEditTeacher(teacher)}
+                    className={`hover:bg-gray-50 dark:hover:bg-gray-700 ${disableRowEdit ? "cursor-default" : "cursor-pointer"}`}
+                    onClick={() => {
+                      if (!disableRowEdit) {
+                        handleEditTeacher(teacher)
+                      }
+                    }}
                   >
                     <td
                       className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
@@ -845,48 +920,50 @@ const Teachers: React.FC = () => {
                         return isClassIv || isOthers ? "N/A" : teacher.oasisId || "—";
                       })()}
                     </td>
-                    <td
-                      className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {(() => {
-                        const currentDuty = dutyTypeOverrides[teacher._id || teacher.id!] ?? teacher.dutyType ?? '';
-                        if (currentDuty) {
+                    {!hideDutyType && (
+                      <td
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {(() => {
+                          const currentDuty = dutyTypeOverrides[teacher._id || teacher.id!] ?? teacher.dutyType ?? '';
+                          if (currentDuty) {
+                            return (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300 border border-primary-200 dark:border-primary-700">
+                                {currentDuty}
+                              </span>
+                            );
+                          }
                           return (
-                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300 border border-primary-200 dark:border-primary-700">
-                              {currentDuty}
-                            </span>
+                            <select
+                              title={`Duty type for ${teacher.name}`}
+                              aria-label={`Duty type for ${teacher.name}`}
+                              value=""
+                              onChange={async (e) => {
+                                const teacherId = teacher._id || teacher.id!;
+                                const newDutyType = e.target.value;
+                                if (!newDutyType) return;
+                                setDutyTypeOverrides((prev) => ({ ...prev, [teacherId]: newDutyType }));
+                                try {
+                                  await teacherService.update(teacherId, { dutyType: newDutyType } as any);
+                                  queryClient.invalidateQueries({ queryKey: teacherKeys.all });
+                                  toast.success(`Duty type updated for ${teacher.name}`);
+                                } catch (err: any) {
+                                  setDutyTypeOverrides((prev) => { const next = { ...prev }; delete next[teacherId]; return next; });
+                                  toast.error(err?.response?.data?.message || 'Failed to update duty type');
+                                }
+                              }}
+                              className="block min-w-[180px] rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white py-1.5 px-2 focus:ring-primary-500 focus:border-primary-500"
+                            >
+                              <option value="">Select Duty</option>
+                              {getDutyOptionsForDesignation(teacher.designation).map((duty: string) => (
+                                <option key={duty} value={duty}>{duty}</option>
+                              ))}
+                            </select>
                           );
-                        }
-                        return (
-                          <select
-                            title={`Duty type for ${teacher.name}`}
-                            aria-label={`Duty type for ${teacher.name}`}
-                            value=""
-                            onChange={async (e) => {
-                              const teacherId = teacher._id || teacher.id!;
-                              const newDutyType = e.target.value;
-                              if (!newDutyType) return;
-                              setDutyTypeOverrides((prev) => ({ ...prev, [teacherId]: newDutyType }));
-                              try {
-                                await teacherService.update(teacherId, { dutyType: newDutyType } as any);
-                                queryClient.invalidateQueries({ queryKey: teacherKeys.all });
-                                toast.success(`Duty type updated for ${teacher.name}`);
-                              } catch (err: any) {
-                                setDutyTypeOverrides((prev) => { const next = { ...prev }; delete next[teacherId]; return next; });
-                                toast.error(err?.response?.data?.message || 'Failed to update duty type');
-                              }
-                            }}
-                            className="block min-w-[180px] rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white py-1.5 px-2 focus:ring-primary-500 focus:border-primary-500"
-                          >
-                            <option value="">Select Duty</option>
-                            {getDutyOptionsForDesignation(teacher.designation).map((duty: string) => (
-                              <option key={duty} value={duty}>{duty}</option>
-                            ))}
-                          </select>
-                        );
-                      })()}
-                    </td>
+                        })()}
+                      </td>
+                    )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {teacher.designation || "N/A"}
                     </td>
@@ -896,12 +973,16 @@ const Teachers: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                       {getPrimarySubjectName(teacher)}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {teacher.schoolCode || "N/A"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {teacher.schoolName || 'N/A'}
-                    </td>
+                    {!hideSchoolCode && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {teacher.schoolCode || "N/A"}
+                      </td>
+                    )}
+                    {!hideSchoolName && (
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                        {teacher.schoolName || 'N/A'}
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -937,26 +1018,28 @@ const Teachers: React.FC = () => {
                 ? "No teachers match your search criteria. Try adjusting your filters."
                 : "Get started by adding your first teacher to the system."}
             </p>
-            <button
-              onClick={handleAddTeacher}
-              className="btn btn-primary"
-              disabled={loading}
-            >
-              <svg
-                className="w-5 h-5 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            {!disableApiMutations && (
+              <button
+                onClick={handleAddTeacher}
+                className="btn btn-primary"
+                disabled={loading}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                />
-              </svg>
-              Add Functionary
-            </button>
+                <svg
+                  className="w-5 h-5 mr-2"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
+                </svg>
+                Add Functionary
+              </button>
+            )}
           </div>
         </div>
       )}
