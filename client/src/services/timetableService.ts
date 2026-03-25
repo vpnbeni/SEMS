@@ -51,6 +51,13 @@ export type TimetableGridState = Record<string, Record<string, Record<number, Ti
 export type PeriodAllocationState = Record<string, Record<string, number>>
 export type TimetableMatrixSelectionState = Record<string, Record<string, boolean>>
 
+export interface CommonPeriodState {
+  id: string
+  className: string
+  subject: string
+  sections: string[]
+}
+
 export interface TimetableMatrixClassState {
   id: string
   name: string
@@ -67,6 +74,7 @@ export interface TimetableStatePayload {
   teachers: TimetableTeacherState[]
   teacherSubjectAllocations: TeacherSubjectAllocationState[]
   parallelSubjectPairs: ParallelSubjectPairState[]
+  commonPeriods: CommonPeriodState[]
   periodsPerWeek: number
   periodAllocation: PeriodAllocationState
   timetableGrid: TimetableGridState
@@ -81,6 +89,7 @@ const DEFAULT_TIMETABLE_STATE: TimetableStatePayload = {
   teachers: [],
   teacherSubjectAllocations: [],
   parallelSubjectPairs: [],
+  commonPeriods: [],
   periodsPerWeek: 42,
   periodAllocation: {},
   timetableGrid: {},
@@ -100,6 +109,7 @@ const timetableService = {
       teachers: Array.isArray(payload?.teachers) ? payload!.teachers : [],
       teacherSubjectAllocations: Array.isArray(payload?.teacherSubjectAllocations) ? payload!.teacherSubjectAllocations : [],
       parallelSubjectPairs: Array.isArray(payload?.parallelSubjectPairs) ? payload!.parallelSubjectPairs : [],
+      commonPeriods: Array.isArray(payload?.commonPeriods) ? (payload!.commonPeriods as CommonPeriodState[]) : [],
       periodsPerWeek:
         typeof payload?.periodsPerWeek === 'number' && payload.periodsPerWeek > 0
           ? payload.periodsPerWeek
@@ -122,6 +132,7 @@ const timetableService = {
       teachers: Array.isArray(payload?.teachers) ? payload!.teachers : [],
       teacherSubjectAllocations: Array.isArray(payload?.teacherSubjectAllocations) ? payload!.teacherSubjectAllocations : [],
       parallelSubjectPairs: Array.isArray(payload?.parallelSubjectPairs) ? payload!.parallelSubjectPairs : [],
+      commonPeriods: Array.isArray(payload?.commonPeriods) ? (payload!.commonPeriods as CommonPeriodState[]) : [],
       periodsPerWeek:
         typeof payload?.periodsPerWeek === 'number' && payload.periodsPerWeek > 0
           ? payload.periodsPerWeek

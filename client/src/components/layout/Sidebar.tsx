@@ -173,21 +173,21 @@ const Sidebar: React.FC = () => {
               badge: null,
             },
             {
-              name: 'Departments',
-              href: '/time-table/departments',
-              icon: (
-                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 7.5A2.25 2.25 0 016 5.25h3A2.25 2.25 0 0111.25 7.5v3A2.25 2.25 0 019 12.75H6a2.25 2.25 0 01-2.25-2.25v-3zM12.75 7.5A2.25 2.25 0 0115 5.25h3A2.25 2.25 0 0120.25 7.5v3A2.25 2.25 0 0118 12.75h-3a2.25 2.25 0 01-2.25-2.25v-3zM3.75 15A2.25 2.25 0 016 12.75h3A2.25 2.25 0 0111.25 15v3A2.25 2.25 0 019 20.25H6A2.25 2.25 0 013.75 18v-3zM12.75 15A2.25 2.25 0 0115 12.75h3A2.25 2.25 0 0120.25 15v3A2.25 2.25 0 0118 20.25h-3A2.25 2.25 0 0112.75 18v-3z" />
-                </svg>
-              ),
-              badge: null,
-            },
-            {
               name: 'Period Distribution',
               href: '/time-table/period-distribution',
               icon: (
                 <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 6.878V6a2.25 2.25 0 012.25-2.25h7.5A2.25 2.25 0 0118 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 004.5 9v.878m13.5-3A2.25 2.25 0 0119.5 9v.878m0 0a2.246 2.246 0 00-.75-.128H5.25c-.263 0-.515.045-.75.128m15 0A2.25 2.25 0 0121 12v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6c0-.98.626-1.813 1.5-2.122" />
+                </svg>
+              ),
+              badge: null,
+            },
+            {
+              name: 'Departments',
+              href: '/time-table/departments',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 7.5A2.25 2.25 0 016 5.25h3A2.25 2.25 0 0111.25 7.5v3A2.25 2.25 0 019 12.75H6a2.25 2.25 0 01-2.25-2.25v-3zM12.75 7.5A2.25 2.25 0 0115 5.25h3A2.25 2.25 0 0120.25 7.5v3A2.25 2.25 0 0118 12.75h-3a2.25 2.25 0 01-2.25-2.25v-3zM3.75 15A2.25 2.25 0 016 12.75h3A2.25 2.25 0 0111.25 15v3A2.25 2.25 0 019 20.25H6A2.25 2.25 0 013.75 18v-3zM12.75 15A2.25 2.25 0 0115 12.75h3A2.25 2.25 0 0120.25 15v3A2.25 2.25 0 0118 20.25h-3A2.25 2.25 0 0112.75 18v-3z" />
                 </svg>
               ),
               badge: null,
