@@ -280,6 +280,20 @@ const timetableStateSchema = new mongoose.Schema(
       type: [parallelSubjectPairSchema],
       default: [],
     },
+    commonPeriods: {
+      type: [
+        new mongoose.Schema(
+          {
+            id: { type: String, required: true, trim: true },
+            className: { type: String, required: true, trim: true },
+            subject: { type: String, required: true, trim: true },
+            sections: { type: [String], default: [] },
+          },
+          { _id: false }
+        ),
+      ],
+      default: [],
+    },
     periodsPerWeek: {
       type: Number,
       default: 42,

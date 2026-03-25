@@ -2,7 +2,7 @@ import React from "react";
 import TeacherModal from "./TeacherModal";
 
 interface EditTeacherModalProps {
-  onSuccess?: () => void;
+  onSuccess?: (teacher?: any) => void;
 }
 
 const EditTeacherModal: React.FC<EditTeacherModalProps> = ({ onSuccess }) => {

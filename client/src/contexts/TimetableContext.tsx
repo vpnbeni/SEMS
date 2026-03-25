@@ -52,6 +52,13 @@ export interface ParallelSubjectPair {
   subjectB: string
 }
 
+export interface CommonPeriod {
+  id: string
+  className: string
+  subject: string
+  sections: string[]
+}
+
 export interface TimetableMatrixClass {
   id: string
   name: string
@@ -84,6 +91,7 @@ const DEFAULT_STATE: TimetableStatePayload = {
   teachers: [],
   teacherSubjectAllocations: [],
   parallelSubjectPairs: [],
+  commonPeriods: [],
   periodsPerWeek: 42,
   periodAllocation: {},
   timetableGrid: {},
@@ -116,6 +124,9 @@ interface TimetableContextType {
 
   parallelSubjectPairs: ParallelSubjectPair[]
   setParallelSubjectPairs: (pairs: ParallelSubjectPair[]) => void
+
+  commonPeriods: CommonPeriod[]
+  setCommonPeriods: (next: CommonPeriod[] | ((prev: CommonPeriod[]) => CommonPeriod[])) => void
 
   periodsPerWeek: number
   setPeriodsPerWeek: (n: number) => void
@@ -159,6 +170,8 @@ const TimetableContext = createContext<TimetableContextType>({
   setTeacherSubjectAllocations: () => {},
   parallelSubjectPairs: [],
   setParallelSubjectPairs: () => {},
+  commonPeriods: [],
+  setCommonPeriods: () => {},
   periodsPerWeek: 42,
   setPeriodsPerWeek: () => {},
   periodsPerDay: 7,
@@ -236,6 +249,7 @@ const normalizeState = (state: Partial<TimetableStatePayload> | null | undefined
     teachers: Array.isArray(state?.teachers) ? state!.teachers : [],
     teacherSubjectAllocations: Array.isArray(state?.teacherSubjectAllocations) ? state!.teacherSubjectAllocations : [],
     parallelSubjectPairs: Array.isArray(state?.parallelSubjectPairs) ? state!.parallelSubjectPairs : [],
+    commonPeriods: Array.isArray(state?.commonPeriods) ? (state!.commonPeriods as CommonPeriod[]) : [],
     periodsPerWeek:
       typeof state?.periodsPerWeek === 'number' && state.periodsPerWeek > 0
         ? state.periodsPerWeek
@@ -254,6 +268,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   const [teachers, setTeachersState] = useState<TimetableTeacher[]>(DEFAULT_STATE.teachers)
   const [teacherSubjectAllocations, setTeacherSubjectAllocationsState] = useState<TeacherSubjectAllocation[]>(DEFAULT_STATE.teacherSubjectAllocations)
   const [parallelSubjectPairs, setParallelSubjectPairsState] = useState<ParallelSubjectPair[]>(DEFAULT_STATE.parallelSubjectPairs)
+  const [commonPeriods, setCommonPeriodsState] = useState<CommonPeriod[]>(DEFAULT_STATE.commonPeriods as CommonPeriod[])
   const [periodsPerWeek, setPeriodsPerWeek] = useState(DEFAULT_STATE.periodsPerWeek)
   const [periodAllocation, setPeriodAllocation] = useState<PeriodAllocationMap>(DEFAULT_STATE.periodAllocation)
   const [timetableGrid, setTimetableGrid] = useState<TimetableGrid>(DEFAULT_STATE.timetableGrid)
@@ -287,6 +302,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
         setTeachersState(remoteState.teachers)
         setTeacherSubjectAllocationsState(remoteState.teacherSubjectAllocations)
         setParallelSubjectPairsState(remoteState.parallelSubjectPairs)
+        setCommonPeriodsState((remoteState.commonPeriods as CommonPeriod[]) ?? [])
         setPeriodsPerWeek(remoteState.periodsPerWeek)
         setPeriodAllocation(remoteState.periodAllocation)
         setTimetableGrid(remoteState.timetableGrid)
@@ -319,6 +335,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
       teachers,
       teacherSubjectAllocations,
       parallelSubjectPairs,
+      commonPeriods,
       periodsPerWeek,
       periodAllocation,
       timetableGrid,
@@ -332,6 +349,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
       teachers,
       teacherSubjectAllocations,
       parallelSubjectPairs,
+      commonPeriods,
       periodsPerWeek,
       periodAllocation,
       timetableGrid,
@@ -712,6 +730,13 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
     setParallelSubjectPairsState(pairs)
   }, [])
 
+  const setCommonPeriods = useCallback((next: CommonPeriod[] | ((prev: CommonPeriod[]) => CommonPeriod[])) => {
+    if (!isHydratedRef.current) {
+      hasLocalEditsBeforeHydrationRef.current = true
+    }
+    setCommonPeriodsState((prev) => (typeof next === 'function' ? next(prev) : next))
+  }, [])
+
   const setPeriodsPerWeekValue = useCallback((n: number) => {
     if (!isHydratedRef.current) {
       hasLocalEditsBeforeHydrationRef.current = true
@@ -867,6 +892,8 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
         setTeacherSubjectAllocations,
         parallelSubjectPairs,
         setParallelSubjectPairs,
+        commonPeriods,
+        setCommonPeriods,
         periodsPerWeek,
         setPeriodsPerWeek: setPeriodsPerWeekValue,
         periodsPerDay,

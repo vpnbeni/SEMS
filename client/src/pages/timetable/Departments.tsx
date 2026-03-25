@@ -73,6 +73,7 @@ const Departments: React.FC = () => {
     subjects,
     teachers,
     setTeachers,
+    commonPeriods,
     periodAllocation,
     teacherSubjectAllocations,
     setTeacherSubjectAllocations,
@@ -134,6 +135,26 @@ const Departments: React.FC = () => {
     return map
   }, [classes, subjectNames])
 
+  const classById = useMemo(() => {
+    const map = new Map<string, TimetableClass>()
+    classes.forEach((c) => map.set(c.id, c))
+    return map
+  }, [classes])
+
+  const commonPeriodByClassAndSubject = useMemo(() => {
+    const map = new Map<string, string[][]>()
+    commonPeriods.forEach((row) => {
+      const className = row.className?.trim()
+      const subject = row.subject?.trim()
+      if (!className || !subject || !Array.isArray(row.sections) || row.sections.length < 2) return
+      const key = `${normalize(className)}|||${normalize(subject)}`
+      const next = map.get(key) || []
+      next.push(row.sections.map((s) => s.trim()).filter(Boolean))
+      map.set(key, next)
+    })
+    return map
+  }, [commonPeriods])
+
   const getClassPeriodCount = (classId: string, subjectName: string) => {
     const counts = periodAllocation[classId] || {}
     for (const key of Object.keys(counts)) {
@@ -159,10 +180,45 @@ const Departments: React.FC = () => {
 
   const getTeacherWorkload = (teacherId: string, subjectName: string) => {
     const classIds = getTeacherSubjectAssignments(teacherId, subjectName)
+    if (classIds.size === 0) return 0
+
+    const remaining = new Set(classIds)
     let load = 0
-    classIds.forEach((classId) => {
+
+    // If a subject is configured as a "Common Period" across multiple sections,
+    // count its periods once (not once per section) for workload.
+    const assignedByClassName = new Map<string, { classId: string; section: string }[]>()
+    remaining.forEach((classId) => {
+      const row = classById.get(classId)
+      if (!row) return
+      const className = row.className?.trim()
+      const section = row.section?.trim()
+      if (!className || !section) return
+      const bucket = assignedByClassName.get(className) || []
+      bucket.push({ classId, section })
+      assignedByClassName.set(className, bucket)
+    })
+
+    for (const [className, assigned] of assignedByClassName.entries()) {
+      const key = `${normalize(className)}|||${normalize(subjectName)}`
+      const configuredGroups = commonPeriodByClassAndSubject.get(key) || []
+      if (configuredGroups.length === 0) continue
+
+      configuredGroups.forEach((sections) => {
+        const sectionSet = new Set(sections.map((s) => normalize(s)))
+        const involved = assigned.filter((a) => remaining.has(a.classId) && sectionSet.has(normalize(a.section)))
+        if (involved.length < 2) return
+
+        const countOnce = involved.reduce((max, a) => Math.max(max, getClassPeriodCount(a.classId, subjectName)), 0)
+        load += countOnce
+        involved.forEach((a) => remaining.delete(a.classId))
+      })
+    }
+
+    remaining.forEach((classId) => {
       load += getClassPeriodCount(classId, subjectName)
     })
+
     return load
   }
 
@@ -282,20 +338,22 @@ const Departments: React.FC = () => {
       </div>
 
       <section className="rounded-2xl border border-secondary-200 bg-white overflow-hidden">
-        <div className="px-5 py-4 border-b border-secondary-200 bg-secondary-50">
-          <h3 className="text-base font-semibold text-secondary-900">Teacher Subject Matrix</h3>
-          <p className="text-xs text-secondary-500 mt-1">
-            Staff teachers in rows and timetable subjects in columns. Select subjects to build departments.
-          </p>
-        </div>
+        <div className="px-5 py-4 border-b border-secondary-200 bg-secondary-50 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h3 className="text-base font-semibold text-secondary-900">Teacher Subject Matrix</h3>
+            <p className="text-xs text-secondary-500 mt-1">
+              Staff teachers in rows and timetable subjects in columns. Select subjects to build departments.
+            </p>
+          </div>
 
-        <div className="px-5 py-3 border-b border-secondary-200 bg-white">
-          <input
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            placeholder="Search teacher..."
-            className="w-full md:w-[320px] px-3 py-2 rounded-lg border border-secondary-300 text-sm"
-          />
+          <div className="flex items-center justify-end pt-1">
+            <input
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              placeholder="Search teacher..."
+              className="w-full md:w-[320px] px-3 py-2 rounded-lg border border-secondary-300 text-sm bg-white"
+            />
+          </div>
         </div>
 
         {subjectNames.length === 0 ? (
@@ -344,6 +402,7 @@ const Departments: React.FC = () => {
                             checked={checked}
                             onChange={() => handleToggleMatrix(teacher.id, subjectName)}
                             className="h-4 w-4 accent-primary-600"
+                            aria-label={`Toggle ${toTitleCase(teacher.name)} for ${subjectName}`}
                           />
                         </td>
                       )
@@ -416,6 +475,7 @@ const Departments: React.FC = () => {
                                 checked={assignedClassIds.has(classRow.id)}
                                 onChange={() => handleToggleDepartmentClass(teacher, card.subjectName, classRow)}
                                 className="h-4 w-4 accent-emerald-600"
+                                aria-label={`Toggle ${toTitleCase(teacher.name)} for ${card.subjectName} - ${classRow.className}-${classRow.section}`}
                               />
                             </td>
                           ))}

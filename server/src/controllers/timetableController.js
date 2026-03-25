@@ -39,6 +39,7 @@ const DEFAULT_STATE = Object.freeze({
   teachers: [],
   teacherSubjectAllocations: [],
   parallelSubjectPairs: [],
+  commonPeriods: [],
   periodsPerWeek: 42,
   periodAllocation: {},
   timetableGrid: {},
@@ -117,6 +118,38 @@ const normalizeSubjectNames = (value, subjectNameMap) => {
   });
 
   return deduped;
+};
+
+const normalizeCommonPeriods = (value, subjectNameMap) => {
+  if (!Array.isArray(value)) return [];
+
+  const output = [];
+  const seen = new Set();
+
+  value.forEach((entry) => {
+    if (!isPlainObject(entry)) return;
+    const id = toTrimmedString(entry.id);
+    const className = toTrimmedString(entry.className);
+    const rawSubject = toTrimmedString(entry.subject);
+    const subject = subjectNameMap.get(rawSubject.toLowerCase()) || rawSubject;
+    const sections = normalizeStringArray(entry.sections);
+
+    if (!id || !className || !subject) return;
+    if (sections.length < 2) return;
+
+    const key = `${className.toLowerCase()}|${subject.toLowerCase()}|${sections.map((s) => s.toLowerCase()).sort().join(',')}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    output.push({
+      id,
+      className,
+      subject,
+      sections,
+    });
+  });
+
+  return output;
 };
 
 const ROMAN_CLASS_LEVELS = Object.freeze({
@@ -663,6 +696,7 @@ const normalizeStatePayload = (payload, options = {}) => {
       syncedClasses,
       subjectNameMap
     ),
+    commonPeriods: normalizeCommonPeriods(safePayload.commonPeriods, subjectNameMap),
     periodsPerWeek,
     periodAllocation: normalizePeriodAllocation(safePayload.periodAllocation, subjectNameMap, classById),
     timetableGrid: normalizeTimetableGrid(safePayload.timetableGrid, subjectNameMap),

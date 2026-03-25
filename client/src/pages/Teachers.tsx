@@ -46,7 +46,9 @@ type TeachersProps = {
   hideSchoolCode?: boolean;
   hideSchoolName?: boolean;
   sourceTeachers?: Teacher[];
-  onDeleteSelected?: (ids: string[]) => Promise<void> | void;
+  onAddTeacherCreated?: (teacher: Teacher) => void;
+  showAddButton?: boolean;
+  onDeleteSelected?: (ids: string[]) => Promise<string[] | void> | (string[] | void);
   disableApiMutations?: boolean;
   disableRowEdit?: boolean;
   entityLabelSingular?: string;
@@ -58,6 +60,8 @@ const Teachers: React.FC<TeachersProps> = ({
   hideSchoolCode = false,
   hideSchoolName = false,
   sourceTeachers,
+  onAddTeacherCreated,
+  showAddButton = false,
   onDeleteSelected,
   disableApiMutations = false,
   disableRowEdit = false,
@@ -359,15 +363,23 @@ const Teachers: React.FC<TeachersProps> = ({
   const entityLabelPlural = entityLabelSingular.endsWith("y")
     ? `${entityLabelSingular.slice(0, -1)}ies`
     : `${entityLabelSingular}s`;
+  const entityLabelSingularTitle = `${entityLabelSingular.charAt(0).toUpperCase()}${entityLabelSingular.slice(1)}`;
 
   const invalidateTeachers = () => {
     if (isLocalSource) return;
     queryClient.invalidateQueries({ queryKey: teacherKeys.all });
   };
 
+  const handleAddTeacherModalSuccess = (created?: Teacher) => {
+    invalidateTeachers();
+    if (created && onAddTeacherCreated) {
+      onAddTeacherCreated(created);
+    }
+  };
+
   // Event handlers
   const handleAddTeacher = () => {
-    if (disableApiMutations) return;
+    if (disableApiMutations && !showAddButton) return;
     dispatch(showAddTeacherModal());
   };
 
@@ -405,8 +417,9 @@ const Teachers: React.FC<TeachersProps> = ({
       let deletedIds: string[] = [];
       let failedCount = 0;
       if (onDeleteSelected) {
-        await onDeleteSelected(selectedTeacherList);
-        deletedIds = [...selectedTeacherList];
+        const result = await onDeleteSelected(selectedTeacherList);
+        deletedIds = Array.isArray(result) ? result : [...selectedTeacherList];
+        failedCount = selectedTeacherList.length - deletedIds.length;
       } else {
         const results = await Promise.allSettled(
           selectedTeacherList.map((teacherId) => teacherService.deleteById(teacherId))
@@ -752,7 +765,7 @@ const Teachers: React.FC<TeachersProps> = ({
                 )}
               </div>
               )}
-              {!disableApiMutations && (
+              {(!disableApiMutations || showAddButton) && (
                 <button
                   onClick={handleAddTeacher}
                   className="btn btn-primary"
@@ -771,7 +784,7 @@ const Teachers: React.FC<TeachersProps> = ({
                       d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                     />
                   </svg>
-                  Add Functionary
+                  Add {entityLabelSingularTitle}
                 </button>
               )}
               <button
@@ -1123,7 +1136,7 @@ const Teachers: React.FC<TeachersProps> = ({
       )}
 
       {/* Modals */}
-      <AddTeacherModal onSuccess={invalidateTeachers} />
+      <AddTeacherModal onSuccess={handleAddTeacherModalSuccess} />
       <EditTeacherModal onSuccess={invalidateTeachers} />
       <ExportModal
         isOpen={showExportModal}

@@ -25,7 +25,7 @@ interface SchoolOption {
 
 interface TeacherModalProps {
   mode: "add" | "edit";
-  onSuccess?: () => void;
+  onSuccess?: (teacher?: any) => void;
 }
 
 const DEFAULT_SCHOOL_NAME = "International Bharti School";
@@ -392,17 +392,18 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
 
     try {
       if (mode === "add") {
-        await dispatch(createTeacher(payload as any)).unwrap();
+        const createdTeacher = await dispatch(createTeacher(payload as any)).unwrap();
+        onSuccess?.(createdTeacher);
       } else if (selectedTeacher?._id) {
-        await dispatch(
+        const updatedTeacher = await dispatch(
           updateTeacher({
             ...payload,
             _id: selectedTeacher._id,
             id: selectedTeacher.id || selectedTeacher._id,
           } as any)
         ).unwrap();
+        onSuccess?.(updatedTeacher);
       }
-      onSuccess?.();
       handleClose();
     } catch (error) {
       console.error(`Failed to ${mode} teacher:`, error);

@@ -84,10 +84,13 @@ const TimetableSubjects: React.FC = () => {
     subjects,
     parallelSubjectPairs,
     setParallelSubjectPairs,
+    commonPeriods,
+    setCommonPeriods,
     addSubject,
     updateSubject,
     deleteSubjects,
     applyClassSubjectAssignments,
+    timetableGrid,
   } = useTimetable()
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [newItem, setNewItem] = useState({ ...EMPTY_FORM })
@@ -100,6 +103,19 @@ const TimetableSubjects: React.FC = () => {
   const [newPair, setNewPair] = useState({ ...EMPTY_PAIR_FORM })
   const [editingPairId, setEditingPairId] = useState<string | null>(null)
   const [editingPairData, setEditingPairData] = useState({ ...EMPTY_PAIR_FORM })
+  const [isAddingCommonPeriod, setIsAddingCommonPeriod] = useState(false)
+  const [newCommonPeriod, setNewCommonPeriod] = useState<{ className: string; subject: string }>({
+    className: '',
+    subject: '',
+  })
+  const [selectedCommonPeriodSections, setSelectedCommonPeriodSections] = useState<string[]>([])
+  const [isCommonPeriodSectionsOpen, setIsCommonPeriodSectionsOpen] = useState(false)
+  type CommonPeriodRow = {
+    id: string
+    className: string
+    subject: string
+    sections: string[]
+  }
 
   // ── CRUD ──
   const handleAdd = () => {
@@ -456,6 +472,199 @@ const TimetableSubjects: React.FC = () => {
     setNewPair({ ...EMPTY_PAIR_FORM })
   }
 
+  const handleOpenAddCommonPeriod = () => {
+    setIsAddingCommonPeriod(true)
+    setNewCommonPeriod({ className: '', subject: '' })
+    setSelectedCommonPeriodSections([])
+    setIsCommonPeriodSectionsOpen(false)
+  }
+
+  const handleCancelAddCommonPeriod = () => {
+    setIsAddingCommonPeriod(false)
+    setNewCommonPeriod({ className: '', subject: '' })
+    setSelectedCommonPeriodSections([])
+    setIsCommonPeriodSectionsOpen(false)
+  }
+
+  const classMetaById = useMemo(() => {
+    return new Map(classes.map((c) => [c.id, { className: c.className, section: c.section }]))
+  }, [classes])
+
+  const classNameOptions = useMemo(() => {
+    const unique = new Set<string>()
+    classes.forEach((c) => {
+      const cn = c.className?.trim()
+      if (cn) unique.add(cn)
+    })
+    return Array.from(unique).sort(compareClassNames)
+  }, [classes])
+
+  const allCommonMatches = useMemo(() => {
+    const grid = timetableGrid
+    if (!grid || Object.keys(grid).length === 0) return []
+
+    type CommonPeriodGroup = {
+      className: string
+      subject: string
+      teacher: string
+      day: string
+      slot: number
+      sections: Set<string>
+    }
+
+    const groups = new Map<string, CommonPeriodGroup>()
+
+    for (const [classId, byDay] of Object.entries(grid)) {
+      const meta = classMetaById.get(classId)
+      if (!meta) continue
+
+      const { className, section } = meta
+      if (!className || !section) continue
+
+      for (const [day, bySlot] of Object.entries(byDay || {})) {
+        for (const [slotKey, cell] of Object.entries(bySlot || {})) {
+          if (!cell?.subject || !cell?.teacher) continue
+
+          const subject = cell.subject.trim()
+          const teacher = cell.teacher.trim()
+          const slot = Number(slotKey)
+          if (!subject || !teacher || !Number.isFinite(slot)) continue
+
+          // Group only within the same class (across different sections), same subject+teacher, same day+slot.
+          const groupKey = `${className}|||${subject.toLowerCase()}|||${teacher.toLowerCase()}|||${day}|||${slot}`
+          const existing = groups.get(groupKey)
+          if (existing) {
+            existing.sections.add(section)
+          } else {
+            groups.set(groupKey, {
+              className,
+              subject,
+              teacher,
+              day,
+              slot,
+              sections: new Set([section]),
+            })
+          }
+        }
+      }
+    }
+
+    // Convert "teacher/day/slot matches" into UI rows: Subject+Class+Sections (teacher/day/slot hidden).
+    const ruleMap = new Map<string, CommonPeriodRow>()
+
+    for (const g of Array.from(groups.values()).filter((x) => x.sections.size > 1)) {
+      const sectionsSorted = Array.from(g.sections).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      const ruleId = `${g.className}|||${g.subject}|||${sectionsSorted.join('|')}`
+      const existing = ruleMap.get(ruleId)
+      if (existing) continue
+      ruleMap.set(ruleId, {
+        id: ruleId,
+        className: g.className,
+        subject: g.subject,
+        sections: sectionsSorted,
+      })
+    }
+
+    return Array.from(ruleMap.values()).sort((a, b) => {
+      const classCmp = compareClassNames(a.className, b.className)
+      if (classCmp !== 0) return classCmp
+      return a.subject.localeCompare(b.subject, undefined, { sensitivity: 'base', numeric: true })
+    })
+  }, [timetableGrid, classMetaById])
+
+  const availableClassNamesForSubjectFromMatrix = useMemo(() => {
+    if (!newCommonPeriod.subject) return classNameOptions
+    const set = new Set<string>()
+
+    // Match the same semantics as the matrix checkboxes (grouped columns require subject in ALL column classIds).
+    matrixColumns.forEach((column) => {
+      if (isSubjectAssignedToColumn(newCommonPeriod.subject, column)) {
+        if (column.className?.trim()) set.add(column.className.trim())
+      }
+    })
+
+    return Array.from(set).sort(compareClassNames)
+  }, [classNameOptions, matrixColumns, classSubjectDraft, classesById, newCommonPeriod.subject])
+
+  useEffect(() => {
+    if (!isAddingCommonPeriod) return
+    if (!newCommonPeriod.subject) return
+    if (!newCommonPeriod.className) return
+    if (availableClassNamesForSubjectFromMatrix.includes(newCommonPeriod.className)) return
+    setNewCommonPeriod((prev) => ({
+      ...prev,
+      className: availableClassNamesForSubjectFromMatrix[0] || '',
+    }))
+  }, [
+    availableClassNamesForSubjectFromMatrix,
+    isAddingCommonPeriod,
+    newCommonPeriod.className,
+    newCommonPeriod.subject,
+  ])
+
+  const candidateCommonMatches = useMemo(() => {
+    if (!newCommonPeriod.subject || !newCommonPeriod.className) return []
+    return allCommonMatches.filter(
+      (m) => m.subject === newCommonPeriod.subject && m.className === newCommonPeriod.className
+    )
+  }, [allCommonMatches, newCommonPeriod.className, newCommonPeriod.subject])
+
+  const matrixAssignedSectionsForSelection = useMemo(() => {
+    const subjectKey = newCommonPeriod.subject.trim().toLowerCase()
+    const classKey = newCommonPeriod.className.trim().toLowerCase()
+    if (!subjectKey || !classKey) return []
+
+    const sections = new Set<string>()
+    classes.forEach((c) => {
+      if (c.className.trim().toLowerCase() !== classKey) return
+      const draftSubjects = classSubjectDraft[c.id] ?? c.subjects ?? []
+      const hasSubject = draftSubjects.some((s) => s.trim().toLowerCase() === subjectKey)
+      if (!hasSubject) return
+      const section = c.section?.trim()
+      if (section) sections.add(section)
+    })
+
+    return Array.from(sections).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+  }, [classSubjectDraft, classes, newCommonPeriod.className, newCommonPeriod.subject])
+
+  useEffect(() => {
+    if (!isAddingCommonPeriod) return
+    setSelectedCommonPeriodSections(matrixAssignedSectionsForSelection)
+  }, [isAddingCommonPeriod, matrixAssignedSectionsForSelection])
+
+  const handleSaveCommonPeriod = () => {
+    const { className, subject } = newCommonPeriod
+    if (!className || !subject) return
+
+    const nextSections = selectedCommonPeriodSections
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .filter((s, i, arr) => arr.indexOf(s) === i)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+
+    if (nextSections.length === 0) {
+      window.alert('Select at least one section to save the common period.')
+      return
+    }
+
+    const rowId = `${className}|||${subject}|||${nextSections.join('|')}`
+
+    setCommonPeriods((prev) => {
+      const map = new Map(prev.map((p) => [p.id, p]))
+      map.set(rowId, { id: rowId, className, subject, sections: nextSections })
+      return Array.from(map.values()).sort((a, b) => {
+        const classCmp = compareClassNames(a.className, b.className)
+        if (classCmp !== 0) return classCmp
+        return a.subject.localeCompare(b.subject, undefined, { sensitivity: 'base', numeric: true })
+      })
+    })
+
+    setIsAddingCommonPeriod(false)
+    setNewCommonPeriod({ className: '', subject: '' })
+    setSelectedCommonPeriodSections([])
+    setIsCommonPeriodSectionsOpen(false)
+  }
+
   // ── Stats ──
   const typeCounts: Record<string, number> = {}
   subjects.forEach((s) => { typeCounts[s.type] = (typeCounts[s.type] || 0) + 1 })
@@ -639,6 +848,12 @@ const TimetableSubjects: React.FC = () => {
 
         /* ───────── Table ───────── */
         .ts-table-wrap { overflow-x: auto; }
+        .ts-matrix-vert-scroll {
+          --ts-matrix-row-height: 56px;
+          /* Show ~10 subject rows, then allow vertical scrolling */
+          max-height: calc(var(--ts-matrix-row-height) * 10 + 56px);
+          overflow-y: auto;
+        }
         .ts-table {
           width: 100%;
           border-collapse: separate;
@@ -710,6 +925,16 @@ const TimetableSubjects: React.FC = () => {
           background: #f8fafc;
         }
         .dark .ts-subject-matrix-table thead .ts-sticky-col {
+          background: #1e293b;
+        }
+        /* Freeze header while scrolling vertically */
+        .ts-subject-matrix-table thead th {
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          background: #f8fafc;
+        }
+        .dark .ts-subject-matrix-table thead th {
           background: #1e293b;
         }
         .ts-subject-matrix-table tbody .ts-sticky-col {
@@ -951,16 +1176,6 @@ const TimetableSubjects: React.FC = () => {
               </button>
             )}
             <button
-              onClick={handleSaveSubjectMatrix}
-              disabled={!hasPendingMatrixChanges}
-              className="ts-btn ts-btn-success"
-            >
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-              </svg>
-              Save Matrix
-            </button>
-            <button
               onClick={() => setIsAddingNew(true)}
               disabled={isAddingNew}
               className="ts-btn ts-btn-primary"
@@ -970,6 +1185,16 @@ const TimetableSubjects: React.FC = () => {
               </svg>
               Add Subject
             </button>
+            <button
+              onClick={handleSaveSubjectMatrix}
+              disabled={!hasPendingMatrixChanges}
+              className="ts-btn ts-btn-success"
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+              Save Matrix
+            </button>
           </div>
         </div>
 
@@ -977,7 +1202,7 @@ const TimetableSubjects: React.FC = () => {
         <div className="px-6 py-3 text-xs text-secondary-500 dark:text-secondary-400 border-b border-secondary-100 dark:border-secondary-800">
           Subject Selection Matrix: classes up to 10 are grouped class-wise, while classes 11 and 12 are shown class-section wise. Use Save Matrix to persist checkbox changes.
         </div>
-        <div className="ts-table-wrap">
+        <div className="ts-table-wrap ts-matrix-vert-scroll">
           <table className="ts-table ts-subject-matrix-table">
             <thead>
               <tr>
@@ -1062,6 +1287,8 @@ const TimetableSubjects: React.FC = () => {
                             checked={selectedIds.has(item.id)}
                             onChange={() => toggleSelection(item.id)}
                             className="ts-checkbox"
+                            aria-label={`Select ${item.name}`}
+                            title={`Select ${item.name}`}
                           />
                         </label>
                       </td>
@@ -1392,6 +1619,220 @@ const TimetableSubjects: React.FC = () => {
                     </div>
                   </td>
                 </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="ts-card">
+        <div className="ts-card-header">
+          <div>
+            <h3>
+              <span className="ts-header-icon">
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h10M7 16h10" />
+                </svg>
+              </span>
+              Common Period
+            </h3>
+          </div>
+          <div className="ts-header-stats">
+            <div className="ts-stat-card-inline ts-bg-indigo-soft">
+              <div className="ts-stat-icon ts-bg-indigo-grad">
+                <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h8M8 12h8M8 17h8" />
+                </svg>
+              </div>
+              <div>
+                <div className="ts-stat-value">{commonPeriods.length}</div>
+                <div className="ts-stat-label">Matches</div>
+              </div>
+            </div>
+          </div>
+          <div className="ts-btn-group">
+            <button
+              type="button"
+              onClick={handleOpenAddCommonPeriod}
+              className="ts-btn ts-btn-primary"
+            >
+              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
+              </svg>
+              Add Common Period
+            </button>
+          </div>
+        </div>
+
+        <div className="px-6 py-3 text-xs text-secondary-500 dark:text-secondary-400 border-b border-secondary-100 dark:border-secondary-800">
+          Create common periods by selecting a <b>Subject</b> and <b>Class</b>. Common Period matches are derived from the current timetable grid.
+        </div>
+
+        {isAddingCommonPeriod && (
+          <div className="px-6 py-4 border-b border-secondary-100 dark:border-secondary-800">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="min-w-[240px] flex-1">
+                <label className="block text-xs font-medium text-secondary-500 mb-1">Subject</label>
+                <select
+                  className="ts-input w-full"
+                  value={newCommonPeriod.subject}
+                  title="Subject"
+                  onChange={(e) => {
+                    const subject = e.target.value
+                    setNewCommonPeriod((prev) => ({ ...prev, subject }))
+                  }}
+                >
+                  <option value="">Select subject</option>
+                  {sortedSubjects.map((s) => (
+                    <option key={s.id} value={s.name}>
+                      {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="min-w-[240px] flex-1">
+                <label className="block text-xs font-medium text-secondary-500 mb-1">Class</label>
+                <select
+                  className="ts-input w-full"
+                  value={newCommonPeriod.className}
+                  title="Class"
+                  onChange={(e) => setNewCommonPeriod((prev) => ({ ...prev, className: e.target.value }))}
+                  disabled={!newCommonPeriod.subject}
+                >
+                  <option value="">Select class</option>
+                  {(newCommonPeriod.subject ? availableClassNamesForSubjectFromMatrix : classNameOptions).map((cn) => (
+                    <option key={cn} value={cn}>
+                      {cn}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="min-w-[240px] flex-1">
+                <label className="block text-xs font-medium text-secondary-500 mb-1">Sections</label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="ts-input w-full text-left flex items-center justify-between gap-2"
+                    onClick={() => setIsCommonPeriodSectionsOpen((v) => !v)}
+                    disabled={!newCommonPeriod.subject || !newCommonPeriod.className || matrixAssignedSectionsForSelection.length === 0}
+                    title="Sections"
+                  >
+                    <span className="truncate">
+                      {selectedCommonPeriodSections.length > 0
+                        ? selectedCommonPeriodSections.join(', ')
+                        : (newCommonPeriod.subject && newCommonPeriod.className ? 'Select sections' : 'Select subject and class')}
+                    </span>
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      aria-hidden="true"
+                      style={{ opacity: 0.7 }}
+                    >
+                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+
+                  {isCommonPeriodSectionsOpen && (
+                    <div className="absolute z-20 mt-2 w-full rounded-xl border border-secondary-200 bg-white shadow-lg p-2 max-h-[220px] overflow-auto">
+                      {matrixAssignedSectionsForSelection.map((section) => {
+                        const checked = selectedCommonPeriodSections.includes(section)
+                        return (
+                          <label key={section} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-secondary-50 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="ts-checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                const nextChecked = e.target.checked
+                                setSelectedCommonPeriodSections((prev) => {
+                                  if (nextChecked) {
+                                    return Array.from(new Set([...prev, section]))
+                                  }
+                                  return prev.filter((s) => s !== section)
+                                })
+                              }}
+                              aria-label={`Select section ${section}`}
+                            />
+                            <span className="text-sm text-secondary-900">{section}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveCommonPeriod}
+                  className="ts-btn ts-btn-primary"
+                  disabled={!newCommonPeriod.subject || !newCommonPeriod.className || selectedCommonPeriodSections.length === 0}
+                >
+                  <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
+                  </svg>
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCancelAddCommonPeriod}
+                  className="ts-action-link ts-action-cancel"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-3 text-xs text-secondary-500">
+              {candidateCommonMatches.length === 0
+                ? 'No common period matches for the selected subject/class yet.'
+                : `Found ${candidateCommonMatches.length} timetable match(es) for this subject/class.`}
+              {matrixAssignedSectionsForSelection.length > 0 && ` Sections (from matrix): ${matrixAssignedSectionsForSelection.join(', ')}`}
+            </div>
+          </div>
+        )}
+
+        <div className="ts-table-wrap">
+          <table className="ts-table">
+            <thead>
+              <tr>
+                <th>Sr No</th>
+                <th>Subject</th>
+                <th>Class</th>
+                <th>Sections</th>
+              </tr>
+            </thead>
+            <tbody>
+              {commonPeriods.length === 0 ? (
+                <tr>
+                  <td colSpan={4}>
+                    <div className="ts-empty">
+                      <div className="ts-empty-icon">
+                        <svg fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h7.5M8.25 12h7.5m-7.5 5.25h7.5M3.75 5.25A2.25 2.25 0 016 3h12a2.25 2.25 0 012.25 2.25v13.5A2.25 2.25 0 0118 21H6a2.25 2.25 0 01-2.25-2.25V5.25z" />
+                        </svg>
+                      </div>
+                      <h3>No Common Periods</h3>
+                      <p>
+                        Click <b>Add Common Period</b> and choose a Subject+Class to create common periods from the timetable grid.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                commonPeriods.map((row, index) => (
+                  <tr key={row.id}>
+                    <td><span className="ts-sr">{index + 1}</span></td>
+                    <td>{row.subject}</td>
+                    <td><span className="ts-subject-name">{row.className}</span></td>
+                    <td>{row.sections.join(', ')}</td>
+                  </tr>
+                ))
               )}
             </tbody>
           </table>
