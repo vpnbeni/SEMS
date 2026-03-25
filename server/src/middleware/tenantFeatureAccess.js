@@ -8,7 +8,7 @@ const requireTenantFeature = (featureKey) => {
     if (!isEnabled) {
       return res.status(403).json({
         success: false,
-        message: `Feature '${featureKey}' is disabled by platform admin for this tenant`,
+        message: `Feature '${featureKey}' is not available for your account`,
         featureKey,
       });
     }

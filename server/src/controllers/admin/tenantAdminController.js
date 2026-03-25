@@ -100,6 +100,61 @@ const sendSignupOtpEmail = async ({
   });
 };
 
+const sendAdminNewTenantNotification = async ({ tenantName, tenantSlug, adminEmail, source }) => {
+  const rawAdminEmails = process.env.ADMIN_EMAILS || '';
+  const recipients = rawAdminEmails
+    .split(',')
+    .map((e) => e.trim())
+    .filter(Boolean);
+
+  if (recipients.length === 0) return;
+
+  const safeName = escapeHtml(tenantName);
+  const safeSlug = escapeHtml(tenantSlug);
+  const safeEmail = escapeHtml(adminEmail);
+  const safeSource = source === 'admin' ? 'Admin Portal' : 'Public Signup';
+  const timestamp = new Date().toUTCString();
+
+  const subject = `[Cntr] New Tenant Registered: ${tenantSlug}`;
+  const text = [
+    'A new tenant has registered on Cntr.',
+    '',
+    `Name:    ${tenantName}`,
+    `Slug:    ${tenantSlug}`,
+    `Email:   ${adminEmail}`,
+    `Source:  ${safeSource}`,
+    `Time:    ${timestamp}`,
+  ].join('\n');
+
+  const html = [
+    '<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a;">',
+    '<h2 style="margin:0 0 12px;">New Tenant Registered on Cntr</h2>',
+    '<table style="border-collapse:collapse;">',
+    `<tr><td style="padding:4px 12px 4px 0;color:#475569;">Name</td><td><strong>${safeName}</strong></td></tr>`,
+    `<tr><td style="padding:4px 12px 4px 0;color:#475569;">Slug</td><td><code>${safeSlug}</code></td></tr>`,
+    `<tr><td style="padding:4px 12px 4px 0;color:#475569;">Admin Email</td><td>${safeEmail}</td></tr>`,
+    `<tr><td style="padding:4px 12px 4px 0;color:#475569;">Source</td><td>${safeSource}</td></tr>`,
+    `<tr><td style="padding:4px 12px 4px 0;color:#475569;">Time</td><td>${timestamp}</td></tr>`,
+    '</table>',
+    '</div>',
+  ].join('');
+
+  await sendMail({ to: recipients.join(', '), subject, text, html });
+};
+
+const enqueueAdminNewTenantNotification = ({ tenantName, tenantSlug, adminEmail, source }) => {
+  setImmediate(async () => {
+    try {
+      await sendAdminNewTenantNotification({ tenantName, tenantSlug, adminEmail, source });
+      console.info(`[tenant-signup:admin-notify] status=sent tenantSlug=${tenantSlug}`);
+    } catch (err) {
+      console.error(
+        `[tenant-signup:admin-notify] status=failed tenantSlug=${tenantSlug} message=${err.message}`
+      );
+    }
+  });
+};
+
 const enqueueSignupOtpEmail = ({
   recipientEmail,
   tenantName,
@@ -355,15 +410,15 @@ const resolveTenantByEmail = asyncHandler(async (req, res) => {
 
   if (!resolvedTenantMatch) {
     if (inactiveTenantMatchFound) {
-      return sendTenantResolveError(res, 403, 'User account is inactive for the matched tenant');
+      return sendTenantResolveError(res, 403, 'User account is inactive');
     }
 
-    return sendTenantResolveError(res, 404, 'No active tenant found for this email');
+    return sendTenantResolveError(res, 404, 'No active user account found for this email');
   }
 
   return res.status(200).json({
     success: true,
-    message: 'Tenant resolved successfully',
+    message: 'User account resolved successfully',
     data: {
       slug: resolvedTenantMatch.tenantRecord.slug,
       name: resolvedTenantMatch.tenantRecord.name
@@ -431,6 +486,13 @@ const createTenant = asyncHandler(async (req, res) => {
       tenantAdmin: result.tenantAdmin,
     });
 
+    enqueueAdminNewTenantNotification({
+      tenantName: result.tenant.name,
+      tenantSlug: result.tenant.slug,
+      adminEmail: result.tenant.adminEmail || adminEmail,
+      source: 'admin'
+    });
+
     return res.status(201).json({
       success: true,
       message: 'Tenant created successfully',
@@ -492,13 +554,20 @@ const startPublicTenantSignup = asyncHandler(async (req, res) => {
       contextTag: 'start'
     });
 
+    enqueueAdminNewTenantNotification({
+      tenantName: result.tenant.name,
+      tenantSlug: result.tenant.slug,
+      adminEmail,
+      source: 'public'
+    });
+
     console.info(
       `[tenant-signup:start] status=success tenantSlug=${result.tenant.slug} otpDeliveryStatus=queued`
     );
 
     return res.status(201).json({
       success: true,
-      message: 'Tenant signup initiated successfully',
+      message: 'Signup initiated successfully',
       data: {
         ticket: ticketResult.ticket,
         tenantSlug: result.tenant.slug,
@@ -516,7 +585,7 @@ const startPublicTenantSignup = asyncHandler(async (req, res) => {
       return sendSignupError(
         res,
         409,
-        'The tenant slug is already in use. Please choose another one.',
+        'This user ID is already in use. Please choose another one.',
         'slug_taken'
       );
     }
