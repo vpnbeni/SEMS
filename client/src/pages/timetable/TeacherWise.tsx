@@ -1,6 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { useTimetable, WEEKDAYS, type TimetableClass } from '@/contexts/TimetableContext'
 import bellTimingsService, { type BellTimingRowPayload } from '@/services/bellTimingsService'
+import timetableService, { type TimetableVersionSummary, type TimetableGridState } from '@/services/timetableService'
+import toast from 'react-hot-toast'
 
 /* ══════════════════════════════ Types ══════════════════════════════ */
 
@@ -112,6 +114,36 @@ const TeacherWise: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('')
   const [periodTimeRanges, setPeriodTimeRanges] = useState<string[]>([])
 
+  // ── Version state ──
+  const [versions, setVersions] = useState<TimetableVersionSummary[]>([])
+  const [selectedVersionId, setSelectedVersionId] = useState<string>('')
+  const [versionGrid, setVersionGrid] = useState<TimetableGridState | null>(null)
+  const [exportingPDF, setExportingPDF] = useState(false)
+
+  useEffect(() => {
+    timetableService.getVersions().then(setVersions).catch(() => setVersions([]))
+  }, [])
+
+  useEffect(() => {
+    if (!selectedVersionId) { setVersionGrid(null); return }
+    timetableService.getVersion(selectedVersionId)
+      .then((v) => setVersionGrid(v.grid ?? null))
+      .catch(() => { setVersionGrid(null); toast.error('Failed to load version.') })
+  }, [selectedVersionId])
+
+  // The active grid: version when selected, otherwise context grid
+  const activeGrid = (versionGrid ?? timetableGrid) as TimetableGridState
+
+  const handleExportTeacherPDF = async (teacherName: string) => {
+    if (!selectedVersionId) { toast.error('Select a version first.'); return }
+    const teacher = teachers.find((t) => t.name === teacherName)
+    if (!teacher) return
+    setExportingPDF(true)
+    try { await timetableService.exportTeacherPDF(selectedVersionId, teacher.id) }
+    catch { toast.error('PDF export failed.') }
+    finally { setExportingPDF(false) }
+  }
+
   // Build a class lookup
   const classMap = useMemo(() => {
     const map = new Map<string, TimetableClass>()
@@ -151,15 +183,15 @@ const TeacherWise: React.FC = () => {
     }
   }, [])
 
-  // Derive teacher schedules from the timetable grid
+  // Derive teacher schedules from the active grid (version or manual)
   const teacherInfos: TeacherInfo[] = useMemo(() => {
     const map = new Map<string, { schedule: TeacherSchedule; classSet: Set<string>; subjectSet: Set<string>; count: number }>()
 
     // Scan all grid cells
-    for (const classId of Object.keys(timetableGrid)) {
+    for (const classId of Object.keys(activeGrid)) {
       const cls = classMap.get(classId)
       if (!cls) continue
-      const classDays = timetableGrid[classId]
+      const classDays = (activeGrid as Record<string, Record<string, Record<number, { subject: string; teacher: string }>>>)[classId]
       for (const day of Object.keys(classDays)) {
         const slots = classDays[day]
         for (const slotStr of Object.keys(slots)) {
@@ -640,7 +672,77 @@ const TeacherWise: React.FC = () => {
           color: #94a3b8;
           border-color: #334155;
         }
+
+        /* ───────── Version toolbar ───────── */
+        .tw-version-bar {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-bottom: 16px;
+        }
+        .tw-version-label {
+          font-size: 0.82rem;
+          font-weight: 600;
+          color: #475569;
+        }
+        .dark .tw-version-label { color: #cbd5e1; }
+        .tw-version-select {
+          padding: 6px 10px;
+          border-radius: 10px;
+          border: 1.5px solid #e2e8f0;
+          font-size: 0.82rem;
+          font-weight: 600;
+          background: #fff;
+          color: #475569;
+          min-width: 220px;
+        }
+        .dark .tw-version-select {
+          background: #1e293b;
+          border-color: #475569;
+          color: #94a3b8;
+        }
+        .tw-version-exporting {
+          font-size: 0.82rem;
+          font-weight: 600;
+          color: #6366f1;
+        }
+        .tw-export-pdf-btn {
+          padding: 3px 10px;
+          border-radius: 8px;
+          border: 1.5px solid #6366f1;
+          font-size: 0.78rem;
+          font-weight: 600;
+          background: transparent;
+          color: #6366f1;
+          cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+        }
+        .tw-export-pdf-btn:hover:not(:disabled) { background: #6366f1; color: #fff; }
+        .tw-export-pdf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
       `}</style>
+
+      {/* ── Version toolbar ── */}
+      <div className="tw-version-bar">
+        <span className="tw-version-label">Version:</span>
+        <select
+          className="tw-version-select"
+          title="Select a generated timetable version to view"
+          value={selectedVersionId}
+          onChange={(e) => setSelectedVersionId(e.target.value)}
+          aria-label="Select timetable version"
+        >
+          <option value="">Manual (current grid)</option>
+          {versions.map((v) => (
+            <option key={v._id} value={v._id}>
+              {v.name} [{v.status}]
+            </option>
+          ))}
+        </select>
+        {exportingPDF && (
+          <span className="tw-version-exporting">Exporting PDF…</span>
+        )}
+      </div>
 
       {/* ── Top bar ── */}
       <div className="tw-top-bar">
@@ -761,6 +863,16 @@ const TeacherWise: React.FC = () => {
                   <span className="tw-stat-pill tw-stat-amber">
                     {teacher.uniqueClasses.length} class{teacher.uniqueClasses.length !== 1 ? 'es' : ''}
                   </span>
+                )}
+                {selectedVersionId && (
+                  <button
+                    type="button"
+                    className="tw-export-pdf-btn"
+                    onClick={() => handleExportTeacherPDF(teacher.name)}
+                    disabled={exportingPDF}
+                  >
+                    Export PDF
+                  </button>
                 )}
               </div>
             </div>

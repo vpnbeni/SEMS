@@ -25,6 +25,7 @@ const SupportTicket = require('../models/SupportTicket');
 const AcademicSession = require('../models/AcademicSession');
 const { AttendanceRecord, AttendanceUpload } = require('../models/AttendanceRecord');
 const TimetableState = require('../models/TimetableState');
+const TimetableVersion = require('../models/TimetableVersion');
 const OnboardingSession = require('../models/OnboardingSession');
 
 const tenantModelExports = {
@@ -57,6 +58,7 @@ const tenantModelExports = {
   AttendanceRecord,
   AttendanceUpload,
   TimetableState,
+  TimetableVersion,
   OnboardingSession
 };
 

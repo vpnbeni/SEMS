@@ -43,6 +43,7 @@ import PeriodAllocation from './pages/timetable/PeriodAllocation'
 import Departments from './pages/timetable/Departments'
 import Substitution from './pages/timetable/Substitution'
 import Versions from './pages/timetable/Versions'
+import Generate from './pages/timetable/Generate'
 import { TimetableProvider } from './contexts/TimetableContext'
 import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
@@ -258,6 +259,7 @@ function App() {
               <Route path="time-table/subjects" element={<TimetableSubjects />} />
               <Route path="time-table/departments" element={<Departments />} />
               <Route path="time-table/bell-timings" element={<BellTimings />} />
+              <Route path="time-table/generate" element={<Generate />} />
               <Route path="time-table/class-wise" element={<ClassWise />} />
               <Route path="time-table/teacher-wise" element={<TeacherWise />} />
               <Route path="time-table/substitution" element={<Substitution />} />

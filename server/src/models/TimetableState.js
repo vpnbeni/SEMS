@@ -33,6 +33,15 @@ const timetableClassSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    classGroup: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    displayOrder: {
+      type: Number,
+      default: 0,
+    },
   },
   { _id: false }
 );
@@ -50,6 +59,21 @@ const timetableSubjectSchema = new mongoose.Schema(
       trim: true,
     },
     type: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    requiresConsecutivePeriods: {
+      type: Boolean,
+      default: false,
+    },
+    consecutivePeriodCount: {
+      type: Number,
+      default: 2,
+      min: 2,
+      max: 4,
+    },
+    color: {
       type: String,
       default: '',
       trim: true,

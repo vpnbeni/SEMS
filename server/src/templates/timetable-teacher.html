@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 10mm 8mm;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Calibri', Arial, sans-serif;
+    font-size: 9pt;
+    color: #000;
+  }
+  .page-break { page-break-after: always; }
+
+  .header {
+    text-align: center;
+    margin-bottom: 6px;
+  }
+  .header h1 { font-size: 12pt; font-weight: bold; text-transform: uppercase; }
+  .header h2 { font-size: 10pt; font-weight: bold; }
+  .header h3 { font-size: 9pt; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+  th, td {
+    border: 1px solid #000;
+    padding: 3px 4px;
+    vertical-align: middle;
+    text-align: center;
+    word-wrap: break-word;
+  }
+  .col-period { width: 10%; background: #dce6f1; font-weight: bold; }
+  .row-header th { background: #dce6f1; font-weight: bold; }
+  .cell-break { background: #ffe0b2; font-weight: bold; letter-spacing: 1px; }
+  .cell-content { font-size: 8pt; line-height: 1.4; }
+  .cell-content .cls-name { font-weight: bold; display: block; }
+  .cell-content .subj-name { font-size: 7.5pt; color: #333; display: block; }
+  .empty-cell { background: #fafafa; }
+</style>
+</head>
+<body>
+
+{{#each teachers}}
+<div{{#unless @last}} class="page-break"{{/unless}}>
+  <div class="header">
+    <h1>{{../meta.schoolName}}</h1>
+    <h2>TEACHER TIMETABLE — {{../meta.title}} ({{../meta.session}})</h2>
+    <h3>Teacher: <strong>{{name}}</strong> &nbsp;|&nbsp; Total Periods/Week: <strong>{{totalPeriods}}</strong></h3>
+  </div>
+
+  <table>
+    <thead>
+      <tr class="row-header">
+        <th class="col-period">PERIOD</th>
+        {{#each ../days}}
+        <th>{{name}}</th>
+        {{/each}}
+      </tr>
+    </thead>
+    <tbody>
+      {{#each periods}}
+      <tr>
+        {{#if isBreak}}
+        <td class="col-period cell-break">BREAK</td>
+        {{else}}
+        <td class="col-period">{{label}}</td>
+        {{/if}}
+        {{#each daySlots}}
+        {{#if isBreak}}
+        <td class="cell-break">—</td>
+        {{else if className}}
+        <td class="cell-content">
+          <span class="cls-name">{{className}}</span>
+          <span class="subj-name">{{subject}}</span>
+        </td>
+        {{else}}
+        <td class="empty-cell">—</td>
+        {{/if}}
+        {{/each}}
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>
+{{/each}}
+
+</body>
+</html>
