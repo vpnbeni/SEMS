@@ -410,15 +410,15 @@ const resolveTenantByEmail = asyncHandler(async (req, res) => {
 
   if (!resolvedTenantMatch) {
     if (inactiveTenantMatchFound) {
-      return sendTenantResolveError(res, 403, 'User account is inactive for the matched tenant');
+      return sendTenantResolveError(res, 403, 'User account is inactive');
     }
 
-    return sendTenantResolveError(res, 404, 'No active tenant found for this email');
+    return sendTenantResolveError(res, 404, 'No active user account found for this email');
   }
 
   return res.status(200).json({
     success: true,
-    message: 'Tenant resolved successfully',
+    message: 'User account resolved successfully',
     data: {
       slug: resolvedTenantMatch.tenantRecord.slug,
       name: resolvedTenantMatch.tenantRecord.name
@@ -567,7 +567,7 @@ const startPublicTenantSignup = asyncHandler(async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: 'Tenant signup initiated successfully',
+      message: 'Signup initiated successfully',
       data: {
         ticket: ticketResult.ticket,
         tenantSlug: result.tenant.slug,
@@ -585,7 +585,7 @@ const startPublicTenantSignup = asyncHandler(async (req, res) => {
       return sendSignupError(
         res,
         409,
-        'The tenant slug is already in use. Please choose another one.',
+        'This user ID is already in use. Please choose another one.',
         'slug_taken'
       );
     }

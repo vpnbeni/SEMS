@@ -81,7 +81,7 @@ const tenantContextMiddleware = async (req, res, next) => {
 
       return res.status(400).json({
         success: false,
-        message: 'Tenant could not be resolved from request host/header/query',
+        message: 'Unable to identify user account. Please try again.',
       });
     }
 
@@ -92,14 +92,14 @@ const tenantContextMiddleware = async (req, res, next) => {
     if (!tenantRecord) {
       return res.status(404).json({
         success: false,
-        message: `Tenant '${resolution.tenantSlug}' not found`,
+        message: 'User account not found',
       });
     }
 
     if (tenantRecord.status !== TENANT_STATUS.ACTIVE) {
       return res.status(403).json({
         success: false,
-        message: `Tenant '${resolution.tenantSlug}' is not active`,
+        message: 'User account is not active',
       });
     }
 
