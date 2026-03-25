@@ -13,6 +13,7 @@ const { getMasterRemunerationRateModel } = require('../models/platform/MasterRem
 const { getMasterPackingDispatchModel } = require('../models/platform/MasterPackingDispatch');
 const { getMasterSchoolDirectoryModel } = require('../models/platform/MasterSchoolDirectory');
 const { getSchoolDirectoryTypeSettingsModel } = require('../models/platform/SchoolDirectoryTypeSettings');
+const { getTenantFeatureDefaultsModel } = require('../models/platform/TenantFeatureDefaults');
 
 const getPlatformModels = () => {
   const connection = getPlatformConnection();
@@ -33,6 +34,7 @@ const getPlatformModels = () => {
     MasterPackingDispatch: getMasterPackingDispatchModel(connection),
     MasterSchoolDirectory: getMasterSchoolDirectoryModel(connection),
     SchoolDirectoryTypeSettings: getSchoolDirectoryTypeSettingsModel(connection),
+    TenantFeatureDefaults: getTenantFeatureDefaultsModel(connection),
   };
 };
 

@@ -4,6 +4,7 @@ const { getTenantConnectionAndModels } = require('./tenantConnectionManager');
 const { syncTenantUserDirectoryEntry } = require('./tenantUserDirectoryService');
 const { isValidSlug } = require('./resolveTenantFromRequest');
 const { ensureTenantActiveDatesheet } = require('../services/cbseDatesheetRolloutService');
+const { getDefaultTenantFeatureToggles } = require('../services/tenantFeatureDefaultsService');
 
 const generateRandomPassword = () => crypto.randomBytes(12).toString('base64url');
 
@@ -21,6 +22,8 @@ const provisionTenant = async ({
   name,
   adminEmail,
   adminPassword,
+  schoolCode,
+  affiliationNo,
   createdBy = null,
   dbName
 }) => {
@@ -60,14 +63,18 @@ const provisionTenant = async ({
   }
 
   const generatedPassword = adminPassword || generateRandomPassword();
+  const defaultFeatureToggles = await getDefaultTenantFeatureToggles();
 
   const tenant = await Tenant.create({
     slug: normalizedSlug,
     name: name?.trim() || normalizedSlug,
     dbName: resolvedDbName,
     adminEmail: email,
+    featureToggles: defaultFeatureToggles,
     metadata: {
-      createdBy
+      createdBy,
+      schoolCode: String(schoolCode || '').trim(),
+      affiliationNo: String(affiliationNo || '').trim(),
     }
   });
 

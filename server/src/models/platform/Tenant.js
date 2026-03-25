@@ -47,6 +47,16 @@ const tenantSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       default: null,
     },
+    schoolCode: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    affiliationNo: {
+      type: String,
+      trim: true,
+      default: '',
+    },
   },
 }, {
   timestamps: true,

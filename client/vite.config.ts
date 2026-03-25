@@ -21,7 +21,9 @@ export default defineConfig({
     }
   },
   server: {
+    host: true,
     port: 5173,
+    allowedHosts: ['tmtbl.localhost'],
     proxy: {
       '/api': {
         target: devProxyTarget,

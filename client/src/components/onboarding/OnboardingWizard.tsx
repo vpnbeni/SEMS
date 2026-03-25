@@ -227,7 +227,7 @@ export function OnboardingWizard() {
 
   return (
     <div className="max-w-4xl mx-auto mt-8 p-6">
-      <h1 className="text-3xl font-bold mb-8">Data Import Wizard</h1>
+      <h1 className="text-3xl font-bold mb-8">Cntr - Setup</h1>
 
       {/* Progress Steps */}
       <div className="mb-8">

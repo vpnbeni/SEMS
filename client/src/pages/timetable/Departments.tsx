@@ -1,18 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import {
   useTimetable,
   type TimetableClass,
   type TimetableTeacher,
   type TeacherSubjectAllocation,
 } from '@/contexts/TimetableContext'
-import teacherService, { type Teacher } from '@/services/teacherService'
-
-interface StaffTeacherRow {
-  id: string
-  name: string
-  shortName: string
-  staffSubjects: string[]
-}
 
 const normalize = (value: string) => value.trim().toLowerCase()
 
@@ -37,19 +29,6 @@ const uniqueByNormalized = (values: string[]) => {
   })
 
   return output
-}
-
-const extractTeacherSubjects = (teacher: Teacher): string[] => {
-  const rawList = Array.isArray(teacher.subjects) ? teacher.subjects : []
-  const values = rawList
-    .map((entry) => {
-      if (typeof entry === 'string') return entry
-      if (entry && typeof entry === 'object') return entry.name || entry.code || ''
-      return ''
-    })
-    .filter(Boolean)
-
-  return uniqueByNormalized(values)
 }
 
 const cloneAllocations = (allocations: TeacherSubjectAllocation[]) =>
@@ -99,9 +78,6 @@ const Departments: React.FC = () => {
     setTeacherSubjectAllocations,
   } = useTimetable()
 
-  const [staffTeachers, setStaffTeachers] = useState<StaffTeacherRow[]>([])
-  const [loadingStaff, setLoadingStaff] = useState(true)
-  const [errorMessage, setErrorMessage] = useState('')
   const [searchText, setSearchText] = useState('')
 
   const subjectNames = useMemo(
@@ -115,103 +91,22 @@ const Departments: React.FC = () => {
     return map
   }, [subjectNames])
 
-  useEffect(() => {
-    let mounted = true
-
-    const loadStaff = async () => {
-      setLoadingStaff(true)
-      setErrorMessage('')
-
-      try {
-        const allRows: StaffTeacherRow[] = []
-        let page = 1
-        let totalPages = 1
-
-        do {
-          const result = await teacherService.getAll({
-            page,
-            limit: 100,
-            isActive: true,
-            sort: 'name',
-          })
-          if (!mounted) return
-
-          result.items.forEach((teacher) => {
-            const id = String(teacher._id || teacher.id || '').trim()
-            if (!id) return
-            allRows.push({
-              id,
-              name: String(teacher.name || '').trim() || 'Unnamed',
-              shortName: String(teacher.subjectCode || '').trim(),
-              staffSubjects: extractTeacherSubjects(teacher),
-            })
-          })
-
-          totalPages = Math.max(result.totalPages || 1, 1)
-          page += 1
-        } while (page <= totalPages)
-
-        setStaffTeachers(allRows)
-      } catch {
-        if (!mounted) return
-        setErrorMessage('Failed to load staff teachers.')
-      } finally {
-        if (mounted) {
-          setLoadingStaff(false)
-        }
-      }
-    }
-
-    loadStaff()
-    return () => {
-      mounted = false
-    }
-  }, [])
-
-  const teachersById = useMemo(() => {
-    const map = new Map<string, TimetableTeacher>()
-    teachers.forEach((teacher) => map.set(String(teacher.id), teacher))
-    return map
-  }, [teachers])
-
   const matrixTeachers = useMemo<TimetableTeacher[]>(() => {
-    return staffTeachers.map((staffRow) => {
-      const existing = teachersById.get(staffRow.id)
-      const preferred = existing?.subjects?.length ? existing.subjects : staffRow.staffSubjects
+    return teachers.map((teacher) => {
       const resolvedSubjects = uniqueByNormalized(
-        preferred
+        (teacher.subjects || [])
           .map((subject) => subjectAliasMap.get(normalize(subject)) || '')
           .filter(Boolean)
       )
 
       return {
-        id: staffRow.id,
-        name: staffRow.name,
-        shortName: staffRow.shortName,
+        id: teacher.id,
+        name: teacher.name,
+        shortName: teacher.shortName,
         subjects: resolvedSubjects,
       }
     })
-  }, [staffTeachers, teachersById, subjectAliasMap])
-
-  useEffect(() => {
-    if (loadingStaff) return
-    if (subjectNames.length === 0) return
-
-    const changed =
-      matrixTeachers.length !== teachers.length ||
-      matrixTeachers.some((row) => {
-        const current = teachersById.get(row.id)
-        if (!current) return true
-        if (current.name !== row.name || current.shortName !== row.shortName) return true
-        const currentSubjects = uniqueByNormalized(current.subjects || []).map(normalize).sort()
-        const nextSubjects = uniqueByNormalized(row.subjects || []).map(normalize).sort()
-        return currentSubjects.join('|') !== nextSubjects.join('|')
-      })
-
-    if (changed) {
-      setTeachers(matrixTeachers)
-    }
-  }, [loadingStaff, subjectNames, matrixTeachers, teachers.length, teachersById, setTeachers])
+  }, [teachers, subjectAliasMap])
 
   const searchableTeachers = useMemo(() => {
     const needle = searchText.trim().toLowerCase()
@@ -403,17 +298,13 @@ const Departments: React.FC = () => {
           />
         </div>
 
-        {errorMessage && (
-          <div className="px-5 py-3 text-sm text-error-700 bg-error-50 border-b border-error-100">
-            {errorMessage}
-          </div>
-        )}
-
-        {loadingStaff ? (
-          <div className="px-5 py-8 text-sm text-secondary-500">Loading teachers...</div>
-        ) : subjectNames.length === 0 ? (
+        {subjectNames.length === 0 ? (
           <div className="px-5 py-8 text-sm text-secondary-500">
             Add timetable subjects first in Time Table &gt; Subjects.
+          </div>
+        ) : matrixTeachers.length === 0 ? (
+          <div className="px-5 py-8 text-sm text-secondary-500">
+            Add timetable teachers first in Time Table &gt; Teachers.
           </div>
         ) : searchableTeachers.length === 0 ? (
           <div className="px-5 py-8 text-sm text-secondary-500">No matching teachers found.</div>
@@ -546,4 +437,3 @@ const Departments: React.FC = () => {
 }
 
 export default Departments
-

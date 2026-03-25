@@ -170,7 +170,13 @@ router.delete(
 // Tenant feature toggle routes
 router.get('/features/pages', tenantFeaturesController.listFeaturePages);
 router.get('/features/tenants', tenantFeaturesController.listFeatureTenants);
+router.get('/features/defaults', tenantFeaturesController.getDefaultFeatures);
 router.get('/features/tenants/:id', validateParams(tenantIdParamSchema), tenantFeaturesController.getTenantFeatures);
+router.put(
+  '/features/defaults',
+  validateJoi(tenantFeatureUpdateSchema),
+  tenantFeaturesController.updateDefaultFeatures
+);
 router.put(
   '/features/tenants/:id',
   validateParams(tenantIdParamSchema),
