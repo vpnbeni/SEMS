@@ -699,9 +699,9 @@ const Duties: React.FC = () => {
     if (!isCurrentInvigilator(functionary)) return false
     if (getRoomSubjectConflict(roomId, functionaryId, dateKey)) return false
     if (getRoomSchoolConflict(roomId, functionaryId, dateKey)) return false
-    if (getCandidateOverlapConflict(roomId, functionaryId, dateKey)) return false
+    // Candidate overlap is a warning only — does not block eligibility
     return true
-  }, [functionaryById, getRoomSubjectConflict, getRoomSchoolConflict, getCandidateOverlapConflict])
+  }, [functionaryById, getRoomSubjectConflict, getRoomSchoolConflict])
 
   const getEligibleRoomCountForFunctionary = useCallback((functionaryId: string, dateKey: string) => {
     if (!dateKey || !functionaryId) return 0
@@ -1087,10 +1087,7 @@ const Duties: React.FC = () => {
       }
       const candidateOverlap = getCandidateOverlapConflict(roomId, functionaryId, selectedRoomDate)
       if (candidateOverlap) {
-        toast.error(
-          `Candidate overlap: ${candidateOverlap.functionaryName} already supervised candidate ${candidateOverlap.overlappingRollNo} on a previous date.`
-        )
-        return
+        toast(`Candidate overlap: ${candidateOverlap.functionaryName} already supervised candidate ${candidateOverlap.overlappingRollNo} on a previous date.`, { icon: '⚠️' })
       }
     }
     setRoomAssignmentsByDate((prev) => ({
@@ -1126,10 +1123,7 @@ const Duties: React.FC = () => {
       }
       const candidateOverlap = getCandidateOverlapConflict(roomId, functionaryId, selectedRoomDate)
       if (candidateOverlap) {
-        toast.error(
-          `Candidate overlap: ${candidateOverlap.functionaryName} already supervised candidate ${candidateOverlap.overlappingRollNo} on a previous date.`
-        )
-        return
+        toast(`Candidate overlap: ${candidateOverlap.functionaryName} already supervised candidate ${candidateOverlap.overlappingRollNo} on a previous date.`, { icon: '⚠️' })
       }
     }
     setRoomAssignmentsByDateSecond((prev) => ({

@@ -668,13 +668,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
         // (a) School conflict
         if (hasSchoolConflict(room._id, fn)) return false;
 
-        // (b) OASIS ID ↔ Roll Number overlap
-        const roomRollNos = rollNosByRoom.get(String(room._id));
-        if (roomRollNos && prevRollNos.size > 0) {
-          for (const rollNo of roomRollNos) {
-            if (prevRollNos.has(rollNo)) return false;
-          }
-        }
+        // (b) Candidate overlap is a warning only — does not block eligibility
 
         return true;
       });
@@ -730,16 +724,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
           if (hasSchoolConflict(room._id, fn)) {
             reasons.push({ type: 'school', schoolCode: normalizeSchoolCode(fn.schoolCode) });
           }
-          // Candidate overlap
-          const prevRollNos = supervisedByFunc.get(funcId) || new Set();
-          const roomRollNos = rollNosByRoom.get(String(room._id));
-          if (roomRollNos && prevRollNos.size > 0) {
-            const overlapping = [];
-            for (const r of roomRollNos) { if (prevRollNos.has(r)) overlapping.push(r); }
-            if (overlapping.length > 0) {
-              reasons.push({ type: 'candidateOverlap', rollNumbers: overlapping.slice(0, 5), totalOverlaps: overlapping.length });
-            }
-          }
+          // Candidate overlap is a warning only — not included in blocking conflict reasons
           if (reasons.length > 0) ineligibleRooms.push({ roomNo: normalizeRoomNo(room.roomNo), reasons });
         });
         const eligibleCount = eligible[fnIdx].filter(Boolean).length;
@@ -756,7 +741,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
 
       return res.status(400).json({
         success: false,
-        message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids subject conflict, candidate-school conflict, and any candidate they have previously supervised. Try adding more eligible functionaries.`,
+        message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids subject conflict and candidate-school conflict. Try adding more eligible functionaries.`,
         conflictDetails,
       });
     }
@@ -769,7 +754,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
     if (invalidRooms.length > 0) {
       return res.status(400).json({
         success: false,
-        message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids subject conflict, candidate-school conflict, and any candidate they have previously supervised. Try adding more eligible functionaries.`,
+        message: `Auto assignment could not complete. No valid assignment exists where each invigilator avoids subject conflict and candidate-school conflict. Try adding more eligible functionaries.`,
       });
     }
 
@@ -818,21 +803,7 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
           message: `Invigilator cannot be of candidate school. ${second.name || 'Selected invigilator'} (school code: ${normalizeSchoolCode(second.schoolCode)}) matches candidates in room ${room.roomNo}.`,
         });
       }
-      // Candidate overlap checks (CBSE rule: no invigilator supervises same candidate on two dates)
-      const firstOverlap = checkCandidateOverlap(first, room._id);
-      if (firstOverlap) {
-        return res.status(400).json({
-          success: false,
-          message: `Candidate overlap: ${first.name || 'Selected invigilator'} already supervised candidate ${firstOverlap} on a previous date. Cannot assign to room ${room.roomNo}.`,
-        });
-      }
-      const secondOverlap = checkCandidateOverlap(second, room._id);
-      if (secondOverlap) {
-        return res.status(400).json({
-          success: false,
-          message: `Candidate overlap: ${second.name || 'Selected invigilator'} already supervised candidate ${secondOverlap} on a previous date. Cannot assign to room ${room.roomNo}.`,
-        });
-      }
+      // Candidate overlap (CBSE rule) is a warning only for manual assignment — does not block saving
       if (String(first._id) === String(second._id)) {
         return res.status(400).json({ success: false, message: `Invigilator 1 and 2 cannot be same for room ${room.roomNo}.` });
       }
