@@ -17,12 +17,17 @@ export interface TimetableClass {
   floor: string
   subjects: string[]
   incharge: string
+  classGroup: string
+  displayOrder: number
 }
 
 export interface TimetableSubject {
   id: string
   name: string
   type: string
+  requiresConsecutivePeriods: boolean
+  consecutivePeriodCount: number
+  color: string
 }
 
 export interface TimetableTeacher {

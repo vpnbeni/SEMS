@@ -36,6 +36,8 @@ const EMPTY_FORM = {
   floor: '',
   subjects: [] as string[],
   incharge: '',
+  classGroup: '',
+  displayOrder: 0,
 }
 
 interface MatrixClassRow {
@@ -129,6 +131,8 @@ const TimetableClasses: React.FC = () => {
       floor: item.floor,
       subjects: normalizeSelectedSubjects(item.subjects),
       incharge: item.incharge,
+      classGroup: item.classGroup,
+      displayOrder: item.displayOrder,
     })
   }
 
@@ -422,6 +426,8 @@ const TimetableClasses: React.FC = () => {
         floor: sample?.floor || 'First Floor',
         subjects: normalizeSelectedSubjects(sample?.subjects || []),
         incharge: sample?.incharge || '',
+        classGroup: sample?.classGroup || '',
+        displayOrder: sample?.displayOrder ?? 0,
       })
     })
 
