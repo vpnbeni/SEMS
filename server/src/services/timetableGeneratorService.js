@@ -21,6 +21,9 @@
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MAX_ATTEMPTS = 8;
 const MAX_SAME_SUBJECT_PER_DAY = 2;
+const MAX_CONSECUTIVE_TEACHER_PERIODS = 3; // free period required after this many consecutive
+const MAX_CONCURRENT_SPORTS_CLASSES = 2;   // max sections in sports at same day+slot
+const SPORTS_PATTERNS = ['sport', 'game', 'p.t.', 'physical', 'p.e.', 'pt'];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -165,6 +168,48 @@ const buildParallelPairMap = (parallelSubjectPairs) => {
 };
 
 /**
+ * Returns true if the subject name matches a sports/PE pattern.
+ */
+const isSportsSubject = (subjectName) => {
+  if (!subjectName) return false;
+  const lower = subjectName.trim().toLowerCase();
+  return SPORTS_PATTERNS.some((p) => lower.includes(p));
+};
+
+/**
+ * Build a set of subject names (lowercase) that are sports-type.
+ * Uses name-pattern detection against SPORTS_PATTERNS.
+ */
+const buildSportsSubjectNames = (subjects) => {
+  const set = new Set();
+  (subjects || []).forEach((s) => {
+    if (s.name && isSportsSubject(s.name)) {
+      set.add(s.name.trim().toLowerCase());
+    }
+  });
+  return set;
+};
+
+/**
+ * Count how many consecutive periods the teacher is already booked IMMEDIATELY
+ * BEFORE periodIdx on the given day.
+ */
+const countConsecutiveBack = (teacherName, day, periodIdx, periodIdList, occupied) => {
+  if (!teacherName) return 0;
+  let count = 0;
+  for (let k = periodIdx - 1; k >= 0; k--) {
+    const pid = periodIdList[k];
+    const key = `${day}::${pid}`;
+    if (occupied.has(teacherName) && occupied.get(teacherName).has(key)) {
+      count++;
+    } else {
+      break;
+    }
+  }
+  return count;
+};
+
+/**
  * Count how many times a subject appears in a class's schedule for a given day.
  */
 const countSubjectOnDay = (grid, classId, day, subjectName) => {
@@ -222,13 +267,17 @@ const runOneAttempt = (
   consecutiveSet,
   consecutiveCountMap,
   commonPeriodMap,
-  parallelPairMap
+  parallelPairMap,
+  sportsSubjectNames
 ) => {
   // Deep copy demand so each attempt starts fresh
   const localDemand = deepCopyDemand(demand);
 
   // Teacher occupancy: teacherName → Set<"day::periodId">
   const occupied = new Map();
+
+  // Sports slot occupancy: "day::periodId" → count of classes with sports in that slot
+  const sportsOccupancy = new Map();
 
   const isTeacherOccupied = (teacherName, day, periodId) => {
     if (!teacherName) return false;
@@ -292,12 +341,35 @@ const runOneAttempt = (
     const remaining = (localDemand[classId] || {})[subjectName] || 0;
     if (remaining <= 0) return false;
 
+    // Guard: teacher consecutive period cap — force a free period after MAX_CONSECUTIVE
+    if (teacherName) {
+      const periodIdx = periodIdList.indexOf(periodId);
+      if (periodIdx > 0) {
+        const consecutive = countConsecutiveBack(teacherName, day, periodIdx, periodIdList, occupied);
+        if (consecutive >= MAX_CONSECUTIVE_TEACHER_PERIODS) return false;
+      }
+    }
+
+    // Guard: sports cap — no more than MAX_CONCURRENT_SPORTS_CLASSES in same slot
+    const isSports = sportsSubjectNames && sportsSubjectNames.has(subjectName.trim().toLowerCase());
+    if (isSports) {
+      const slotKey = `${day}::${periodId}`;
+      if ((sportsOccupancy.get(slotKey) || 0) >= MAX_CONCURRENT_SPORTS_CLASSES) return false;
+    }
+
     grid[classId][day][periodId] = { subject: subjectName, teacher: teacherName };
     markTeacherOccupied(teacherName, day, periodId);
     localDemand[classId][subjectName]--;
     if (localDemand[classId][subjectName] <= 0) {
       delete localDemand[classId][subjectName];
     }
+
+    // Update sports occupancy after successful assignment
+    if (isSports) {
+      const slotKey = `${day}::${periodId}`;
+      sportsOccupancy.set(slotKey, (sportsOccupancy.get(slotKey) || 0) + 1);
+    }
+
     return true;
   };
 
@@ -319,43 +391,169 @@ const runOneAttempt = (
   // Also shuffle the class order
   const shuffledClasses = shuffle(classes);
 
+  // Build reverse teacher lookup: classId → [{ teacher, subject }]
+  // Used for Phase 0a (incharge detection)
+  const classTeacherSubjects = {};
+  Object.entries(teacherLookup).forEach(([key, teacherName]) => {
+    const [classId, subjLower] = key.split('::');
+    if (!classId || !subjLower) return;
+    if (!classTeacherSubjects[classId]) classTeacherSubjects[classId] = [];
+    classTeacherSubjects[classId].push({ teacher: teacherName, subjLower });
+  });
+
   // ---------------------------------------------------------------------------
-  // Phase 1: Assign parallel pairs first (they constrain slot choice the most)
+  // Phase 0a: Assign class incharge's subject to first period (slot "0") every day
+  // ---------------------------------------------------------------------------
+  shuffledClasses.forEach((cls) => {
+    if (!cls.incharge) return;
+    const inchargeName = cls.incharge.trim();
+    if (!inchargeName) return;
+
+    // Find all subjects taught by the incharge in this class
+    const inchargeSubjects = (classTeacherSubjects[cls.id] || []).filter(
+      (entry) => entry.teacher.trim().toLowerCase() === inchargeName.toLowerCase()
+    );
+
+    if (!inchargeSubjects.length) return;
+
+    // Pick subject with highest remaining demand
+    const inchargeEntry = inchargeSubjects
+      .map(({ subjLower }) => {
+        const canonicalName = Object.keys(localDemand[cls.id] || {}).find(
+          (s) => s.toLowerCase() === subjLower
+        );
+        return { canonicalName, demand: canonicalName ? (localDemand[cls.id][canonicalName] || 0) : 0 };
+      })
+      .filter(({ demand }) => demand > 0)
+      .sort((a, b) => b.demand - a.demand)[0];
+
+    if (!inchargeEntry || !inchargeEntry.canonicalName) return;
+
+    const { canonicalName: subjectName } = inchargeEntry;
+    const firstPeriodId = periodIds[0];
+    if (!firstPeriodId) return;
+
+    DAYS.forEach((day) => {
+      if ((localDemand[cls.id][subjectName] || 0) <= 0) return;
+      if (grid[cls.id][day][firstPeriodId].subject) return;
+      if (isTeacherOccupied(inchargeName, day, firstPeriodId)) return;
+
+      grid[cls.id][day][firstPeriodId] = { subject: subjectName, teacher: inchargeName };
+      markTeacherOccupied(inchargeName, day, firstPeriodId);
+      localDemand[cls.id][subjectName]--;
+      if (localDemand[cls.id][subjectName] <= 0) delete localDemand[cls.id][subjectName];
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Phase 0b: Per-class column affinity — keep each subject in one period column
+  //           within a class. Only use a second column if demand > DAYS.length.
+  // ---------------------------------------------------------------------------
+  const shuffledPeriodIds = shuffle(periodIds.slice());
+
+  shuffledClasses.forEach((cls) => {
+    // Sort subjects by remaining demand (highest first) to claim columns greedily
+    const subjectsByDemand = Object.entries(localDemand[cls.id] || {})
+      .filter(([, dem]) => dem > 0)
+      .sort(([, a], [, b]) => b - a);
+
+    subjectsByDemand.forEach(([subjectName, subjectDemand]) => {
+      if ((localDemand[cls.id][subjectName] || 0) <= 0) return; // already fulfilled by 0a
+      const teacher = teacherLookup[`${cls.id}::${subjectName.toLowerCase()}`] || '';
+
+      let remainingDem = localDemand[cls.id][subjectName] || 0;
+
+      for (const periodId of shuffledPeriodIds) {
+        if (remainingDem <= 0) break;
+
+        const daysToFill = Math.min(remainingDem, DAYS.length);
+
+        // Find which days have this slot empty and teacher free
+        const validDays = DAYS.filter(
+          (day) =>
+            !grid[cls.id][day][periodId].subject &&
+            !isTeacherOccupied(teacher, day, periodId)
+        );
+
+        if (validDays.length < daysToFill) continue; // not enough days for a full column
+
+        // Assign to first daysToFill valid days
+        validDays.slice(0, daysToFill).forEach((day) => {
+          // Also check sports cap before assigning
+          const isSports = sportsSubjectNames && sportsSubjectNames.has(subjectName.trim().toLowerCase());
+          if (isSports) {
+            const slotKey = `${day}::${periodId}`;
+            if ((sportsOccupancy.get(slotKey) || 0) >= MAX_CONCURRENT_SPORTS_CLASSES) return;
+          }
+
+          grid[cls.id][day][periodId] = { subject: subjectName, teacher };
+          markTeacherOccupied(teacher, day, periodId);
+          localDemand[cls.id][subjectName]--;
+          if (localDemand[cls.id][subjectName] <= 0) delete localDemand[cls.id][subjectName];
+          remainingDem--;
+
+          if (isSports) {
+            const slotKey = `${day}::${periodId}`;
+            sportsOccupancy.set(slotKey, (sportsOccupancy.get(slotKey) || 0) + 1);
+          }
+        });
+
+        if (remainingDem <= 0) break; // fully satisfied in this column
+        // If still remaining demand (> 6 periods), loop will pick another column
+      }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Phase 1: Assign parallel pairs — combined cells ("SubjectA/SubjectB")
   // ---------------------------------------------------------------------------
   shuffledClasses.forEach((cls) => {
     const classNameKey = cls.className.trim().toLowerCase();
     const pairs = parallelPairMap[classNameKey] || [];
 
     pairs.forEach(([subjectALower, subjectBLower]) => {
-      // Find canonical names from demand keys
+      // Find canonical names from remaining demand keys
       const classSubjects = Object.keys(localDemand[cls.id] || {});
       const subjectA = classSubjects.find((s) => s.toLowerCase() === subjectALower);
       const subjectB = classSubjects.find((s) => s.toLowerCase() === subjectBLower);
 
-      if (!subjectA || !subjectB) return;
+      // If either subject has no remaining demand (already filled by Phase 0b), skip
+      if (!subjectA && !subjectB) return;
+
+      // Allow partial pair: one subject may already be fully scheduled
+      const effectiveA = subjectA || subjectALower;
+      const effectiveB = subjectB || subjectBLower;
 
       const teacherA = teacherLookup[`${cls.id}::${subjectALower}`] || '';
       const teacherB = teacherLookup[`${cls.id}::${subjectBLower}`] || '';
 
-      // Try each slot pair to schedule both subjects at the same slot
+      // Fill all parallel demand: loop until min(demandA, demandB) slots assigned
       for (const [day, periodId] of allSlotPairs) {
-        if ((localDemand[cls.id][subjectA] || 0) <= 0) break;
-        if ((localDemand[cls.id][subjectB] || 0) <= 0) break;
+        const demA = (localDemand[cls.id] || {})[effectiveA] || 0;
+        const demB = (localDemand[cls.id] || {})[effectiveB] || 0;
+        if (demA <= 0 || demB <= 0) break;
 
         if (grid[cls.id][day][periodId].subject) continue;
-        if (isTeacherOccupied(teacherA, day, periodId)) continue;
-        if (isTeacherOccupied(teacherB, day, periodId)) continue;
+        if (teacherA && isTeacherOccupied(teacherA, day, periodId)) continue;
+        if (teacherB && isTeacherOccupied(teacherB, day, periodId)) continue;
 
-        // Assign subjectA — this also handles the slot for subjectB conceptually
-        // In parallel pairs, both subjects run at the same time for the class.
-        // We assign subjectA to this class and subjectB to the same class slot —
-        // but since they're in the same class, we treat this as an alternating
-        // assignment where the school splits students. We assign both.
-        // For scheduling purposes, only one subject can occupy the grid cell,
-        // so we assign subjectA here and let subjectB take a different slot
-        // (the "parallel" means teachers are parallel, not that both are in same cell).
-        tryAssign(cls.id, day, periodId, subjectA, teacherA, periodIds);
-        break;
+        // Assign combined cell: "SubjectA/SubjectB", "TeacherA/TeacherB"
+        const combinedSubject = `${effectiveA}/${effectiveB}`;
+        const combinedTeacher = [teacherA, teacherB].filter(Boolean).join('/');
+        grid[cls.id][day][periodId] = { subject: combinedSubject, teacher: combinedTeacher };
+
+        if (teacherA) markTeacherOccupied(teacherA, day, periodId);
+        if (teacherB) markTeacherOccupied(teacherB, day, periodId);
+
+        if (localDemand[cls.id][effectiveA] > 0) {
+          localDemand[cls.id][effectiveA]--;
+          if (localDemand[cls.id][effectiveA] <= 0) delete localDemand[cls.id][effectiveA];
+        }
+        if (localDemand[cls.id][effectiveB] > 0) {
+          localDemand[cls.id][effectiveB]--;
+          if (localDemand[cls.id][effectiveB] <= 0) delete localDemand[cls.id][effectiveB];
+        }
+        // No break — continue to fill all remaining parallel demand
       }
     });
   });
@@ -441,11 +639,22 @@ const runOneAttempt = (
           if (isTeacherOccupied(teacherName, day, periodId)) continue;
           if (grid[cls.id][day][periodId].subject) break;
 
+          // Sports cap still applies in phase 4
+          const isSp = sportsSubjectNames && sportsSubjectNames.has(subjectName.trim().toLowerCase());
+          if (isSp) {
+            const sk = `${day}::${periodId}`;
+            if ((sportsOccupancy.get(sk) || 0) >= MAX_CONCURRENT_SPORTS_CLASSES) continue;
+          }
+
           grid[cls.id][day][periodId] = { subject: subjectName, teacher: teacherName };
           markTeacherOccupied(teacherName, day, periodId);
           localDemand[cls.id][subjectName]--;
           if (localDemand[cls.id][subjectName] <= 0) {
             delete localDemand[cls.id][subjectName];
+          }
+          if (isSp) {
+            const sk = `${day}::${periodId}`;
+            sportsOccupancy.set(sk, (sportsOccupancy.get(sk) || 0) + 1);
           }
           break;
         }
@@ -560,6 +769,7 @@ const generate = (state) => {
   const consecutiveCountMap = buildConsecutiveCountMap(subjects);
   const commonPeriodMap = buildCommonPeriodMap(commonPeriods, classes);
   const parallelPairMap = buildParallelPairMap(parallelSubjectPairs);
+  const sportsSubjectNames = buildSportsSubjectNames(subjects);
 
   const totalSlots = classes.length * DAYS.length * periodIds.length;
 
@@ -576,7 +786,8 @@ const generate = (state) => {
       consecutiveSet,
       consecutiveCountMap,
       commonPeriodMap,
-      parallelPairMap
+      parallelPairMap,
+      sportsSubjectNames
     );
 
     const filled = countFilled(grid);

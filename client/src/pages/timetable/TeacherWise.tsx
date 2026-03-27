@@ -235,7 +235,7 @@ const TeacherWise: React.FC = () => {
         uniqueSubjects: Array.from(data.subjectSet).sort(),
       }))
       .sort((a, b) => a.name.localeCompare(b.name))
-  }, [timetableGrid, classMap, teachers])
+  }, [activeGrid, classMap, teachers])
 
   // Filter by search
   const filteredTeachers = useMemo(() => {

@@ -58,6 +58,8 @@ export interface FetchTeachersParams {
   schoolCode?: string
   designation?: string
   isActive?: boolean
+  includeDutyTypeAssigned?: boolean
+  includeAllRecords?: boolean
   sort?: string
   joiningDateFrom?: string
   joiningDateTo?: string
@@ -115,8 +117,10 @@ const update = (id: string, data: Partial<Teacher>) => {
   return api.put(`/teachers/${id}`, data)
 }
 
-const deleteById = (id: string) => {
-  return api.delete(`/teachers/${id}`)
+const deleteById = (id: string, permanent = false) => {
+  return api.delete(`/teachers/${id}`, {
+    params: permanent ? { permanent: true } : undefined,
+  })
 }
 
 const getNextEmployeeId = () => {

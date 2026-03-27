@@ -101,6 +101,7 @@ const DEFAULT_STATE: TimetableStatePayload = {
 }
 
 interface TimetableContextType {
+  isHydrated: boolean
   classes: TimetableClass[]
   addClass: (item: Omit<TimetableClass, 'id'>) => void
   updateClass: (id: string, data: Partial<TimetableClass>) => void
@@ -151,6 +152,7 @@ interface TimetableContextType {
 }
 
 const TimetableContext = createContext<TimetableContextType>({
+  isHydrated: false,
   classes: [],
   addClass: () => {},
   updateClass: () => {},
@@ -873,6 +875,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
   return (
     <TimetableContext.Provider
       value={{
+        isHydrated,
         classes,
         addClass,
         updateClass,

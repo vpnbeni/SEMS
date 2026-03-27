@@ -269,7 +269,10 @@ function App() {
               <Route path="time-table/period-allocation" element={<Navigate to="/time-table/period-distribution" replace />} />
               <Route path="time-table" element={<Navigate to="/time-table/classes" replace />} />
               <Route path="centre-details" element={<CentreDetails />} />
-              <Route path="exam-functionaries" element={<Teachers />} />
+              <Route
+                path="exam-functionaries"
+                element={<Teachers hidePagination includeAllRecords uiOnlyDelete />}
+              />
               <Route path="exam-functionaries/:id" element={<TeacherDetail />} />
               <Route path="duties" element={<Duties />} />
               <Route path="undertaking" element={<UndertakingForm />} />

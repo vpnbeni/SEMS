@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useQueryClient } from "@tanstack/react-query";
 import { AppDispatch, RootState } from "../redux/store";
@@ -11,6 +11,7 @@ import {
 import AddTeacherModal from "../components/teachers/AddTeacherModal";
 import EditTeacherModal from "../components/teachers/EditTeacherModal";
 import ExportModal, { ExportFilters } from "../components/common/ExportModal";
+import { Dropdown } from "../components/common/Dropdown";
 import { useTeachers, teacherKeys } from "../hooks/useTeachers";
 import toast from "react-hot-toast";
 import { useCentreDetails } from "../hooks/useCentreDetails";
@@ -39,6 +40,37 @@ const getDutyOptionsForDesignation = (designation: string | undefined): string[]
 
 const LIMIT = 50;
 const getTeacherId = (teacher: Teacher) => teacher._id || teacher.id || "";
+const UI_ONLY_HIDDEN_KEY = "sems:exam-functionaries:hidden-teacher-ids";
+const getTeacherHideKeys = (teacher: Partial<Teacher>) => {
+  const keys: string[] = [];
+  const id = String(teacher._id || '').trim();
+  const altId = String(teacher.id || '').trim();
+  const name = String(teacher.name || '').trim().toLowerCase();
+  const oasisId = String(teacher.oasisId || '').trim().toLowerCase();
+  const schoolCode = String(teacher.schoolCode || '').trim().toLowerCase();
+
+  if (id) keys.push(`id:${id}`);
+  if (altId) keys.push(`id:${altId}`);
+  if (name || oasisId || schoolCode) keys.push(`fp:${name}|${oasisId}|${schoolCode}`);
+  return keys;
+};
+
+const loadHiddenTeacherIdsFromStorage = (): Record<string, true> => {
+  try {
+    if (typeof window === "undefined") return {};
+    const raw = window.localStorage.getItem(UI_ONLY_HIDDEN_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as string[];
+    if (!Array.isArray(parsed)) return {};
+    const next: Record<string, true> = {};
+    parsed.forEach((id) => {
+      if (typeof id === "string" && id.trim()) next[id] = true;
+    });
+    return next;
+  } catch {
+    return {};
+  }
+};
 
 type TeachersProps = {
   hideStats?: boolean;
@@ -47,11 +79,17 @@ type TeachersProps = {
   hideSchoolName?: boolean;
   sourceTeachers?: Teacher[];
   onAddTeacherCreated?: (teacher: Teacher) => void;
+  onTeacherUpdated?: (teacher: Teacher) => void;
   showAddButton?: boolean;
   onDeleteSelected?: (ids: string[]) => Promise<string[] | void> | (string[] | void);
   disableApiMutations?: boolean;
   disableRowEdit?: boolean;
   entityLabelSingular?: string;
+  hidePagination?: boolean;
+  maxVisibleTeachers?: number;
+  includeDutyTypeAssignedRecords?: boolean;
+  includeAllRecords?: boolean;
+  uiOnlyDelete?: boolean;
 };
 
 const Teachers: React.FC<TeachersProps> = ({
@@ -61,11 +99,17 @@ const Teachers: React.FC<TeachersProps> = ({
   hideSchoolName = false,
   sourceTeachers,
   onAddTeacherCreated,
+  onTeacherUpdated,
   showAddButton = false,
   onDeleteSelected,
   disableApiMutations = false,
   disableRowEdit = false,
   entityLabelSingular = "functionary",
+  hidePagination = true,
+  maxVisibleTeachers,
+  includeDutyTypeAssignedRecords = false,
+  includeAllRecords = false,
+  uiOnlyDelete = false,
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const queryClient = useQueryClient();
@@ -73,9 +117,9 @@ const Teachers: React.FC<TeachersProps> = ({
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [filterSchoolCode, setFilterSchoolCode] = useState("");
   const [filterSubject, setFilterSubject] = useState("");
-  const [filterDesignation, setFilterDesignation] = useState("");
+  const [filterDutyType, setFilterDutyType] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   const [joiningDateFrom] = useState("");
   const [joiningDateTo] = useState("");
@@ -86,68 +130,72 @@ const Teachers: React.FC<TeachersProps> = ({
   const [sortField, setSortField] = useState("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [dutyTypeOverrides, setDutyTypeOverrides] = useState<Record<string, string>>({});
-  const [hiddenDeletedTeacherIds, setHiddenDeletedTeacherIds] = useState<Record<string, true>>({});
+  const [hiddenDeletedTeacherIds, setHiddenDeletedTeacherIds] = useState<Record<string, true>>(
+    () => loadHiddenTeacherIdsFromStorage()
+  );
   const [selectedTeacherIds, setSelectedTeacherIds] = useState<Record<string, true>>({});
   const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+
+  useEffect(() => {
+    if (!uiOnlyDelete) return;
+    const ids = Object.keys(hiddenDeletedTeacherIds).filter((id) => hiddenDeletedTeacherIds[id]);
+    window.localStorage.setItem(UI_ONLY_HIDDEN_KEY, JSON.stringify(ids));
+  }, [uiOnlyDelete, hiddenDeletedTeacherIds]);
 
   const [debouncedJoiningDateFrom, setDebouncedJoiningDateFrom] = useState("");
   const [debouncedJoiningDateTo, setDebouncedJoiningDateTo] = useState("");
   const [debouncedYearsOfExperience, setDebouncedYearsOfExperience] = useState("");
-  const filterDropdownRef = useRef<HTMLDivElement>(null);
   const { data: centreDetails } = useCentreDetails();
   const storeError = useSelector((state: RootState) => state.teachers.error);
-
-  // Close filter dropdown on click outside
-  useEffect(() => {
-    if (!showMoreFilters) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target as Node)) {
-        setShowMoreFilters(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showMoreFilters]);
 
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedSearchTerm(searchTerm);
-      setCurrentPage(1);
+      if (!hidePagination) setCurrentPage(1);
     }, 500);
     return () => clearTimeout(t);
-  }, [searchTerm]);
+  }, [searchTerm, hidePagination]);
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedJoiningDateFrom(joiningDateFrom);
-      setCurrentPage(1);
+      if (!hidePagination) setCurrentPage(1);
     }, 500);
     return () => clearTimeout(t);
-  }, [joiningDateFrom]);
+  }, [joiningDateFrom, hidePagination]);
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedJoiningDateTo(joiningDateTo);
-      setCurrentPage(1);
+      if (!hidePagination) setCurrentPage(1);
     }, 500);
     return () => clearTimeout(t);
-  }, [joiningDateTo]);
+  }, [joiningDateTo, hidePagination]);
   useEffect(() => {
     const t = setTimeout(() => {
       setDebouncedYearsOfExperience(yearsOfExperience);
-      setCurrentPage(1);
+      if (!hidePagination) setCurrentPage(1);
     }, 500);
     return () => clearTimeout(t);
-  }, [yearsOfExperience]);
+  }, [yearsOfExperience, hidePagination]);
+
+  const queryLimit = typeof maxVisibleTeachers === 'number' ? maxVisibleTeachers : LIMIT
+  const queryPage = hidePagination ? 1 : currentPage
 
   const queryParams = useMemo(
     () => ({
-      page: currentPage,
-      limit: LIMIT,
+      page: queryPage,
+      limit: queryLimit,
       search: debouncedSearchTerm || undefined,
       schoolCode: filterSchoolCode || undefined,
       subject: filterSubject || undefined,
-      designation: filterDesignation || undefined,
-      // Always fetch active functionaries for the main list.
-      isActive: true,
+      // Visibility behavior:
+      // - includeAllRecords: no active/duty filtering
+      // - includeDutyTypeAssignedRecords: active OR dutyType-assigned
+      // - default: active only
+      isActive: includeAllRecords
+        ? undefined
+        : (includeDutyTypeAssignedRecords ? undefined : true),
+      includeDutyTypeAssigned: includeAllRecords ? undefined : (includeDutyTypeAssignedRecords || undefined),
+      includeAllRecords: includeAllRecords || undefined,
 
       joiningDateFrom: debouncedJoiningDateFrom || undefined,
       joiningDateTo: debouncedJoiningDateTo || undefined,
@@ -155,11 +203,13 @@ const Teachers: React.FC<TeachersProps> = ({
       sort: `${sortDirection === "desc" ? "-" : ""}${sortField}`,
     }),
     [
-      currentPage,
+      queryPage,
+      queryLimit,
       debouncedSearchTerm,
       filterSchoolCode,
       filterSubject,
-      filterDesignation,
+      includeDutyTypeAssignedRecords,
+      includeAllRecords,
 
       debouncedJoiningDateFrom,
       debouncedJoiningDateTo,
@@ -170,20 +220,84 @@ const Teachers: React.FC<TeachersProps> = ({
   );
 
   const isLocalSource = Array.isArray(sourceTeachers);
+
+  // When pagination UI is hidden (Exam Functionaries page) and no explicit max is provided,
+  // we fetch *all* pages and show a single vertically scrollable table.
+  const shouldFetchAll = !isLocalSource && hidePagination && typeof maxVisibleTeachers !== "number";
+
+  const [allTeachers, setAllTeachers] = useState<Teacher[] | null>(null);
+  const [allPagination, setAllPagination] = useState<{
+    currentPage: number
+    totalPages: number
+    totalItems: number
+    itemsPerPage: number
+  }>({ currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: LIMIT });
+  const [allLoading, setAllLoading] = useState(false);
+  const [allError, setAllError] = useState<string | null>(null);
+
   const { data, isLoading: queryLoading, error: queryError } = useTeachers(queryParams, {
-    enabled: !isLocalSource,
+    enabled: !isLocalSource && !shouldFetchAll,
   });
-  const teachers = isLocalSource ? sourceTeachers : data?.items ?? null;
-  const apiPagination = data
-    ? {
-      currentPage: data.currentPage,
-      totalPages: data.totalPages,
-      totalItems: data.totalItems,
-      itemsPerPage: data.itemsPerPage,
-    }
-    : { currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: LIMIT };
-  const loading = isLocalSource ? false : queryLoading;
-  const error = isLocalSource ? null : storeError || queryError?.message || null;
+
+  useEffect(() => {
+    if (!shouldFetchAll) return;
+
+    let cancelled = false;
+    const run = async () => {
+      setAllLoading(true);
+      setAllError(null);
+      try {
+        const pageSize = LIMIT;
+        const first = await teacherService.getAll({ ...queryParams, page: 1, limit: pageSize });
+
+        const merged: Teacher[] = [...(first.items ?? [])];
+        const totalPages = Math.max(1, first.totalPages ?? 1);
+
+        for (let p = 2; p <= totalPages; p++) {
+          const page = await teacherService.getAll({ ...queryParams, page: p, limit: pageSize });
+          merged.push(...(page.items ?? []));
+        }
+
+        if (cancelled) return;
+        setAllTeachers(merged);
+        setAllPagination({
+          currentPage: first.currentPage ?? 1,
+          totalPages,
+          totalItems: first.totalItems ?? merged.length,
+          itemsPerPage: first.itemsPerPage ?? pageSize,
+        });
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const msg = err instanceof Error ? err.message : "Failed to load functionaries.";
+        setAllError(msg);
+        setAllTeachers([]);
+        setAllPagination({ currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: LIMIT });
+      } finally {
+        if (cancelled) return;
+        setAllLoading(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldFetchAll, queryParams]);
+
+  const teachers = isLocalSource ? sourceTeachers : shouldFetchAll ? allTeachers : data?.items ?? null;
+  const apiPagination = shouldFetchAll
+    ? allPagination
+    : data
+      ? {
+        currentPage: data.currentPage,
+        totalPages: data.totalPages,
+        totalItems: data.totalItems,
+        itemsPerPage: data.itemsPerPage,
+      }
+      : { currentPage: 1, totalPages: 1, totalItems: 0, itemsPerPage: LIMIT };
+
+  const loading = isLocalSource ? false : shouldFetchAll ? allLoading : queryLoading;
+  const error = isLocalSource ? null : shouldFetchAll ? allError : storeError || queryError?.message || null;
 
   useEffect(() => {
     if (error) {
@@ -224,11 +338,64 @@ const Teachers: React.FC<TeachersProps> = ({
 
     return teachers
       .map(transformTeacher)
-      // Hide soft-deleted functionaries even if API returns mixed records.
-      .filter((teacher) => teacher.isActive !== false)
-      // Optimistic UI: hide freshly deleted functionaries immediately.
-      .filter((teacher) => !hiddenDeletedTeacherIds[teacher._id || teacher.id || '']);
-  }, [teachers, hiddenDeletedTeacherIds]);
+      // In includeAllRecords mode, show both active and inactive rows.
+      // Otherwise keep old behavior (hide soft-deleted rows).
+      .filter((teacher) => (includeAllRecords ? true : teacher.isActive !== false))
+      // Optimistic/UI-only hide: match by ids and stable fingerprint across refreshes.
+      .filter((teacher) => {
+        const keys = getTeacherHideKeys(teacher);
+        return !keys.some((key) => hiddenDeletedTeacherIds[key]);
+      });
+  }, [teachers, hiddenDeletedTeacherIds, includeAllRecords]);
+
+  const schoolFilterOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          availableTeachers
+            .filter((t) => String(t.schoolCode || t.schoolName || '').trim())
+            .map((t) => {
+              const value = String(t.schoolCode || '').trim();
+              const label = `${t.schoolCode ? `${t.schoolCode} - ` : ''}${t.schoolName || 'Unknown School'}`;
+              return [value || String(t.schoolName || '').trim(), { value: value || String(t.schoolName || '').trim(), label }];
+            })
+        ).values()
+      ),
+    [availableTeachers]
+  );
+
+  const dutyTypeFilterOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          availableTeachers
+            .map((t) => String(t.dutyType || '').trim())
+            .filter(Boolean)
+        )
+      ).map((dutyType) => ({ value: dutyType, label: dutyType })),
+    [availableTeachers]
+  );
+
+  const subjectFilterOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          availableTeachers
+            .flatMap((t) => {
+              const items: string[] = [];
+              const subjectCode = String(getPrimarySubjectCode(t) || '').trim();
+              const subjectName = String(getPrimarySubjectName(t) || '').trim();
+              if (subjectCode && subjectCode !== 'N/A') items.push(subjectCode);
+              if (subjectName && subjectName !== 'N/A') items.push(subjectName);
+              return items;
+            })
+            .filter(Boolean)
+        )
+      ).map((subject) => ({ value: subject, label: subject })),
+    [availableTeachers]
+  );
+
+  const activeFilterCount = [filterSchoolCode, filterDutyType, filterSubject].filter(Boolean).length;
 
   const filteredTeachers = useMemo(() => {
     const transformed = availableTeachers;
@@ -236,7 +403,7 @@ const Teachers: React.FC<TeachersProps> = ({
     const needle = (debouncedSearchTerm || '').trim().toLowerCase();
     const schoolFilter = filterSchoolCode.trim().toLowerCase();
     const subjectFilter = filterSubject.trim().toLowerCase();
-    const designationFilter = filterDesignation.trim().toLowerCase();
+    const dutyTypeFilter = filterDutyType.trim().toLowerCase();
 
     let filtered = transformed;
 
@@ -278,9 +445,9 @@ const Teachers: React.FC<TeachersProps> = ({
       });
     }
 
-    if (designationFilter) {
+    if (dutyTypeFilter) {
       filtered = filtered.filter((teacher) =>
-        String(teacher.designation || '').toLowerCase().includes(designationFilter)
+        String(teacher.dutyType || '').toLowerCase().includes(dutyTypeFilter)
       );
     }
 
@@ -298,27 +465,40 @@ const Teachers: React.FC<TeachersProps> = ({
       if (pa !== pb) return pa - pb;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [availableTeachers, debouncedSearchTerm, filterSchoolCode, filterSubject, filterDesignation]);
+  }, [availableTeachers, debouncedSearchTerm, filterSchoolCode, filterSubject, filterDutyType]);
   const pagination = isLocalSource
     ? {
-      currentPage,
-      totalPages: Math.max(1, Math.ceil(filteredTeachers.length / LIMIT)),
+      currentPage: hidePagination ? 1 : currentPage,
+      totalPages: hidePagination ? 1 : Math.max(1, Math.ceil(filteredTeachers.length / LIMIT)),
       totalItems: filteredTeachers.length,
-      itemsPerPage: LIMIT,
+      itemsPerPage: queryLimit,
     }
     : apiPagination;
   const displayTeachers = useMemo(() => {
-    if (!isLocalSource) return filteredTeachers;
-    const start = (currentPage - 1) * LIMIT;
-    return filteredTeachers.slice(start, start + LIMIT);
-  }, [filteredTeachers, isLocalSource, currentPage]);
+    const max = typeof maxVisibleTeachers === 'number' ? maxVisibleTeachers : null
+
+    if (!isLocalSource) {
+      const limited = max ? filteredTeachers.slice(0, max) : filteredTeachers
+      return limited
+    }
+
+    if (hidePagination) {
+      const limited = max ? filteredTeachers.slice(0, max) : filteredTeachers
+      return limited
+    }
+
+    const start = (currentPage - 1) * LIMIT
+    const paged = filteredTeachers.slice(start, start + LIMIT)
+    const limited = max ? paged.slice(0, max) : paged
+    return limited
+  }, [filteredTeachers, isLocalSource, currentPage, hidePagination, maxVisibleTeachers]);
   useEffect(() => {
-    if (!isLocalSource) return;
+    if (!isLocalSource || hidePagination) return;
     const totalPages = Math.max(1, Math.ceil(filteredTeachers.length / LIMIT));
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
-  }, [isLocalSource, filteredTeachers.length, currentPage]);
+  }, [isLocalSource, filteredTeachers.length, currentPage, hidePagination]);
   const visibleTeacherIds = useMemo(
     () => displayTeachers.map((teacher) => getTeacherId(teacher)).filter(Boolean),
     [displayTeachers]
@@ -330,15 +510,8 @@ const Teachers: React.FC<TeachersProps> = ({
   const selectedCount = selectedTeacherList.length;
   const allVisibleSelected = visibleTeacherIds.length > 0 && selectedCount === visibleTeacherIds.length;
 
-  const totalTeachers = pagination.totalItems ?? 0;
-  const hiddenStillPresentCount = (teachers ?? []).reduce((count, teacher) => {
-    const teacherId = teacher._id || teacher.id;
-    if (teacherId && hiddenDeletedTeacherIds[teacherId]) {
-      return count + 1;
-    }
-    return count;
-  }, 0);
-  const visibleTotalTeachers = Math.max(0, totalTeachers - hiddenStillPresentCount);
+  // Total card should reflect currently visible (non-hidden) functionaries.
+  const visibleTotalTeachers = availableTeachers.length;
   const normalizeValue = (value: string | undefined) => String(value || "").trim().toLowerCase();
   const isSelfSchoolTeacher = (teacher: Teacher) => {
     const teacherSchoolCode = normalizeValue(teacher.schoolCode);
@@ -364,6 +537,7 @@ const Teachers: React.FC<TeachersProps> = ({
     ? `${entityLabelSingular.slice(0, -1)}ies`
     : `${entityLabelSingular}s`;
   const entityLabelSingularTitle = `${entityLabelSingular.charAt(0).toUpperCase()}${entityLabelSingular.slice(1)}`;
+  const srNoOffset = hidePagination ? 0 : (currentPage - 1) * LIMIT;
 
   const invalidateTeachers = () => {
     if (isLocalSource) return;
@@ -420,9 +594,12 @@ const Teachers: React.FC<TeachersProps> = ({
         const result = await onDeleteSelected(selectedTeacherList);
         deletedIds = Array.isArray(result) ? result : [...selectedTeacherList];
         failedCount = selectedTeacherList.length - deletedIds.length;
+      } else if (uiOnlyDelete) {
+        // UI-only delete: hide selected rows locally without mutating backend data.
+        deletedIds = [...selectedTeacherList];
       } else {
         const results = await Promise.allSettled(
-          selectedTeacherList.map((teacherId) => teacherService.deleteById(teacherId))
+          selectedTeacherList.map((teacherId) => teacherService.deleteById(teacherId, includeAllRecords))
         );
         results.forEach((result, index) => {
           if (result.status === "fulfilled") deletedIds.push(selectedTeacherList[index]);
@@ -430,10 +607,16 @@ const Teachers: React.FC<TeachersProps> = ({
         });
       }
       if (deletedIds.length > 0) {
+        const selectedTeachers = displayTeachers.filter((teacher) => selectedTeacherList.includes(getTeacherId(teacher)));
         setHiddenDeletedTeacherIds((prev) => {
           const next = { ...prev };
           deletedIds.forEach((teacherId) => {
-            next[teacherId] = true;
+            if (teacherId) next[`id:${teacherId}`] = true;
+          });
+          selectedTeachers.forEach((teacher) => {
+            getTeacherHideKeys(teacher).forEach((key) => {
+              next[key] = true;
+            });
           });
           return next;
         });
@@ -686,85 +869,22 @@ const Teachers: React.FC<TeachersProps> = ({
                   {isTemplateUploading ? "Uploading..." : "Upload"}
                 </button>
               )}
-              {!disableApiMutations && (
-              <div className="relative" ref={filterDropdownRef}>
-                <button
-                  onClick={() => setShowMoreFilters(!showMoreFilters)}
-                  className="btn btn-outline"
-                  disabled={loading}
-                >
-                  <svg
-                    className="w-4 h-4 mr-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
-                    />
-                  </svg>
-                  More Filters
-                  <svg
-                    className={`w-4 h-4 ml-2 transition-transform ${showMoreFilters ? 'rotate-180' : ''}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
-                </button>
-
-                {/* Filters Dropdown */}
-                {showMoreFilters && (
-                  <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 p-4 space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                        School Code
-                      </label>
-                      <input
-                        type="text"
-                        value={filterSchoolCode}
-                        onChange={(e) => setFilterSchoolCode(e.target.value)}
-                        className="input w-full"
-                        placeholder="e.g., 829261"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                        Subject
-                      </label>
-                      <input
-                        type="text"
-                        value={filterSubject}
-                        onChange={(e) => setFilterSubject(e.target.value)}
-                        className="input w-full"
-                        placeholder="Code or name (e.g., 043, Chemistry)"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-                        Designation
-                      </label>
-                      <input
-                        type="text"
-                        value={filterDesignation}
-                        onChange={(e) => setFilterDesignation(e.target.value)}
-                        className="input w-full"
-                        placeholder="e.g., PGT, PRINCIPAL"
-                      />
-                    </div>
-                  </div>
+              <button
+                type="button"
+                onClick={() => setShowFilterPanel((prev) => !prev)}
+                className="btn btn-outline"
+                disabled={loading}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                <span>Filters</span>
+                {activeFilterCount > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300">
+                    {activeFilterCount}
+                  </span>
                 )}
-              </div>
-              )}
+              </button>
               {(!disableApiMutations || showAddButton) && (
                 <button
                   onClick={handleAddTeacher}
@@ -797,9 +917,56 @@ const Teachers: React.FC<TeachersProps> = ({
               </button>
             </div>
           </div>
+          {showFilterPanel && (
+            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div>
+                  <p className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 mb-1">School</p>
+                  <Dropdown
+                    options={[{ value: '', label: 'All Schools' }, ...schoolFilterOptions]}
+                    value={filterSchoolCode}
+                    onChange={(value) => setFilterSchoolCode(String(Array.isArray(value) ? value[0] : value ?? ''))}
+                    size="sm"
+                    clearable={false}
+                    searchable
+                    placeholder="School"
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 mb-1">Duty Type</p>
+                  <Dropdown
+                    options={[{ value: '', label: 'All Duty Types' }, ...dutyTypeFilterOptions]}
+                    value={filterDutyType}
+                    onChange={(value) => setFilterDutyType(String(Array.isArray(value) ? value[0] : value ?? ''))}
+                    size="sm"
+                    clearable={false}
+                    searchable
+                    placeholder="Duty Type"
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 mb-1">Subject</p>
+                  <Dropdown
+                    options={[{ value: '', label: 'All Subjects' }, ...subjectFilterOptions]}
+                    value={filterSubject}
+                    onChange={(value) => setFilterSubject(String(Array.isArray(value) ? value[0] : value ?? ''))}
+                    size="sm"
+                    clearable={false}
+                    searchable
+                    placeholder="Subject"
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-20rem)]">
+        <div
+          className={`overflow-x-auto overflow-y-auto ${hidePagination ? 'max-h-[60vh]' : 'max-h-[calc(100vh-20rem)]'}`}
+        >
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="sticky top-0 z-20 bg-gray-50 dark:bg-gray-800">
               <tr>
@@ -836,7 +1003,7 @@ const Teachers: React.FC<TeachersProps> = ({
                         setSortField(field);
                         setSortDirection("asc");
                       }
-                      setCurrentPage(1);
+                      if (!hidePagination) setCurrentPage(1);
                     }}
                   >
                     <span className="inline-flex items-center gap-1">
@@ -907,7 +1074,7 @@ const Teachers: React.FC<TeachersProps> = ({
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {(currentPage - 1) * 50 + index + 1}
+                      {srNoOffset + index + 1}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -1027,7 +1194,7 @@ const Teachers: React.FC<TeachersProps> = ({
               No teachers found
             </h3>
             <p className="text-secondary-600 dark:text-secondary-400 mb-6">
-              {searchTerm || filterSchoolCode || filterSubject || filterDesignation
+              {searchTerm || filterSchoolCode || filterSubject || filterDutyType
                 ? "No teachers match your search criteria. Try adjusting your filters."
                 : "Get started by adding your first teacher to the system."}
             </p>
@@ -1058,7 +1225,7 @@ const Teachers: React.FC<TeachersProps> = ({
       )}
 
       {/* Pagination */}
-      {!loading && pagination.totalPages > 1 && (
+      {!hidePagination && !loading && pagination.totalPages > 1 && (
         <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 sm:px-6">
           <div className="flex items-center justify-between">
             <div className="flex-1 flex justify-between sm:hidden">
@@ -1136,8 +1303,16 @@ const Teachers: React.FC<TeachersProps> = ({
       )}
 
       {/* Modals */}
-      <AddTeacherModal onSuccess={handleAddTeacherModalSuccess} />
-      <EditTeacherModal onSuccess={invalidateTeachers} />
+      <AddTeacherModal
+        onSuccess={handleAddTeacherModalSuccess}
+        entityLabelSingular={entityLabelSingular}
+      />
+      <EditTeacherModal
+        onSuccess={(updated?: Teacher) => {
+          invalidateTeachers()
+          if (updated && onTeacherUpdated) onTeacherUpdated(updated)
+        }}
+      />
       <ExportModal
         isOpen={showExportModal}
         onClose={() => setShowExportModal(false)}

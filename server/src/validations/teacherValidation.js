@@ -13,27 +13,19 @@ const createTeacherSchema = Joi.object({
       'string.max': 'Name cannot exceed 100 characters',
       'any.required': 'Name is required'
     }),
-  oasisId: Joi.alternatives().conditional('dutyType', {
-    is: Joi.string().trim().insensitive().valid('class iv', 'others'),
-    then: Joi.string()
-      .trim()
-      .allow('', null)
-      .messages({
-        'string.base': 'OASIS ID must be a string'
-      }),
-    otherwise: Joi.string()
-      .trim()
-      .min(3)
-      .max(50)
-      .pattern(/^\d+$/)
-      .required()
-      .messages({
-        'string.min': 'OASIS ID must be at least 3 digits long',
-        'string.max': 'OASIS ID cannot exceed 50 digits',
-        'string.pattern.base': 'OASIS ID must contain digits only',
-        'any.required': 'OASIS ID is required'
-      })
-  }),
+  // OASIS ID is optional. When provided, it must be digits-only (3-50 chars).
+  oasisId: Joi.string()
+    .trim()
+    .allow('', null)
+    .min(3)
+    .max(50)
+    .pattern(/^\d+$/)
+    .messages({
+      'string.base': 'OASIS ID must be a string',
+      'string.min': 'OASIS ID must be at least 3 digits long',
+      'string.max': 'OASIS ID cannot exceed 50 digits',
+      'string.pattern.base': 'OASIS ID must contain digits only',
+    }),
   employeeId: Joi.string()
     .trim()
     .max(50)
@@ -73,12 +65,9 @@ const createTeacherSchema = Joi.object({
             'string.pattern.base': 'Invalid subject ID format'
           })
       )
-      .min(1)
-      .required()
+      .default([])
       .messages({
-        'array.base': 'Subjects must be an array',
-        'array.min': 'At least one subject is required',
-        'any.required': 'Subject is required'
+        'array.base': 'Subjects must be an array'
       })
   }),
   subjectCode: Joi.string()
@@ -147,7 +136,8 @@ const createTeacherSchema = Joi.object({
       'any.required': 'Mobile number is required'
     }),
   // Optional legacy fields accepted for backward compatibility.
-  email: Joi.string().email(),
+  // Email is hard-disabled; accept but allow empty so older clients don't fail validation.
+  email: Joi.string().trim().allow('', null).email(),
   phone: Joi.string().pattern(REGEX_PATTERNS.PHONE),
   department: Joi.string().trim().max(50).allow(''),
   experience: Joi.number().integer().min(0).max(50),
@@ -249,7 +239,8 @@ const updateTeacherSchema = Joi.object({
   }),
   ifscCode: Joi.string().trim().uppercase().pattern(/^[A-Z]{4}0[A-Z0-9]{6}$/),
   mobileNo: Joi.string().pattern(REGEX_PATTERNS.PHONE),
-  email: Joi.string().email(),
+  // Email is hard-disabled; accept but allow empty so older clients don't fail validation.
+  email: Joi.string().trim().allow('', null).email(),
   phone: Joi.string().pattern(REGEX_PATTERNS.PHONE),
   department: Joi.string().trim().max(50).allow(''),
   experience: Joi.number().integer().min(0).max(50),
@@ -409,6 +400,14 @@ const teacherQuerySchema = Joi.object({
   isActive: Joi.boolean()
     .messages({
       'boolean.base': 'isActive must be a boolean'
+    }),
+  includeDutyTypeAssigned: Joi.boolean()
+    .messages({
+      'boolean.base': 'includeDutyTypeAssigned must be a boolean'
+    }),
+  includeAllRecords: Joi.boolean()
+    .messages({
+      'boolean.base': 'includeAllRecords must be a boolean'
     }),
   subject: Joi.string()
     .pattern(/^[0-9a-fA-F]{24}$/)

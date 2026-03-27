@@ -68,6 +68,7 @@ const Generate: React.FC = () => {
     periodAllocation,
     periodsPerWeek,
     periodsPerDay,
+    parallelSubjectPairs,
   } = useTimetable()
 
   const [generating, setGenerating] = useState(false)
@@ -95,24 +96,50 @@ const Generate: React.FC = () => {
       issues.push({ severity: 'error', message: 'Bell timings are not configured. Set up Bell Timings first.' })
     }
 
+    // Build parallel-pair lookup: classNameLower → [[subjALower, subjBLower]]
+    const parallelPairsByClass = new Map<string, [string, string][]>()
+    parallelSubjectPairs.forEach((pair) => {
+      const key = pair.className.trim().toLowerCase()
+      if (!parallelPairsByClass.has(key)) parallelPairsByClass.set(key, [])
+      parallelPairsByClass.get(key)!.push([
+        pair.subjectA.trim().toLowerCase(),
+        pair.subjectB.trim().toLowerCase(),
+      ])
+    })
+
     // Check subject-level issues per class
     classes.forEach((cls) => {
       const classAlloc = periodAllocation[cls.id] || {}
-      const totalAllocated = Object.values(classAlloc).reduce((sum, v) => sum + (v || 0), 0)
 
       if (Object.keys(classAlloc).length === 0) {
         issues.push({
           severity: 'error',
           message: `${cls.className} ${cls.section}: No period distribution set. Configure in Period Distribution.`,
         })
-      } else {
-        const totalAvailable = periodsPerWeek
-        if (totalAllocated > totalAvailable) {
-          issues.push({
-            severity: 'warning',
-            message: `${cls.className} ${cls.section}: Allocated ${totalAllocated} periods but only ${totalAvailable} available per week.`,
-          })
-        }
+        return
+      }
+
+      // Subtract parallel-pair overlap (same logic as PeriodAllocation getRowTotal)
+      const rawTotal = Object.values(classAlloc).reduce((sum, v) => sum + (v || 0), 0)
+      const classPairs = parallelPairsByClass.get(cls.className.trim().toLowerCase()) || []
+      let overlap = 0
+      const seen = new Set<string>()
+      classPairs.forEach(([a, b]) => {
+        const pairKey = a < b ? `${a}|${b}` : `${b}|${a}`
+        if (seen.has(pairKey)) return
+        seen.add(pairKey)
+        const cA = classAlloc[a] || 0
+        const cB = classAlloc[b] || 0
+        if (cA > 0 && cB > 0) overlap += Math.min(cA, cB)
+      })
+      const totalAllocated = rawTotal - overlap
+
+      const totalAvailable = periodsPerWeek
+      if (totalAllocated > totalAvailable) {
+        issues.push({
+          severity: 'warning',
+          message: `${cls.className} ${cls.section}: Allocated ${totalAllocated} periods but only ${totalAvailable} available per week.`,
+        })
       }
     })
 
@@ -322,6 +349,7 @@ const Generate: React.FC = () => {
             />
           </div>
           <button
+            type="button"
             onClick={handleGenerate}
             disabled={generating || hasErrors}
             className={`flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold shadow-sm transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
@@ -458,6 +486,7 @@ const Generate: React.FC = () => {
           {/* Navigation actions */}
           <div className="mt-6 flex flex-wrap gap-3">
             <button
+              type="button"
               onClick={() => navigate('/time-table/class-wise')}
               className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
@@ -465,12 +494,14 @@ const Generate: React.FC = () => {
               <ArrowRightIcon className="size-4" />
             </button>
             <button
+              type="button"
               onClick={() => navigate('/time-table/teacher-wise')}
               className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
             >
               View Teacher Schedules
             </button>
             <button
+              type="button"
               onClick={() => navigate('/time-table/versions')}
               className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
             >

@@ -89,6 +89,35 @@ const isCurrentInvigilator = (functionary?: Teacher) => {
   return Boolean(functionary && functionary.isActive !== false && functionary.dutyType === 'Invigilator')
 }
 
+const UI_ONLY_HIDDEN_KEY = 'sems:exam-functionaries:hidden-teacher-ids'
+
+const getFunctionaryHideKeys = (functionary: Partial<Teacher>) => {
+  const keys: string[] = []
+  const id = String(functionary._id || '').trim()
+  const altId = String(functionary.id || '').trim()
+  const name = String(functionary.name || '').trim().toLowerCase()
+  const oasisId = String(functionary.oasisId || '').trim().toLowerCase()
+  const schoolCode = String(functionary.schoolCode || '').trim().toLowerCase()
+
+  if (id) keys.push(`id:${id}`)
+  if (altId) keys.push(`id:${altId}`)
+  if (name || oasisId || schoolCode) keys.push(`fp:${name}|${oasisId}|${schoolCode}`)
+  return keys
+}
+
+const loadHiddenFunctionaryKeys = (): Set<string> => {
+  try {
+    if (typeof window === 'undefined') return new Set()
+    const raw = window.localStorage.getItem(UI_ONLY_HIDDEN_KEY)
+    if (!raw) return new Set()
+    const parsed = JSON.parse(raw) as string[]
+    if (!Array.isArray(parsed)) return new Set()
+    return new Set(parsed.filter((item) => typeof item === 'string' && item.trim().length > 0))
+  } catch {
+    return new Set()
+  }
+}
+
 const compareRoomNo = (a: Room, b: Room) => {
   const aNo = String(a?.roomNo || '')
   const bNo = String(b?.roomNo || '')
@@ -257,6 +286,7 @@ const Duties: React.FC = () => {
   const [conflictDialogData, setConflictDialogData] = useState<ConflictDialogEntry[] | null>(null)
   const [expandedConflictIdx, setExpandedConflictIdx] = useState<number | null>(null)
   const [replacementTarget, setReplacementTarget] = useState<ConflictDialogEntry | null>(null)
+  const [hiddenFunctionaryKeys] = useState<Set<string>>(() => loadHiddenFunctionaryKeys())
 
   const { data: templateSettings, isLoading: loadingTemplateSettings } = useSeatingPlanTemplateSettings()
   const templateSettingsSnapshot = templateSettings ?? null
@@ -383,10 +413,15 @@ const Duties: React.FC = () => {
   })
 
   const allFunctionaries = useMemo(() => {
-    return [...(teachersData?.items || [])].sort((a, b) =>
-      String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' })
-    )
-  }, [teachersData])
+    return [...(teachersData?.items || [])]
+      .filter((f) => {
+        const keys = getFunctionaryHideKeys(f)
+        return !keys.some((key) => hiddenFunctionaryKeys.has(key))
+      })
+      .sort((a, b) =>
+        String(a?.name || '').localeCompare(String(b?.name || ''), undefined, { sensitivity: 'base' })
+      )
+  }, [teachersData, hiddenFunctionaryKeys])
 
   /* ── Filter by active tab + search ── */
   const activeDutyType = DUTY_TABS.find((t) => t.key === activeTab)?.dutyType || ''
