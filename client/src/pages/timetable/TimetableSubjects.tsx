@@ -6,6 +6,9 @@ const SUBJECT_TYPES = ['Language', 'Skill', 'Core', 'Elective', 'Co-Curricular',
 const EMPTY_FORM = {
   name: '',
   type: 'Other',
+  requiresConsecutivePeriods: false,
+  consecutivePeriodCount: 2,
+  color: '',
 }
 
 const EMPTY_PAIR_FORM = {
@@ -123,6 +126,9 @@ const TimetableSubjects: React.FC = () => {
     addSubject({
       name: newItem.name.trim(),
       type: newItem.type || 'Other',
+      requiresConsecutivePeriods: newItem.requiresConsecutivePeriods,
+      consecutivePeriodCount: newItem.consecutivePeriodCount,
+      color: newItem.color,
     })
     setNewItem({ ...EMPTY_FORM })
     setIsAddingNew(false)
@@ -130,7 +136,7 @@ const TimetableSubjects: React.FC = () => {
 
   const handleEdit = (item: TimetableSubject) => {
     setEditingId(item.id)
-    setEditingData({ name: item.name, type: item.type })
+    setEditingData({ name: item.name, type: item.type, requiresConsecutivePeriods: item.requiresConsecutivePeriods, consecutivePeriodCount: item.consecutivePeriodCount, color: item.color })
   }
 
   const handleSave = (id: string) => {
