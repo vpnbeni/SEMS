@@ -5,6 +5,7 @@ const { getPlatformModels } = require('./platformModels');
 const { connectPlatformDB } = require('../config/platformDatabase');
 const { TENANT_STATUS } = require('../models/platform/Tenant');
 const { normalizeTenantFeatureToggles } = require('../constants/tenantFeatures');
+const { getActiveModelKeys } = require('../constants/moduleModelKeys');
 
 const buildTenantResolutionDebugContext = (req, resolution) => {
   const headers = req.headers || {};
@@ -103,9 +104,9 @@ const tenantContextMiddleware = async (req, res, next) => {
       });
     }
 
-    const { connection, models } = getTenantConnectionAndModels(tenantRecord.dbName);
-
     const featureToggles = normalizeTenantFeatureToggles(tenantRecord.featureToggles);
+    const modelKeys = getActiveModelKeys(featureToggles);
+    const { connection, models } = getTenantConnectionAndModels(tenantRecord.dbName, modelKeys);
 
     req.tenant = {
       id: tenantRecord._id,

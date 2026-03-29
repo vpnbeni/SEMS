@@ -19,6 +19,7 @@ if (process.env.VERCEL) {
       await connectPlatformDB();
       console.log(`✅ Platform database '${getCentralDbName()}' connected (Vercel)`.green.bold);
       await runTenantModelStartupSanityCheck();
+      require('./events/registerAllListeners')();
     } catch (error) {
       console.error('❌ Server initialization failed (Vercel):'.red.bold, error.message);
     }
@@ -44,7 +45,8 @@ const initializeServer = async () => {
     await connectPlatformDB();
     console.log(`✅ Platform database '${getCentralDbName()}' connected successfully`.green.bold);
     await runTenantModelStartupSanityCheck();
-    
+    require('./events/registerAllListeners')();
+
     // TODO: Re-enable calendar initialization after debugging
     // setTimeout(async () => {
     //   try {

@@ -4,6 +4,7 @@
     "label": "Dashboard",
     "path": "/dashboard",
     "group": "Core",
+    "module": "core",
     "prefixes": ["/dashboard"],
     "fallbackPriority": 10
   },
@@ -12,6 +13,7 @@
     "label": "School Hub",
     "path": "/school-hub",
     "group": "School Hub",
+    "module": "timetable",
     "prefixes": ["/school-hub"],
     "fallbackPriority": 20
   },
@@ -20,6 +22,7 @@
     "label": "Time Table - Classes",
     "path": "/time-table/classes",
     "group": "School Hub",
+    "module": "timetable",
     "prefixes": ["/time-table/classes"],
     "fallbackPriority": 0
   },
@@ -28,6 +31,7 @@
     "label": "Time Table - Subjects",
     "path": "/time-table/subjects",
     "group": "School Hub",
+    "module": "timetable",
     "prefixes": ["/time-table/subjects"]
   },
   {
@@ -35,6 +39,7 @@
     "label": "Time Table - Bell Timings",
     "path": "/time-table/bell-timings",
     "group": "School Hub",
+    "module": "timetable",
     "prefixes": ["/time-table/bell-timings"]
   },
   {
@@ -42,6 +47,7 @@
     "label": "Time Table - Class Wise",
     "path": "/time-table/class-wise",
     "group": "School Hub",
+    "module": "timetable",
     "prefixes": ["/time-table/class-wise"]
   },
   {
@@ -49,6 +55,7 @@
     "label": "Time Table - Teacher Wise",
     "path": "/time-table/teacher-wise",
     "group": "School Hub",
+    "module": "timetable",
     "prefixes": ["/time-table/teacher-wise"]
   },
   {
@@ -56,6 +63,7 @@
     "label": "Time Table - Period Allocation",
     "path": "/time-table/period-distribution",
     "group": "School Hub",
+    "module": "timetable",
     "prefixes": [
       "/time-table/period-distribution",
       "/time-table/distribution",
@@ -69,6 +77,7 @@
     "label": "Centre Details",
     "path": "/centre-details",
     "group": "Centre Details",
+    "module": "cntr",
     "prefixes": ["/centre-details"],
     "fallbackPriority": 30
   },
@@ -77,6 +86,7 @@
     "label": "Exam Functionaries",
     "path": "/exam-functionaries",
     "group": "Centre Details",
+    "module": "cntr",
     "prefixes": ["/exam-functionaries", "/teachers", "/staff"],
     "fallbackPriority": 40
   },
@@ -85,6 +95,7 @@
     "label": "Centre Guidelines",
     "path": "/centre-guidelines",
     "group": "Centre Details",
+    "module": "cntr",
     "prefixes": ["/centre-guidelines"]
   },
   {
@@ -92,6 +103,7 @@
     "label": "CBSE Circulars",
     "path": "/cbse-circulars",
     "group": "Centre Details",
+    "module": "cntr",
     "prefixes": ["/cbse-circulars"]
   },
   {
@@ -99,6 +111,7 @@
     "label": "CBSE Portals",
     "path": "/cbse-portals",
     "group": "Centre Details",
+    "module": "cntr",
     "prefixes": ["/cbse-portals"]
   },
   {
@@ -106,6 +119,7 @@
     "label": "Subjects",
     "path": "/subjects",
     "group": "Centre Details",
+    "module": "cntr",
     "prefixes": ["/subjects"],
     "fallbackPriority": 50
   },
@@ -114,6 +128,7 @@
     "label": "Undertaking Form",
     "path": "/undertaking",
     "group": "Centre Details",
+    "module": "cntr",
     "prefixes": ["/undertaking"]
   },
   {
@@ -121,6 +136,7 @@
     "label": "Datesheets",
     "path": "/datesheets",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/datesheets"],
     "fallbackPriority": 60
   },
@@ -129,6 +145,7 @@
     "label": "Form 66",
     "path": "/form66",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/form66"]
   },
   {
@@ -136,6 +153,7 @@
     "label": "Exam Room/Hall",
     "path": "/examrooms",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/examrooms", "/rooms"]
   },
   {
@@ -143,6 +161,7 @@
     "label": "Answer Sheets",
     "path": "/answersheets",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/answersheets"],
     "fallbackPriority": 70
   },
@@ -151,6 +170,7 @@
     "label": "Seating Plan",
     "path": "/seatingplan",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/seatingplan"]
   },
   {
@@ -158,6 +178,7 @@
     "label": "Duties",
     "path": "/duties",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/duties"]
   },
   {
@@ -165,6 +186,7 @@
     "label": "Attendance",
     "path": "/attendance",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/attendance"]
   },
   {
@@ -172,6 +194,7 @@
     "label": "PwD Info",
     "path": "/pwd-info",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/pwd-info"]
   },
   {
@@ -179,6 +202,7 @@
     "label": "UMC's",
     "path": "/umcs",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/umcs"]
   },
   {
@@ -186,6 +210,7 @@
     "label": "Stickers",
     "path": "/stickers",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/stickers"]
   },
   {
@@ -193,6 +218,7 @@
     "label": "Performa's",
     "path": "/performas",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/performas"]
   },
   {
@@ -200,6 +226,7 @@
     "label": "Candidate Details",
     "path": "/candidate-details",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/candidate-details", "/candidates"],
     "fallbackPriority": 45
   },
@@ -208,6 +235,7 @@
     "label": "Dispatch Slip",
     "path": "/dispatch-slip",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/dispatch-slip"]
   },
   {
@@ -215,6 +243,7 @@
     "label": "Remuneration",
     "path": "/remuneration",
     "group": "Centre Records",
+    "module": "cntr",
     "prefixes": ["/remuneration"]
   },
   {
@@ -222,6 +251,7 @@
     "label": "Billing",
     "path": "/billing",
     "group": "Account",
+    "module": "core",
     "prefixes": ["/billing"],
     "fallbackPriority": 80
   },
@@ -230,6 +260,7 @@
     "label": "Account Settings",
     "path": "/account-settings",
     "group": "Account",
+    "module": "core",
     "prefixes": ["/account-settings"]
   },
   {
@@ -237,6 +268,7 @@
     "label": "Help & Support",
     "path": "/help-support",
     "group": "Account",
+    "module": "core",
     "prefixes": ["/help-support"],
     "fallbackPriority": 90
   }

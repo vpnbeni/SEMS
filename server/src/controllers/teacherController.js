@@ -8,6 +8,8 @@ const { generateResponse, getPaginationParams, buildPaginationResponse, buildFil
 const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/constants');
 const { getPlatformModels } = require('../tenancy/platformModels');
 const { DEFAULT_TEMPLATE_COLUMNS } = require('./admin/masterTeacherTemplateController');
+const eventBus = require('../events/eventBus');
+const EVENTS = require('../events/eventNames');
 
 const RETRYABLE_DB_ERROR_PATTERNS = [
   'buffering timed out',
@@ -489,6 +491,13 @@ const updateTeacher = asyncHandler(async (req, res) => {
     }
   ).populate('subjects', 'name code class');
 
+  eventBus.emit(EVENTS.TEACHER_UPDATED, {
+    tenant: { dbName: req.tenant.dbName, slug: req.tenant.slug, id: String(req.tenant.id) },
+    teacherId: String(teacher._id),
+    teacherName: teacher.name,
+    teacherShortName: teacher.shortName,
+  });
+
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, SUCCESS_MESSAGES.UPDATED, teacher)
   );
@@ -507,13 +516,24 @@ const deleteTeacher = asyncHandler(async (req, res) => {
   }
 
   const permanentDelete = req.query?.permanent === true || req.query?.permanent === 'true';
+  const tenantContext = { dbName: req.tenant.dbName, slug: req.tenant.slug, id: String(req.tenant.id) };
 
   if (permanentDelete) {
     await Teacher.deleteOne({ _id: teacher._id });
+    eventBus.emit(EVENTS.TEACHER_DELETED, {
+      tenant: tenantContext,
+      teacherId: String(teacher._id),
+      teacherName: teacher.name,
+    });
   } else {
     // Soft delete - set isActive to false
     teacher.isActive = false;
     await teacher.save();
+    eventBus.emit(EVENTS.TEACHER_DEACTIVATED, {
+      tenant: tenantContext,
+      teacherId: String(teacher._id),
+      teacherName: teacher.name,
+    });
   }
 
   res.status(HTTP_STATUS.OK).json(

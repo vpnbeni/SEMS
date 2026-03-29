@@ -107,6 +107,7 @@ const DEFAULT_STATE: TimetableStatePayload = {
 
 interface TimetableContextType {
   isHydrated: boolean
+  rehydrate: () => Promise<void>
   classes: TimetableClass[]
   addClass: (item: Omit<TimetableClass, 'id'>) => void
   updateClass: (id: string, data: Partial<TimetableClass>) => void
@@ -158,6 +159,7 @@ interface TimetableContextType {
 
 const TimetableContext = createContext<TimetableContextType>({
   isHydrated: false,
+  rehydrate: async () => {},
   classes: [],
   addClass: () => {},
   updateClass: () => {},
@@ -332,6 +334,27 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
 
     return () => {
       isMounted = false
+    }
+  }, [])
+
+  const rehydrate = useCallback(async () => {
+    try {
+      const remoteState = normalizeState(await timetableService.getState())
+      setClasses(remoteState.classes)
+      setSubjects(remoteState.subjects)
+      setTeachersState(remoteState.teachers)
+      setTeacherSubjectAllocationsState(remoteState.teacherSubjectAllocations)
+      setParallelSubjectPairsState(remoteState.parallelSubjectPairs)
+      setCommonPeriodsState((remoteState.commonPeriods as CommonPeriod[]) ?? [])
+      setPeriodsPerWeek(remoteState.periodsPerWeek)
+      setPeriodAllocation(remoteState.periodAllocation)
+      setTimetableGrid(remoteState.timetableGrid)
+      setMatrixClasses(remoteState.matrixClasses)
+      setMatrixSections(remoteState.matrixSections)
+      setMatrixSelection(remoteState.matrixSelection)
+      lastSyncedStateRef.current = JSON.stringify(remoteState)
+    } catch {
+      // silently keep current state if fetch fails
     }
   }, [])
 
@@ -881,6 +904,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
     <TimetableContext.Provider
       value={{
         isHydrated,
+        rehydrate,
         classes,
         addClass,
         updateClass,

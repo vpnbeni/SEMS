@@ -8,6 +8,8 @@ const DutySelection = require('../models/DutySelection');
 const DutyAllocationSetting = require('../models/DutyAllocationSetting');
 const SeatingPlanTemplateSetting = require('../models/SeatingPlanTemplateSetting');
 const pdfGenerator = require('../utils/pdfGenerator');
+const eventBus = require('../events/eventBus');
+const EVENTS = require('../events/eventNames');
 
 const parseRoomNoForSort = (roomNo) => {
   const value = String(roomNo ?? '').trim();
@@ -870,6 +872,12 @@ const assignDailyDuties = asyncHandler(async (req, res) => {
   if (historyOps.length > 0) {
     await Teacher.bulkWrite(historyOps, { ordered: true });
   }
+
+  eventBus.emit(EVENTS.DUTY_ASSIGNED, {
+    tenant: { dbName: req.tenant.dbName, slug: req.tenant.slug, id: String(req.tenant.id) },
+    examDate: examDateKey,
+    roomCount: sortedRooms.length,
+  });
 
   const duties = await DutyAssignment.find({ examDate, isActive: true })
     .populate('room', 'roomNo roomName floor allocationOrderByDate')

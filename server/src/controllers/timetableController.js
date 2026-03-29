@@ -5,6 +5,8 @@ const { generateResponse } = require('../utils/helpers');
 const { SUCCESS_MESSAGES, HTTP_STATUS, ERROR_MESSAGES } = require('../utils/constants');
 const { generate: runGenerator } = require('../services/timetableGeneratorService');
 const exportService = require('../services/timetableExportService');
+const eventBus = require('../events/eventBus');
+const EVENTS = require('../events/eventNames');
 
 const DEFAULT_BELL_TIMINGS = Object.freeze({
   meta: {
@@ -877,6 +879,12 @@ const generateTimetable = asyncHandler(async (req, res) => {
     ...(req.academicSession ? { academicSession: req.academicSession } : {}),
   });
 
+  eventBus.emit(EVENTS.TIMETABLE_GENERATED, {
+    tenant: { dbName: req.tenant.dbName, slug: req.tenant.slug, id: String(req.tenant.id) },
+    versionId: String(newVersion._id),
+    versionName: newVersion.name,
+  });
+
   res.status(HTTP_STATUS.CREATED).json(
     generateResponse(true, 'Timetable generated successfully.', {
       version: versionSummary(newVersion),
@@ -935,6 +943,12 @@ const publishVersion = asyncHandler(async (req, res) => {
       generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
     );
   }
+
+  eventBus.emit(EVENTS.TIMETABLE_PUBLISHED, {
+    tenant: { dbName: req.tenant.dbName, slug: req.tenant.slug, id: String(req.tenant.id) },
+    versionId: String(version._id),
+    versionName: version.name,
+  });
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, 'Version published successfully.', versionSummary(version))

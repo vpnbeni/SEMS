@@ -21,6 +21,7 @@ export interface TenantFeaturePage {
   label: string
   path: string
   group: string
+  module: string
 }
 
 export interface TenantFeatureSummary {

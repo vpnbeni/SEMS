@@ -169,6 +169,7 @@ router.delete(
 
 // Tenant feature toggle routes
 router.get('/features/pages', tenantFeaturesController.listFeaturePages);
+router.get('/features/modules', tenantFeaturesController.listModules);
 router.get('/features/tenants', tenantFeaturesController.listFeatureTenants);
 router.get('/features/defaults', tenantFeaturesController.getDefaultFeatures);
 router.get('/features/tenants/:id', validateParams(tenantIdParamSchema), tenantFeaturesController.getTenantFeatures);
