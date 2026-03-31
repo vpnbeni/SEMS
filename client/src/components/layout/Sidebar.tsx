@@ -31,14 +31,17 @@ const toBadgeValue = (value: SidebarCount): string | null => {
   return value.toString()
 }
 
-const Sidebar: React.FC = () => {
+type SidebarProps = {
+  isCollapsed: boolean
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
   const dispatch = useDispatch<AppDispatch>()
   const queryClient = useQueryClient()
   const currentUser = useSelector(selectUser)
   const location = useLocation()
   const navigate = useNavigate()
   const { currentSession, clearSession } = useAcademicSession()
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
   // Tracks expand/collapse state for group headers + nested sub-groups.
   // "Ungroup all" -> we expand everything based on accessible navigation.
@@ -597,61 +600,46 @@ const Sidebar: React.FC = () => {
   const canAccessHelpSupport = isPathAllowed('/help-support')
 
   return (
-    <div className={`glass border-r border-gray-100/80 dark:border-gray-800/80 h-[100vh] min-h-[100vh] transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'} flex flex-col overflow-hidden relative z-50`}>
+    <div className={`glass border-r border-gray-100/80 dark:border-gray-800/80 h-[100vh] min-h-[100vh] transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-68'} flex flex-col overflow-visible relative z-50`}>
       {/* Decorative background accent */}
       <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-primary-50/30 via-primary-50/10 to-transparent dark:from-primary-900/10 dark:via-transparent pointer-events-none" />
 
       {/* Logo and Header */}
-      <div className={`flex-shrink-0 h-28 transition-all duration-300 ${isCollapsed ? 'px-0' : 'px-5'} flex items-center justify-center relative z-10`}>
-        <div className={`flex items-center w-full ${isCollapsed ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
+      <div className={`flex-shrink-0 h-24 transition-all duration-300 ${isCollapsed ? 'px-2' : 'px-4'} flex items-center justify-center relative z-10`}>
+        <div className="flex items-center w-full justify-between">
           <a
             href="https://sems.capabble.cloud/centre-details"
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center min-w-0 ${isCollapsed ? 'flex-col' : 'gap-4'} group`}
+            className={`flex items-center min-w-0 group ${isCollapsed ? 'justify-center' : 'gap-4'}`}
           >
-            <div className={`relative flex-shrink-0 transition-transform duration-300 ${isCollapsed ? 'scale-90' : 'scale-100'}`}>
+            <div className={`relative flex-shrink-0 transition-transform duration-300 ${isCollapsed ? 'scale-85' : 'scale-95'}`}>
               <div className="absolute inset-0 rounded-2xl bg-sky-400/20 blur-md transition-all group-hover:bg-sky-400/30"></div>
-              <div className="relative flex h-16 w-16 items-center justify-center">
+              <div className="relative flex h-14 w-14 items-center justify-center">
                 <img
                   src={logoMark}
                   alt="Exam Centre Control"
-                  className="h-16 w-16 object-contain"
+                  className="h-14 w-14 object-contain"
                 />
               </div>
             </div>
             {!isCollapsed && (
               <div className="min-w-0 flex flex-col justify-center">
-                <h2 className="text-[2rem] font-black text-slate-800 dark:text-white leading-none tracking-tight">
+                <h2 className="text-[1.8rem] font-black text-slate-800 dark:text-white leading-none tracking-tight">
                   Cntr
                 </h2>
-                <p className="mt-1 text-[13px] font-semibold text-slate-900 dark:text-slate-200 leading-tight tracking-tight">
+                <p className="mt-0.5 text-[12px] font-semibold text-slate-900 dark:text-slate-200 leading-tight tracking-tight">
                   Exam Centre Control
                 </p>
               </div>
             )}
           </a>
 
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`p-1.5 rounded-lg text-secondary-400 hover:text-secondary-600 dark:text-secondary-500 dark:hover:text-secondary-300 hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-all flex-shrink-0 ${isCollapsed ? 'mt-1' : ''}`}
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {isCollapsed ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            )}
-          </button>
         </div>
       </div>
 
       {/* Navigation - scrollable */}
-      <nav className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden transition-all duration-300 ${isCollapsed ? 'px-3' : 'px-4'} py-2`}>
+      <nav className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden transition-all duration-300 ${isCollapsed ? 'px-3 [&_svg]:w-4.5 [&_svg]:h-4.5' : 'px-3'} py-2`}>
         <div className={`space-y-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
           {filteredNavigation.map((entry) => {
             if (isGroup(entry)) {
@@ -679,9 +667,9 @@ const Sidebar: React.FC = () => {
                         navigate(group.href)
                       }
                     }}
-                    className={`group relative flex items-center w-full text-sm font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
-                      ? 'justify-center w-12 h-12 p-0'
-                      : 'px-3.5 py-3'
+                    className={`group relative flex items-center w-full text-[12.5px] font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
+                      ? 'justify-center w-11 h-11 p-0'
+                      : 'px-2.5 py-2.5'
                       } ${isAnyActive
                         ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
                         : 'text-secondary-600 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-900 dark:hover:text-secondary-200'
@@ -890,9 +878,9 @@ const Sidebar: React.FC = () => {
               <NavLink
                 key={item.name}
                 to={item.href}
-                className={`group relative flex items-center text-sm font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
-                  ? 'justify-center w-12 h-12 p-0'
-                  : 'px-3.5 py-3'
+                className={`group relative flex items-center text-[12.5px] font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
+                  ? 'justify-center w-11 h-11 p-0'
+                  : 'px-2.5 py-2.5'
                   } ${isActive
                     ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
                     : 'text-secondary-600 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-900 dark:hover:text-secondary-200'
@@ -972,7 +960,7 @@ const Sidebar: React.FC = () => {
             <>
               {/* In-sidebar overlay: clicking nav/rest of sidebar closes dropdown */}
               <div
-                className={`fixed top-0 bottom-0 z-40 ${isCollapsed ? 'left-0 w-20' : 'left-0 w-72'}`}
+                className={`fixed top-0 bottom-0 z-40 ${isCollapsed ? 'left-0 w-20' : 'left-0 w-68'}`}
                 onClick={() => setAccountDropdownOpen(false)}
                 aria-hidden="true"
               />
@@ -1095,7 +1083,7 @@ const Sidebar: React.FC = () => {
       {accountDropdownOpen &&
         createPortal(
           <div
-            className={`fixed top-0 right-0 bottom-0 z-40 ${isCollapsed ? 'left-20' : 'left-72'}`}
+            className={`fixed top-0 right-0 bottom-0 z-40 ${isCollapsed ? 'left-20' : 'left-68'}`}
             onClick={() => setAccountDropdownOpen(false)}
             aria-hidden="true"
           />,

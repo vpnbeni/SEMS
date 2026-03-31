@@ -17,24 +17,10 @@ import type {
   SeatingPlanTemplateSettings,
 } from '../services/seatingPlanService'
 import Loader from '../components/common/Loader'
+import { Tabs } from '../components/common/Tabs'
 import './SeatingPlan.css'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
-
-/**
- * Toggle button wrapper that uses literal aria-pressed="true"|"false" so
- * static analysis (e.g. Microsoft Edge Tools) accepts the ARIA value.
- */
-function ToggleButton({
-  pressed,
-  ...props
-}: React.ComponentProps<'button'> & { pressed: boolean }) {
-  return pressed ? (
-    <button aria-pressed="true" {...props} />
-  ) : (
-    <button aria-pressed="false" {...props} />
-  )
-}
 
 const DEFAULT_CBSE_LAYOUT_SETTINGS: CBSECopyTemplateSettings = {
   infoCol1Width: 20,
@@ -825,102 +811,54 @@ const SeatingPlan: React.FC = () => {
     window.addEventListener('mouseup', onMouseUp)
   }
 
-  const scheduleHighlightRingClass: Record<SeatingPlanFormat, string> = {
-    mainGate: 'ring-2 ring-blue-500',
-    roomFolderSlip: 'ring-2 ring-green-500',
-    roomDoorSlip: 'ring-2 ring-yellow-500',
-    cbseCopy: 'ring-2 ring-purple-500',
-  }
+  const formatTabs = useMemo(
+    () =>
+      [
+        {
+          id: 'mainGate' as const,
+          label: 'Main Gate',
+          color: 'blue' as const,
+          disabled: pdfMutation.isPending && activeTab !== 'mainGate',
+        },
+        {
+          id: 'roomFolderSlip' as const,
+          label: 'Invigilator Slip',
+          color: 'emerald' as const,
+          disabled: pdfMutation.isPending && activeTab !== 'roomFolderSlip',
+        },
+        {
+          id: 'roomDoorSlip' as const,
+          label: 'Room Door Slip',
+          color: 'yellow' as const,
+          disabled: pdfMutation.isPending && activeTab !== 'roomDoorSlip',
+        },
+        {
+          id: 'cbseCopy' as const,
+          label: 'CBSE Format',
+          color: 'purple' as const,
+          disabled: pdfMutation.isPending && activeTab !== 'cbseCopy',
+        },
+      ] as const,
+    [pdfMutation.isPending, activeTab]
+  )
 
   return (
-    <div className="p-6">
-      {/* Status Overview - Clickable Tabs */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-        <ToggleButton
-          pressed={activeTab === 'mainGate'}
-          onClick={() => setActiveTab('mainGate')}
-          disabled={pdfMutation.isPending && activeTab !== 'mainGate'}
-          className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'mainGate' ? 'ring-2 ring-blue-500 border-blue-400 dark:border-blue-500 bg-blue-100 dark:bg-blue-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800'
-            } ${pdfMutation.isPending && activeTab !== 'mainGate' ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <div className="flex items-center">
-            <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-              <svg className="w-6 h-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">Main Gate</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'mainGate' ? 'Selected format' : 'Click to switch format'}</p>
-            </div>
-          </div>
-        </ToggleButton>
-
-        <ToggleButton
-          pressed={activeTab === 'roomFolderSlip'}
-          onClick={() => setActiveTab('roomFolderSlip')}
-          disabled={pdfMutation.isPending && activeTab !== 'roomFolderSlip'}
-          className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'roomFolderSlip' ? 'ring-2 ring-green-500 border-green-400 dark:border-green-500 bg-green-100 dark:bg-green-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-green-200 dark:hover:border-green-800'
-            } ${pdfMutation.isPending && activeTab !== 'roomFolderSlip' ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <div className="flex items-center">
-            <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-              <svg className="w-6 h-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">Invigilator Slip</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'roomFolderSlip' ? 'Selected format' : 'Click to switch format'}</p>
-            </div>
-          </div>
-        </ToggleButton>
-
-        <ToggleButton
-          pressed={activeTab === 'roomDoorSlip'}
-          onClick={() => setActiveTab('roomDoorSlip')}
-          disabled={pdfMutation.isPending && activeTab !== 'roomDoorSlip'}
-          className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'roomDoorSlip' ? 'ring-2 ring-yellow-500 border-yellow-400 dark:border-yellow-500 bg-yellow-100 dark:bg-yellow-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-yellow-200 dark:hover:border-yellow-800'
-            } ${pdfMutation.isPending && activeTab !== 'roomDoorSlip' ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-              <svg className="w-6 h-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">Room Door Slip</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'roomDoorSlip' ? 'Selected format' : 'Click to switch format'}</p>
-            </div>
-          </div>
-        </ToggleButton>
-
-        <ToggleButton
-          pressed={activeTab === 'cbseCopy'}
-          onClick={() => setActiveTab('cbseCopy')}
-          disabled={pdfMutation.isPending && activeTab !== 'cbseCopy'}
-          className={`rounded-lg shadow p-6 transition-all cursor-pointer border-2 ${activeTab === 'cbseCopy' ? 'ring-2 ring-purple-500 border-purple-400 dark:border-purple-500 bg-purple-100 dark:bg-purple-900/40' : 'bg-white dark:bg-gray-800 border-transparent hover:shadow-lg hover:border-purple-200 dark:hover:border-purple-800'
-            } ${pdfMutation.isPending && activeTab !== 'cbseCopy' ? 'opacity-50 cursor-not-allowed' : ''}`}
-        >
-          <div className="flex items-center">
-            <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-              <svg className="w-6 h-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-              </svg>
-            </div>
-            <div className="ml-4">
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">CBSE Format</p>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{activeTab === 'cbseCopy' ? 'Selected format' : 'Click to switch format'}</p>
-            </div>
-          </div>
-        </ToggleButton>
-      </div>
-
-      {/* Datesheet Table */}
-      <div ref={scheduleTableRef} className={`bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden mb-8 transition-all ${scheduleHighlightRingClass[activeTab]}`}>
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+    <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-gray-50/50 dark:bg-gray-900">
+      {/* Examination schedule — Datesheets-style shell: format tabs + table */}
+      <div
+        ref={scheduleTableRef}
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-8"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 bg-gray-50/50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+          <Tabs<SeatingPlanFormat>
+            tabs={[...formatTabs]}
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            variant="pill"
+            size="sm"
+            ariaLabel="Seating plan format"
+          />
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 sm:text-right">
             Examination Schedule
           </h3>
         </div>
@@ -935,148 +873,144 @@ const SeatingPlan: React.FC = () => {
               <div className="p-6 text-center">
                 <p className="text-red-600 dark:text-red-400">{error}</p>
                 <button
+                  type="button"
                   onClick={() => refetch()}
-                  className="mt-4 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
+                  className="mt-4 px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
                 >
                   Retry
                 </button>
               </div>
             ) : datesheetEntries.length === 0 ? (
-              <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+              <div className="p-12 text-center text-gray-500 dark:text-gray-400">
                 No datesheet entries found. Please import a datesheet first.
               </div>
             ) : (
-              <table className="sp-schedule-table w-max min-w-[980px]">
-                <colgroup>
-                  <col style={{ width: '56px' }} />
-                  <col style={{ width: '128px' }} />
-                  <col style={{ width: '112px' }} />
-                  <col style={{ width: '96px' }} />
-                  <col style={{ width: '220px' }} />
-                  <col style={{ width: '100px' }} />
-                  <col style={{ width: '160px' }} />
-                  <col style={{ width: '88px' }} />
-                  <col style={{ width: '92px' }} />
-                  <col style={{ width: '76px' }} />
-                </colgroup>
-                <thead className="bg-gray-50 dark:bg-gray-700">
+              <table className="min-w-[1100px] w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50/50 dark:bg-gray-900/50">
                   <tr>
-                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                    <th className="sticky top-0 z-20 px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
                       Sr No
                     </th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                    <th className="sticky top-0 z-20 px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
                       Date
                     </th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                    <th className="sticky top-0 z-20 px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
                       Day
                     </th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                    <th className="sticky top-0 z-20 px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
                       Subject Code
                     </th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                    <th className="sticky top-0 z-20 px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
                       Subject Name
                     </th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                    <th className="sticky top-0 z-20 px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
                       Class
                     </th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                    <th className="sticky top-0 z-20 px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
                       Time
                     </th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                    <th className="sticky top-0 z-20 px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
                       Candidates
                     </th>
-                    <th className="px-3.5 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                    <th className="sticky top-0 z-20 px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
                       No Of Rooms
                     </th>
-                    <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wide">
+                    <th className="sticky top-0 z-20 px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur-sm">
                       Download
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white dark:bg-gray-800">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {datesheetEntries.map((entry, index) => {
                     const examDateKey = getCalendarDateKey(entry.examDate)
                     const isTodayExam = examDateKey === todayDateKey
                     const isNextExam = !isTodayExam && !!nextExamDateKey && examDateKey === nextExamDateKey
 
+                    let rowClassName =
+                      'hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors'
+
+                    if (isTodayExam) {
+                      rowClassName =
+                        'bg-green-50 dark:bg-green-900/20 hover:bg-green-100/60 dark:hover:bg-green-900/30 transition-colors'
+                    } else if (isNextExam) {
+                      rowClassName =
+                        'bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100/60 dark:hover:bg-yellow-900/30 transition-colors'
+                    } else if (entry.class === '10') {
+                      rowClassName =
+                        'bg-emerald-50/30 dark:bg-emerald-900/10 hover:bg-emerald-50/50 dark:hover:bg-emerald-900/20 transition-colors'
+                    } else if (entry.class === '12') {
+                      rowClassName =
+                        'bg-violet-50/30 dark:bg-violet-900/10 hover:bg-violet-50/50 dark:hover:bg-violet-900/20 transition-colors'
+                    }
+
+                    const classBadgeClass =
+                      entry.class === '10'
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 ring-1 ring-emerald-500/20'
+                        : entry.class === '12'
+                          ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300 ring-1 ring-violet-500/20'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+
                     return (
-                      <tr
-                        key={entry._id}
-                        data-date={examDateKey}
-                        className={`${isTodayExam
-                          ? 'bg-green-200 dark:bg-green-800/70 hover:bg-green-200 dark:hover:bg-green-800/70'
-                          : isNextExam
-                            ? 'bg-yellow-200 dark:bg-yellow-800/70 hover:bg-yellow-200 dark:hover:bg-yellow-800/70'
-                          : `hover:bg-gray-50 dark:hover:bg-gray-700 ${entry.class === '10'
-                            ? 'bg-green-50 dark:bg-green-900/20'
-                            : entry.class === '12'
-                              ? 'bg-purple-50 dark:bg-purple-900/20'
-                              : ''
-                          }`
-                          }`}
-                      >
-                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        {index + 1}
-                      </td>
-                      <td className="px-3.5 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                        <div className="inline-flex items-center gap-2">
-                          <span>{formatDate(entry.examDate)}</span>
-                          {isTodayExam && (
-                            <span className="sp-today-badge inline-flex items-center rounded-full bg-green-200 dark:bg-green-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-900 dark:text-green-100">
-                              Today
-                            </span>
+                      <tr key={entry._id} data-date={examDateKey} className={rowClassName}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400 font-mono">
+                          {String(index + 1).padStart(2, '0')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                          <div className="inline-flex items-center gap-2">
+                            <span>{formatDate(entry.examDate)}</span>
+                            {isTodayExam && (
+                              <span className="inline-flex items-center rounded-full bg-green-200 dark:bg-green-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-green-900 dark:text-green-100">
+                                Today
+                              </span>
+                            )}
+                            {isNextExam && (
+                              <span className="inline-flex items-center rounded-full bg-yellow-200 dark:bg-yellow-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow-900 dark:text-yellow-100">
+                                Next
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {entry.dayName || 'Unknown'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">
+                          {entry.subjectCode}
+                        </td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                          {entry.subjectName}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${classBadgeClass}`}
+                          >
+                            Class {entry.class}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                          {formatTime(entry.timeSlot.start)} - {formatTime(entry.timeSlot.end)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-right text-gray-900 dark:text-white">
+                          {entry.candidateCount}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">
+                          {entry.roomsNeeded === 0 ? (
+                            <span className="italic text-xs text-amber-600 dark:text-amber-400">Shared</span>
+                          ) : (
+                            entry.roomsNeeded
                           )}
-                          {isNextExam && (
-                            <span className="sp-next-badge inline-flex items-center rounded-full bg-yellow-200 dark:bg-yellow-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-yellow-900 dark:text-yellow-100">
-                              Next
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3.5 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                        {entry.dayName || 'Unknown'}
-                      </td>
-                      <td className="px-3.5 py-3 whitespace-nowrap text-sm font-mono text-gray-900 dark:text-white">
-                        {entry.subjectCode}
-                      </td>
-                      <td className="px-3.5 py-3 text-sm text-gray-900 dark:text-white">
-                        {entry.subjectName}
-                      </td>
-                      <td className="px-3.5 py-3 whitespace-nowrap text-sm">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${entry.class === '10'
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          : entry.class === '12'
-                            ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                          }`}>
-                          Class {entry.class}
-                        </span>
-                      </td>
-                      <td className="px-3.5 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                        {formatTime(entry.timeSlot.start)} - {formatTime(entry.timeSlot.end)}
-                      </td>
-                      <td className="px-3.5 py-3 whitespace-nowrap text-sm font-semibold text-blue-600 dark:text-blue-400">
-                        {entry.candidateCount}
-                      </td>
-                      <td className="px-3.5 py-3 whitespace-nowrap text-sm font-semibold text-purple-600 dark:text-purple-400">
-                        {entry.roomsNeeded === 0 ? (
-                          <span className="italic text-xs text-amber-600 dark:text-amber-400">Shared</span>
-                        ) : (
-                          entry.roomsNeeded
-                        )}
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap text-sm">
-                        <div className="flex space-x-2">
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
+                            type="button"
                             onClick={() => handleDownloadPDF(entry._id, activeTab)}
                             disabled={pdfMutation.isPending}
-                            className={`text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 ${pdfMutation.isPending && downloadingId !== entry._id ? 'cursor-not-allowed' : ''}`}
+                            className={`text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 disabled:opacity-50 ${pdfMutation.isPending && downloadingId !== entry._id ? 'cursor-not-allowed' : ''}`}
                             title={`Download ${activeTab === 'mainGate' ? 'Main Gate' : activeTab === 'roomFolderSlip' ? 'Invigilator Slip' : activeTab === 'roomDoorSlip' ? 'Room Door Slip' : 'CBSE Format'}`}
                           >
                             {downloadingId === entry._id ? (
                               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                               </svg>
                             ) : (
                               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1084,8 +1018,7 @@ const SeatingPlan: React.FC = () => {
                               </svg>
                             )}
                           </button>
-                        </div>
-                      </td>
+                        </td>
                       </tr>
                     )
                   })}
@@ -1096,14 +1029,14 @@ const SeatingPlan: React.FC = () => {
         </div>
       </div>
 
-      {/* Content Area */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            {activeTab === 'mainGate' && 'Main Gate Format'}
-            {activeTab === 'roomFolderSlip' && 'Invigilator Slip Format'}
-            {activeTab === 'roomDoorSlip' && 'Room Door Slip Format'}
-            {activeTab === 'cbseCopy' && 'CBSE Format'}
+      {/* Template preview / layout editor */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+            {activeTab === 'mainGate' && 'Main Gate format preview'}
+            {activeTab === 'roomFolderSlip' && 'Invigilator slip format preview'}
+            {activeTab === 'roomDoorSlip' && 'Room door slip format preview'}
+            {activeTab === 'cbseCopy' && 'CBSE format preview'}
           </h3>
         </div>
 
