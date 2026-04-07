@@ -8,7 +8,12 @@ import { isFeatureEnabledForPath } from '@/constants/featureAccess'
 import { useCentreDetails } from '@/hooks/useCentreDetails'
 import { useOnboardingStatus } from '@/hooks/useOnboarding'
 
-const Header: React.FC = () => {
+type HeaderProps = {
+  isSidebarCollapsed: boolean
+  onToggleSidebar: () => void
+}
+
+const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [genericSearchValue, setGenericSearchValue] = useState('')
   const location = useLocation()
@@ -332,11 +337,24 @@ const Header: React.FC = () => {
   }
 
   return (
-    <header className="h-20 flex-shrink-0 sticky top-0 z-40 glass border-b border-gray-100/80 dark:border-gray-800/80 transition-all duration-300">
-      <div className="h-full px-4 md:px-8 flex items-center">
+    <header className="h-16 flex-shrink-0 sticky top-0 z-40 glass border-b border-gray-100/80 dark:border-gray-800/80 transition-all duration-300">
+      <div className="h-full px-2 md:px-4 flex items-center">
         <div className="flex items-center justify-between w-full gap-6">
           {/* Left: Page context + optional back */}
-          <div className="min-w-0 flex-1 flex items-center gap-4">
+          <div className="min-w-0 flex-1 flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="p-1.5 text-secondary-600 dark:text-secondary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200 flex-shrink-0"
+              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="5" width="18" height="14" rx="2" strokeWidth={1.8} />
+                <path d="M9 5v14" strokeWidth={1.8} />
+              </svg>
+            </button>
+            <span className="h-6 w-px bg-secondary-200 dark:bg-secondary-700 flex-shrink-0 mr-1" />
             {showBackButton && backTo && (
               <button
                 type="button"
@@ -352,7 +370,7 @@ const Header: React.FC = () => {
             {isDashboardRoute ? (
               dashboardHeaderLabel ? (
                 <div className="min-w-0 rounded-xl border border-secondary-200/70 dark:border-secondary-700 bg-white/70 dark:bg-secondary-800/40 px-3 py-2 shadow-sm">
-                  <h1 className="text-base sm:text-lg md:text-2xl font-bold text-secondary-900 dark:text-white truncate tracking-tight">
+                  <h1 className="text-sm sm:text-base md:text-lg font-bold text-secondary-900 dark:text-white truncate tracking-tight">
                     {dashboardHeaderLabel}
                   </h1>
                 </div>
@@ -372,11 +390,10 @@ const Header: React.FC = () => {
               ) : null
             ) : (
               <div className="min-w-0">
-                <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white truncate tracking-tight">
+                <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white truncate tracking-tight">
                   {pageTitle}
                 </h1>
-                <p className="hidden sm:flex items-center gap-1.5 text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5 font-medium">
-                  <span className="w-1 h-1 rounded-full bg-primary-400 flex-shrink-0" />
+                <p className="hidden sm:block text-[11px] md:text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5 font-medium">
                   {pageSubtitle}
                 </p>
               </div>

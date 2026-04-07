@@ -13,6 +13,16 @@ const createContextModelProxy = (modelName, schema) => {
       return context.models[modelName];
     }
 
+    // Safety net: warn if a tenant-scoped request accesses a model that wasn't
+    // loaded for this tenant's active modules. This means the model is missing
+    // from MODULE_MODEL_KEYS in moduleModelKeys.js.
+    if (context?.scope === 'tenant') {
+      console.warn(
+        `[model-proxy] Model "${modelName}" not loaded for tenant "${context.tenant?.slug || 'unknown'}"`
+        + ' — falling back to default connection. Add it to moduleModelKeys.js'
+      );
+    }
+
     return getModel();
   };
 

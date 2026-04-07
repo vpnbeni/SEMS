@@ -7,6 +7,7 @@ type FeatureCatalogEntry = {
   label: string
   path: string
   group: string
+  module: string
   prefixes: string[]
   fallbackPriority?: number
 }

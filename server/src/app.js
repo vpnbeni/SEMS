@@ -15,40 +15,13 @@ const os = require('os');
 // Import custom middleware
 const errorHandler = require('./middleware/errorHandler');
 const { billingEntitlementMiddleware } = require('./middleware/billingEntitlement');
-const { requireTenantFeature } = require('./middleware/tenantFeatureAccess');
 const { requestContextMiddleware } = require('./tenancy/requestContext');
 const { academicSessionMiddleware } = require('./middleware/academicSession');
-const { platformContextMiddleware, tenantContextMiddleware } = require('./tenancy/tenantContextMiddleware');
+const { tenantContextMiddleware } = require('./tenancy/tenantContextMiddleware');
 
-// Import routes
-const adminRoutes = require('./routes/adminRoutes');
-const authRoutes = require('./routes/authRoutes');
-const teacherRoutes = require('./routes/teacherRoutes');
-const studentRoutes = require('./routes/studentRoutes');
-const subjectRoutes = require('./routes/subjectRoutes');
-const candidateRoutes = require('./routes/candidateRoutes');
-const datesheetRoutes = require('./routes/datesheetRoutes');
-const roomRoutes = require('./routes/roomRoutes');
-const dispatchRoutes = require('./routes/dispatchRoutes');
-const exportRoutes = require('./routes/exportRoutes');
-const guidelinesRoutes = require('./routes/guidelines');
-const answerSheetRoutes = require('./routes/answerSheets');
-const centreDatesheetRoutes = require('./routes/centreDatesheet');
-const seatingPlanRoutes = require('./routes/seatingPlan');
-const form66Routes = require('./routes/form66');
-const dashboardRoutes = require('./routes/dashboardRoutes');
-const dutiesRoutes = require('./routes/dutiesRoutes');
-const undertakingsRoutes = require('./routes/undertakings');
-const cbseCircularsRoutes = require('./routes/cbseCirculars');
-const centreDetailsRoutes = require('./routes/centreDetailsRoutes');
-const billingRoutes = require('./routes/billingRoutes');
-const supportRoutes = require('./routes/supportRoutes');
-const sessionRoutes = require('./routes/sessionRoutes');
-const attendanceRoutes = require('./routes/attendanceRoutes');
-const timetableRoutes = require('./routes/timetableRoutes');
-const remunerationRoutes = require('./routes/remunerationRoutes');
-const onboardingRoutes = require('./routes/onboardingRoutes');
-// const calendarRoutes = require('./routes/calendar'); // Temporarily disabled for debugging
+// Import module registry — each module registers its own routes
+const { mountAll } = require('./modules');
+const platformModule = require('./modules/platform');
 
 // Create Express app
 const app = express();
@@ -254,40 +227,14 @@ app.get('/api', (req, res) => {
 });
 
 // Platform admin routes (central control plane)
-app.use('/api/admin', platformContextMiddleware, adminRoutes);
+platformModule.mountRoutes(app);
 
-// Tenant-scoped routes
+// Tenant-scoped routes — each module registers its own routes via mountAll()
 const tenantScopedRouter = express.Router();
 tenantScopedRouter.use(tenantContextMiddleware);
 tenantScopedRouter.use(billingEntitlementMiddleware);
 tenantScopedRouter.use(academicSessionMiddleware);
-tenantScopedRouter.use('/auth', authRoutes);
-tenantScopedRouter.use('/teachers', requireTenantFeature('exam_functionaries'), teacherRoutes);
-tenantScopedRouter.use('/students', requireTenantFeature('candidates'), studentRoutes);
-tenantScopedRouter.use('/subjects', requireTenantFeature('subjects'), subjectRoutes);
-tenantScopedRouter.use('/candidates', requireTenantFeature('candidates'), candidateRoutes);
-tenantScopedRouter.use('/datesheets', requireTenantFeature('datesheets'), datesheetRoutes);
-tenantScopedRouter.use('/rooms', requireTenantFeature('examrooms'), roomRoutes);
-tenantScopedRouter.use('/dispatch', requireTenantFeature('answersheets'), dispatchRoutes);
-tenantScopedRouter.use('/export', exportRoutes);
-tenantScopedRouter.use('/guidelines', requireTenantFeature('centre_guidelines'), guidelinesRoutes);
-tenantScopedRouter.use('/answersheets', requireTenantFeature('answersheets'), answerSheetRoutes);
-tenantScopedRouter.use('/centre-datesheet', requireTenantFeature('datesheets'), centreDatesheetRoutes);
-tenantScopedRouter.use('/seating-plan', requireTenantFeature('seatingplan'), seatingPlanRoutes);
-tenantScopedRouter.use('/form66', requireTenantFeature('form66'), form66Routes);
-tenantScopedRouter.use('/dashboard', requireTenantFeature('dashboard'), dashboardRoutes);
-tenantScopedRouter.use('/duties', requireTenantFeature('duties'), dutiesRoutes);
-tenantScopedRouter.use('/undertakings', requireTenantFeature('undertaking'), undertakingsRoutes);
-tenantScopedRouter.use('/support', requireTenantFeature('help_support'), supportRoutes);
-tenantScopedRouter.use('/cbse-circulars', requireTenantFeature('cbse_circulars'), cbseCircularsRoutes);
-tenantScopedRouter.use('/centre-details', requireTenantFeature('centre_details'), centreDetailsRoutes);
-tenantScopedRouter.use('/billing', requireTenantFeature('billing'), billingRoutes);
-tenantScopedRouter.use('/sessions', sessionRoutes);
-tenantScopedRouter.use('/attendance', requireTenantFeature('attendance'), attendanceRoutes);
-tenantScopedRouter.use('/timetable', requireTenantFeature('timetable_classes'), timetableRoutes);
-tenantScopedRouter.use('/remuneration', requireTenantFeature('remuneration'), remunerationRoutes);
-tenantScopedRouter.use('/onboarding', onboardingRoutes);
-// tenantScopedRouter.use('/calendar', calendarRoutes); // Temporarily disabled for debugging
+mountAll(tenantScopedRouter);
 
 app.use('/api', tenantScopedRouter);
 

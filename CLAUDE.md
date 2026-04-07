@@ -2,9 +2,65 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Product Vision
+
+**CAPABBLE** is building a modular school/institution ERP — comparable metaphorically to AWS, where each service (module) is independently purchasable and works standalone, but modules seamlessly integrate when combined. Institutions can start with a single module and add more over time via one-click activation.
+
+### Current Modules
+- **Cntr (Centre Management)** — CBSE examination centre operations: datesheet import, candidate management, seating plans, duty assignment, answer sheet tracking, Form 66 attendance, dispatch
+- **Timetable** — School timetable generation: teacher-subject-class allocation, bell timings, parallel subjects, conflict resolution, version management
+
+### Planned Modules (Future)
+- HR / Staff Management
+- Fee Management
+- Admissions
+- Library Management
+- Transport
+- And more — each independently activatable
+
+### Core Principles
+1. **Module independence** — Each module works fully standalone. Subscribing to Timetable does not require Cntr, and vice versa.
+2. **Shared kernel** — Core entities (Teacher, Student, Subject, Room, AcademicSession, User) live in a shared "core" layer accessible to all active modules.
+3. **One-click integration** — When a tenant activates a new module, it automatically gets access to shared core data and can interoperate with other active modules.
+4. **Data sovereignty per module** — Deleting a teacher from the Timetable module does NOT affect the Exam module. Each module maintains its own view/snapshot of shared entities.
+5. **Modular monolith architecture** — Single deployable server, but code is organized into self-contained modules with well-defined boundaries, communicating via an internal event bus. Can evolve to microservices later if scale demands.
+
+### Architectural Strategy: Modular Monolith + Shared Database
+- **Single database per tenant** (not per module) — all modules share one tenant DB, with collections logically grouped by module ownership
+- **Shared kernel collections** (core): `users`, `teachers`, `students`, `subjects`, `rooms`, `academic_sessions`
+- **Module-owned collections**: each module owns its specific collections (e.g., exam owns `candidates`, `datesheets`, `seating_plans`; timetable owns `timetable_states`, `timetable_versions`)
+- **Event-driven cross-module communication**: in-process event bus for decoupled module interaction (e.g., `core:teacher:deactivated` → each module reacts independently)
+- **Soft-delete + local snapshots**: shared entities use soft-delete; modules snapshot shared data at point-in-time to maintain independence (TimetableState already does this with its local `teachers[]` array)
+- **Lazy model registration**: only register Mongoose models for active modules per tenant (reduces memory footprint)
+- **Module dependency declaration**: modules declare dependencies (e.g., `exam` depends on `core`); activating a module auto-enables its dependencies
+- This approach is validated by Odoo, ERPNext, and Zoho — all use single-DB + module-scoped tables, not database-per-module
+
+### Target Server Directory Structure (Evolution Goal)
+```
+server/src/modules/
+  core/           # Shared kernel: Teacher, Student, Subject, Room, User, AcademicSession
+    models/
+    routes/
+    controllers/
+    services/
+    events.js     # Defines events this module emits
+  exam/           # Cntr — Exam centre management bounded context
+    models/       # Candidate, DateSheet, SeatingPlan, AnswerSheet, DutyAssignment, Form66
+    routes/
+    controllers/
+    services/
+    listeners.js  # Subscribes to core events
+  timetable/      # Timetable bounded context
+    models/       # TimetableState, TimetableVersion
+    routes/
+    controllers/
+    services/
+    listeners.js
+```
+
 ## Project Overview
 
-BECMS (Bharat Examination Core Management System) is a multi-tenant, full-stack MERN application for managing CBSE examination processes. It handles importing CBSE datesheets, candidate management, seating plan generation, answer sheet tracking, Form 66 attendance, and tenant onboarding. The system uses a central platform database alongside per-tenant databases for data isolation.
+CAPABBLE ERP is a multi-tenant, full-stack MERN application providing modular school/institution management. The first two modules are **Cntr** (CBSE examination centre management) and **Timetable** (school timetable generation). The system uses a central platform database alongside per-tenant databases for data isolation, with feature toggles controlling module activation per tenant.
 
 ## Deployment & Domains
 

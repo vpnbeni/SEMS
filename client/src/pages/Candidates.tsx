@@ -12,7 +12,6 @@ import {
   useCandidatesWithoutSubjects,
   useCandidateFilterOptions,
   useImportCandidatesMutation,
-  useDeleteCandidateMutation,
 } from '../hooks/useCandidates'
 
 type ClassTabId = 'all' | '10th' | '12th'
@@ -89,7 +88,6 @@ const Candidates: React.FC = () => {
   const { data: filterOptions } = useCandidateFilterOptions()
 
   const importMutation = useImportCandidatesMutation()
-  const deleteMutation = useDeleteCandidateMutation()
 
   const candidates = data?.data ?? []
   const pagination = useMemo(
@@ -152,78 +150,60 @@ const Candidates: React.FC = () => {
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this candidate?')) return
-    deleteMutation.mutate(id, {
-      onSuccess: () => {
-        toast.success('Candidate deleted successfully')
-      },
-      onError: (error: any) => {
-        toast.error(error?.response?.data?.message || 'Failed to delete candidate')
-      },
-    })
-  }
-
   return (
     <div className="p-6 space-y-6">
       {/* Stats at top (display only – use tabs below for filtering) */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 shadow-sm">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-blue-100 dark:bg-blue-900">
-                  <svg className="w-4 h-4 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-lg flex-shrink-0 bg-blue-50 text-blue-500 dark:bg-blue-900/20 dark:text-blue-400">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
+                </svg>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
                   Total Candidates
                 </p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                <p className="text-3xl font-bold text-gray-900 dark:text-white leading-none">
                   {stats.totalCandidates.toLocaleString()}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 shadow-sm">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-green-100 dark:bg-green-900">
-                  <svg className="w-4 h-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-lg flex-shrink-0 bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20 dark:text-emerald-400">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                  </svg>
-                </div>
+                </svg>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
                   Class 10th
                 </p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                <p className="text-3xl font-bold text-gray-900 dark:text-white leading-none">
                   {stats.class10th.toLocaleString()}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 shadow-sm">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-purple-100 dark:bg-purple-900">
-                  <svg className="w-4 h-4 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="p-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-lg flex-shrink-0 bg-violet-50 text-violet-500 dark:bg-violet-900/20 dark:text-violet-400">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                  </svg>
-                </div>
+                </svg>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
                   Class 12th
                 </p>
-                <p className="text-2xl font-semibold text-gray-900 dark:text-white">
+                <p className="text-3xl font-bold text-gray-900 dark:text-white leading-none">
                   {stats.class12th.toLocaleString()}
                 </p>
               </div>
@@ -355,7 +335,7 @@ const Candidates: React.FC = () => {
                 placeholder="Search by name or roll number..."
                 value={filters.search}
                 onChange={(e) => handleFilterChange({ ...filters, search: e.target.value })}
-                className="block w-full pl-10 pr-3 py-2 border-2 border-secondary-300 dark:border-secondary-600 rounded-lg bg-white dark:bg-secondary-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-0 focus:border-primary-500 dark:focus:border-primary-400 text-sm"
+                className="block w-full pl-10 pr-3 py-2 border border-secondary-300 dark:border-secondary-600 rounded-lg bg-white dark:bg-secondary-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-0 focus:border-primary-500 dark:focus:border-primary-400 text-sm"
               />
             </div>
             <button
@@ -545,7 +525,6 @@ const Candidates: React.FC = () => {
           loading={loading}
           pagination={pagination}
           onPageChange={handlePageChange}
-          onDelete={handleDelete}
           pageSizeOptions={PAGE_SIZE_OPTIONS}
           pageSize={pageSize}
           onPageSizeChange={handlePageSizeChange}
