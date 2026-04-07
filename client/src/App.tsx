@@ -16,6 +16,7 @@ import TenantSignupComplete from './pages/TenantSignupComplete'
 import Signup from './pages/Signup'
 import CntrLanding from './pages/CntrLanding'
 import TmtblLanding from './pages/TmtblLanding'
+import StdntLanding from './pages/StdntLanding'
 import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
 import Duties from './pages/Duties'
@@ -64,6 +65,7 @@ import HelpSupport from './pages/HelpSupport'
 import SessionSelector from './pages/SessionSelector'
 import Pricing from './pages/Pricing'
 import { OnboardingPage, ValidationReportPage } from './pages/Onboarding'
+import { getPublicBrandVariant } from './utils/publicBranding'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -76,27 +78,13 @@ const LegacyCandidatesRedirect = () => {
   return <Navigate to={`${nextPath}${location.search}${location.hash}`} replace />
 }
 
-const getPublicLandingVariant = (): 'cntr' | 'tmtbl' => {
-  if (typeof window === 'undefined') {
-    return 'cntr'
-  }
+const PublicLanding = () => {
+  const variant = getPublicBrandVariant()
 
-  const params = new URLSearchParams(window.location.search)
-  const brand = params.get('brand')?.trim().toLowerCase()
-
-  if (brand === 'cntr' || brand === 'tmtbl') {
-    return brand
-  }
-
-  const hostname = window.location.hostname.toLowerCase()
-  if (hostname === 'tmtbl.capabble.cloud' || hostname.startsWith('tmtbl.')) {
-    return 'tmtbl'
-  }
-
-  return 'cntr'
+  if (variant === 'tmtbl') return <TmtblLanding />
+  if (variant === 'stdnt') return <StdntLanding />
+  return <CntrLanding />
 }
-
-const PublicLanding = () => (getPublicLandingVariant() === 'tmtbl' ? <TmtblLanding /> : <CntrLanding />)
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()

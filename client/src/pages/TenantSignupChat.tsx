@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Bot, Building2, CheckCircle2, ChevronRight, Sparkles, UserRoundPlus } from 'lucide-react'
 import tenantSignupService from '@/services/tenantSignupService'
 import { buildTenantAppRedirectUrl } from '@/utils/tenantRuntime'
+import { getUniversalAuthCopy } from '@/utils/publicBranding'
 
 type StepId = 'name' | 'slug' | 'adminEmail' | 'adminPassword' | 'confirmPassword'
 
@@ -39,19 +40,19 @@ const STEPS: Array<{
 }> = [
   {
     id: 'name',
-    prompt: 'Please enter centre name.',
+    prompt: 'Please enter institution name.',
     placeholder: 'Example: Sunrise Public School',
     inputType: 'text',
   },
   {
     id: 'slug',
-    prompt: 'Choose a workspace slug. This will be your School Code for logging in at sems.capabble.cloud.',
+    prompt: 'Choose a workspace slug. This becomes your Workspace Code for logging in to your Capabble modules.',
     placeholder: 'Example: sunrise-public-school',
     inputType: 'text',
   },
   {
     id: 'adminEmail',
-    prompt: 'What is the admin email for this centre?',
+    prompt: 'What is the admin email for this workspace?',
     placeholder: 'admin@institution.com',
     inputType: 'email',
   },
@@ -142,6 +143,7 @@ const validateStepValue = (stepId: StepId, value: string, draft: DraftState) => 
 }
 
 const TenantSignupChat: React.FC = () => {
+  const authCopy = getUniversalAuthCopy()
   const initialState = useMemo<PersistedState>(() => {
     try {
       const raw = sessionStorage.getItem(CHAT_STORAGE_KEY)
@@ -153,7 +155,7 @@ const TenantSignupChat: React.FC = () => {
             {
               id: messageId(),
               role: 'assistant',
-          text: 'Hi, I am your Cntr onboarding assistant. I will create your centre in a few quick steps.',
+          text: 'Hi, I am your Capabble onboarding assistant. I will create your workspace in a few quick steps.',
             },
             {
               id: messageId(),
@@ -173,7 +175,7 @@ const TenantSignupChat: React.FC = () => {
           {
             id: messageId(),
             role: 'assistant',
-          text: 'Hi, I am your Cntr onboarding assistant. I will create your centre in a few quick steps.',
+          text: 'Hi, I am your Capabble onboarding assistant. I will create your workspace in a few quick steps.',
           },
           {
             id: messageId(),
@@ -274,7 +276,7 @@ const TenantSignupChat: React.FC = () => {
     }
 
     setIsSubmitting(true)
-    pushAssistantMessage('Creating your centre now...')
+    pushAssistantMessage('Creating your workspace now...')
 
     try {
       const result = await tenantSignupService.startSignup({
@@ -287,9 +289,9 @@ const TenantSignupChat: React.FC = () => {
 
       sessionStorage.removeItem(CHAT_STORAGE_KEY)
       if (result.otpDeliveryStatus === 'sent') {
-        pushAssistantMessage('Centre ready. We sent a verification code to your admin email. Redirecting you now...')
+        pushAssistantMessage('Workspace ready. We sent a verification code to your admin email. Redirecting you now...')
       } else {
-        pushAssistantMessage('Centre ready, but OTP email delivery failed. Redirecting now so you can resend the code from the verification page.')
+        pushAssistantMessage('Workspace ready, but OTP email delivery failed. Redirecting now so you can resend the code from the verification page.')
       }
 
       const redirectUrl = buildTenantAppRedirectUrl(result.tenantSlug, result.ticket)
@@ -332,15 +334,15 @@ const TenantSignupChat: React.FC = () => {
             <Sparkles className="w-4 h-4" />
             Guided AI-Style Signup
           </div>
-          <h1 className="text-4xl mt-6 font-semibold leading-tight">Launch your Centre in one chat.</h1>
+          <h1 className="text-4xl mt-6 font-semibold leading-tight">{authCopy.onboardingTitle}</h1>
           <p className="text-slate-300 mt-4">
-            Fast provisioning, secure onboarding ticket, and automatic dashboard sign-in.
+            {authCopy.onboardingDescription}
           </p>
 
           <div className="mt-8 space-y-4 text-sm">
             <div className="flex items-center gap-3 text-slate-200">
               <Building2 className="w-5 h-5 text-cyan-300" />
-              Centre database provisioned in real time
+              Workspace provisioned in real time
             </div>
             <div className="flex items-center gap-3 text-slate-200">
               <UserRoundPlus className="w-5 h-5 text-cyan-300" />
@@ -348,12 +350,12 @@ const TenantSignupChat: React.FC = () => {
             </div>
             <div className="flex items-center gap-3 text-slate-200">
               <CheckCircle2 className="w-5 h-5 text-cyan-300" />
-              Single-use onboarding ticket with auto-login
+              Single-use onboarding ticket with shared-module access
             </div>
           </div>
 
           <p className="text-xs text-slate-400 mt-10">
-            Already registered? <Link to="/" className="text-cyan-300 hover:text-cyan-200">Sign in to Centre portal</Link>
+            Already registered? <Link to="/" className="text-cyan-300 hover:text-cyan-200">Sign in to your workspace portal</Link>
           </p>
         </section>
 
@@ -363,8 +365,8 @@ const TenantSignupChat: React.FC = () => {
               <Bot className="w-5 h-5 text-cyan-200" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold">Cntr Onboarding Assistant</h2>
-              <p className="text-xs text-slate-400">Interactive centre registration</p>
+              <h2 className="text-xl font-semibold">Capabble Onboarding Assistant</h2>
+              <p className="text-xs text-slate-400">Interactive workspace registration</p>
             </div>
           </div>
 
@@ -391,7 +393,7 @@ const TenantSignupChat: React.FC = () => {
           {!isReviewStep && (
             <form onSubmit={handleStepSubmit} className="mt-5">
               <label className="block text-xs text-slate-400 mb-2">
-                {activeStep.id === 'name' ? 'Centre Name:' : activeStep.id === 'slug' ? 'School Code:' : activeStep.prompt}
+                {activeStep.id === 'name' ? 'Institution Name:' : activeStep.id === 'slug' ? 'Workspace Code:' : activeStep.prompt}
               </label>
               <div className="flex gap-3">
                 <input
@@ -440,14 +442,14 @@ const TenantSignupChat: React.FC = () => {
                   disabled={isSubmitting}
                   className="rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-900 font-semibold px-4 py-3 disabled:opacity-60"
                 >
-                  {isSubmitting ? 'Creating...' : 'Create Centre'}
+                  {isSubmitting ? 'Creating...' : 'Create Workspace'}
                 </button>
                 <button
                   type="button"
                   onClick={() => jumpToStep(1)}
                   className="rounded-xl border border-white/20 px-4 py-3 hover:bg-white/10"
                 >
-                  Edit School Code
+                  Edit Workspace Code
                 </button>
               </div>
               <button

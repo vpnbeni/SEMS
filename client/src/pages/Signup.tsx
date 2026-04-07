@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
-import fullLogo from '../assets/full logo.png'
 import signupImg from '../assets/signupimg.png'
 import tenantSignupService from '@/services/tenantSignupService'
 import toast from 'react-hot-toast'
+import UniversalAuthBrand from '@/components/auth/UniversalAuthBrand'
+import { getPublicAppOrigin, getUniversalAuthCopy } from '@/utils/publicBranding'
 
 function toSlug(value: string): string {
   return value
@@ -35,6 +36,8 @@ const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*]).
 
 const Signup: React.FC = () => {
   const navigate = useNavigate()
+  const authCopy = getUniversalAuthCopy()
+  const appOrigin = getPublicAppOrigin()
   const [schoolCode, setSchoolCode] = useState('')
   const [affiliationNo, setAffiliationNo] = useState('')
   const [nameOfSchool, setNameOfSchool] = useState('')
@@ -120,21 +123,24 @@ const Signup: React.FC = () => {
         <div className="mx-auto flex w-full max-w-xl flex-col rounded-[28px] border border-white/50 bg-white/80 p-5 shadow-2xl shadow-slate-900/10 backdrop-blur-xl sm:p-6 lg:min-h-[78vh] lg:max-w-2xl lg:justify-between lg:p-8">
           <div className="mb-2 flex justify-center lg:mb-4">
             <a
-              href="https://cntr.capabble.cloud"
+              href={appOrigin}
               target="_blank"
               rel="noopener noreferrer"
               className="transition-opacity hover:opacity-90"
             >
-              <img src={fullLogo} alt="Cntr" className="h-12 w-auto" />
+              <UniversalAuthBrand compact subtitle="Single signup for all modules" />
             </a>
           </div>
-          <h1 className="mb-4 text-center text-lg font-bold text-slate-900 sm:text-xl lg:mb-6">Create your exam centre account.</h1>
+          <div className="mb-4 text-center lg:mb-6">
+            <h1 className="text-lg font-bold text-slate-900 sm:text-xl">{authCopy.signupTitle}</h1>
+            <p className="mt-2 text-sm text-slate-500">{authCopy.signupDescription}</p>
+          </div>
 
           <form onSubmit={handleSubmit} className="flex flex-1 flex-col justify-center space-y-3 lg:space-y-5">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:gap-4">
               <div>
                 <label htmlFor="schoolCode" className="mb-1 block text-xs font-medium text-slate-700">
-                  School Code
+                  Institution Code
                 </label>
                 <input
                   id="schoolCode"
@@ -165,9 +171,9 @@ const Signup: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="nameOfSchool" className="mb-1 block text-xs font-medium text-slate-700">
-                Full School Name
-              </label>
+                <label htmlFor="nameOfSchool" className="mb-1 block text-xs font-medium text-slate-700">
+                  Institution Name
+                </label>
               <input
                 id="nameOfSchool"
                 type="text"
@@ -280,7 +286,7 @@ const Signup: React.FC = () => {
           <p className="mt-5 text-center text-sm text-slate-600 lg:mt-6">
             Already have an account?{' '}
             <Link to="/login" className="font-semibold text-blue-600 hover:text-blue-700">
-              Login
+              Sign in across modules
             </Link>
           </p>
         </div>
