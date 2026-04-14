@@ -241,6 +241,21 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
           backTo: null,
         }
       }
+      case 'stdnt': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          'classes': { title: 'Classes', subtitle: 'Manage classes and sections for student record organization.' },
+          'student-info': { title: 'Student Info', subtitle: 'Create and review student records stored in the database.' },
+          'subjects': { title: 'Subjects', subtitle: 'Manage subjects taught in the classes.' },
+        }
+        const info = titleMap[subPage] || { title: 'Stdnt', subtitle: 'Student management workspace' }
+        return {
+          pageTitle: info.title,
+          pageSubtitle: info.subtitle,
+          showBackButton: false,
+          backTo: null,
+        }
+      }
       default:
         return {
           pageTitle: seg

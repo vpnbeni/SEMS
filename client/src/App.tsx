@@ -17,6 +17,7 @@ import Signup from './pages/Signup'
 import CntrLanding from './pages/CntrLanding'
 import TmtblLanding from './pages/TmtblLanding'
 import StdntLanding from './pages/StdntLanding'
+import StudentInfo from './pages/StudentInfo'
 import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
 import Duties from './pages/Duties'
@@ -257,6 +258,7 @@ function App() {
               <Route path="time-table/period-allocation" element={<Navigate to="/time-table/period-distribution" replace />} />
               <Route path="time-table" element={<Navigate to="/time-table/classes" replace />} />
               <Route path="stdnt/classes" element={<TimetableClasses />} />
+              <Route path="stdnt/student-info" element={<StudentInfo />} />
               <Route path="stdnt/subjects" element={<TimetableSubjects />} />
               <Route path="stdnt" element={<Navigate to="/stdnt/classes" replace />} />
               <Route path="centre-details" element={<CentreDetails />} />
