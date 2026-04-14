@@ -35,6 +35,24 @@
     "prefixes": ["/time-table/subjects"]
   },
   {
+    "key": "stdnt_classes",
+    "label": "Stdnt - Classes",
+    "path": "/stdnt/classes",
+    "group": "Student Hub",
+    "module": "stdnt",
+    "prefixes": ["/stdnt/classes"],
+    "fallbackPriority": 25
+  },
+  {
+    "key": "stdnt_subjects",
+    "label": "Stdnt - Subjects",
+    "path": "/stdnt/subjects",
+    "group": "Student Hub",
+    "module": "stdnt",
+    "prefixes": ["/stdnt/subjects"],
+    "fallbackPriority": 26
+  },
+  {
     "key": "timetable_bell_timings",
     "label": "Time Table - Bell Timings",
     "path": "/time-table/bell-timings",

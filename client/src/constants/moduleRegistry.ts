@@ -1,4 +1,4 @@
-export type ModuleId = 'cntr' | 'timetable'
+export type ModuleId = 'cntr' | 'timetable' | 'stdnt'
 
 export type ModuleDefinition = {
   id: ModuleId
@@ -19,5 +19,11 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     abbreviation: 'Tmtbl',
     title: 'Timetable Management',
     defaultRoute: '/school-hub',
+  },
+  {
+    id: 'stdnt',
+    abbreviation: 'Stdnt',
+    title: 'Student Management',
+    defaultRoute: '/stdnt/classes',
   },
 ]
