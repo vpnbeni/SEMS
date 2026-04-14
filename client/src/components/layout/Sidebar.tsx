@@ -6,7 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { logout, selectUser } from '../../redux/slices/authSlice'
 import type { AppDispatch } from '../../redux/store'
 import { useAcademicSession } from '../../contexts/AcademicSessionContext'
-import { isFeatureEnabledForPath, getModuleForPath, getAccessibleModules } from '../../constants/featureAccess'
+import { isFeatureEnabledForPath, getModuleForPath, getAccessibleModules, getFirstEnabledPathForModule } from '../../constants/featureAccess'
 import { MODULE_REGISTRY, type ModuleId } from '../../constants/moduleRegistry'
 import { useCentreDetails } from '../../hooks/useCentreDetails'
 import logoMark from '../../assets/image.png'
@@ -706,8 +706,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
                           onClick={() => {
                             setModuleSwitcherOpen(false)
                             if (!isActive) {
+                              const targetPath = getFirstEnabledPathForModule(mod.id, currentUser?.featureToggles) || mod.defaultRoute
                               setSelectedModule(mod.id)
-                              navigate(mod.defaultRoute)
+                              navigate(targetPath)
                             }
                           }}
                           className={`w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 text-left ${isActive

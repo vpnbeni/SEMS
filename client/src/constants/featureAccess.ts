@@ -78,3 +78,9 @@ export const getAccessibleModules = (toggles: TenantFeatureToggles): Set<string>
   }
   return modules
 }
+
+export const getFirstEnabledPathForModule = (module: string, toggles: TenantFeatureToggles): string | null => {
+  const moduleEntries = FEATURE_CATALOG.filter((entry) => entry.module === module)
+  const firstEnabled = moduleEntries.find((entry) => isFeatureEnabledForPath(entry.path, toggles))
+  return firstEnabled?.path ?? null
+}
