@@ -6,7 +6,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { logout, selectUser } from '../../redux/slices/authSlice'
 import type { AppDispatch } from '../../redux/store'
 import { useAcademicSession } from '../../contexts/AcademicSessionContext'
-import { isFeatureEnabledForPath } from '../../constants/featureAccess'
+import { isFeatureEnabledForPath, getModuleForPath, getAccessibleModules } from '../../constants/featureAccess'
+import { MODULE_REGISTRY, type ModuleId } from '../../constants/moduleRegistry'
 import { useCentreDetails } from '../../hooks/useCentreDetails'
 import logoMark from '../../assets/image.png'
 import {
@@ -74,6 +75,28 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
   const centreCode = centreNo || schoolCode
   const centreLabel = [centreCode, centreName].filter(Boolean).join(' - ')
 
+  // Module switcher state
+  const [moduleSwitcherOpen, setModuleSwitcherOpen] = useState(false)
+  const [selectedModule, setSelectedModule] = useState<ModuleId>('cntr')
+
+  // Sync active module from URL when navigating to a module-specific route
+  useEffect(() => {
+    const mod = getModuleForPath(location.pathname)
+    if (mod && mod !== 'core') {
+      setSelectedModule(mod as ModuleId)
+    }
+  }, [location.pathname])
+
+  const activeModule = selectedModule
+
+  const accessibleModules = useMemo(
+    () => getAccessibleModules(currentUser?.featureToggles),
+    [currentUser?.featureToggles]
+  )
+
+  const activeModuleDef = MODULE_REGISTRY.find(m => m.id === activeModule)!
+  const hasMultipleModules = accessibleModules.size > 1
+
   // Refresh counts when location changes (user navigates)
   useEffect(() => {
     // Refresh counts after a delay when navigating to relevant pages
@@ -105,6 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
     href: string
     icon: React.ReactNode
     badge: string | null
+    module?: string
   }
 
   type NavGroup = {
@@ -112,6 +136,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
     icon: React.ReactNode
     href?: string // optional link for the group header itself
     children: NavChild[]
+    module?: string
   }
 
   type NavChild = NavItem | NavSubGroup
@@ -131,6 +156,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
     {
       name: 'School Hub',
       href: '/school-hub',
+      module: 'timetable',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
@@ -264,6 +290,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
     {
       name: 'Dashboard',
       href: '/dashboard',
+      module: 'cntr',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -273,6 +300,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
     },
     {
       name: 'Centre Details',
+      module: 'cntr',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V7l7-4 7 4v14M9 10h6M9 14h6" />
@@ -303,6 +331,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
     },
     {
       name: 'Centre Records',
+      module: 'cntr',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -531,10 +560,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
   }
 
   const filteredNavigation: NavEntry[] = navigation.reduce<NavEntry[]>((acc, entry) => {
+    // Filter by active module: skip entries that don't belong to the active module or core
+    const entryModule = isGroup(entry) ? entry.module : (entry as NavItem).module
+    if (entryModule && entryModule !== 'core' && entryModule !== activeModule) {
+      return acc
+    }
+
     if (isGroup(entry)) {
       // Flatten specific groups into independent top-level items.
-      // This removes the "Centre Details" / "Centre Records" accordions from the sidebar.
-      if (entry.name === 'Centre Details' || entry.name === 'Centre Records') {
+      // This removes the group accordion wrappers and promotes children to top-level.
+      if (entry.name === 'Centre Details' || entry.name === 'Centre Records' || entry.name === 'School Hub') {
         entry.children.forEach((child) => {
           if (isSubGroup(child)) {
             child.children.forEach((grandChild) => {
@@ -604,37 +639,105 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
       {/* Decorative background accent */}
       <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-primary-50/30 via-primary-50/10 to-transparent dark:from-primary-900/10 dark:via-transparent pointer-events-none" />
 
-      {/* Logo and Header */}
-      <div className={`flex-shrink-0 h-24 transition-all duration-300 ${isCollapsed ? 'px-2' : 'px-4'} flex items-center justify-center relative z-10`}>
-        <div className="flex items-center w-full justify-between">
-          <a
-            href="https://sems.capabble.cloud/centre-details"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex items-center min-w-0 group ${isCollapsed ? 'justify-center' : 'gap-4'}`}
+      {/* Module Switcher Header */}
+      <div className={`flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'px-2 py-4' : 'px-4 py-4'} relative z-10`}>
+        <div className="relative">
+          <button
+            onClick={() => hasMultipleModules && setModuleSwitcherOpen(!moduleSwitcherOpen)}
+            className={`w-full flex items-center rounded-2xl transition-all duration-200 group outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed ? 'justify-center p-2' : 'px-3 py-3'} ${hasMultipleModules ? 'hover:bg-white/60 dark:hover:bg-secondary-800/60 hover:shadow-sm cursor-pointer' : 'cursor-default'} ${moduleSwitcherOpen ? 'bg-white/60 dark:bg-secondary-800/60 shadow-sm ring-1 ring-secondary-200 dark:ring-secondary-700' : ''}`}
           >
             <div className={`relative flex-shrink-0 transition-transform duration-300 ${isCollapsed ? 'scale-85' : 'scale-95'}`}>
               <div className="absolute inset-0 rounded-2xl bg-sky-400/20 blur-md transition-all group-hover:bg-sky-400/30"></div>
-              <div className="relative flex h-14 w-14 items-center justify-center">
+              <div className="relative flex h-12 w-12 items-center justify-center">
                 <img
                   src={logoMark}
-                  alt="Exam Centre Control"
-                  className="h-14 w-14 object-contain"
+                  alt={activeModuleDef.title}
+                  className="h-12 w-12 object-contain"
                 />
               </div>
             </div>
             {!isCollapsed && (
-              <div className="min-w-0 flex flex-col justify-center">
-                <h2 className="text-[1.8rem] font-black text-slate-800 dark:text-white leading-none tracking-tight">
-                  Cntr
-                </h2>
-                <p className="mt-0.5 text-[12px] font-semibold text-slate-900 dark:text-slate-200 leading-tight tracking-tight">
-                  Exam Centre Control
-                </p>
-              </div>
+              <>
+                <div className="min-w-0 flex flex-col justify-center ml-3 text-left">
+                  <h2 className="text-[1.5rem] font-black text-slate-800 dark:text-white leading-none tracking-tight">
+                    {activeModuleDef.abbreviation}
+                  </h2>
+                  <p className="mt-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-tight tracking-tight truncate">
+                    {activeModuleDef.title}
+                  </p>
+                </div>
+                {hasMultipleModules && (
+                  <svg
+                    className={`ml-auto w-4 h-4 flex-shrink-0 text-secondary-400 dark:text-secondary-500 transition-transform duration-200 ${moduleSwitcherOpen ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                )}
+              </>
             )}
-          </a>
+          </button>
 
+          {/* Module Switcher Dropdown */}
+          {moduleSwitcherOpen && (
+            <>
+              {/* In-sidebar overlay */}
+              <div
+                className={`fixed top-0 bottom-0 z-40 ${isCollapsed ? 'left-0 w-20' : 'left-0 w-68'}`}
+                onClick={() => setModuleSwitcherOpen(false)}
+                aria-hidden="true"
+              />
+              <div className={`absolute z-50 bg-white dark:bg-secondary-900 rounded-2xl shadow-hard border border-secondary-100 dark:border-secondary-700 animate-fade-in-up ring-1 ring-black/5 overflow-hidden ${isCollapsed ? 'left-full ml-3 top-0 w-64' : 'top-full left-0 right-0 mt-2'}`}>
+                <div className="px-3 pt-3 pb-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-secondary-400 dark:text-secondary-500 px-1">
+                    Switch Module
+                  </p>
+                </div>
+                <div className="px-2 pb-2 space-y-0.5">
+                  {MODULE_REGISTRY
+                    .filter(m => accessibleModules.has(m.id))
+                    .map(mod => {
+                      const isActive = mod.id === activeModule
+                      return (
+                        <button
+                          key={mod.id}
+                          onClick={() => {
+                            setModuleSwitcherOpen(false)
+                            if (!isActive) {
+                              setSelectedModule(mod.id)
+                              navigate(mod.defaultRoute)
+                            }
+                          }}
+                          className={`w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 text-left ${isActive
+                            ? 'bg-primary-50 dark:bg-primary-900/20'
+                            : 'hover:bg-secondary-50 dark:hover:bg-secondary-800/50'
+                          }`}
+                        >
+                          <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                            <span className="text-xs font-bold text-white">
+                              {mod.abbreviation.charAt(0)}
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1 ml-3">
+                            <p className={`text-sm font-semibold truncate ${isActive ? 'text-primary-700 dark:text-primary-400' : 'text-secondary-900 dark:text-white'}`}>
+                              {mod.abbreviation}
+                            </p>
+                            <p className="text-[11px] text-secondary-500 dark:text-secondary-400 truncate">
+                              {mod.title}
+                            </p>
+                          </div>
+                          {isActive && (
+                            <div className="ml-2 w-2 h-2 rounded-full bg-primary-500 flex-shrink-0" />
+                          )}
+                        </button>
+                      )
+                    })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -1085,6 +1188,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
           <div
             className={`fixed top-0 right-0 bottom-0 z-40 ${isCollapsed ? 'left-20' : 'left-68'}`}
             onClick={() => setAccountDropdownOpen(false)}
+            aria-hidden="true"
+          />,
+          document.body
+        )}
+
+      {moduleSwitcherOpen &&
+        createPortal(
+          <div
+            className={`fixed top-0 right-0 bottom-0 z-40 ${isCollapsed ? 'left-20' : 'left-68'}`}
+            onClick={() => setModuleSwitcherOpen(false)}
             aria-hidden="true"
           />,
           document.body

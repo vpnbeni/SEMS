@@ -60,3 +60,21 @@ export const getFirstEnabledPath = (toggles: TenantFeatureToggles): string | nul
   const firstEnabled = FALLBACK_ROUTE_PRIORITY.find((path) => isFeatureEnabledForPath(path, toggles))
   return firstEnabled || null
 }
+
+export const getModuleForPath = (pathname: string): string | null => {
+  const featureKey = resolveFeatureKeyFromPath(pathname)
+  if (!featureKey) return null
+  const entry = FEATURE_CATALOG.find((e) => e.key === featureKey)
+  return entry?.module ?? null
+}
+
+export const getAccessibleModules = (toggles: TenantFeatureToggles): Set<string> => {
+  const modules = new Set<string>()
+  for (const entry of FEATURE_CATALOG) {
+    if (entry.module === 'core') continue
+    if (isFeatureEnabledForPath(entry.path, toggles)) {
+      modules.add(entry.module)
+    }
+  }
+  return modules
+}
