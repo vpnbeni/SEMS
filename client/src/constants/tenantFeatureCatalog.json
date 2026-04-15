@@ -53,6 +53,15 @@
     "fallbackPriority": 26
   },
   {
+    "key": "stdnt_student_info",
+    "label": "Stdnt - Student Info",
+    "path": "/stdnt/student-info",
+    "group": "Student Hub",
+    "module": "stdnt",
+    "prefixes": ["/stdnt/student-info"],
+    "fallbackPriority": 27
+  },
+  {
     "key": "timetable_bell_timings",
     "label": "Time Table - Bell Timings",
     "path": "/time-table/bell-timings",
