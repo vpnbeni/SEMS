@@ -6,17 +6,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **CAPABBLE** is building a modular school/institution ERP — comparable metaphorically to AWS, where each service (module) is independently purchasable and works standalone, but modules seamlessly integrate when combined. Institutions can start with a single module and add more over time via one-click activation.
 
-### Current Modules
-- **Cntr (Centre Management)** — CBSE examination centre operations: datesheet import, candidate management, seating plans, duty assignment, answer sheet tracking, Form 66 attendance, dispatch
-- **Timetable** — School timetable generation: teacher-subject-class allocation, bell timings, parallel subjects, conflict resolution, version management
+### Module Registry
 
-### Planned Modules (Future)
-- HR / Staff Management
-- Fee Management
-- Admissions
-- Library Management
-- Transport
-- And more — each independently activatable
+Each module is fully functional as a standalone product and supports integration with other active modules.
+
+#### Completed / Near-Complete
+| Code | Name | Description | Status |
+|------|------|-------------|--------|
+| **CNTR** | Centre Management | CBSE examination centre operations: datesheet import, candidate management, seating plans, duty assignment, answer sheet tracking, Form 66 attendance, dispatch | Done |
+| **TMTBL** | Timetable | School timetable generation: teacher-subject-class allocation, bell timings, parallel subjects, conflict resolution, version management | Done |
+| **STDNT** | Student Management | Manage students | Near-complete |
+
+#### Up Next
+| Code | Name | Description | Status |
+|------|------|-------------|--------|
+| **EXMCL** | Internal Exams | Manage internal/class exams | Next |
+
+#### Planned
+| Code | Name | Description | Status |
+|------|------|-------------|--------|
+| **STAAF** | Staff Management | Manage school staff | Planned |
+| **ATTND** | Attendance | Manage attendance of staff | Planned |
+| **CPITL** | Capital / Finance | Manage income & expenses | Planned |
+| **ACDMC** | Academic / Curriculum | Manage curriculum | Planned |
+| **ACTVT** | Activities | Manage co-curricular activities | Planned |
+| **TRNST** | Transport | Manage transport | Planned |
+| **LBRY** | Library | School digital library | Planned |
+| **LABBS** | Labs | School digital labs | Planned |
+| **STTOK** | Store / Inventory | Manage inventory & store | Planned |
+| **CNTCT** | Communication Centre | Communication centre | Planned |
+| **FDBCK** | Feedback | Suggestions & complaints | Planned |
+| **ALMNI** | Alumni | School alumni (passout students) | Planned |
 
 ### Core Principles
 1. **Module independence** — Each module works fully standalone. Subscribing to Timetable does not require Cntr, and vice versa.
@@ -60,7 +80,7 @@ server/src/modules/
 
 ## Project Overview
 
-CAPABBLE ERP is a multi-tenant, full-stack MERN application providing modular school/institution management. The first two modules are **Cntr** (CBSE examination centre management) and **Timetable** (school timetable generation). The system uses a central platform database alongside per-tenant databases for data isolation, with feature toggles controlling module activation per tenant.
+CAPABBLE ERP is a multi-tenant, full-stack MERN application providing modular school/institution management. Completed modules: **CNTR** (CBSE examination centre management), **TMTBL** (school timetable generation), and **STDNT** (student management, near-complete). Next up: **EXMCL** (internal exams). The system uses a central platform database alongside per-tenant databases for data isolation, with feature toggles controlling module activation per tenant.
 
 ## Deployment & Domains
 
