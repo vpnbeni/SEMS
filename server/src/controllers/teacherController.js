@@ -195,6 +195,7 @@ const getTeachers = asyncHandler(async (req, res) => {
     joiningDateFrom,
     joiningDateTo,
     schoolName,
+    dutyType,
     sort = '-createdAt',
   } = req.query;
 
@@ -222,6 +223,10 @@ const getTeachers = asyncHandler(async (req, res) => {
 
   if (subject) {
     filter.subjects = subject;
+  }
+
+  if (dutyType) {
+    filter.dutyType = String(dutyType).trim();
   }
 
   if (includeAllRecords === true || includeAllRecords === 'true') {

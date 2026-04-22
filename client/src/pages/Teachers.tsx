@@ -31,11 +31,16 @@ const DUTY_TYPE_OPTIONS = [
   'Class IV',
 ];
 
-const getDutyOptionsForDesignation = (designation: string | undefined): string[] => {
+const getDutyOptionsForDesignation = (
+  designation: string | undefined,
+  baseOptions: string[],
+  enforceDesignationDutyRules: boolean
+): string[] => {
+  if (!enforceDesignationDutyRules) return baseOptions;
   const d = (designation || '').trim().toLowerCase();
   if (d === 'principal') return ['Centre Superintendent', 'Observer'];
   if (d === 'vice principal') return ['Centre Superintendent', 'Deputy Centre Superintendent'];
-  return DUTY_TYPE_OPTIONS;
+  return baseOptions;
 };
 
 const LIMIT = 50;
@@ -90,6 +95,11 @@ type TeachersProps = {
   includeDutyTypeAssignedRecords?: boolean;
   includeAllRecords?: boolean;
   uiOnlyDelete?: boolean;
+  dutyTypeColumnLabel?: string;
+  dutyTypeOptions?: string[];
+  enforceDesignationDutyRules?: boolean;
+  alwaysEditableDutyType?: boolean;
+  dutyTypeErrorLabel?: string;
 };
 
 const Teachers: React.FC<TeachersProps> = ({
@@ -110,6 +120,11 @@ const Teachers: React.FC<TeachersProps> = ({
   includeDutyTypeAssignedRecords = false,
   includeAllRecords = false,
   uiOnlyDelete = false,
+  dutyTypeColumnLabel = "Duty Type",
+  dutyTypeOptions = DUTY_TYPE_OPTIONS,
+  enforceDesignationDutyRules = true,
+  alwaysEditableDutyType = false,
+  dutyTypeErrorLabel,
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const queryClient = useQueryClient();
@@ -934,15 +949,15 @@ const Teachers: React.FC<TeachersProps> = ({
                   />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 mb-1">Duty Type</p>
+                  <p className="text-xs font-semibold text-secondary-500 dark:text-secondary-400 mb-1">{dutyTypeColumnLabel}</p>
                   <Dropdown
-                    options={[{ value: '', label: 'All Duty Types' }, ...dutyTypeFilterOptions]}
+                    options={[{ value: '', label: `All ${dutyTypeColumnLabel}s` }, ...dutyTypeFilterOptions]}
                     value={filterDutyType}
                     onChange={(value) => setFilterDutyType(String(Array.isArray(value) ? value[0] : value ?? ''))}
                     size="sm"
                     clearable={false}
                     searchable
-                    placeholder="Duty Type"
+                    placeholder={dutyTypeColumnLabel}
                     className="w-full"
                   />
                 </div>
@@ -986,7 +1001,7 @@ const Teachers: React.FC<TeachersProps> = ({
                 {[
                   { label: "Teacher Name", field: "name" },
                   { label: "OASIS ID", field: "oasisId" },
-                  ...(!hideDutyType ? [{ label: "Duty Type", field: "dutyType" }] : []),
+                  ...(!hideDutyType ? [{ label: dutyTypeColumnLabel, field: "dutyType" }] : []),
                   { label: "Designation", field: "designation" },
                   { label: "Subject Code", field: "subjectCode" },
                   { label: "Subject Name", field: "subjects" },
@@ -1107,7 +1122,17 @@ const Teachers: React.FC<TeachersProps> = ({
                       >
                         {(() => {
                           const currentDuty = dutyTypeOverrides[teacher._id || teacher.id!] ?? teacher.dutyType ?? '';
-                          if (currentDuty) {
+                          const optionList = getDutyOptionsForDesignation(
+                            teacher.designation,
+                            dutyTypeOptions,
+                            enforceDesignationDutyRules
+                          );
+                          const normalizedCurrentDuty = String(currentDuty || '').trim();
+                          const optionsWithCurrent = normalizedCurrentDuty && !optionList.includes(normalizedCurrentDuty)
+                            ? [normalizedCurrentDuty, ...optionList]
+                            : optionList;
+
+                          if (currentDuty && !alwaysEditableDutyType) {
                             return (
                               <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300 border border-primary-200 dark:border-primary-700">
                                 {currentDuty}
@@ -1116,9 +1141,9 @@ const Teachers: React.FC<TeachersProps> = ({
                           }
                           return (
                             <select
-                              title={`Duty type for ${teacher.name}`}
-                              aria-label={`Duty type for ${teacher.name}`}
-                              value=""
+                              title={`${dutyTypeColumnLabel} for ${teacher.name}`}
+                              aria-label={`${dutyTypeColumnLabel} for ${teacher.name}`}
+                              value={normalizedCurrentDuty}
                               onChange={async (e) => {
                                 const teacherId = teacher._id || teacher.id!;
                                 const newDutyType = e.target.value;
@@ -1127,16 +1152,19 @@ const Teachers: React.FC<TeachersProps> = ({
                                 try {
                                   await teacherService.update(teacherId, { dutyType: newDutyType } as any);
                                   queryClient.invalidateQueries({ queryKey: teacherKeys.all });
-                                  toast.success(`Duty type updated for ${teacher.name}`);
+                                  const successLabel = dutyTypeErrorLabel || dutyTypeColumnLabel;
+                                  toast.success(`${successLabel} updated for ${teacher.name}`);
                                 } catch (err: any) {
                                   setDutyTypeOverrides((prev) => { const next = { ...prev }; delete next[teacherId]; return next; });
-                                  toast.error(err?.response?.data?.message || 'Failed to update duty type');
+                                  const fallbackLabel = (dutyTypeErrorLabel || dutyTypeColumnLabel).toLowerCase();
+                                  const serverMessage = String(err?.response?.data?.message || '').trim();
+                                  toast.error(serverMessage || `Failed to update ${fallbackLabel}`);
                                 }
                               }}
                               className="block min-w-[180px] rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white py-1.5 px-2 focus:ring-primary-500 focus:border-primary-500"
                             >
-                              <option value="">Select Duty</option>
-                              {getDutyOptionsForDesignation(teacher.designation).map((duty: string) => (
+                              <option value="">{`Select ${dutyTypeColumnLabel}`}</option>
+                              {optionsWithCurrent.map((duty: string) => (
                                 <option key={duty} value={duty}>{duty}</option>
                               ))}
                             </select>

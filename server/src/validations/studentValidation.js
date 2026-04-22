@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { STUDENT_CLASSES, STUDENT_SECTIONS, REGEX_PATTERNS } = require('../utils/constants');
+const { STUDENT_CLASSES, STUDENT_SECTIONS, STUDENT_GENDERS, REGEX_PATTERNS } = require('../utils/constants');
 
 // Base student schema
 const baseStudentSchema = {
@@ -7,7 +7,7 @@ const baseStudentSchema = {
     .pattern(REGEX_PATTERNS.ROLL_NUMBER)
     .required()
     .messages({
-      'string.pattern.base': 'Roll number must be 6-12 characters with letters and numbers only',
+      'string.pattern.base': 'Admission number must be 1-20 characters with letters and numbers only',
       'any.required': 'Roll number is required'
     }),
   
@@ -39,6 +39,15 @@ const baseStudentSchema = {
     .messages({
       'string.pattern.base': 'Please provide a valid 10-digit phone number'
     }),
+
+  penNumber: Joi.string()
+    .trim()
+    .max(50)
+    .optional()
+    .allow('')
+    .messages({
+      'string.max': 'PEN number cannot exceed 50 characters'
+    }),
   
   class: Joi.string()
     .valid(...Object.values(STUDENT_CLASSES))
@@ -55,6 +64,14 @@ const baseStudentSchema = {
     .messages({
       'any.only': 'Section must be one of: ' + STUDENT_SECTIONS.join(', '),
       'any.required': 'Section is required'
+    }),
+
+  gender: Joi.string()
+    .valid(...STUDENT_GENDERS)
+    .optional()
+    .default('Unspecified')
+    .messages({
+      'any.only': 'Gender must be one of: ' + STUDENT_GENDERS.join(', ')
     }),
   
   subjects: Joi.array()

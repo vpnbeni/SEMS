@@ -171,7 +171,12 @@ const createTeacherSchema = Joi.object({
       'ASI (Frisking Female)',
       'Clerk',
       'Others',
-      'Class IV'
+      'Class IV',
+      'Teacher',
+      'Driver',
+      'Conductor',
+      'Peon',
+      'Sweaper'
     )
     .allow('')
     .default('')
@@ -333,7 +338,12 @@ const updateTeacherSchema = Joi.object({
       'ASI (Frisking Female)',
       'Clerk',
       'Others',
-      'Class IV'
+      'Class IV',
+      'Teacher',
+      'Driver',
+      'Conductor',
+      'Peon',
+      'Sweaper'
     )
     .allow('')
     .messages({
@@ -450,6 +460,11 @@ const teacherQuerySchema = Joi.object({
     .trim()
     .messages({
       'string.base': 'School name must be a string'
+    }),
+  dutyType: Joi.string()
+    .trim()
+    .messages({
+      'string.base': 'Duty type must be a string'
     })
 });
 

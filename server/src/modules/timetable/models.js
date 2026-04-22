@@ -10,4 +10,5 @@
 module.exports = {
   TimetableState: require('../../models/TimetableState'),
   TimetableVersion: require('../../models/TimetableVersion'),
+  BellTimingVersion: require('../../models/BellTimingVersion'),
 };

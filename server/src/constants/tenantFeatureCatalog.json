@@ -35,6 +35,15 @@
     "prefixes": ["/time-table/subjects"]
   },
   {
+    "key": "staaf_staff_members",
+    "label": "STAAF - Staff Members",
+    "path": "/staaf/staff-members",
+    "group": "Staff Hub",
+    "module": "staaf",
+    "prefixes": ["/staaf/staff-members"],
+    "fallbackPriority": 29
+  },
+  {
     "key": "timetable_bell_timings",
     "label": "Time Table - Bell Timings",
     "path": "/time-table/bell-timings",
@@ -57,6 +66,14 @@
     "group": "School Hub",
     "module": "timetable",
     "prefixes": ["/time-table/teacher-wise"]
+  },
+  {
+    "key": "timetable_formats",
+    "label": "Time Table - Formats",
+    "path": "/time-table/formats",
+    "group": "School Hub",
+    "module": "timetable",
+    "prefixes": ["/time-table/formats"]
   },
   {
     "key": "timetable_period_allocation",
@@ -245,6 +262,150 @@
     "group": "Centre Records",
     "module": "cntr",
     "prefixes": ["/remuneration"]
+  },
+  {
+    "key": "exmcl_centre_details",
+    "label": "ExmCl - Centre Details",
+    "path": "/exmcl/centre-details",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/centre-details"]
+  },
+  {
+    "key": "exmcl_exam_functionaries",
+    "label": "ExmCl - Exam Functionaries",
+    "path": "/exmcl/exam-functionaries",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/exam-functionaries"]
+  },
+  {
+    "key": "exmcl_centre_guidelines",
+    "label": "ExmCl - Centre Guidelines",
+    "path": "/exmcl/centre-guidelines",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/centre-guidelines"]
+  },
+  {
+    "key": "exmcl_result",
+    "label": "ExmCl - Result",
+    "path": "/exmcl/result",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/result"]
+  },
+  {
+    "key": "exmcl_report_card",
+    "label": "ExmCl - Report Card",
+    "path": "/exmcl/report-card",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/report-card"]
+  },
+  {
+    "key": "exmcl_award_list",
+    "label": "ExmCl - Award List",
+    "path": "/exmcl/award-list",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/award-list"]
+  },
+  {
+    "key": "exmcl_question_papers",
+    "label": "ExmCl - Question Papers",
+    "path": "/exmcl/question-papers",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/question-papers"]
+  },
+  {
+    "key": "exmcl_syllabus",
+    "label": "ExmCl - Syllabus",
+    "path": "/exmcl/syllabus",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/syllabus"]
+  },
+  {
+    "key": "exmcl_marks_distribution",
+    "label": "ExmCl - Marks Distribution",
+    "path": "/exmcl/marks-distribution",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/marks-distribution"]
+  },
+  {
+    "key": "exmcl_subjects",
+    "label": "ExmCl - Subjects",
+    "path": "/exmcl/subjects",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/subjects"]
+  },
+  {
+    "key": "exmcl_datesheets",
+    "label": "ExmCl - Datesheets",
+    "path": "/exmcl/datesheets",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/datesheets"]
+  },
+  {
+    "key": "exmcl_examrooms",
+    "label": "ExmCl - Exam Room/Hall",
+    "path": "/exmcl/examrooms",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/examrooms", "/exmcl/rooms"]
+  },
+  {
+    "key": "exmcl_answersheets",
+    "label": "ExmCl - Answer Sheets",
+    "path": "/exmcl/answersheets",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/answersheets"]
+  },
+  {
+    "key": "exmcl_seatingplan",
+    "label": "ExmCl - Seating Plan",
+    "path": "/exmcl/seatingplan",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/seatingplan"]
+  },
+  {
+    "key": "exmcl_duties",
+    "label": "ExmCl - Duties",
+    "path": "/exmcl/duties",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/duties"]
+  },
+  {
+    "key": "exmcl_attendance",
+    "label": "ExmCl - Attendance",
+    "path": "/exmcl/attendance",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/attendance"]
+  },
+  {
+    "key": "exmcl_performas",
+    "label": "ExmCl - Performa's",
+    "path": "/exmcl/performas",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/performas"]
+  },
+  {
+    "key": "exmcl_candidates",
+    "label": "ExmCl - Candidate Details",
+    "path": "/exmcl/candidate-details",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/candidate-details", "/exmcl/candidates"]
   },
   {
     "key": "billing",

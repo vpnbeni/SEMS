@@ -106,23 +106,13 @@ const TimetableClasses: React.FC = () => {
     return deduped
   }
 
-  const [isAddingNew, setIsAddingNew] = useState(false)
-  const [newItem, setNewItem] = useState({ ...EMPTY_FORM })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingData, setEditingData] = useState({ ...EMPTY_FORM })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [matrixClassDrafts, setMatrixClassDrafts] = useState<Record<string, string>>({})
+  const [matrixSectionDrafts, setMatrixSectionDrafts] = useState<Record<string, string>>({})
 
   // ── CRUD ──
-  const handleAdd = () => {
-    if (!newItem.className.trim() || !newItem.section.trim() || !newItem.floor) return
-    addClass({
-      ...newItem,
-      subjects: normalizeSelectedSubjects(newItem.subjects),
-    })
-    setNewItem({ ...EMPTY_FORM })
-    setIsAddingNew(false)
-  }
-
   const handleEdit = (item: TimetableClass) => {
     setEditingId(item.id)
     setEditingData({
@@ -148,8 +138,6 @@ const TimetableClasses: React.FC = () => {
   const handleCancelEdit = () => {
     setEditingId(null)
     setEditingData({ ...EMPTY_FORM })
-    setIsAddingNew(false)
-    setNewItem({ ...EMPTY_FORM })
   }
 
   // ── Selection ──
@@ -214,6 +202,18 @@ const TimetableClasses: React.FC = () => {
 
   const allOnPageSelected = classes.length > 0 && classes.every((c) => selectedIds.has(c.id))
   const someOnPageSelected = classes.some((c) => selectedIds.has(c.id))
+
+  useEffect(() => {
+    setMatrixClassDrafts(
+      Object.fromEntries(matrixClasses.map((item) => [item.id, item.name]))
+    )
+  }, [matrixClasses])
+
+  useEffect(() => {
+    setMatrixSectionDrafts(
+      Object.fromEntries(matrixSections.map((item) => [item.id, item.name]))
+    )
+  }, [matrixSections])
 
   // ── Floor badge class ──
   const floorBadgeClass = (floor: string) => {
@@ -326,6 +326,20 @@ const TimetableClasses: React.FC = () => {
       matrixSections: nextMatrixSections,
       matrixSelection,
     })
+  }
+
+  const commitMatrixClassName = (classId: string) => {
+    const currentName = matrixClasses.find((item) => item.id === classId)?.name ?? ''
+    const draftName = matrixClassDrafts[classId] ?? currentName
+    if (draftName === currentName) return
+    handleMatrixClassNameChange(classId, draftName)
+  }
+
+  const commitMatrixSectionName = (sectionId: string) => {
+    const currentName = matrixSections.find((item) => item.id === sectionId)?.name ?? ''
+    const draftName = matrixSectionDrafts[sectionId] ?? currentName
+    if (draftName === currentName) return
+    handleMatrixSectionNameChange(sectionId, draftName)
   }
 
   const toggleMatrixSelection = (classId: string, sectionId: string) => {
@@ -1043,9 +1057,18 @@ const TimetableClasses: React.FC = () => {
                     <th key={section.id}>
                       <input
                         type="text"
-                        value={section.name}
+                        value={matrixSectionDrafts[section.id] ?? section.name}
                         placeholder={`Section ${index + 1}`}
-                        onChange={(e) => handleMatrixSectionNameChange(section.id, e.target.value)}
+                        onChange={(e) =>
+                          setMatrixSectionDrafts((prev) => ({ ...prev, [section.id]: e.target.value }))
+                        }
+                        onBlur={() => commitMatrixSectionName(section.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            e.currentTarget.blur()
+                          }
+                        }}
                         className="tc-matrix-section-input"
                       />
                     </th>
@@ -1063,9 +1086,18 @@ const TimetableClasses: React.FC = () => {
                     <td className="tc-matrix-class-cell">
                       <input
                         type="text"
-                        value={row.name}
+                        value={matrixClassDrafts[row.id] ?? row.name}
                         placeholder={`Class ${index + 1}`}
-                        onChange={(e) => handleMatrixClassNameChange(row.id, e.target.value)}
+                        onChange={(e) =>
+                          setMatrixClassDrafts((prev) => ({ ...prev, [row.id]: e.target.value }))
+                        }
+                        onBlur={() => commitMatrixClassName(row.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            e.currentTarget.blur()
+                          }
+                        }}
                         className="tc-matrix-class-input"
                       />
                     </td>
@@ -1147,16 +1179,6 @@ const TimetableClasses: React.FC = () => {
                 Delete All
               </button>
             )}
-            <button
-              onClick={() => setIsAddingNew(true)}
-              disabled={isAddingNew}
-              className="tc-btn tc-btn-primary"
-            >
-              <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
-              </svg>
-              Add Class
-            </button>
           </div>
         </div>
 
@@ -1189,23 +1211,6 @@ const TimetableClasses: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {/* Add new row */}
-              {isAddingNew && (
-                <NewOrEditRow
-                  mode="new"
-                  data={newItem}
-                  subjectOptions={subjectOptions}
-                  onFieldChange={(field, value) => setNewItem((prev) => ({ ...prev, [field]: value }))}
-                  onToggleSubject={(subj) =>
-                    toggleSubject(newItem.subjects, subj, (subjects) =>
-                      setNewItem((prev) => ({ ...prev, subjects }))
-                    )
-                  }
-                  onSave={handleAdd}
-                  onCancel={handleCancelEdit}
-                />
-              )}
-
               {/* Rows */}
               {classes.map((item, index) => {
                 const isEditing = editingId === item.id
@@ -1290,7 +1295,7 @@ const TimetableClasses: React.FC = () => {
               })}
 
               {/* Empty state */}
-              {classes.length === 0 && !isAddingNew && (
+              {classes.length === 0 && (
                 <tr>
                   <td colSpan={8}>
                     <div className="tc-empty">
@@ -1300,13 +1305,7 @@ const TimetableClasses: React.FC = () => {
                         </svg>
                       </div>
                       <h3>No Classes Added</h3>
-                      <p>Add classes and sections to start building your timetable.</p>
-                      <button onClick={() => setIsAddingNew(true)} className="tc-btn tc-btn-primary">
-                        <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
-                        </svg>
-                        Add Class
-                      </button>
+                      <p>Use the Class Section Matrix above, then click Save to populate this table.</p>
                     </div>
                   </td>
                 </tr>

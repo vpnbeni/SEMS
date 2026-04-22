@@ -29,10 +29,22 @@ const TENANT_MODULE_CATALOG = Object.freeze({
     description: 'CBSE examination centre operations: datesheets, candidates, seating plans, duties, answer sheets, dispatch.',
     dependencies: ['core'],
   },
+  exmcl: {
+    key: 'exmcl',
+    label: 'ExmCl — Internal Exams',
+    description: 'Internal examination operations with CNTR-equivalent workflows under separate module paths.',
+    dependencies: ['core'],
+  },
   timetable: {
     key: 'timetable',
     label: 'Timetable',
     description: 'School timetable generation: teacher-subject-class allocation, bell timings, conflict resolution, version management.',
+    dependencies: ['core'],
+  },
+  staaf: {
+    key: 'staaf',
+    label: 'STAAF — Staff Management',
+    description: 'Staff member management for institution operations and records.',
     dependencies: ['core'],
   },
 });

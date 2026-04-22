@@ -57,6 +57,7 @@ export interface FetchTeachersParams {
   subject?: string
   schoolCode?: string
   designation?: string
+  dutyType?: string
   isActive?: boolean
   includeDutyTypeAssigned?: boolean
   includeAllRecords?: boolean

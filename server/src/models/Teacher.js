@@ -205,7 +205,12 @@ const teacherSchema = new mongoose.Schema({
         'ASI (Frisking Female)',
         'Clerk',
         'Class IV',
-        'Others'
+        'Others',
+        'Teacher',
+        'Driver',
+        'Conductor',
+        'Peon',
+        'Sweaper'
       ],
       message: '{VALUE} is not a valid duty type'
     },
@@ -226,7 +231,12 @@ const teacherSchema = new mongoose.Schema({
         'ASI (Frisking Female)',
         'Clerk',
         'Class IV',
-        'Others'
+        'Others',
+        'Teacher',
+        'Driver',
+        'Conductor',
+        'Peon',
+        'Sweaper'
       ],
       message: '{VALUE} is not a valid duty type'
     }

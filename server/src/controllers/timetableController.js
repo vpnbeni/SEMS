@@ -1,6 +1,7 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const TimetableState = require('../models/TimetableState');
 const TimetableVersion = require('../models/TimetableVersion');
+const BellTimingVersion = require('../models/BellTimingVersion');
 const { generateResponse } = require('../utils/helpers');
 const { SUCCESS_MESSAGES, HTTP_STATUS, ERROR_MESSAGES } = require('../utils/constants');
 const { generate: runGenerator } = require('../services/timetableGeneratorService');
@@ -835,6 +836,118 @@ const upsertBellTimings = asyncHandler(async (req, res) => {
   );
 });
 
+const bellTimingVersionSummary = (doc) => ({
+  _id: doc._id,
+  name: doc.name,
+  academicSession: doc.academicSession,
+  createdAt: doc.createdAt,
+  updatedAt: doc.updatedAt,
+});
+
+const getBellTimingVersions = asyncHandler(async (req, res) => {
+  const BellTimingVersionModel = req.models?.BellTimingVersion || BellTimingVersion;
+  const filter = getSessionScopedFilter(req);
+  const versions = await BellTimingVersionModel.find(filter)
+    .select('-bellTimings')
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.FETCHED, versions.map(bellTimingVersionSummary))
+  );
+});
+
+const createBellTimingVersion = asyncHandler(async (req, res) => {
+  const BellTimingVersionModel = req.models?.BellTimingVersion || BellTimingVersion;
+  const TimetableStateModel = req.models?.TimetableState || TimetableState;
+  const filter = getSessionScopedFilter(req);
+  const state = await TimetableStateModel.findOne(filter).lean();
+  const bellTimings = normalizeBellTimings(state?.bellTimings, req.academicSession);
+
+  const currentCount = await BellTimingVersionModel.countDocuments(filter);
+  const requestedName = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const versionName = requestedName || `Bell Timings v${currentCount + 1}`;
+
+  const created = await BellTimingVersionModel.create({
+    name: versionName,
+    bellTimings,
+    ...(req.academicSession ? { academicSession: req.academicSession } : {}),
+  });
+
+  res.status(HTTP_STATUS.CREATED).json(
+    generateResponse(true, SUCCESS_MESSAGES.CREATED, bellTimingVersionSummary(created))
+  );
+});
+
+const getBellTimingVersion = asyncHandler(async (req, res) => {
+  const BellTimingVersionModel = req.models?.BellTimingVersion || BellTimingVersion;
+  const filter = { ...getSessionScopedFilter(req), _id: req.params.id };
+  const version = await BellTimingVersionModel.findOne(filter).lean();
+
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.FETCHED, {
+      ...bellTimingVersionSummary(version),
+      bellTimings: normalizeBellTimings(version.bellTimings, req.academicSession),
+    })
+  );
+});
+
+const applyBellTimingVersion = asyncHandler(async (req, res) => {
+  const BellTimingVersionModel = req.models?.BellTimingVersion || BellTimingVersion;
+  const TimetableStateModel = req.models?.TimetableState || TimetableState;
+  const sessionFilter = getSessionScopedFilter(req);
+  const version = await BellTimingVersionModel.findOne({ ...sessionFilter, _id: req.params.id }).lean();
+
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  const normalized = normalizeBellTimings(version.bellTimings, req.academicSession);
+  const updatePayload = { bellTimings: normalized };
+  if (req.academicSession) {
+    updatePayload.academicSession = req.academicSession;
+  }
+
+  await TimetableStateModel.findOneAndUpdate(
+    sessionFilter,
+    updatePayload,
+    {
+      new: true,
+      upsert: true,
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    }
+  ).lean();
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, 'Bell timing version applied successfully.', normalized)
+  );
+});
+
+const deleteBellTimingVersion = asyncHandler(async (req, res) => {
+  const BellTimingVersionModel = req.models?.BellTimingVersion || BellTimingVersion;
+  const filter = { ...getSessionScopedFilter(req), _id: req.params.id };
+  const deleted = await BellTimingVersionModel.findOneAndDelete(filter).lean();
+
+  if (!deleted) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.DELETED)
+  );
+});
+
 // ── Version helpers ──────────────────────────────────────────────────────────
 
 const versionSummary = (doc) => ({
@@ -1055,6 +1168,11 @@ module.exports = {
   upsertTimetableState,
   getBellTimings,
   upsertBellTimings,
+  getBellTimingVersions,
+  createBellTimingVersion,
+  getBellTimingVersion,
+  applyBellTimingVersion,
+  deleteBellTimingVersion,
   generateTimetable,
   getVersions,
   getVersion,

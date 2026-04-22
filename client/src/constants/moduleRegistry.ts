@@ -1,4 +1,4 @@
-export type ModuleId = 'cntr' | 'timetable' | 'stdnt'
+export type ModuleId = 'cntr' | 'exmcl' | 'timetable' | 'stdnt' | 'staaf'
 
 export type ModuleDefinition = {
   id: ModuleId
@@ -15,6 +15,12 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     defaultRoute: '/dashboard',
   },
   {
+    id: 'exmcl',
+    abbreviation: 'ExmCl',
+    title: 'Internal Exams',
+    defaultRoute: '/exmcl/centre-details',
+  },
+  {
     id: 'timetable',
     abbreviation: 'Tmtbl',
     title: 'Timetable Management',
@@ -24,6 +30,12 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     id: 'stdnt',
     abbreviation: 'Stdnt',
     title: 'Student Management',
-    defaultRoute: '/stdnt/classes',
+    defaultRoute: '/stdnt/student-info',
+  },
+  {
+    id: 'staaf',
+    abbreviation: 'STAAF',
+    title: 'Staff Management',
+    defaultRoute: '/staaf/staff-members',
   },
 ]

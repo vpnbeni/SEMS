@@ -5,6 +5,11 @@ const {
   upsertTimetableState,
   getBellTimings,
   upsertBellTimings,
+  getBellTimingVersions,
+  createBellTimingVersion,
+  getBellTimingVersion,
+  applyBellTimingVersion,
+  deleteBellTimingVersion,
   generateTimetable,
   getVersions,
   getVersion,
@@ -23,6 +28,9 @@ router.use(protect);
 // ── Existing configuration endpoints ────────────────────────────────────────
 router.route('/state').get(getTimetableState).put(upsertTimetableState);
 router.route('/bell-timings').get(getBellTimings).put(upsertBellTimings);
+router.route('/bell-timings/versions').get(getBellTimingVersions).post(createBellTimingVersion);
+router.route('/bell-timings/versions/:id').get(getBellTimingVersion).delete(deleteBellTimingVersion);
+router.post('/bell-timings/versions/:id/apply', applyBellTimingVersion);
 
 // ── Generation ───────────────────────────────────────────────────────────────
 router.post('/generate', generateTimetable);
@@ -37,6 +45,7 @@ router.put('/versions/:id/archive', archiveVersion);
 router.get('/versions/:id/export/excel', exportVersionExcel);
 router.get('/versions/:id/export/class-pdf', exportVersionClassPDF);
 router.get('/versions/:id/export/class-pdf/:classId', exportVersionClassPDF);
+router.get('/versions/:id/export/teacher-pdf', exportVersionTeacherPDF);
 router.get('/versions/:id/export/teacher-pdf/:teacherId', exportVersionTeacherPDF);
 
 module.exports = router;

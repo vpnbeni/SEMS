@@ -12,6 +12,7 @@ const STUDENT_CLASSES = {
 
 // Student sections
 const STUDENT_SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+const STUDENT_GENDERS = ['Boy', 'Girl', 'Other', 'Unspecified'];
 
 // Examination types
 const EXAM_TYPES = {
@@ -131,7 +132,7 @@ const HTTP_STATUS = {
 const REGEX_PATTERNS = {
   EMAIL: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   PHONE: /^[6-9]\d{9}$/,
-  ROLL_NUMBER: /^[A-Z0-9]{6,12}$/,
+  ROLL_NUMBER: /^[A-Z0-9]{1,20}$/,
   SUBJECT_CODE: /^[A-Z0-9]{3,8}$/,
   ROOM_NUMBER: /^[A-Z0-9\-]{1,10}$/
 };
@@ -140,6 +141,7 @@ module.exports = {
   USER_ROLES,
   STUDENT_CLASSES,
   STUDENT_SECTIONS,
+  STUDENT_GENDERS,
   EXAM_TYPES,
   DATESHEET_STATUS,
   ROOM_FACILITIES,

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { STUDENT_CLASSES, STUDENT_SECTIONS, REGEX_PATTERNS } = require('../utils/constants');
+const { STUDENT_CLASSES, STUDENT_SECTIONS, STUDENT_GENDERS, REGEX_PATTERNS } = require('../utils/constants');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
 const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
@@ -37,6 +37,11 @@ const studentSchema = new mongoose.Schema({
       'Please provide a valid 10-digit phone number'
     ]
   },
+  penNumber: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'PEN number cannot be more than 50 characters']
+  },
   class: {
     type: String,
     required: [true, 'Class is required'],
@@ -47,6 +52,11 @@ const studentSchema = new mongoose.Schema({
     required: [true, 'Section is required'],
     enum: STUDENT_SECTIONS,
     uppercase: true
+  },
+  gender: {
+    type: String,
+    enum: STUDENT_GENDERS,
+    default: 'Unspecified'
   },
   subjects: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -295,45 +305,100 @@ studentSchema.statics.findBySubject = function(subjectId) {
 
 // Static method to get student statistics
 studentSchema.statics.getStats = async function() {
-  const stats = await this.aggregate([
-    {
-      $group: {
-        _id: { class: '$class', section: '$section' },
-        count: { $sum: 1 },
-        active: {
-          $sum: {
-            $cond: [{ $eq: ['$isActive', true] }, 1, 0]
-          }
+  const students = await this.find({}, 'class section isActive gender dateOfBirth').lean();
+  const now = new Date();
+
+  const byClassSectionMap = new Map();
+  const byClassMap = new Map();
+  const byGenderMap = new Map();
+  const ageMatrixMap = new Map();
+
+  let activeTotal = 0;
+
+  students.forEach((student) => {
+    const className = String(student.class || '').trim();
+    const section = String(student.section || '').trim().toUpperCase();
+    const gender = STUDENT_GENDERS.includes(student.gender) ? student.gender : 'Unspecified';
+    const isActive = student.isActive === true;
+
+    if (isActive) {
+      activeTotal += 1;
+    }
+
+    const classSectionKey = `${className}::${section}`;
+    const classSectionEntry = byClassSectionMap.get(classSectionKey) || {
+      _id: { class: className, section },
+      count: 0,
+      active: 0,
+    };
+    classSectionEntry.count += 1;
+    if (isActive) classSectionEntry.active += 1;
+    byClassSectionMap.set(classSectionKey, classSectionEntry);
+
+    const classEntry = byClassMap.get(className) || {
+      _id: className,
+      count: 0,
+      active: 0,
+    };
+    classEntry.count += 1;
+    if (isActive) classEntry.active += 1;
+    byClassMap.set(className, classEntry);
+
+    const genderEntry = byGenderMap.get(gender) || {
+      _id: gender,
+      count: 0,
+      active: 0,
+    };
+    genderEntry.count += 1;
+    if (isActive) genderEntry.active += 1;
+    byGenderMap.set(gender, genderEntry);
+
+    if (student.dateOfBirth) {
+      const birthDate = new Date(student.dateOfBirth);
+      if (!Number.isNaN(birthDate.getTime())) {
+        let age = now.getFullYear() - birthDate.getFullYear();
+        const monthDiff = now.getMonth() - birthDate.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < birthDate.getDate())) {
+          age -= 1;
+        }
+
+        if (age >= 0 && age <= 100) {
+          const ageKey = `${className}::${age}`;
+          const ageEntry = ageMatrixMap.get(ageKey) || {
+            _id: { class: className, age },
+            count: 0,
+          };
+          ageEntry.count += 1;
+          ageMatrixMap.set(ageKey, ageEntry);
         }
       }
-    },
-    {
-      $sort: { '_id.class': 1, '_id.section': 1 }
     }
-  ]);
+  });
 
-  const classStats = await this.aggregate([
-    {
-      $group: {
-        _id: '$class',
-        count: { $sum: 1 },
-        active: {
-          $sum: {
-            $cond: [{ $eq: ['$isActive', true] }, 1, 0]
-          }
-        }
-      }
-    }
-  ]);
-
-  const total = await this.countDocuments();
-  const activeTotal = await this.countDocuments({ isActive: true });
+  const sortClassValue = (value) => {
+    const numeric = parseInt(String(value || '').replace(/\D/g, ''), 10);
+    return Number.isNaN(numeric) ? Number.MAX_SAFE_INTEGER : numeric;
+  };
 
   return {
-    total,
+    total: students.length,
     activeTotal,
-    byClass: classStats,
-    byClassSection: stats,
+    byClass: Array.from(byClassMap.values()).sort((a, b) => sortClassValue(a._id) - sortClassValue(b._id)),
+    byClassSection: Array.from(byClassSectionMap.values()).sort((a, b) => {
+      const classDiff = sortClassValue(a._id.class) - sortClassValue(b._id.class);
+      if (classDiff !== 0) return classDiff;
+      return String(a._id.section).localeCompare(String(b._id.section));
+    }),
+    byGender: STUDENT_GENDERS.map((gender) => byGenderMap.get(gender) || {
+      _id: gender,
+      count: 0,
+      active: 0,
+    }),
+    ageMatrix: Array.from(ageMatrixMap.values()).sort((a, b) => {
+      const classDiff = sortClassValue(a._id.class) - sortClassValue(b._id.class);
+      if (classDiff !== 0) return classDiff;
+      return a._id.age - b._id.age;
+    }),
     lastUpdated: new Date()
   };
 };

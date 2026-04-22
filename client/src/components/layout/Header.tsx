@@ -229,6 +229,7 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
           'teacher-wise': { title: 'Teacher Wise Timetable', subtitle: 'View and manage timetables organized by teacher' },
           'substitution': { title: 'Substitution', subtitle: 'Manage same-day teacher substitutions and temporary adjustments' },
           'versions': { title: 'Versions', subtitle: 'Review draft, published, and archived timetable versions' },
+          'formats': { title: 'Formats', subtitle: 'Download saved timetable versions in the selected file format' },
           'period-distribution': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
           'distribution': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
           'period-allocation': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
@@ -245,10 +246,53 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
         const subPage = segments[1] || ''
         const titleMap: Record<string, { title: string; subtitle: string }> = {
           'classes': { title: 'Classes', subtitle: 'Manage classes and sections for student record organization.' },
-          'student-info': { title: 'Student Info', subtitle: 'Create and review student records stored in the database.' },
+          'student-info': { title: 'Student Info', subtitle: 'Dashboard view of student counts, sections, gender split, and age distribution.' },
+          'students': { title: 'Students', subtitle: 'Create, import, filter, and manage student records stored in the database.' },
           'subjects': { title: 'Subjects', subtitle: 'Manage subjects taught in the classes.' },
         }
         const info = titleMap[subPage] || { title: 'Stdnt', subtitle: 'Student management workspace' }
+        return {
+          pageTitle: info.title,
+          pageSubtitle: info.subtitle,
+          showBackButton: false,
+          backTo: null,
+        }
+      }
+      case 'staaf': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          'staff-members': { title: 'Staff Members', subtitle: 'Create, import, filter, and manage staff member records.' },
+        }
+        const info = titleMap[subPage] || { title: 'STAAF', subtitle: 'Staff management workspace' }
+        return {
+          pageTitle: info.title,
+          pageSubtitle: info.subtitle,
+          showBackButton: false,
+          backTo: null,
+        }
+      }
+      case 'exmcl': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          'centre-details': { title: 'Centre Details', subtitle: 'Manage centre profile, candidate summary, and exam days' },
+          'exam-functionaries': { title: 'Exam Functionaries', subtitle: 'Manage examination functionaries and assignments' },
+          'duties': { title: 'Duties', subtitle: 'Assign exam functionaries to rooms for each exam day' },
+          'candidate-details': { title: 'Candidate Details', subtitle: 'Manage examination candidates and PDF imports' },
+          'subjects': { title: 'Subjects', subtitle: 'Manage subjects taught in the classes.' },
+          'examrooms': { title: 'Exam Room/Hall', subtitle: 'Assign rooms and halls for examinations' },
+          'answersheets': { title: 'Answer Sheets', subtitle: 'Track and manage answer sheet dispatches' },
+          'centre-guidelines': { title: 'Circulars', subtitle: 'Draft, publish, edit, update, and delete exam circulars' },
+          'result': { title: 'Result', subtitle: 'Prepare, upload, and publish internal exam results for student viewing' },
+          'report-card': { title: 'Report Card', subtitle: 'Generate final report card PDFs for printing and distribution' },
+          'award-list': { title: 'Award List', subtitle: 'Generate teacher award lists for paper checking and mark entry' },
+          'question-papers': { title: 'Question Papers', subtitle: 'Store and manage internal exam question paper records' },
+          'syllabus': { title: 'Syllabus', subtitle: 'Maintain subject-wise and exam-wise syllabus records' },
+          'marks-distribution': { title: 'Marks Distribution', subtitle: 'Distribute 100 marks across theory, practical, and internal components' },
+          'seatingplan': { title: 'Seating Plan', subtitle: 'Generate and manage seating plan PDFs' },
+          'performas': { title: "Performa's", subtitle: 'Generate relieving letters and answer sheet submission letters for centre operations.' },
+          'datesheets': { title: 'Date Sheets', subtitle: 'Create and manage examination date sheets' },
+        }
+        const info = titleMap[subPage] || { title: 'ExmCl', subtitle: 'Internal exams workspace' }
         return {
           pageTitle: info.title,
           pageSubtitle: info.subtitle,

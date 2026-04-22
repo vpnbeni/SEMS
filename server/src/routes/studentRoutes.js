@@ -14,6 +14,8 @@ const {
   getStudentStats,
   getNextRollNumber,
   bulkCreateStudents,
+  downloadStudentImportTemplate,
+  uploadStudentsFromTemplate,
   uploadDocument,
   deleteDocument,
   uploadProfileImage
@@ -83,6 +85,8 @@ router.get('/next-roll-number',
 
 // Bulk operations
 router.post('/bulk', validateJoi(bulkUploadSchema), bulkCreateStudents);
+router.get('/import-template', downloadStudentImportTemplate);
+router.post('/import-template/upload', uploadStudentsFromTemplate);
 
 // Class-based routes
 router.get('/class/:className', 

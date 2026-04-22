@@ -25,6 +25,7 @@ const cbseCircularsRoutes = require('../../routes/cbseCirculars');
 const centreDetailsRoutes = require('../../routes/centreDetailsRoutes');
 const attendanceRoutes = require('../../routes/attendanceRoutes');
 const remunerationRoutes = require('../../routes/remunerationRoutes');
+const examCircularRoutes = require('../../routes/examCircularRoutes');
 
 const mountRoutes = (router) => {
   router.use('/students', requireTenantFeature('candidates'), studentRoutes);
@@ -42,6 +43,7 @@ const mountRoutes = (router) => {
   router.use('/centre-details', requireTenantFeature('centre_details'), centreDetailsRoutes);
   router.use('/attendance', requireTenantFeature('attendance'), attendanceRoutes);
   router.use('/remuneration', requireTenantFeature('remuneration'), remunerationRoutes);
+  router.use('/exam-circulars', requireTenantFeature('exmcl_centre_guidelines'), examCircularRoutes);
 };
 
 module.exports = { mountRoutes };
