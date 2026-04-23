@@ -15,6 +15,22 @@ const examCircularSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    circularDate: {
+      type: Date,
+      required: true,
+    },
+    referenceSeries: {
+      type: String,
+      trim: true,
+      default: '',
+      maxlength: 80,
+    },
+    referenceNumber: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 120,
+    },
     status: {
       type: String,
       enum: ['draft', 'published'],
@@ -36,6 +52,8 @@ const examCircularSchema = new mongoose.Schema(
 
 examCircularSchema.index({ status: 1, updatedAt: -1 });
 examCircularSchema.index({ isActive: 1, updatedAt: -1 });
+examCircularSchema.index({ referenceNumber: 1, isActive: 1 });
+examCircularSchema.index({ circularDate: -1, updatedAt: -1 });
 
 examCircularSchema.plugin(academicSessionPlugin);
 

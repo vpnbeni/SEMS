@@ -80,6 +80,23 @@
     "fallbackPriority": 29
   },
   {
+    "key": "attnd_staff_attendance",
+    "label": "ATTND - Staff Attendance",
+    "path": "/attnd/staff-attendance",
+    "group": "Attendance Hub",
+    "module": "attnd",
+    "prefixes": ["/attnd/staff-attendance"],
+    "fallbackPriority": 31
+  },
+  {
+    "key": "attnd_student_attendance",
+    "label": "ATTND - Student Attendance",
+    "path": "/attnd/student-attendance",
+    "group": "Attendance Hub",
+    "module": "attnd",
+    "prefixes": ["/attnd/student-attendance"]
+  },
+  {
     "key": "timetable_bell_timings",
     "label": "Time Table - Bell Timings",
     "path": "/time-table/bell-timings",
@@ -322,6 +339,14 @@
     "group": "ExmCl",
     "module": "exmcl",
     "prefixes": ["/exmcl/centre-guidelines"]
+  },
+  {
+    "key": "exmcl_exams",
+    "label": "ExmCl - Exams",
+    "path": "/exmcl/exams",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/exams"]
   },
   {
     "key": "exmcl_result",

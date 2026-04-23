@@ -66,6 +66,7 @@ const TimetableClasses: React.FC = () => {
     matrixSections,
     matrixSelection,
     setMatrixState,
+    teachers,
   } = useTimetable()
 
   // Subject dropdown is strictly sourced from Timetable > Subjects module.
@@ -88,6 +89,39 @@ const TimetableClasses: React.FC = () => {
     )
   }, [subjectNameMap])
 
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingData, setEditingData] = useState({ ...EMPTY_FORM })
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [matrixClassDrafts, setMatrixClassDrafts] = useState<Record<string, string>>({})
+  const [matrixSectionDrafts, setMatrixSectionDrafts] = useState<Record<string, string>>({})
+
+  // Incharge dropdown is sourced from Timetable > Teachers module.
+  const teacherOptions = useMemo(() => {
+    const canonicalByKey = new Map<string, string>()
+    teachers.forEach((teacher) => {
+      const trimmed = teacher.name.trim()
+      if (!trimmed) return
+      const key = trimmed.toLowerCase()
+      if (!canonicalByKey.has(key)) {
+        canonicalByKey.set(key, trimmed)
+      }
+    })
+    return Array.from(canonicalByKey.values()).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' })
+    )
+  }, [teachers])
+
+  const assignedInchargeKeys = useMemo(() => {
+    const keys = new Set<string>()
+    classes.forEach((item) => {
+      if (editingId && item.id === editingId) return
+      const key = item.incharge.trim().toLowerCase()
+      if (!key) return
+      keys.add(key)
+    })
+    return keys
+  }, [classes, editingId])
+
   const normalizeSelectedSubjects = (selected: string[]) => {
     const deduped: string[] = []
     const seen = new Set<string>()
@@ -105,12 +139,6 @@ const TimetableClasses: React.FC = () => {
 
     return deduped
   }
-
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editingData, setEditingData] = useState({ ...EMPTY_FORM })
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [matrixClassDrafts, setMatrixClassDrafts] = useState<Record<string, string>>({})
-  const [matrixSectionDrafts, setMatrixSectionDrafts] = useState<Record<string, string>>({})
 
   // ── CRUD ──
   const handleEdit = (item: TimetableClass) => {
@@ -1225,6 +1253,8 @@ const TimetableClasses: React.FC = () => {
                       onToggleSelect={() => toggleSelection(item.id)}
                       data={editingData}
                       subjectOptions={subjectOptions}
+                      teacherOptions={teacherOptions}
+                      blockedTeacherKeys={assignedInchargeKeys}
                       onFieldChange={(field, value) => setEditingData((prev) => ({ ...prev, [field]: value }))}
                       onToggleSubject={(subj) =>
                         toggleSubject(editingData.subjects, subj, (subjects) =>
@@ -1334,6 +1364,8 @@ interface RowProps {
     incharge: string
   }
   subjectOptions: string[]
+  teacherOptions: string[]
+  blockedTeacherKeys: Set<string>
   onFieldChange: (field: string, value: string) => void
   onToggleSubject: (subject: string) => void
   onSave: () => void
@@ -1347,12 +1379,23 @@ const NewOrEditRow: React.FC<RowProps> = ({
   onToggleSelect,
   data,
   subjectOptions,
+  teacherOptions,
+  blockedTeacherKeys,
   onFieldChange,
   onToggleSubject,
   onSave,
   onCancel,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const availableTeacherOptions = useMemo(() => {
+    const current = data.incharge.trim()
+    const currentKey = current.toLowerCase()
+    const options = teacherOptions.filter((name) => !blockedTeacherKeys.has(name.toLowerCase()))
+    if (current && !options.some((name) => name.toLowerCase() === currentKey)) {
+      options.unshift(current)
+    }
+    return options
+  }, [teacherOptions, blockedTeacherKeys, data.incharge])
 
   return (
     <tr className={mode === 'new' ? 'tc-new-row' : undefined}>
@@ -1437,14 +1480,19 @@ const NewOrEditRow: React.FC<RowProps> = ({
         </div>
       </td>
       <td>
-        <input
-          type="text"
+        <select
           title="Class incharge"
           value={data.incharge}
           onChange={(e) => onFieldChange('incharge', e.target.value)}
-          placeholder="Teacher name"
           className="tc-input"
-        />
+        >
+          <option value="">Select teacher</option>
+          {availableTeacherOptions.map((teacherName) => (
+            <option key={teacherName} value={teacherName}>
+              {teacherName}
+            </option>
+          ))}
+        </select>
       </td>
       <td>
         <div className="tc-action-group">

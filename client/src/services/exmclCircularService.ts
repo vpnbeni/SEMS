@@ -6,6 +6,9 @@ export interface ExmclCircular {
   _id: string
   title: string
   content: string
+  circularDate: string
+  referenceSeries?: string
+  referenceNumber: string
   status: ExmclCircularStatus
   publishedAt?: string | null
   createdAt: string
@@ -17,12 +20,18 @@ const getAll = async (): Promise<ExmclCircular[]> => {
   return Array.isArray(response?.data?.data) ? response.data.data : []
 }
 
-const create = async (payload: Pick<ExmclCircular, 'title' | 'content'>): Promise<ExmclCircular> => {
+type CreateCircularPayload = Pick<ExmclCircular, 'title' | 'content' | 'circularDate' | 'referenceNumber'> & {
+  referenceSeries?: string
+}
+
+type UpdateCircularPayload = Partial<Pick<ExmclCircular, 'title' | 'content' | 'circularDate' | 'referenceSeries' | 'referenceNumber'>>
+
+const create = async (payload: CreateCircularPayload): Promise<ExmclCircular> => {
   const response = await api.post('/exam-circulars', payload)
   return response?.data?.data as ExmclCircular
 }
 
-const update = async (id: string, payload: Partial<Pick<ExmclCircular, 'title' | 'content'>>): Promise<ExmclCircular> => {
+const update = async (id: string, payload: UpdateCircularPayload): Promise<ExmclCircular> => {
   const response = await api.put(`/exam-circulars/${id}`, payload)
   return response?.data?.data as ExmclCircular
 }

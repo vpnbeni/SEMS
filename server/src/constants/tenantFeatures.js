@@ -47,6 +47,12 @@ const TENANT_MODULE_CATALOG = Object.freeze({
     description: 'Staff member management for institution operations and records.',
     dependencies: ['core'],
   },
+  attnd: {
+    key: 'attnd',
+    label: 'ATTND — Attendance Management',
+    description: 'Daily attendance workflows for staff and students.',
+    dependencies: ['core'],
+  },
 });
 
 const TENANT_MODULE_KEYS = Object.freeze(Object.keys(TENANT_MODULE_CATALOG));

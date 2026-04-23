@@ -72,6 +72,14 @@ const MODULE_MODEL_KEYS = Object.freeze({
     'AttendanceRecord',
     'AttendanceUpload',
     'ExamCircular',
+    'ExamDefinition',
+  ]),
+  attnd: Object.freeze([
+    'Teacher',
+    'Student',
+    'TimetableState',
+    'StaffAttendanceDaily',
+    'StudentAttendanceDaily',
   ]),
   timetable: Object.freeze([
     'TimetableState',
@@ -87,6 +95,7 @@ const MODULE_MODEL_KEYS = Object.freeze({
 const MODULE_FEATURE_KEYS = Object.freeze({
   cntr: Object.freeze(getModuleFeatureKeys('cntr')),
   exmcl: Object.freeze(getModuleFeatureKeys('exmcl')),
+  attnd: Object.freeze(getModuleFeatureKeys('attnd')),
   timetable: Object.freeze(getModuleFeatureKeys('timetable')),
 });
 
@@ -126,6 +135,10 @@ const getActiveModelKeys = (featureToggles) => {
 
   if (isModuleActive('timetable', featureToggles)) {
     keys.push(...MODULE_MODEL_KEYS.timetable);
+  }
+
+  if (isModuleActive('attnd', featureToggles)) {
+    keys.push(...MODULE_MODEL_KEYS.attnd);
   }
 
   return keys;

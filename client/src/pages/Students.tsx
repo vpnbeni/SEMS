@@ -8,10 +8,13 @@ import {
   fetchStudentStats,
   fetchStudents,
   getNextRollNumber,
+  updateStudent,
 } from '../redux/slices/studentSlice'
 import api from '../services/api'
 import studentService from '../services/studentService'
 import timetableService from '../services/timetableService'
+
+const STUDENTS_PAGE_SIZE = 100
 
 type StudentFormState = {
   rollNumber: string
@@ -75,20 +78,52 @@ const createInitialFormState = (): StudentFormState => ({
   isActive: true,
 })
 
-const calculateAge = (dateOfBirth?: string) => {
-  if (!dateOfBirth) return '-'
-  const dob = new Date(dateOfBirth)
-  if (Number.isNaN(dob.getTime())) return '-'
-
-  const today = new Date()
-  let age = today.getFullYear() - dob.getFullYear()
-  const monthDiff = today.getMonth() - dob.getMonth()
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-    age -= 1
-  }
-
-  return age >= 0 ? `${age}` : '-'
+const formatDate = (value?: string) => {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleDateString('en-GB')
 }
+
+const formatGender = (value?: string) => {
+  const normalized = String(value || '').trim().toLowerCase()
+  if (normalized === 'male') return 'Boy'
+  if (normalized === 'female') return 'Girl'
+  if (normalized === 'boy') return 'Boy'
+  if (normalized === 'girl') return 'Girl'
+  if (normalized === 'other') return 'Other'
+  if (normalized === 'unspecified' || !normalized) return 'Unspecified'
+  return value || 'Unspecified'
+}
+
+const mapStudentToFormState = (student: any): StudentFormState => ({
+  rollNumber: String(student?.rollNumber || ''),
+  name: String(student?.name || ''),
+  gender: (['Boy', 'Girl', 'Other', 'Unspecified'].includes(String(student?.gender || ''))
+    ? String(student?.gender || 'Unspecified')
+    : 'Unspecified') as StudentFormState['gender'],
+  email: String(student?.email || ''),
+  phone: String(student?.phone || ''),
+  class: String(student?.class || ''),
+  section: String(student?.section || ''),
+  fatherName: String(student?.fatherName || ''),
+  motherName: String(student?.motherName || ''),
+  guardianPhone: String(student?.guardianPhone || ''),
+  address: {
+    street: String(student?.address?.street || ''),
+    city: String(student?.address?.city || ''),
+    state: String(student?.address?.state || ''),
+    pincode: String(student?.address?.pincode || ''),
+  },
+  dateOfBirth: String(student?.dateOfBirth || '').slice(0, 10),
+  admissionDate: String(student?.admissionDate || '').slice(0, 10) || new Date().toISOString().slice(0, 10),
+  aadharNumber: String(student?.aadharNumber || ''),
+  category: String(student?.category || 'General'),
+  religion: String(student?.religion || ''),
+  nationality: String(student?.nationality || 'Indian'),
+  notes: String(student?.notes || ''),
+  isActive: student?.isActive !== false,
+})
 
 const sortClassNames = (left: string, right: string) => {
   const leftMatch = left.match(/\d+/)
@@ -171,8 +206,15 @@ const Students: React.FC = () => {
   const [isTemplateUploading, setIsTemplateUploading] = useState(false)
   const [showFilterPanel, setShowFilterPanel] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [tableSortField, setTableSortField] = useState<'rollNumber' | 'name' | 'class' | 'section' | 'fatherName' | 'dateOfBirth' | 'gender' | 'category' | 'phone' | 'penNumber'>('rollNumber')
+  const [tableSortDirection, setTableSortDirection] = useState<'asc' | 'desc'>('asc')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [classSectionOptions, setClassSectionOptions] = useState<ClassSectionOption[]>([])
+  const [editingSectionStudentId, setEditingSectionStudentId] = useState<string | null>(null)
+  const [sectionUpdateLoadingById, setSectionUpdateLoadingById] = useState<Record<string, boolean>>({})
+  const [sectionOverrideByStudentId, setSectionOverrideByStudentId] = useState<Record<string, string>>({})
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null)
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<string | null>(null)
 
@@ -232,7 +274,7 @@ const Students: React.FC = () => {
     dispatch(
       fetchStudents({
         page,
-        limit: 10,
+        limit: STUDENTS_PAGE_SIZE,
         sort: '-createdAt',
         ...(deferredSearch.trim() ? { search: deferredSearch.trim() } : {}),
         ...(classFilter ? { class: classFilter } : {}),
@@ -250,6 +292,10 @@ const Students: React.FC = () => {
   }, [students])
 
   useEffect(() => {
+    setSectionOverrideByStudentId({})
+  }, [students])
+
+  useEffect(() => {
     return () => {
       if (selectedPhotoPreview) {
         URL.revokeObjectURL(selectedPhotoPreview)
@@ -258,7 +304,13 @@ const Students: React.FC = () => {
   }, [selectedPhotoPreview])
 
   const totalSections = useMemo(
-    () => new Set((stats?.byClassSection || []).map((entry) => `${entry._id.class}-${entry._id.section}`)).size,
+    () => (
+      new Set(
+        (stats?.byClassSection || [])
+          .filter((entry) => (entry?.active ?? 0) > 0)
+          .map((entry) => `${entry._id.class}-${entry._id.section}`)
+      ).size
+    ),
     [stats]
   )
   const classOptions = useMemo(
@@ -270,13 +322,53 @@ const Students: React.FC = () => {
     [classSectionOptions, formData.class]
   )
   const filterSectionOptions = useMemo(
-    () => Array.from(new Set(classSectionOptions.flatMap((option) => option.sections))),
-    [classSectionOptions]
+    () => {
+      if (!classFilter) {
+        return Array.from(new Set(classSectionOptions.flatMap((option) => option.sections)))
+      }
+
+      return classSectionOptions.find((option) => option.className === classFilter)?.sections || []
+    },
+    [classSectionOptions, classFilter]
   )
 
+  useEffect(() => {
+    if (!sectionFilter) return
+    if (filterSectionOptions.includes(sectionFilter)) return
+    setSectionFilter('')
+  }, [filterSectionOptions, sectionFilter])
+
   const selectedCount = selectedIds.length
-  const visibleStudentIds = students.map((student) => student._id)
+  const sortedStudents = useMemo(() => {
+    const getSortableValue = (student: any) => {
+      if (tableSortField === 'section') return sectionOverrideByStudentId[student._id] ?? student.section ?? ''
+      if (tableSortField === 'dateOfBirth') {
+        const parsed = new Date(student.dateOfBirth || '').getTime()
+        return Number.isNaN(parsed) ? 0 : parsed
+      }
+      return String(student?.[tableSortField] ?? '').toLowerCase()
+    }
+
+    return [...students].sort((a, b) => {
+      const left = getSortableValue(a)
+      const right = getSortableValue(b)
+      if (left < right) return tableSortDirection === 'asc' ? -1 : 1
+      if (left > right) return tableSortDirection === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [students, tableSortDirection, tableSortField, sectionOverrideByStudentId])
+
+  const visibleStudentIds = sortedStudents.map((student) => student._id)
   const allVisibleSelected = visibleStudentIds.length > 0 && visibleStudentIds.every((id) => selectedIds.includes(id))
+
+  const handleSort = (field: typeof tableSortField) => {
+    if (tableSortField === field) {
+      setTableSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+    setTableSortField(field)
+    setTableSortDirection('asc')
+  }
 
   const handleFieldChange = (
     event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -358,6 +450,8 @@ const Students: React.FC = () => {
     if (!options?.keepMessage) {
       setPageMessage(null)
     }
+    setEditingStudentId(null)
+    setIsEditModalOpen(false)
   }
 
   const uploadStudentProfilePhoto = async (studentId: string, file: File) => {
@@ -375,7 +469,7 @@ const Students: React.FC = () => {
     dispatch(
       fetchStudents({
         page: targetPage,
-        limit: 10,
+        limit: STUDENTS_PAGE_SIZE,
         sort: '-createdAt',
         ...(deferredSearch.trim() ? { search: deferredSearch.trim() } : {}),
         ...(classFilter ? { class: classFilter } : {}),
@@ -416,51 +510,60 @@ const Students: React.FC = () => {
 
     setIsSubmitting(true)
     try {
-      const createdResponse = await dispatch(
-        createStudent({
-          ...formData,
-          rollNumber: formData.rollNumber.trim().toUpperCase(),
-          name: formData.name.trim(),
-          fatherName: formData.fatherName.trim(),
-          motherName: formData.motherName.trim(),
-          guardianPhone: formData.guardianPhone.trim(),
-          email: formData.email.trim(),
-          phone: formData.phone.trim(),
-          aadharNumber: formData.aadharNumber.trim(),
-          religion: formData.religion.trim(),
-          nationality: formData.nationality.trim() || 'Indian',
-          notes: formData.notes.trim(),
-          address: {
-            street: formData.address.street.trim(),
-            city: formData.address.city.trim(),
-            state: formData.address.state.trim(),
-            pincode: formData.address.pincode.trim(),
-          },
-        } as any)
-      ).unwrap()
+      const payload = {
+        ...formData,
+        rollNumber: formData.rollNumber.trim().toUpperCase(),
+        name: formData.name.trim(),
+        fatherName: formData.fatherName.trim(),
+        motherName: formData.motherName.trim(),
+        guardianPhone: formData.guardianPhone.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        aadharNumber: formData.aadharNumber.trim(),
+        religion: formData.religion.trim(),
+        nationality: formData.nationality.trim() || 'Indian',
+        notes: formData.notes.trim(),
+        address: {
+          street: formData.address.street.trim(),
+          city: formData.address.city.trim(),
+          state: formData.address.state.trim(),
+          pincode: formData.address.pincode.trim(),
+        },
+      } as any
 
-      const createdStudentId = createdResponse?.data?._id
-      if (selectedPhoto && createdStudentId) {
-        await uploadStudentProfilePhoto(createdStudentId, selectedPhoto)
+      let targetStudentId = editingStudentId || ''
+      if (editingStudentId) {
+        const updatedResponse = await dispatch(updateStudent({ id: editingStudentId, data: payload })).unwrap()
+        targetStudentId = String(updatedResponse?.data?._id || editingStudentId)
+      } else {
+        const createdResponse = await dispatch(createStudent(payload)).unwrap()
+        targetStudentId = String(createdResponse?.data?._id || '')
+      }
+
+      if (selectedPhoto && targetStudentId) {
+        await uploadStudentProfilePhoto(targetStudentId, selectedPhoto)
       }
 
       setPageMessage({
         tone: 'success',
-        text: selectedPhoto
-          ? 'Student record created successfully with photograph.'
-          : 'Student record created successfully.',
+        text: editingStudentId
+          ? 'Student record updated successfully.'
+          : (selectedPhoto
+            ? 'Student record created successfully with photograph.'
+            : 'Student record created successfully.'),
       })
       resetForm({ keepMessage: true })
       refreshStudentData(1)
       setPage(1)
       setShowAddForm(false)
+      setIsEditModalOpen(false)
     } catch (error: any) {
       setPageMessage({
         tone: 'error',
         text:
           error?.response?.data?.message ||
           error?.response?.data?.error ||
-          (typeof error === 'string' ? error : 'Failed to create student.'),
+          (typeof error === 'string' ? error : (editingStudentId ? 'Failed to update student.' : 'Failed to create student.')),
       })
     } finally {
       setIsSubmitting(false)
@@ -532,13 +635,14 @@ const Students: React.FC = () => {
       const response = await studentService.uploadImportTemplate(selectedFile)
       const result = response?.data ?? {}
       const createdCount = result.created ?? 0
+      const updatedCount = result.updated ?? 0
       const skippedCount = result.skipped ?? 0
       const errors = Array.isArray(result.errors) ? result.errors : []
       const warnings = Array.isArray(result.warnings) ? result.warnings : []
       const errorPreview = errors.slice(0, 2).map((entry: any) => `Row ${entry?.row}: ${entry?.message}`).join(' | ')
       setPageMessage({
-        tone: createdCount > 0 ? 'success' : 'error',
-        text: `Import completed. Created: ${createdCount}, Skipped: ${skippedCount}, Errors: ${errors.length}, Warnings: ${warnings.length}.${errorPreview ? ` ${errorPreview}` : ''}`,
+        tone: (createdCount + updatedCount) > 0 ? 'success' : 'error',
+        text: `Import completed. Created: ${createdCount}, Updated: ${updatedCount}, Skipped: ${skippedCount}, Errors: ${errors.length}, Warnings: ${warnings.length}.${errorPreview ? ` ${errorPreview}` : ''}`,
       })
       refreshStudentData(1)
       setPage(1)
@@ -571,9 +675,12 @@ const Students: React.FC = () => {
   }
 
   const handleAddStudentClick = () => {
+    setEditingStudentId(null)
+    setIsEditModalOpen(false)
     setShowAddForm((prev) => {
       const next = !prev
       if (next) {
+        resetForm({ keepMessage: true })
         window.requestAnimationFrame(() => {
           addFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
         })
@@ -611,6 +718,44 @@ const Students: React.FC = () => {
   const renderFieldError = (field: string) =>
     formErrors[field] ? <p className="mt-1 text-xs font-medium text-rose-600">{formErrors[field]}</p> : null
 
+  const handleEditStudentRow = (student: any) => {
+    setEditingStudentId(student._id)
+    setIsEditModalOpen(true)
+    setFormData(mapStudentToFormState(student))
+    setFormErrors({})
+    setShowAddForm(false)
+  }
+
+  const getSectionsForClass = (className: string) => (
+    classSectionOptions.find((option) => option.className === className)?.sections || []
+  )
+
+  const handleSectionChange = async (studentId: string, className: string, nextSection: string) => {
+    const normalizedSection = String(nextSection || '').trim()
+    if (!studentId || !normalizedSection) return
+
+    setSectionUpdateLoadingById((prev) => ({ ...prev, [studentId]: true }))
+    try {
+      await api.put(`/students/${studentId}`, { class: className, section: normalizedSection })
+      setSectionOverrideByStudentId((prev) => ({ ...prev, [studentId]: normalizedSection }))
+      setPageMessage({ tone: 'success', text: `Section updated to ${normalizedSection}.` })
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.message ||
+        error?.response?.data?.error ||
+        error?.message ||
+        'Failed to update section.'
+      setPageMessage({ tone: 'error', text: message })
+    } finally {
+      setSectionUpdateLoadingById((prev) => {
+        const next = { ...prev }
+        delete next[studentId]
+        return next
+      })
+      setEditingSectionStudentId(null)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {pageMessage ? (
@@ -625,7 +770,7 @@ const Students: React.FC = () => {
         </div>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
@@ -662,30 +807,19 @@ const Students: React.FC = () => {
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
-              <Trash2 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Selected</p>
-              <p className="text-3xl font-bold tracking-tight text-slate-900">{selectedCount}</p>
-            </div>
-          </div>
-        </div>
       </section>
 
       <section className="rounded-[30px] border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-6 py-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="w-full max-w-xl">
+            <div className="w-full max-w-md">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Search students..."
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
               </div>
             </div>
@@ -779,10 +913,31 @@ const Students: React.FC = () => {
         </div>
       </section>
 
-      {showAddForm ? (
-        <section ref={addFormRef} className="rounded-[30px] border border-slate-200 bg-white shadow-sm">
+      {(showAddForm || isEditModalOpen) ? (
+        <div
+          className={isEditModalOpen ? 'fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4' : ''}
+          onClick={() => {
+            if (isEditModalOpen) resetForm({ keepMessage: true })
+          }}
+        >
+          <section
+            ref={addFormRef}
+            className={`rounded-[30px] border border-slate-200 bg-white shadow-sm ${isEditModalOpen ? 'mx-auto mt-6 max-w-6xl' : ''}`}
+            onClick={(event) => event.stopPropagation()}
+          >
           <div className="border-b border-slate-200 px-6 py-5">
-            <h2 className="text-xl font-semibold tracking-tight text-slate-900">Add Student Record</h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold tracking-tight text-slate-900">{editingStudentId ? 'Edit Student Record' : 'Add Student Record'}</h2>
+              {isEditModalOpen ? (
+                <button
+                  type="button"
+                  onClick={() => resetForm({ keepMessage: true })}
+                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                >
+                  Close
+                </button>
+              ) : null}
+            </div>
             <p className="mt-1 text-sm text-slate-500">
               Capture student details manually, or use the template import for bulk onboarding.
             </p>
@@ -1152,7 +1307,7 @@ const Students: React.FC = () => {
                 className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <UserPlus className="h-4 w-4" />
-                {isSubmitting ? 'Saving Student...' : 'Save Student'}
+                {isSubmitting ? (editingStudentId ? 'Updating Student...' : 'Saving Student...') : (editingStudentId ? 'Update Student' : 'Save Student')}
               </button>
 
               <button
@@ -1164,7 +1319,8 @@ const Students: React.FC = () => {
               </button>
             </div>
           </form>
-        </section>
+          </section>
+        </div>
       ) : null}
 
       <section className="rounded-[30px] border border-slate-200 bg-white shadow-sm">
@@ -1175,7 +1331,7 @@ const Students: React.FC = () => {
           </p>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto overflow-y-auto max-h-[960px]">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr className="text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
@@ -1188,33 +1344,57 @@ const Students: React.FC = () => {
                     className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
-                <th className="px-4 py-3">Roll No</th>
-                <th className="px-4 py-3">Student Name</th>
-                <th className="px-4 py-3">Class</th>
-                <th className="px-4 py-3">Section</th>
-                <th className="px-4 py-3">Gender</th>
-                <th className="px-4 py-3">Guardian</th>
-                <th className="px-4 py-3">Age</th>
-                <th className="px-4 py-3">Status</th>
+                {[
+                  { label: 'Admission No', field: 'rollNumber' as const },
+                  { label: 'Student Name', field: 'name' as const },
+                  { label: 'Class', field: 'class' as const },
+                  { label: 'Section', field: 'section' as const },
+                  { label: 'Father Name', field: 'fatherName' as const },
+                  { label: 'Date Of Birth', field: 'dateOfBirth' as const },
+                  { label: 'Gender', field: 'gender' as const },
+                  { label: 'Category', field: 'category' as const },
+                  { label: 'Mobile Number', field: 'phone' as const },
+                  { label: 'PEN Number', field: 'penNumber' as const },
+                ].map(({ label, field }) => (
+                  <th
+                    key={field}
+                    className="cursor-pointer px-4 py-3 select-none hover:text-slate-700"
+                    onClick={() => handleSort(field)}
+                    title={`Sort by ${label}`}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      {label}
+                      {tableSortField === field ? (tableSortDirection === 'asc' ? '▲' : '▼') : ''}
+                    </span>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white text-sm text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={11} className="px-4 py-12 text-center text-slate-500">
                     Loading student records...
                   </td>
                 </tr>
               ) : students.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={11} className="px-4 py-12 text-center text-slate-500">
                     No students found for the current filters.
                   </td>
                 </tr>
               ) : (
-                students.map((student) => (
-                  <tr key={student._id} className="hover:bg-slate-50/80">
-                    <td className="px-4 py-4 align-top">
+                sortedStudents.map((student) => (
+                  <tr
+                    key={student._id}
+                    className="cursor-pointer hover:bg-slate-50/80"
+                    onClick={() => handleEditStudentRow(student)}
+                  >
+                    {(() => {
+                      const displaySection = sectionOverrideByStudentId[student._id] ?? student.section
+                      return (
+                        <>
+                    <td className="px-4 py-4 align-top" onClick={(event) => event.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(student._id)}
@@ -1226,22 +1406,60 @@ const Students: React.FC = () => {
                     <td className="px-4 py-4 align-top font-semibold text-slate-900">{student.rollNumber}</td>
                     <td className="px-4 py-4 align-top">
                       <div className="font-semibold text-slate-900">{student.name}</div>
-                      <div className="mt-1 text-xs text-slate-500">{student.category}</div>
                     </td>
                     <td className="px-4 py-4 align-top">{student.class}</td>
-                    <td className="px-4 py-4 align-top">{student.section}</td>
-                    <td className="px-4 py-4 align-top">{student.gender || 'Unspecified'}</td>
-                    <td className="px-4 py-4 align-top">{student.guardianPhone || '-'}</td>
-                    <td className="px-4 py-4 align-top">{calculateAge(student.dateOfBirth)}</td>
-                    <td className="px-4 py-4 align-top">
-                      <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          student.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
-                        }`}
-                      >
-                        {student.isActive ? 'Active' : 'Inactive'}
-                      </span>
+                    <td className="px-4 py-4 align-top" onClick={(event) => event.stopPropagation()}>
+                      {editingSectionStudentId === student._id ? (
+                        (() => {
+                          const availableSections = getSectionsForClass(String(student.class || ''))
+
+                          return (
+                            <div className="flex flex-wrap gap-1">
+                              {availableSections.map((sectionName) => {
+                                const isCurrent = sectionName === String(displaySection || '')
+                                return (
+                                  <button
+                                    key={sectionName}
+                                    type="button"
+                                    onClick={() => handleSectionChange(student._id, String(student.class || ''), sectionName)}
+                                    disabled={Boolean(sectionUpdateLoadingById[student._id])}
+                                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                                      isCurrent
+                                        ? 'border-blue-300 bg-blue-600 text-white'
+                                        : 'border-blue-200 bg-white text-blue-800 hover:border-blue-300 hover:bg-blue-50'
+                                    } disabled:cursor-not-allowed disabled:opacity-60`}
+                                    title={`Set section ${sectionName} for ${student.name}`}
+                                    aria-label={`Set section ${sectionName} for ${student.name}`}
+                                  >
+                                    {sectionName}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          )
+                        })()
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditingSectionStudentId(student._id)}
+                          disabled={Boolean(sectionUpdateLoadingById[student._id])}
+                          className="inline-flex items-center rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800 transition hover:border-blue-300 hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+                          title={`Change section for ${student.name}`}
+                          aria-label={`Change section for ${student.name}`}
+                        >
+                          {sectionUpdateLoadingById[student._id] ? 'Saving...' : (displaySection || '-')}
+                        </button>
+                      )}
                     </td>
+                    <td className="px-4 py-4 align-top">{student.fatherName || '-'}</td>
+                    <td className="px-4 py-4 align-top">{formatDate(student.dateOfBirth)}</td>
+                    <td className="px-4 py-4 align-top">{formatGender(student.gender)}</td>
+                    <td className="px-4 py-4 align-top">{student.category || '-'}</td>
+                    <td className="px-4 py-4 align-top">{student.phone || '-'}</td>
+                    <td className="px-4 py-4 align-top">{student.penNumber || '-'}</td>
+                        </>
+                      )
+                    })()}
                   </tr>
                 ))
               )}

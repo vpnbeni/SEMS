@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { STUDENT_CLASSES, STUDENT_SECTIONS, STUDENT_GENDERS, REGEX_PATTERNS } = require('../utils/constants');
+const { STUDENT_CLASSES, STUDENT_GENDERS, REGEX_PATTERNS } = require('../utils/constants');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
 const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
@@ -50,8 +50,8 @@ const studentSchema = new mongoose.Schema({
   section: {
     type: String,
     required: [true, 'Section is required'],
-    enum: STUDENT_SECTIONS,
-    uppercase: true
+    trim: true,
+    maxlength: [50, 'Section cannot be more than 50 characters']
   },
   gender: {
     type: String,
@@ -317,7 +317,7 @@ studentSchema.statics.getStats = async function() {
 
   students.forEach((student) => {
     const className = String(student.class || '').trim();
-    const section = String(student.section || '').trim().toUpperCase();
+    const section = String(student.section || '').trim();
     const gender = STUDENT_GENDERS.includes(student.gender) ? student.gender : 'Unspecified';
     const isActive = student.isActive === true;
 

@@ -2,6 +2,42 @@ import React, { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import exmclCircularService, { type ExmclCircular } from '@/services/exmclCircularService'
 
+const toInputDate = (value?: string | null) => {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toISOString().slice(0, 10)
+}
+
+const deriveSeriesFromReference = (referenceNumber?: string | null) => {
+  const value = String(referenceNumber || '').trim()
+  if (!value) return ''
+  const match = value.match(/^(.*?)(\d+)$/)
+  if (!match) return value
+  return match[1].trim()
+}
+
+const getNextReferenceNumber = (seriesRaw: string, circulars: ExmclCircular[]) => {
+  const series = seriesRaw.trim()
+  if (!series) return ''
+  const escapedSeries = series.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const suffixPattern = new RegExp(`^${escapedSeries}(\\d+)$`, 'i')
+
+  let maxCounter = 0
+  circulars.forEach((item) => {
+    const value = item.referenceNumber?.trim()
+    if (!value) return
+    const match = value.match(suffixPattern)
+    if (!match) return
+    const parsed = Number.parseInt(match[1], 10)
+    if (Number.isFinite(parsed) && parsed > maxCounter) {
+      maxCounter = parsed
+    }
+  })
+
+  return `${series}${String(maxCounter + 1).padStart(3, '0')}`
+}
+
 const formatDate = (value?: string | null) => {
   if (!value) return '-'
   return new Date(value).toLocaleString('en-IN', {
@@ -20,6 +56,9 @@ const ExmclCirculars: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [circularDate, setCircularDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [referenceSeries, setReferenceSeries] = useState('')
+  const [referenceNumber, setReferenceNumber] = useState('')
 
   const loadCirculars = async () => {
     setLoading(true)
@@ -41,21 +80,48 @@ const ExmclCirculars: React.FC = () => {
     setEditingId(null)
     setTitle('')
     setContent('')
+    setCircularDate(new Date().toISOString().slice(0, 10))
   }
 
+  useEffect(() => {
+    if (editingId) return
+    if (referenceSeries.trim()) return
+    const latestWithSeries = circulars.find((item) => item.referenceSeries?.trim() || item.referenceNumber?.trim())
+    if (!latestWithSeries) return
+    const fallbackSeries = latestWithSeries.referenceSeries?.trim() || deriveSeriesFromReference(latestWithSeries.referenceNumber)
+    if (fallbackSeries) setReferenceSeries(fallbackSeries)
+  }, [circulars, editingId, referenceSeries])
+
+  useEffect(() => {
+    if (editingId) return
+    setReferenceNumber(getNextReferenceNumber(referenceSeries, circulars))
+  }, [referenceSeries, circulars, editingId])
+
   const handleSave = async () => {
-    if (!title.trim() || !content.trim()) {
-      toast.error('Title and content are required.')
+    if (!title.trim() || !content.trim() || !circularDate || !referenceNumber.trim()) {
+      toast.error('Title, content, date, and reference number are required.')
       return
     }
 
     setSaving(true)
     try {
       if (editingId) {
-        await exmclCircularService.update(editingId, { title, content })
+        await exmclCircularService.update(editingId, {
+          title,
+          content,
+          circularDate,
+          referenceSeries: referenceSeries.trim(),
+          referenceNumber: referenceNumber.trim(),
+        })
         toast.success('Circular updated.')
       } else {
-        await exmclCircularService.create({ title, content })
+        await exmclCircularService.create({
+          title,
+          content,
+          circularDate,
+          referenceSeries: referenceSeries.trim(),
+          referenceNumber: referenceNumber.trim(),
+        })
         toast.success('Circular drafted.')
       }
       resetForm()
@@ -71,6 +137,9 @@ const ExmclCirculars: React.FC = () => {
     setEditingId(item._id)
     setTitle(item.title)
     setContent(item.content)
+    setCircularDate(toInputDate(item.circularDate))
+    setReferenceSeries(item.referenceSeries?.trim() || deriveSeriesFromReference(item.referenceNumber))
+    setReferenceNumber(item.referenceNumber || '')
   }
 
   const handlePublish = async (id: string) => {
@@ -121,8 +190,50 @@ const ExmclCirculars: React.FC = () => {
               value={title}
               onChange={(event) => setTitle(event.target.value)}
               placeholder="Enter circular title"
-              className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+              className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 md:max-w-xl dark:border-slate-600 dark:bg-slate-700 dark:text-white"
             />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div>
+              <label htmlFor="circular-date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Date
+              </label>
+              <input
+                id="circular-date"
+                type="date"
+                value={circularDate}
+                onChange={(event) => setCircularDate(event.target.value)}
+                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label htmlFor="circular-reference-series" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Reference Series
+              </label>
+              <input
+                id="circular-reference-series"
+                type="text"
+                value={referenceSeries}
+                onChange={(event) => setReferenceSeries(event.target.value)}
+                placeholder="e.g. EXMCL/2026/"
+                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label htmlFor="circular-reference-number" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Reference Number
+              </label>
+              <input
+                id="circular-reference-number"
+                type="text"
+                value={referenceNumber}
+                readOnly={!editingId}
+                onChange={(event) => setReferenceNumber(event.target.value)}
+                placeholder="Auto-generated from series"
+                className="mt-1 block w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+              />
+            </div>
           </div>
 
           <div>
@@ -194,6 +305,9 @@ const ExmclCirculars: React.FC = () => {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-base font-semibold text-slate-900 dark:text-white">{item.title}</h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      Date: {formatDate(item.circularDate)} | Ref: {item.referenceNumber || '-'}
+                    </p>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Updated: {formatDate(item.updatedAt)} | Published: {formatDate(item.publishedAt)}
                     </p>

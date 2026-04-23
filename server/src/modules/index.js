@@ -14,8 +14,9 @@
 const coreModule = require('./core');
 const cntrModule = require('./cntr');
 const timetableModule = require('./timetable');
+const attndModule = require('./attnd');
 
-const modules = [coreModule, cntrModule, timetableModule];
+const modules = [coreModule, cntrModule, timetableModule, attndModule];
 
 /**
  * Mount all tenant-scoped module routes on the given Express router.

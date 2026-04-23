@@ -34,9 +34,11 @@ const toBadgeValue = (value: SidebarCount): string | null => {
 
 type SidebarProps = {
   isCollapsed: boolean
+  expandedWidth: number
+  collapsedWidth: number
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsedWidth }) => {
   const dispatch = useDispatch<AppDispatch>()
   const queryClient = useQueryClient()
   const currentUser = useSelector(selectUser)
@@ -355,6 +357,28 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
       badge: null,
     },
     {
+      name: 'Staff Attendance',
+      href: '/attnd/staff-attendance',
+      module: 'attnd',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Student Attendance',
+      href: '/attnd/student-attendance',
+      module: 'attnd',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
       name: 'Dashboard',
       href: '/dashboard',
       module: 'cntr',
@@ -642,6 +666,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
       ),
       children: [
         { name: 'Circulars', href: '/exmcl/centre-guidelines', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>), badge: null },
+        { name: 'Exams', href: '/exmcl/exams', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 6.75h7.5m-7.5 4.5h7.5m-7.5 4.5h4.5M6 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6A2.25 2.25 0 016 3.75z" /></svg>), badge: null },
         { name: 'Result', href: '/exmcl/result', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m3 6V7m3 10v-3m5 5H4" /></svg>), badge: null },
         { name: 'Report Card', href: '/exmcl/report-card', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-6-8h6m2 13H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" /></svg>), badge: null },
         { name: 'Award List', href: '/exmcl/award-list', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 21h7.5M12 17.25V21m-5.25-9A5.25 5.25 0 0112 6.75 5.25 5.25 0 0117.25 12 5.25 5.25 0 0112 17.25 5.25 5.25 0 016.75 12z" /></svg>), badge: null },
@@ -758,9 +783,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
   const canAccessBilling = isPathAllowed('/billing')
   const canAccessAccountSettings = isPathAllowed('/account-settings')
   const canAccessHelpSupport = isPathAllowed('/help-support')
+  const currentSidebarWidth = isCollapsed ? collapsedWidth : expandedWidth
 
   return (
-    <div className={`glass border-r border-gray-100/80 dark:border-gray-800/80 h-[100vh] min-h-[100vh] transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-68'} flex flex-col overflow-visible relative z-50`}>
+    <div
+      className="glass border-r border-gray-100/80 dark:border-gray-800/80 h-[100vh] min-h-[100vh] transition-all duration-300 flex flex-col overflow-visible relative z-50"
+      style={{ width: currentSidebarWidth }}
+    >
       {/* Decorative background accent */}
       <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-primary-50/30 via-primary-50/10 to-transparent dark:from-primary-900/10 dark:via-transparent pointer-events-none" />
 
@@ -810,7 +839,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
             <>
               {/* In-sidebar overlay */}
               <div
-                className={`fixed top-0 bottom-0 z-40 ${isCollapsed ? 'left-0 w-20' : 'left-0 w-68'}`}
+                className="fixed top-0 bottom-0 left-0 z-40"
+                style={{ width: currentSidebarWidth }}
                 onClick={() => setModuleSwitcherOpen(false)}
                 aria-hidden="true"
               />
@@ -1189,7 +1219,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
             <>
               {/* In-sidebar overlay: clicking nav/rest of sidebar closes dropdown */}
               <div
-                className={`fixed top-0 bottom-0 z-40 ${isCollapsed ? 'left-0 w-20' : 'left-0 w-68'}`}
+                className="fixed top-0 bottom-0 left-0 z-40"
+                style={{ width: currentSidebarWidth }}
                 onClick={() => setAccountDropdownOpen(false)}
                 aria-hidden="true"
               />
@@ -1312,7 +1343,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
       {accountDropdownOpen &&
         createPortal(
           <div
-            className={`fixed top-0 right-0 bottom-0 z-40 ${isCollapsed ? 'left-20' : 'left-68'}`}
+            className="fixed top-0 right-0 bottom-0 z-40"
+            style={{ left: currentSidebarWidth }}
             onClick={() => setAccountDropdownOpen(false)}
             aria-hidden="true"
           />,
@@ -1322,7 +1354,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed }) => {
       {moduleSwitcherOpen &&
         createPortal(
           <div
-            className={`fixed top-0 right-0 bottom-0 z-40 ${isCollapsed ? 'left-20' : 'left-68'}`}
+            className="fixed top-0 right-0 bottom-0 z-40"
+            style={{ left: currentSidebarWidth }}
             onClick={() => setModuleSwitcherOpen(false)}
             aria-hidden="true"
           />,

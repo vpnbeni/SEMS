@@ -1,4 +1,4 @@
-export type ModuleId = 'cntr' | 'exmcl' | 'timetable' | 'stdnt' | 'staaf'
+export type ModuleId = 'cntr' | 'exmcl' | 'timetable' | 'stdnt' | 'staaf' | 'attnd'
 
 export type ModuleDefinition = {
   id: ModuleId
@@ -37,5 +37,11 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     abbreviation: 'STAAF',
     title: 'Staff Management',
     defaultRoute: '/staaf/staff-members',
+  },
+  {
+    id: 'attnd',
+    abbreviation: 'ATTND',
+    title: 'Attendance Management',
+    defaultRoute: '/attnd/staff-attendance',
   },
 ]

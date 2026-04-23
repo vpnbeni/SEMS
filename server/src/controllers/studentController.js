@@ -2,7 +2,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const Student = require('../models/Student');
 const Subject = require('../models/Subject');
 const { generateResponse, getPaginationParams, buildPaginationResponse } = require('../utils/helpers');
-const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS, STUDENT_CLASSES, STUDENT_SECTIONS, STUDENT_GENDERS } = require('../utils/constants');
+const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS, STUDENT_CLASSES, STUDENT_GENDERS } = require('../utils/constants');
 const ExcelJS = require('exceljs');
 const path = require('path');
 const fsSync = require('fs');
@@ -12,26 +12,15 @@ const { uploadToCloudinary, deleteFromCloudinary, extractPublicId, uploadDocumen
 const STUDENT_TEMPLATE_COLUMNS = [
   { key: 'rollNumber', label: 'ADMISSION NO', required: true, aliases: ['ROLL NUMBER'] },
   { key: 'name', label: 'STUDENT NAME', required: true },
+  // Keep SECTION right next to CLASS for import template usability.
   { key: 'class', label: 'CLASS', required: true },
+  { key: 'section', label: 'SECTION', required: true },
   { key: 'fatherName', label: 'FATHER NAME', required: true },
   { key: 'dateOfBirth', label: 'DATE OF BIRTH', required: true },
   { key: 'gender', label: 'GENDER', required: true },
   { key: 'category', label: 'CATEGORY', required: true },
   { key: 'phone', label: 'MOBILE NUMBER', required: false, aliases: ['STUDENT PHONE'] },
   { key: 'penNumber', label: 'PEN NUMBER', required: false },
-  { key: 'section', label: 'SECTION', required: true },
-  { key: 'admissionDate', label: 'ADMISSION DATE', required: true },
-  { key: 'motherName', label: 'MOTHER NAME', required: true },
-  { key: 'guardianPhone', label: 'GUARDIAN PHONE', required: true },
-  { key: 'email', label: 'EMAIL', required: false },
-  { key: 'aadharNumber', label: 'AADHAR NUMBER', required: false },
-  { key: 'religion', label: 'RELIGION', required: false },
-  { key: 'nationality', label: 'NATIONALITY', required: false },
-  { key: 'street', label: 'STREET ADDRESS', required: true },
-  { key: 'city', label: 'CITY', required: true },
-  { key: 'state', label: 'STATE', required: true },
-  { key: 'pincode', label: 'PINCODE', required: true },
-  { key: 'notes', label: 'NOTES', required: false },
 ];
 
 const normalizeString = (value) => {
@@ -131,6 +120,126 @@ const normalizeCategoryValue = (value) => {
   return categoryMap[normalized] || normalizeString(value);
 };
 
+const normalizeSectionValue = (value) => normalizeString(value).replace(/\s+/g, ' ');
+const escapeRegexValue = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const normalizeSectionKey = (value) => normalizeSectionValue(value).toLowerCase();
+
+const buildClassSectionMatrixLookup = (stateDoc) => {
+  const matrixClasses = Array.isArray(stateDoc?.matrixClasses) ? stateDoc.matrixClasses : [];
+  const matrixSections = Array.isArray(stateDoc?.matrixSections) ? stateDoc.matrixSections : [];
+  const matrixSelection = stateDoc?.matrixSelection || {};
+
+  const sectionNameById = new Map(
+    matrixSections
+      .map((section) => [String(section?.id || '').trim(), normalizeSectionValue(section?.name)])
+      .filter(([id, name]) => id && name)
+  );
+
+  const sectionsByClass = new Map();
+  matrixClasses.forEach((item) => {
+    const classId = String(item?.id || '').trim();
+    const className = normalizeString(item?.name);
+    if (!classId || !className) return;
+
+    const selectedSectionMap = matrixSelection[classId] || {};
+    const sectionNames = Object.entries(selectedSectionMap)
+      .filter(([, checked]) => Boolean(checked))
+      .map(([sectionId]) => sectionNameById.get(String(sectionId).trim()) || '')
+      .map((name) => normalizeSectionValue(name))
+      .filter(Boolean);
+
+    sectionsByClass.set(className, sectionNames);
+  });
+
+  return sectionsByClass;
+};
+
+const getClassSectionLookupFromRequest = async (req) => {
+  const TimetableStateModel = req.models?.TimetableState;
+  if (!TimetableStateModel) return new Map();
+
+  const latestTimetableState = await TimetableStateModel.findOne({})
+    .sort({ updatedAt: -1 })
+    .select('matrixClasses matrixSections matrixSelection')
+    .lean();
+
+  return buildClassSectionMatrixLookup(latestTimetableState);
+};
+
+const resolveSectionAgainstMatrix = ({ className, section, classSectionLookup }) => {
+  const normalizedClass = normalizeString(className);
+  const normalizedSection = normalizeSectionValue(section);
+  const allowedSections = classSectionLookup.get(normalizedClass) || [];
+
+  if (allowedSections.length === 0) {
+    return { section: normalizedSection, error: null };
+  }
+
+  const sectionByKey = new Map(allowedSections.map((item) => [normalizeSectionKey(item), item]));
+  const matched = sectionByKey.get(normalizeSectionKey(normalizedSection));
+  if (!matched) {
+    return {
+      section: normalizedSection,
+      error: `Section "${normalizedSection}" is not configured for class "${normalizedClass}" in Class Section Matrix.`
+    };
+  }
+
+  return { section: matched, error: null };
+};
+
+const syncLinkedStudentRecords = async (req, previousStudent, updatedStudent) => {
+  const CandidateModel = req.models?.Candidate;
+  const Form66Model = req.models?.Form66;
+
+  const previousRollNumber = normalizeString(previousStudent?.rollNumber).toUpperCase();
+  const nextRollNumber = normalizeString(updatedStudent?.rollNumber).toUpperCase();
+  if (!previousRollNumber || !nextRollNumber) return;
+
+  const commonUpdate = {
+    name: normalizeString(updatedStudent?.name),
+    class: normalizeString(updatedStudent?.class),
+    fatherName: normalizeString(updatedStudent?.fatherName),
+    motherName: normalizeString(updatedStudent?.motherName),
+    category: normalizeString(updatedStudent?.category),
+    dateOfBirth: updatedStudent?.dateOfBirth || null,
+  };
+
+  if (CandidateModel) {
+    const candidateDoc = await CandidateModel.findOne({ rollNumber: previousRollNumber });
+    if (candidateDoc) {
+      candidateDoc.rollNumber = nextRollNumber;
+      candidateDoc.name = commonUpdate.name;
+      candidateDoc.class = commonUpdate.class;
+      candidateDoc.fatherName = commonUpdate.fatherName;
+      candidateDoc.motherName = commonUpdate.motherName;
+      candidateDoc.category = commonUpdate.category;
+      candidateDoc.dateOfBirth = commonUpdate.dateOfBirth;
+      await candidateDoc.save();
+    }
+  }
+
+  if (Form66Model) {
+    const form66Filter = previousRollNumber === nextRollNumber
+      ? { rollNo: nextRollNumber }
+      : { rollNo: { $in: [previousRollNumber, nextRollNumber] } };
+
+    await Form66Model.updateMany(
+      form66Filter,
+      {
+        $set: {
+          rollNo: nextRollNumber,
+          candidateName: commonUpdate.name,
+          class: commonUpdate.class,
+          fatherName: commonUpdate.fatherName,
+          motherName: commonUpdate.motherName,
+          category: commonUpdate.category,
+          dateOfBirth: commonUpdate.dateOfBirth,
+        }
+      }
+    );
+  }
+};
+
 const normalizeDateValue = (value) => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
     return value.toISOString().slice(0, 10);
@@ -203,7 +312,7 @@ const getStudents = asyncHandler(async (req, res) => {
   }
   
   if (section) {
-    filter.section = section.toUpperCase();
+    filter.section = { $regex: `^${escapeRegexValue(normalizeSectionValue(section))}$`, $options: 'i' };
   }
   
   if (subject) {
@@ -287,6 +396,17 @@ const createStudent = asyncHandler(async (req, res) => {
     notes
   } = req.body;
   const normalizedEmail = optionalText(email)?.toLowerCase();
+  const classSectionLookup = await getClassSectionLookupFromRequest(req);
+  const resolvedSection = resolveSectionAgainstMatrix({
+    className,
+    section,
+    classSectionLookup
+  });
+  if (resolvedSection.error) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, resolvedSection.error)
+    );
+  }
 
   // Check if roll number already exists
   const existingStudent = await Student.findOne({ rollNumber });
@@ -324,8 +444,8 @@ const createStudent = asyncHandler(async (req, res) => {
     phone: optionalText(phone),
     penNumber: optionalText(penNumber),
     class: className,
-    section: section.toUpperCase(),
-    gender: STUDENT_GENDERS.includes(gender) ? gender : 'Unspecified',
+    section: resolvedSection.section,
+    gender: normalizeGenderValue(gender),
     subjects: subjects || [],
     fatherName,
     motherName,
@@ -356,6 +476,7 @@ const createStudent = asyncHandler(async (req, res) => {
 const updateStudent = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const updateData = { ...req.body };
+  const classSectionLookup = await getClassSectionLookupFromRequest(req);
 
   // Check if student exists
   const existingStudent = await Student.findById(id);
@@ -402,9 +523,20 @@ const updateStudent = asyncHandler(async (req, res) => {
     }
   }
 
-  // Ensure section is uppercase
+  // Normalize and validate section text against class-section matrix if configured.
   if (updateData.section) {
-    updateData.section = updateData.section.toUpperCase();
+    const classNameForValidation = normalizeString(updateData.class || existingStudent.class);
+    const resolvedSection = resolveSectionAgainstMatrix({
+      className: classNameForValidation,
+      section: updateData.section,
+      classSectionLookup
+    });
+    if (resolvedSection.error) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        generateResponse(false, resolvedSection.error)
+      );
+    }
+    updateData.section = resolvedSection.section;
   }
 
   if ('email' in updateData) updateData.email = normalizedUpdateEmail;
@@ -414,6 +546,7 @@ const updateStudent = asyncHandler(async (req, res) => {
   if ('religion' in updateData) updateData.religion = optionalText(updateData.religion);
   if ('nationality' in updateData) updateData.nationality = optionalText(updateData.nationality) || 'Indian';
   if ('notes' in updateData) updateData.notes = optionalText(updateData.notes);
+  if ('gender' in updateData) updateData.gender = normalizeGenderValue(updateData.gender);
 
   // Update student
   const student = await Student.findByIdAndUpdate(
@@ -424,6 +557,8 @@ const updateStudent = asyncHandler(async (req, res) => {
       runValidators: true
     }
   ).populate('subjects', 'name code type');
+
+  await syncLinkedStudentRecords(req, existingStudent, student);
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, SUCCESS_MESSAGES.UPDATED, student)
@@ -488,7 +623,7 @@ const getStudentsByClass = asyncHandler(async (req, res) => {
   };
 
   if (section) {
-    filter.section = section.toUpperCase();
+    filter.section = { $regex: `^${escapeRegexValue(normalizeSectionValue(section))}$`, $options: 'i' };
   }
 
   const students = await Student.find(filter)
@@ -510,7 +645,7 @@ const getStudentsByClassSection = asyncHandler(async (req, res) => {
 
   const students = await Student.find({ 
     class: className,
-    section: section.toUpperCase(),
+    section: { $regex: `^${escapeRegexValue(normalizeSectionValue(section))}$`, $options: 'i' },
     isActive: isActive === 'true'
   })
     .populate('subjects', 'name code type')
@@ -539,7 +674,7 @@ const getStudentsBySubject = asyncHandler(async (req, res) => {
   }
 
   if (section) {
-    filter.section = section.toUpperCase();
+    filter.section = { $regex: `^${escapeRegexValue(normalizeSectionValue(section))}$`, $options: 'i' };
   }
 
   const students = await Student.find(filter)
@@ -630,7 +765,7 @@ const getNextRollNumber = asyncHandler(async (req, res) => {
   // Get the latest student in the class and section
   const latestStudent = await Student.findOne({
     class: className,
-    section: section.toUpperCase()
+    section: { $regex: `^${escapeRegexValue(normalizeSectionValue(section))}$`, $options: 'i' }
   }).sort({ rollNumber: -1 });
 
   let nextRollNumber;
@@ -644,11 +779,11 @@ const getNextRollNumber = asyncHandler(async (req, res) => {
       nextRollNumber = `${prefix}${nextNumber.toString().padStart(match[1].length, '0')}`;
     } else {
       // If no number found, create new format
-      nextRollNumber = `${className}${section.toUpperCase()}001`;
+      nextRollNumber = `${className}${normalizeSectionValue(section).replace(/\s+/g, '').toUpperCase()}001`;
     }
   } else {
     // First student in this class and section
-    nextRollNumber = `${className}${section.toUpperCase()}001`;
+    nextRollNumber = `${className}${normalizeSectionValue(section).replace(/\s+/g, '').toUpperCase()}001`;
   }
 
   res.status(HTTP_STATUS.OK).json(
@@ -661,6 +796,7 @@ const getNextRollNumber = asyncHandler(async (req, res) => {
 // @access  Private
 const bulkCreateStudents = asyncHandler(async (req, res) => {
   const { students } = req.body;
+  const classSectionLookup = await getClassSectionLookupFromRequest(req);
 
   if (!students || !Array.isArray(students) || students.length === 0) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json(
@@ -709,9 +845,22 @@ const bulkCreateStudents = asyncHandler(async (req, res) => {
         }
       }
 
-      // Ensure section is uppercase
+      // Normalize section text.
       if (studentData.section) {
-        studentData.section = studentData.section.toUpperCase();
+        const resolvedSection = resolveSectionAgainstMatrix({
+          className: studentData.class,
+          section: studentData.section,
+          classSectionLookup
+        });
+        if (resolvedSection.error) {
+          results.failed.push({
+            index: i,
+            data: studentData,
+            error: resolvedSection.error
+          });
+          continue;
+        }
+        studentData.section = resolvedSection.section;
       }
 
       if (studentData.gender && !STUDENT_GENDERS.includes(studentData.gender)) {
@@ -769,25 +918,13 @@ const downloadStudentImportTemplate = asyncHandler(async (req, res) => {
     '3361',
     'Aarav Sharma',
     '10th',
+    'A',
     'Rajesh Sharma',
     '2010-04-15',
     'Boy',
     'General',
     '9123456789',
     '123456789012',
-    'A',
-    '2024-04-01',
-    'Sunita Sharma',
-    '9876543210',
-    'aarav@example.com',
-    '123412341234',
-    'Hindu',
-    'Indian',
-    'Sector 12, Main Road',
-    'Chandigarh',
-    'Chandigarh',
-    '160012',
-    'Imported via template',
   ];
   worksheet.addRow(sampleRow);
 
@@ -803,6 +940,7 @@ const downloadStudentImportTemplate = asyncHandler(async (req, res) => {
 // @access  Private
 const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
   const StudentModel = req.models?.Student || Student;
+  const TimetableStateModel = req.models?.TimetableState;
 
   if (!req.files || !req.files.file) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json(
@@ -896,14 +1034,24 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
 
   const results = {
     created: 0,
+    updated: 0,
     skipped: 0,
     errors: [],
     warnings: []
   };
 
   const generatedRollNumbersInRequest = new Set();
-  const creationTasks = [];
+  const importTasks = [];
   const requestAcademicSession = normalizeString(req.academicSession);
+  let classSectionLookup = new Map();
+
+  if (TimetableStateModel) {
+    const latestTimetableState = await TimetableStateModel.findOne({})
+      .sort({ updatedAt: -1 })
+      .select('matrixClasses matrixSections matrixSelection')
+      .lean();
+    classSectionLookup = buildClassSectionMatrixLookup(latestTimetableState);
+  }
 
   for (const { rowNumber, valueAt } of dataRows) {
     const rowData = {};
@@ -922,7 +1070,7 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       name: normalizeString(rowData.name),
       gender: normalizeGenderValue(rowData.gender),
       class: normalizeClassValue(rowData.class),
-      section: normalizeString(rowData.section).toUpperCase(),
+      section: normalizeSectionValue(rowData.section),
       fatherName: normalizeString(rowData.fatherName),
       motherName: normalizeString(rowData.motherName),
       guardianPhone: normalizeString(rowData.guardianPhone).replace(/\D/g, ''),
@@ -975,9 +1123,34 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       normalizedRow.class = Object.values(STUDENT_CLASSES)[0];
       fallbackNotes.push('class');
     }
-    if (!normalizedRow.section) {
-      normalizedRow.section = STUDENT_SECTIONS[0];
-      fallbackNotes.push('section');
+    const allowedSections = classSectionLookup.get(normalizedRow.class) || [];
+    const allowedSectionByKey = new Map(
+      allowedSections.map((sectionName) => [normalizeSectionKey(sectionName), sectionName])
+    );
+    const normalizedSectionInput = normalizeSectionKey(normalizedRow.section);
+    const matchedSectionFromMatrix = allowedSectionByKey.get(normalizedSectionInput);
+
+    if (allowedSections.length > 0) {
+      if (!normalizedSectionInput) {
+        normalizedRow.section = allowedSections[0];
+        fallbackNotes.push('section');
+      } else if (matchedSectionFromMatrix) {
+        normalizedRow.section = matchedSectionFromMatrix;
+      } else {
+        results.errors.push({
+          row: rowNumber,
+          message: `Section "${normalizedRow.section}" is not configured for class "${normalizedRow.class}" in Class Section Matrix.`
+        });
+        continue;
+      }
+    } else if (!normalizedSectionInput) {
+      results.errors.push({
+        row: rowNumber,
+        message: `Section is required. Configure sections in Class Section Matrix for class "${normalizedRow.class}".`
+      });
+      continue;
+    } else {
+      normalizedRow.section = normalizeSectionValue(normalizedRow.section);
     }
     if (!normalizedRow.fatherName) {
       normalizedRow.fatherName = 'Unknown';
@@ -1035,11 +1208,6 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     if (!Object.values(STUDENT_CLASSES).includes(normalizedRow.class)) {
       normalizedRow.class = Object.values(STUDENT_CLASSES)[0];
       fallbackNotes.push('invalid class');
-    }
-
-    if (!STUDENT_SECTIONS.includes(normalizedRow.section)) {
-      normalizedRow.section = STUDENT_SECTIONS[0];
-      fallbackNotes.push('invalid section');
     }
 
     if (!STUDENT_GENDERS.includes(normalizedRow.gender)) {
@@ -1110,12 +1278,27 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       });
     }
 
-    creationTasks.push(
-      StudentModel.create(normalizedRow)
-        .then(() => {
+    importTasks.push(
+      (async () => {
+        try {
+          const existingStudent = await StudentModel.findOne({ rollNumber: normalizedRow.rollNumber })
+            .select('_id')
+            .lean();
+
+          if (existingStudent?._id) {
+            const previousStudent = await StudentModel.findById(existingStudent._id).lean();
+            const updatedStudent = await StudentModel.findByIdAndUpdate(existingStudent._id, normalizedRow, {
+              new: true,
+              runValidators: true
+            });
+            await syncLinkedStudentRecords(req, previousStudent, updatedStudent);
+            results.updated += 1;
+            return;
+          }
+
+          await StudentModel.create(normalizedRow);
           results.created += 1;
-        })
-        .catch((error) => {
+        } catch (error) {
           if (error?.code === 11000) {
             const duplicateField = Object.keys(error?.keyPattern || {})[0] || 'field';
             const duplicateValue = error?.keyValue?.[duplicateField];
@@ -1130,14 +1313,15 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
 
           results.errors.push({
             row: rowNumber,
-            message: error.message || 'Failed to create student from this row.'
+            message: error.message || 'Failed to import student from this row.'
           });
-        })
+        }
+      })()
     );
   }
 
-  if (creationTasks.length > 0) {
-    await Promise.allSettled(creationTasks);
+  if (importTasks.length > 0) {
+    await Promise.allSettled(importTasks);
   }
 
   return res.status(HTTP_STATUS.OK).json(

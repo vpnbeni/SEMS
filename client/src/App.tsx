@@ -75,6 +75,11 @@ import ExmclAwardList from './pages/ExmclAwardList'
 import ExmclQuestionPapers from './pages/ExmclQuestionPapers'
 import ExmclSyllabus from './pages/ExmclSyllabus'
 import ExmclMarksDistribution from './pages/ExmclMarksDistribution'
+import ExmclExams from './pages/ExmclExams'
+import ExmclDatesheets from './pages/ExmclDatesheets'
+import ExmclSubjects from './pages/ExmclSubjects'
+import AttndStaffAttendance from './pages/AttndStaffAttendance'
+import AttndStudentAttendance from './pages/AttndStudentAttendance'
 import { OnboardingPage, ValidationReportPage } from './pages/Onboarding'
 import { getPublicBrandVariant } from './utils/publicBranding'
 
@@ -275,6 +280,9 @@ function App() {
               <Route path="stdnt" element={<Navigate to="/stdnt/student-info" replace />} />
               <Route path="staaf/staff-members" element={<StaafStaffMembers />} />
               <Route path="staaf" element={<Navigate to="/staaf/staff-members" replace />} />
+              <Route path="attnd/staff-attendance" element={<AttndStaffAttendance />} />
+              <Route path="attnd/student-attendance" element={<AttndStudentAttendance />} />
+              <Route path="attnd" element={<Navigate to="/attnd/staff-attendance" replace />} />
               <Route path="centre-details" element={<CentreDetails />} />
               <Route
                 path="exam-functionaries"
@@ -304,8 +312,8 @@ function App() {
               <Route path="exmcl/candidate-details/:id" element={<CandidateDetail />} />
               <Route path="exmcl/candidates/*" element={<Navigate to="/exmcl/candidate-details" replace />} />
               <Route path="exmcl/seatingplan" element={<SeatingPlan />} />
-              <Route path="exmcl/subjects" element={<Subjects />} />
-              <Route path="exmcl/datesheets" element={<DateSheets />} />
+              <Route path="exmcl/subjects" element={<ExmclSubjects />} />
+              <Route path="exmcl/datesheets" element={<ExmclDatesheets />} />
               <Route path="exmcl/examrooms" element={<RoomAllocation />} />
               <Route path="exmcl/rooms" element={<Navigate to="/exmcl/examrooms" replace />} />
               <Route path="exmcl/answersheets" element={<AnswerSheets />} />
@@ -313,6 +321,7 @@ function App() {
               <Route path="exmcl/attendance" element={<Attendance />} />
               <Route path="exmcl/performas" element={<Performas />} />
               <Route path="exmcl/centre-guidelines" element={<ExmclCirculars />} />
+              <Route path="exmcl/exams" element={<ExmclExams />} />
               <Route path="exmcl/result" element={<ExmclResult />} />
               <Route path="exmcl/report-card" element={<ExmclReportCard />} />
               <Route path="exmcl/award-list" element={<ExmclAwardList />} />
