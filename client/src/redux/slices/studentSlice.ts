@@ -6,8 +6,10 @@ export interface Student {
   _id: string
   rollNumber: string
   name: string
+  gender?: 'Boy' | 'Girl' | 'Other' | 'Unspecified'
   email?: string
   phone?: string
+  penNumber?: string
   class: string
   section: string
   subjects: Array<{
@@ -86,6 +88,15 @@ export interface StudentStats {
     _id: { class: string; section: string }
     count: number
     active: number
+  }>
+  byGender: Array<{
+    _id: string
+    count: number
+    active: number
+  }>
+  ageMatrix: Array<{
+    _id: { class: string; age: number }
+    count: number
   }>
   lastUpdated: string
 }

@@ -6,7 +6,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { logout, selectUser } from '../../redux/slices/authSlice'
 import type { AppDispatch } from '../../redux/store'
 import { useAcademicSession } from '../../contexts/AcademicSessionContext'
-import { isFeatureEnabledForPath } from '../../constants/featureAccess'
+import { isFeatureEnabledForPath, getModuleForPath, getAccessibleModules, getFirstEnabledPathForModule } from '../../constants/featureAccess'
+import { MODULE_REGISTRY, type ModuleId } from '../../constants/moduleRegistry'
 import { useCentreDetails } from '../../hooks/useCentreDetails'
 import logoMark from '../../assets/image.png'
 import {
@@ -31,14 +32,19 @@ const toBadgeValue = (value: SidebarCount): string | null => {
   return value.toString()
 }
 
-const Sidebar: React.FC = () => {
+type SidebarProps = {
+  isCollapsed: boolean
+  expandedWidth: number
+  collapsedWidth: number
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsedWidth }) => {
   const dispatch = useDispatch<AppDispatch>()
   const queryClient = useQueryClient()
   const currentUser = useSelector(selectUser)
   const location = useLocation()
   const navigate = useNavigate()
   const { currentSession, clearSession } = useAcademicSession()
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
   // Tracks expand/collapse state for group headers + nested sub-groups.
   // "Ungroup all" -> we expand everything based on accessible navigation.
@@ -71,6 +77,28 @@ const Sidebar: React.FC = () => {
   const centreCode = centreNo || schoolCode
   const centreLabel = [centreCode, centreName].filter(Boolean).join(' - ')
 
+  // Module switcher state
+  const [moduleSwitcherOpen, setModuleSwitcherOpen] = useState(false)
+  const [selectedModule, setSelectedModule] = useState<ModuleId>('cntr')
+
+  // Sync active module from URL when navigating to a module-specific route
+  useEffect(() => {
+    const mod = getModuleForPath(location.pathname)
+    if (mod && mod !== 'core') {
+      setSelectedModule(mod as ModuleId)
+    }
+  }, [location.pathname])
+
+  const activeModule = selectedModule
+
+  const accessibleModules = useMemo(
+    () => getAccessibleModules(currentUser?.featureToggles),
+    [currentUser?.featureToggles]
+  )
+
+  const activeModuleDef = MODULE_REGISTRY.find(m => m.id === activeModule)!
+  const hasMultipleModules = accessibleModules.size > 1
+
   // Refresh counts when location changes (user navigates)
   useEffect(() => {
     // Refresh counts after a delay when navigating to relevant pages
@@ -102,6 +130,7 @@ const Sidebar: React.FC = () => {
     href: string
     icon: React.ReactNode
     badge: string | null
+    module?: string
   }
 
   type NavGroup = {
@@ -109,6 +138,7 @@ const Sidebar: React.FC = () => {
     icon: React.ReactNode
     href?: string // optional link for the group header itself
     children: NavChild[]
+    module?: string
   }
 
   type NavChild = NavItem | NavSubGroup
@@ -128,6 +158,7 @@ const Sidebar: React.FC = () => {
     {
       name: 'School Hub',
       href: '/school-hub',
+      module: 'timetable',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
@@ -203,6 +234,17 @@ const Sidebar: React.FC = () => {
               badge: null,
             },
             {
+              name: 'Generate',
+              href: '/time-table/generate',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
+                </svg>
+              ),
+              badge: null,
+            },
+            {
               name: 'Class Wise',
               href: '/time-table/class-wise',
               icon: (
@@ -243,13 +285,103 @@ const Sidebar: React.FC = () => {
               ),
               badge: null,
             },
+            {
+              name: 'Formats',
+              href: '/time-table/formats',
+              icon: (
+                <svg className="w-3.5 h-3.5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 7.5A1.5 1.5 0 015.25 6h13.5a1.5 1.5 0 011.5 1.5v9a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5v-9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7.5 10.5h9M7.5 13.5h5.25" />
+                </svg>
+              ),
+              badge: null,
+            },
           ],
         },
       ],
     },
     {
+      name: 'Student Info',
+      href: '/stdnt/student-info',
+      module: 'stdnt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Students',
+      href: '/stdnt/students',
+      module: 'stdnt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Classes',
+      href: '/stdnt/classes',
+      module: 'stdnt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Subjects',
+      href: '/stdnt/subjects',
+      module: 'stdnt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Staff Members',
+      href: '/staaf/staff-members',
+      module: 'staaf',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Staff Attendance',
+      href: '/attnd/staff-attendance',
+      module: 'attnd',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Student Attendance',
+      href: '/attnd/student-attendance',
+      module: 'attnd',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
       name: 'Dashboard',
       href: '/dashboard',
+      module: 'cntr',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -259,6 +391,7 @@ const Sidebar: React.FC = () => {
     },
     {
       name: 'Centre Details',
+      module: 'cntr',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V7l7-4 7 4v14M9 10h6M9 14h6" />
@@ -288,7 +421,39 @@ const Sidebar: React.FC = () => {
       ],
     },
     {
+      name: 'Centre Details',
+      module: 'exmcl',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V7l7-4 7 4v14M9 10h6M9 14h6" />
+        </svg>
+      ),
+      children: [
+        {
+          name: 'Centre Info',
+          href: '/exmcl/centre-details',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M5 21V7l7-4 7 4v14M9 10h6M9 14h6" />
+            </svg>
+          ),
+          badge: null,
+        },
+        {
+          name: 'Exam Functionaries',
+          href: '/exmcl/exam-functionaries',
+          icon: (
+            <svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+          ),
+          badge: null,
+        },
+      ],
+    },
+    {
       name: 'Centre Records',
+      module: 'cntr',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
@@ -491,6 +656,34 @@ const Sidebar: React.FC = () => {
         },
       ],
     },
+    {
+      name: 'Centre Records',
+      module: 'exmcl',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+      ),
+      children: [
+        { name: 'Circulars', href: '/exmcl/centre-guidelines', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>), badge: null },
+        { name: 'Exams', href: '/exmcl/exams', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 6.75h7.5m-7.5 4.5h7.5m-7.5 4.5h4.5M6 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6A2.25 2.25 0 016 3.75z" /></svg>), badge: null },
+        { name: 'Result', href: '/exmcl/result', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m3 6V7m3 10v-3m5 5H4" /></svg>), badge: null },
+        { name: 'Report Card', href: '/exmcl/report-card', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-6-8h6m2 13H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" /></svg>), badge: null },
+        { name: 'Award List', href: '/exmcl/award-list', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 21h7.5M12 17.25V21m-5.25-9A5.25 5.25 0 0112 6.75 5.25 5.25 0 0117.25 12 5.25 5.25 0 0112 17.25 5.25 5.25 0 016.75 12z" /></svg>), badge: null },
+        { name: 'Question Papers', href: '/exmcl/question-papers', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.5 14.25v-8.25a2.25 2.25 0 00-2.25-2.25H6.75A2.25 2.25 0 004.5 6v12a2.25 2.25 0 002.25 2.25h6.75M14.25 8.25h-4.5m4.5 3h-4.5m3 7.5l2.25 2.25 4.5-4.5" /></svg>), badge: null },
+        { name: 'Syllabus', href: '/exmcl/syllabus', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>), badge: null },
+        { name: 'Marks Distribution', href: '/exmcl/marks-distribution', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.75 3.75h16.5v16.5H3.75zM8.25 12h7.5M12 8.25v7.5" /></svg>), badge: null },
+        { name: 'Subjects', href: '/exmcl/subjects', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>), badge: null },
+        { name: 'Datesheets', href: '/exmcl/datesheets', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>), badge: null },
+        { name: 'Exam Room/Hall', href: '/exmcl/examrooms', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>), badge: null },
+        { name: 'Answer Sheets', href: '/exmcl/answersheets', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>), badge: null },
+        { name: 'Seating Plan', href: '/exmcl/seatingplan', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>), badge: null },
+        { name: 'Duties', href: '/exmcl/duties', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 5a2 2 0 002 2h2a2 2 0 002-2m-6 9l2 2 4-4" /></svg>), badge: null },
+        { name: 'Attendance', href: '/exmcl/attendance', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>), badge: null },
+        { name: "Performa's", href: '/exmcl/performas', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-3-8h3m-9 13h10.5A2.25 2.25 0 0019.5 18.75V8.121a2.25 2.25 0 00-.659-1.591l-2.371-2.371a2.25 2.25 0 00-1.591-.659H9A2.25 2.25 0 006.75 5.75v13A2.25 2.25 0 009 21z" /></svg>), badge: null },
+        { name: 'Candidate Details', href: '/exmcl/candidate-details', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>), badge: null },
+      ],
+    },
   ]
 
   const filterNavChildren = (children: NavChild[]): NavChild[] => {
@@ -517,10 +710,16 @@ const Sidebar: React.FC = () => {
   }
 
   const filteredNavigation: NavEntry[] = navigation.reduce<NavEntry[]>((acc, entry) => {
+    // Filter by active module: skip entries that don't belong to the active module or core
+    const entryModule = isGroup(entry) ? entry.module : (entry as NavItem).module
+    if (entryModule && entryModule !== 'core' && entryModule !== activeModule) {
+      return acc
+    }
+
     if (isGroup(entry)) {
       // Flatten specific groups into independent top-level items.
-      // This removes the "Centre Details" / "Centre Records" accordions from the sidebar.
-      if (entry.name === 'Centre Details' || entry.name === 'Centre Records') {
+      // This removes the group accordion wrappers and promotes children to top-level.
+      if (entry.name === 'Centre Details' || entry.name === 'Centre Records' || entry.name === 'School Hub') {
         entry.children.forEach((child) => {
           if (isSubGroup(child)) {
             child.children.forEach((grandChild) => {
@@ -584,63 +783,122 @@ const Sidebar: React.FC = () => {
   const canAccessBilling = isPathAllowed('/billing')
   const canAccessAccountSettings = isPathAllowed('/account-settings')
   const canAccessHelpSupport = isPathAllowed('/help-support')
+  const currentSidebarWidth = isCollapsed ? collapsedWidth : expandedWidth
 
   return (
-    <div className={`glass border-r border-gray-100/80 dark:border-gray-800/80 h-[100vh] min-h-[100vh] transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'} flex flex-col overflow-hidden relative z-50`}>
+    <div
+      className="glass border-r border-gray-100/80 dark:border-gray-800/80 h-[100vh] min-h-[100vh] transition-all duration-300 flex flex-col overflow-visible relative z-50"
+      style={{ width: currentSidebarWidth }}
+    >
       {/* Decorative background accent */}
       <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-primary-50/30 via-primary-50/10 to-transparent dark:from-primary-900/10 dark:via-transparent pointer-events-none" />
 
-      {/* Logo and Header */}
-      <div className={`flex-shrink-0 h-28 transition-all duration-300 ${isCollapsed ? 'px-0' : 'px-5'} flex items-center justify-center relative z-10`}>
-        <div className={`flex items-center w-full ${isCollapsed ? 'justify-center flex-col gap-2' : 'justify-between'}`}>
-          <a
-            href="https://sems.capabble.cloud/centre-details"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex items-center min-w-0 ${isCollapsed ? 'flex-col' : 'gap-4'} group`}
+      {/* Module Switcher Header */}
+      <div className={`flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'px-2 py-4' : 'px-4 py-4'} relative z-10`}>
+        <div className="relative">
+          <button
+            onClick={() => hasMultipleModules && setModuleSwitcherOpen(!moduleSwitcherOpen)}
+            className={`w-full flex items-center rounded-2xl transition-all duration-200 group outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed ? 'justify-center p-2' : 'px-3 py-3'} ${hasMultipleModules ? 'hover:bg-white/60 dark:hover:bg-secondary-800/60 hover:shadow-sm cursor-pointer' : 'cursor-default'} ${moduleSwitcherOpen ? 'bg-white/60 dark:bg-secondary-800/60 shadow-sm ring-1 ring-secondary-200 dark:ring-secondary-700' : ''}`}
           >
-            <div className={`relative flex-shrink-0 transition-transform duration-300 ${isCollapsed ? 'scale-90' : 'scale-100'}`}>
+            <div className={`relative flex-shrink-0 transition-transform duration-300 ${isCollapsed ? 'scale-85' : 'scale-95'}`}>
               <div className="absolute inset-0 rounded-2xl bg-sky-400/20 blur-md transition-all group-hover:bg-sky-400/30"></div>
-              <div className="relative flex h-16 w-16 items-center justify-center">
+              <div className="relative flex h-12 w-12 items-center justify-center">
                 <img
                   src={logoMark}
-                  alt="Exam Centre Control"
-                  className="h-16 w-16 object-contain"
+                  alt={activeModuleDef.title}
+                  className="h-12 w-12 object-contain"
                 />
               </div>
             </div>
             {!isCollapsed && (
-              <div className="min-w-0 flex flex-col justify-center">
-                <h2 className="text-[2rem] font-black text-slate-800 dark:text-white leading-none tracking-tight">
-                  Cntr
-                </h2>
-                <p className="mt-1 text-[13px] font-semibold text-slate-900 dark:text-slate-200 leading-tight tracking-tight">
-                  Exam Centre Control
-                </p>
-              </div>
-            )}
-          </a>
-
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className={`p-1.5 rounded-lg text-secondary-400 hover:text-secondary-600 dark:text-secondary-500 dark:hover:text-secondary-300 hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-all flex-shrink-0 ${isCollapsed ? 'mt-1' : ''}`}
-            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {isCollapsed ? (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
+              <>
+                <div className="min-w-0 flex flex-col justify-center ml-3 text-left">
+                  <h2 className="text-[1.5rem] font-black text-slate-800 dark:text-white leading-none tracking-tight">
+                    {activeModuleDef.abbreviation}
+                  </h2>
+                  <p className="mt-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-tight tracking-tight truncate">
+                    {activeModuleDef.title}
+                  </p>
+                </div>
+                {hasMultipleModules && (
+                  <svg
+                    className={`ml-auto w-4 h-4 flex-shrink-0 text-secondary-400 dark:text-secondary-500 transition-transform duration-200 ${moduleSwitcherOpen ? 'rotate-180' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                )}
+              </>
             )}
           </button>
+
+          {/* Module Switcher Dropdown */}
+          {moduleSwitcherOpen && (
+            <>
+              {/* In-sidebar overlay */}
+              <div
+                className="fixed top-0 bottom-0 left-0 z-40"
+                style={{ width: currentSidebarWidth }}
+                onClick={() => setModuleSwitcherOpen(false)}
+                aria-hidden="true"
+              />
+              <div className={`absolute z-50 bg-white dark:bg-secondary-900 rounded-2xl shadow-hard border border-secondary-100 dark:border-secondary-700 animate-fade-in-up ring-1 ring-black/5 overflow-hidden ${isCollapsed ? 'left-full ml-3 top-0 w-64' : 'top-full left-0 right-0 mt-2'}`}>
+                <div className="px-3 pt-3 pb-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-secondary-400 dark:text-secondary-500 px-1">
+                    Switch Module
+                  </p>
+                </div>
+                <div className="px-2 pb-2 space-y-0.5">
+                  {MODULE_REGISTRY
+                    .filter(m => accessibleModules.has(m.id))
+                    .map(mod => {
+                      const isActive = mod.id === activeModule
+                      return (
+                        <button
+                          key={mod.id}
+                          onClick={() => {
+                            setModuleSwitcherOpen(false)
+                            if (!isActive) {
+                              const targetPath = getFirstEnabledPathForModule(mod.id, currentUser?.featureToggles) || mod.defaultRoute
+                              setSelectedModule(mod.id)
+                              navigate(targetPath)
+                            }
+                          }}
+                          className={`w-full flex items-center px-3 py-2.5 rounded-xl transition-all duration-200 text-left ${isActive
+                            ? 'bg-primary-50 dark:bg-primary-900/20'
+                            : 'hover:bg-secondary-50 dark:hover:bg-secondary-800/50'
+                          }`}
+                        >
+                          <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                            <span className="text-xs font-bold text-white">
+                              {mod.abbreviation.charAt(0)}
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1 ml-3">
+                            <p className={`text-sm font-semibold truncate ${isActive ? 'text-primary-700 dark:text-primary-400' : 'text-secondary-900 dark:text-white'}`}>
+                              {mod.abbreviation}
+                            </p>
+                            <p className="text-[11px] text-secondary-500 dark:text-secondary-400 truncate">
+                              {mod.title}
+                            </p>
+                          </div>
+                          {isActive && (
+                            <div className="ml-2 w-2 h-2 rounded-full bg-primary-500 flex-shrink-0" />
+                          )}
+                        </button>
+                      )
+                    })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       {/* Navigation - scrollable */}
-      <nav className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden transition-all duration-300 ${isCollapsed ? 'px-3' : 'px-4'} py-2`}>
+      <nav className={`flex-1 min-h-0 overflow-y-auto overflow-x-hidden transition-all duration-300 ${isCollapsed ? 'px-3 [&_svg]:w-4.5 [&_svg]:h-4.5' : 'px-3'} py-2`}>
         <div className={`space-y-1 ${isCollapsed ? 'flex flex-col items-center' : ''}`}>
           {filteredNavigation.map((entry) => {
             if (isGroup(entry)) {
@@ -668,9 +926,9 @@ const Sidebar: React.FC = () => {
                         navigate(group.href)
                       }
                     }}
-                    className={`group relative flex items-center w-full text-sm font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
-                      ? 'justify-center w-12 h-12 p-0'
-                      : 'px-3.5 py-3'
+                    className={`group relative flex items-center w-full text-[12.5px] font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
+                      ? 'justify-center w-11 h-11 p-0'
+                      : 'px-2.5 py-2.5'
                       } ${isAnyActive
                         ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
                         : 'text-secondary-600 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-900 dark:hover:text-secondary-200'
@@ -879,9 +1137,9 @@ const Sidebar: React.FC = () => {
               <NavLink
                 key={item.name}
                 to={item.href}
-                className={`group relative flex items-center text-sm font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
-                  ? 'justify-center w-12 h-12 p-0'
-                  : 'px-3.5 py-3'
+                className={`group relative flex items-center text-[12.5px] font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
+                  ? 'justify-center w-11 h-11 p-0'
+                  : 'px-2.5 py-2.5'
                   } ${isActive
                     ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
                     : 'text-secondary-600 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-900 dark:hover:text-secondary-200'
@@ -961,7 +1219,8 @@ const Sidebar: React.FC = () => {
             <>
               {/* In-sidebar overlay: clicking nav/rest of sidebar closes dropdown */}
               <div
-                className={`fixed top-0 bottom-0 z-40 ${isCollapsed ? 'left-0 w-20' : 'left-0 w-72'}`}
+                className="fixed top-0 bottom-0 left-0 z-40"
+                style={{ width: currentSidebarWidth }}
                 onClick={() => setAccountDropdownOpen(false)}
                 aria-hidden="true"
               />
@@ -1084,8 +1343,20 @@ const Sidebar: React.FC = () => {
       {accountDropdownOpen &&
         createPortal(
           <div
-            className={`fixed top-0 right-0 bottom-0 z-40 ${isCollapsed ? 'left-20' : 'left-72'}`}
+            className="fixed top-0 right-0 bottom-0 z-40"
+            style={{ left: currentSidebarWidth }}
             onClick={() => setAccountDropdownOpen(false)}
+            aria-hidden="true"
+          />,
+          document.body
+        )}
+
+      {moduleSwitcherOpen &&
+        createPortal(
+          <div
+            className="fixed top-0 right-0 bottom-0 z-40"
+            style={{ left: currentSidebarWidth }}
+            onClick={() => setModuleSwitcherOpen(false)}
             aria-hidden="true"
           />,
           document.body

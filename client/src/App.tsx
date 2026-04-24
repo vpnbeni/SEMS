@@ -16,6 +16,10 @@ import TenantSignupComplete from './pages/TenantSignupComplete'
 import Signup from './pages/Signup'
 import CntrLanding from './pages/CntrLanding'
 import TmtblLanding from './pages/TmtblLanding'
+import StdntLanding from './pages/StdntLanding'
+import StudentInfo from './pages/StudentInfo'
+import Students from './pages/Students'
+import StaafStaffMembers from './pages/StaafStaffMembers'
 import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
 import Duties from './pages/Duties'
@@ -43,6 +47,8 @@ import PeriodAllocation from './pages/timetable/PeriodAllocation'
 import Departments from './pages/timetable/Departments'
 import Substitution from './pages/timetable/Substitution'
 import Versions from './pages/timetable/Versions'
+import Generate from './pages/timetable/Generate'
+import Formats from './pages/timetable/Formats'
 import { TimetableProvider } from './contexts/TimetableContext'
 import Form66 from './pages/Form66'
 import SeatingPlan from './pages/SeatingPlan'
@@ -62,7 +68,20 @@ import AccountSettings from './pages/AccountSettings'
 import HelpSupport from './pages/HelpSupport'
 import SessionSelector from './pages/SessionSelector'
 import Pricing from './pages/Pricing'
+import ExmclCirculars from './pages/ExmclCirculars'
+import ExmclResult from './pages/ExmclResult'
+import ExmclReportCard from './pages/ExmclReportCard'
+import ExmclAwardList from './pages/ExmclAwardList'
+import ExmclQuestionPapers from './pages/ExmclQuestionPapers'
+import ExmclSyllabus from './pages/ExmclSyllabus'
+import ExmclMarksDistribution from './pages/ExmclMarksDistribution'
+import ExmclExams from './pages/ExmclExams'
+import ExmclDatesheets from './pages/ExmclDatesheets'
+import ExmclSubjects from './pages/ExmclSubjects'
+import AttndStaffAttendance from './pages/AttndStaffAttendance'
+import AttndStudentAttendance from './pages/AttndStudentAttendance'
 import { OnboardingPage, ValidationReportPage } from './pages/Onboarding'
+import { getPublicBrandVariant } from './utils/publicBranding'
 
 // Components
 import Layout from './components/layout/Layout'
@@ -75,27 +94,13 @@ const LegacyCandidatesRedirect = () => {
   return <Navigate to={`${nextPath}${location.search}${location.hash}`} replace />
 }
 
-const getPublicLandingVariant = (): 'cntr' | 'tmtbl' => {
-  if (typeof window === 'undefined') {
-    return 'cntr'
-  }
+const PublicLanding = () => {
+  const variant = getPublicBrandVariant()
 
-  const params = new URLSearchParams(window.location.search)
-  const brand = params.get('brand')?.trim().toLowerCase()
-
-  if (brand === 'cntr' || brand === 'tmtbl') {
-    return brand
-  }
-
-  const hostname = window.location.hostname.toLowerCase()
-  if (hostname === 'tmtbl.capabble.cloud' || hostname.startsWith('tmtbl.')) {
-    return 'tmtbl'
-  }
-
-  return 'cntr'
+  if (variant === 'tmtbl') return <TmtblLanding />
+  if (variant === 'stdnt') return <StdntLanding />
+  return <CntrLanding />
 }
-
-const PublicLanding = () => (getPublicLandingVariant() === 'tmtbl' ? <TmtblLanding /> : <CntrLanding />)
 
 function App() {
   const dispatch = useDispatch<AppDispatch>()
@@ -258,16 +263,31 @@ function App() {
               <Route path="time-table/subjects" element={<TimetableSubjects />} />
               <Route path="time-table/departments" element={<Departments />} />
               <Route path="time-table/bell-timings" element={<BellTimings />} />
+              <Route path="time-table/generate" element={<Generate />} />
               <Route path="time-table/class-wise" element={<ClassWise />} />
               <Route path="time-table/teacher-wise" element={<TeacherWise />} />
               <Route path="time-table/substitution" element={<Substitution />} />
               <Route path="time-table/versions" element={<Versions />} />
+              <Route path="time-table/formats" element={<Formats />} />
               <Route path="time-table/period-distribution" element={<PeriodAllocation />} />
               <Route path="time-table/distribution" element={<Navigate to="/time-table/period-distribution" replace />} />
               <Route path="time-table/period-allocation" element={<Navigate to="/time-table/period-distribution" replace />} />
               <Route path="time-table" element={<Navigate to="/time-table/classes" replace />} />
+              <Route path="stdnt/student-info" element={<StudentInfo />} />
+              <Route path="stdnt/students" element={<Students />} />
+              <Route path="stdnt/classes" element={<TimetableClasses />} />
+              <Route path="stdnt/subjects" element={<TimetableSubjects />} />
+              <Route path="stdnt" element={<Navigate to="/stdnt/student-info" replace />} />
+              <Route path="staaf/staff-members" element={<StaafStaffMembers />} />
+              <Route path="staaf" element={<Navigate to="/staaf/staff-members" replace />} />
+              <Route path="attnd/staff-attendance" element={<AttndStaffAttendance />} />
+              <Route path="attnd/student-attendance" element={<AttndStudentAttendance />} />
+              <Route path="attnd" element={<Navigate to="/attnd/staff-attendance" replace />} />
               <Route path="centre-details" element={<CentreDetails />} />
-              <Route path="exam-functionaries" element={<Teachers />} />
+              <Route
+                path="exam-functionaries"
+                element={<Teachers hidePagination includeAllRecords uiOnlyDelete />}
+              />
               <Route path="exam-functionaries/:id" element={<TeacherDetail />} />
               <Route path="duties" element={<Duties />} />
               <Route path="undertaking" element={<UndertakingForm />} />
@@ -281,6 +301,34 @@ function App() {
               <Route path="dispatch-slip" element={<DispatchSlip />} />
               <Route path="remuneration" element={<Remuneration />} />
               <Route path="remuneration/:id" element={<RemunerationDetails />} />
+              <Route path="exmcl/centre-details" element={<CentreDetails />} />
+              <Route
+                path="exmcl/exam-functionaries"
+                element={<Teachers hidePagination includeAllRecords uiOnlyDelete />}
+              />
+              <Route path="exmcl/exam-functionaries/:id" element={<TeacherDetail />} />
+              <Route path="exmcl/duties" element={<Duties />} />
+              <Route path="exmcl/candidate-details" element={<Candidates />} />
+              <Route path="exmcl/candidate-details/:id" element={<CandidateDetail />} />
+              <Route path="exmcl/candidates/*" element={<Navigate to="/exmcl/candidate-details" replace />} />
+              <Route path="exmcl/seatingplan" element={<SeatingPlan />} />
+              <Route path="exmcl/subjects" element={<ExmclSubjects />} />
+              <Route path="exmcl/datesheets" element={<ExmclDatesheets />} />
+              <Route path="exmcl/examrooms" element={<RoomAllocation />} />
+              <Route path="exmcl/rooms" element={<Navigate to="/exmcl/examrooms" replace />} />
+              <Route path="exmcl/answersheets" element={<AnswerSheets />} />
+              <Route path="exmcl/answersheets/:id" element={<AnswerSheetDetails />} />
+              <Route path="exmcl/attendance" element={<Attendance />} />
+              <Route path="exmcl/performas" element={<Performas />} />
+              <Route path="exmcl/centre-guidelines" element={<ExmclCirculars />} />
+              <Route path="exmcl/exams" element={<ExmclExams />} />
+              <Route path="exmcl/result" element={<ExmclResult />} />
+              <Route path="exmcl/report-card" element={<ExmclReportCard />} />
+              <Route path="exmcl/award-list" element={<ExmclAwardList />} />
+              <Route path="exmcl/question-papers" element={<ExmclQuestionPapers />} />
+              <Route path="exmcl/syllabus" element={<ExmclSyllabus />} />
+              <Route path="exmcl/marks-distribution" element={<ExmclMarksDistribution />} />
+              <Route path="exmcl" element={<Navigate to="/exmcl/centre-details" replace />} />
               <Route path="form66" element={<Form66 />} />
               <Route path="seatingplan" element={<SeatingPlan />} />
               <Route path="subjects" element={<Subjects />} />

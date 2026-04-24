@@ -1,7 +1,13 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const TimetableState = require('../models/TimetableState');
+const TimetableVersion = require('../models/TimetableVersion');
+const BellTimingVersion = require('../models/BellTimingVersion');
 const { generateResponse } = require('../utils/helpers');
-const { SUCCESS_MESSAGES, HTTP_STATUS } = require('../utils/constants');
+const { SUCCESS_MESSAGES, HTTP_STATUS, ERROR_MESSAGES } = require('../utils/constants');
+const { generate: runGenerator } = require('../services/timetableGeneratorService');
+const exportService = require('../services/timetableExportService');
+const eventBus = require('../events/eventBus');
+const EVENTS = require('../events/eventNames');
 
 const DEFAULT_BELL_TIMINGS = Object.freeze({
   meta: {
@@ -201,6 +207,8 @@ const normalizeClasses = (value, subjectNameMap) => {
 
       if (!id || !className || !section || !floor) return null;
 
+      const displayOrderInput = Number.parseInt(String(entry.displayOrder), 10);
+
       return {
         id,
         className,
@@ -208,6 +216,8 @@ const normalizeClasses = (value, subjectNameMap) => {
         floor,
         subjects: normalizeSubjectNames(entry.subjects, subjectNameMap),
         incharge: toTrimmedString(entry.incharge),
+        classGroup: toTrimmedString(entry.classGroup),
+        displayOrder: Number.isFinite(displayOrderInput) ? displayOrderInput : 0,
       };
     })
     .filter(Boolean);
@@ -236,6 +246,8 @@ const syncClassSubjectsAcrossSections = (classes) => {
     return {
       ...entry,
       subjects: [...canonicalSubjects],
+      classGroup: entry.classGroup,
+      displayOrder: entry.displayOrder,
     };
   });
 };
@@ -252,10 +264,18 @@ const normalizeSubjects = (value) => {
 
       if (!id || !name) return null;
 
+      const consecutivePeriodCount = Number.parseInt(String(entry.consecutivePeriodCount), 10);
+
       return {
         id,
         name,
         type: toTrimmedString(entry.type),
+        requiresConsecutivePeriods: Boolean(entry.requiresConsecutivePeriods),
+        consecutivePeriodCount:
+          Number.isFinite(consecutivePeriodCount) && consecutivePeriodCount >= 2
+            ? consecutivePeriodCount
+            : 2,
+        color: toTrimmedString(entry.color),
       };
     })
     .filter(Boolean);
@@ -816,9 +836,350 @@ const upsertBellTimings = asyncHandler(async (req, res) => {
   );
 });
 
+const bellTimingVersionSummary = (doc) => ({
+  _id: doc._id,
+  name: doc.name,
+  academicSession: doc.academicSession,
+  createdAt: doc.createdAt,
+  updatedAt: doc.updatedAt,
+});
+
+const getBellTimingVersions = asyncHandler(async (req, res) => {
+  const BellTimingVersionModel = req.models?.BellTimingVersion || BellTimingVersion;
+  const filter = getSessionScopedFilter(req);
+  const versions = await BellTimingVersionModel.find(filter)
+    .select('-bellTimings')
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.FETCHED, versions.map(bellTimingVersionSummary))
+  );
+});
+
+const createBellTimingVersion = asyncHandler(async (req, res) => {
+  const BellTimingVersionModel = req.models?.BellTimingVersion || BellTimingVersion;
+  const TimetableStateModel = req.models?.TimetableState || TimetableState;
+  const filter = getSessionScopedFilter(req);
+  const state = await TimetableStateModel.findOne(filter).lean();
+  const bellTimings = normalizeBellTimings(state?.bellTimings, req.academicSession);
+
+  const currentCount = await BellTimingVersionModel.countDocuments(filter);
+  const requestedName = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  const versionName = requestedName || `Bell Timings v${currentCount + 1}`;
+
+  const created = await BellTimingVersionModel.create({
+    name: versionName,
+    bellTimings,
+    ...(req.academicSession ? { academicSession: req.academicSession } : {}),
+  });
+
+  res.status(HTTP_STATUS.CREATED).json(
+    generateResponse(true, SUCCESS_MESSAGES.CREATED, bellTimingVersionSummary(created))
+  );
+});
+
+const getBellTimingVersion = asyncHandler(async (req, res) => {
+  const BellTimingVersionModel = req.models?.BellTimingVersion || BellTimingVersion;
+  const filter = { ...getSessionScopedFilter(req), _id: req.params.id };
+  const version = await BellTimingVersionModel.findOne(filter).lean();
+
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.FETCHED, {
+      ...bellTimingVersionSummary(version),
+      bellTimings: normalizeBellTimings(version.bellTimings, req.academicSession),
+    })
+  );
+});
+
+const applyBellTimingVersion = asyncHandler(async (req, res) => {
+  const BellTimingVersionModel = req.models?.BellTimingVersion || BellTimingVersion;
+  const TimetableStateModel = req.models?.TimetableState || TimetableState;
+  const sessionFilter = getSessionScopedFilter(req);
+  const version = await BellTimingVersionModel.findOne({ ...sessionFilter, _id: req.params.id }).lean();
+
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  const normalized = normalizeBellTimings(version.bellTimings, req.academicSession);
+  const updatePayload = { bellTimings: normalized };
+  if (req.academicSession) {
+    updatePayload.academicSession = req.academicSession;
+  }
+
+  await TimetableStateModel.findOneAndUpdate(
+    sessionFilter,
+    updatePayload,
+    {
+      new: true,
+      upsert: true,
+      runValidators: true,
+      setDefaultsOnInsert: true,
+    }
+  ).lean();
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, 'Bell timing version applied successfully.', normalized)
+  );
+});
+
+const deleteBellTimingVersion = asyncHandler(async (req, res) => {
+  const BellTimingVersionModel = req.models?.BellTimingVersion || BellTimingVersion;
+  const filter = { ...getSessionScopedFilter(req), _id: req.params.id };
+  const deleted = await BellTimingVersionModel.findOneAndDelete(filter).lean();
+
+  if (!deleted) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.DELETED)
+  );
+});
+
+// ── Version helpers ──────────────────────────────────────────────────────────
+
+const versionSummary = (doc) => ({
+  _id: doc._id,
+  name: doc.name,
+  status: doc.status,
+  generatedAt: doc.generatedAt,
+  publishedAt: doc.publishedAt,
+  academicSession: doc.academicSession,
+  generationStats: doc.generationStats,
+  conflictCount: doc.conflictReport ? doc.conflictReport.length : 0,
+});
+
+// ── Generation ───────────────────────────────────────────────────────────────
+
+const generateTimetable = asyncHandler(async (req, res) => {
+  const filter = getSessionScopedFilter(req);
+  const stateDoc = await TimetableState.findOne(filter).lean();
+  const state = toResponseState(stateDoc);
+
+  if (!state.classes || state.classes.length === 0) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, 'No classes configured. Please add classes before generating.')
+    );
+  }
+
+  const { grid, conflictReport, stats } = runGenerator(state);
+
+  // Determine version number for naming
+  const existingCount = await TimetableVersion.countDocuments(filter);
+  const versionName = req.body && req.body.name
+    ? String(req.body.name).trim()
+    : `v${existingCount + 1} — ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}`;
+
+  const newVersion = await TimetableVersion.create({
+    name: versionName,
+    status: 'draft',
+    generatedAt: new Date(),
+    generationStats: stats,
+    conflictReport,
+    grid,
+    ...(req.academicSession ? { academicSession: req.academicSession } : {}),
+  });
+
+  eventBus.emit(EVENTS.TIMETABLE_GENERATED, {
+    tenant: { dbName: req.tenant.dbName, slug: req.tenant.slug, id: String(req.tenant.id) },
+    versionId: String(newVersion._id),
+    versionName: newVersion.name,
+  });
+
+  res.status(HTTP_STATUS.CREATED).json(
+    generateResponse(true, 'Timetable generated successfully.', {
+      version: versionSummary(newVersion),
+      conflictReport,
+      stats,
+    })
+  );
+});
+
+// ── Version CRUD ─────────────────────────────────────────────────────────────
+
+const getVersions = asyncHandler(async (req, res) => {
+  const filter = getSessionScopedFilter(req);
+  const versions = await TimetableVersion.find(filter)
+    .select('-grid')
+    .sort({ generatedAt: -1 })
+    .lean();
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.FETCHED, versions.map(versionSummary))
+  );
+});
+
+const getVersion = asyncHandler(async (req, res) => {
+  const filter = { ...getSessionScopedFilter(req), _id: req.params.id };
+  const version = await TimetableVersion.findOne(filter).lean();
+
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.FETCHED, version)
+  );
+});
+
+const publishVersion = asyncHandler(async (req, res) => {
+  const sessionFilter = getSessionScopedFilter(req);
+
+  // Archive any currently published version first
+  await TimetableVersion.updateMany(
+    { ...sessionFilter, status: 'published' },
+    { $set: { status: 'archived' } }
+  );
+
+  const version = await TimetableVersion.findOneAndUpdate(
+    { ...sessionFilter, _id: req.params.id },
+    { $set: { status: 'published', publishedAt: new Date() } },
+    { new: true }
+  ).lean();
+
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  eventBus.emit(EVENTS.TIMETABLE_PUBLISHED, {
+    tenant: { dbName: req.tenant.dbName, slug: req.tenant.slug, id: String(req.tenant.id) },
+    versionId: String(version._id),
+    versionName: version.name,
+  });
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, 'Version published successfully.', versionSummary(version))
+  );
+});
+
+const archiveVersion = asyncHandler(async (req, res) => {
+  const filter = { ...getSessionScopedFilter(req), _id: req.params.id };
+  const version = await TimetableVersion.findOneAndUpdate(
+    filter,
+    { $set: { status: 'archived' } },
+    { new: true }
+  ).lean();
+
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, 'Version archived.', versionSummary(version))
+  );
+});
+
+const deleteVersion = asyncHandler(async (req, res) => {
+  const filter = { ...getSessionScopedFilter(req), _id: req.params.id, status: 'draft' };
+  const version = await TimetableVersion.findOneAndDelete(filter).lean();
+
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, 'Version not found or cannot be deleted (only drafts can be deleted).')
+    );
+  }
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, SUCCESS_MESSAGES.DELETED)
+  );
+});
+
+// ── Exports ──────────────────────────────────────────────────────────────────
+
+const getVersionAndState = async (req) => {
+  const sessionFilter = getSessionScopedFilter(req);
+  const [version, stateDoc] = await Promise.all([
+    TimetableVersion.findOne({ ...sessionFilter, _id: req.params.id }).lean(),
+    TimetableState.findOne(sessionFilter).lean(),
+  ]);
+  return { version, state: toResponseState(stateDoc) };
+};
+
+const exportVersionExcel = asyncHandler(async (req, res) => {
+  const { version, state } = await getVersionAndState(req);
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  const buffer = await exportService.generateExcel(version, state);
+  const filename = `timetable-${(version.name || 'export').replace(/[^a-zA-Z0-9-]/g, '_')}.xlsx`;
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buffer);
+});
+
+const exportVersionClassPDF = asyncHandler(async (req, res) => {
+  const { version, state } = await getVersionAndState(req);
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  const classId = req.params.classId || null;
+  const buffer = await exportService.generateClassPDF(version, state, classId);
+  const filename = classId ? `class-timetable-${classId}.pdf` : 'class-timetable-all.pdf';
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buffer);
+});
+
+const exportVersionTeacherPDF = asyncHandler(async (req, res) => {
+  const { version, state } = await getVersionAndState(req);
+  if (!version) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
+    );
+  }
+
+  const teacherId = req.params.teacherId || null;
+  const buffer = await exportService.generateTeacherPDF(version, state, teacherId);
+  const filename = teacherId ? `teacher-timetable-${teacherId}.pdf` : 'teacher-timetable-all.pdf';
+
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buffer);
+});
+
 module.exports = {
   getTimetableState,
   upsertTimetableState,
   getBellTimings,
   upsertBellTimings,
+  getBellTimingVersions,
+  createBellTimingVersion,
+  getBellTimingVersion,
+  applyBellTimingVersion,
+  deleteBellTimingVersion,
+  generateTimetable,
+  getVersions,
+  getVersion,
+  publishVersion,
+  archiveVersion,
+  deleteVersion,
+  exportVersionExcel,
+  exportVersionClassPDF,
+  exportVersionTeacherPDF,
 };

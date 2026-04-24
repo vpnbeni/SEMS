@@ -8,7 +8,12 @@ import { isFeatureEnabledForPath } from '@/constants/featureAccess'
 import { useCentreDetails } from '@/hooks/useCentreDetails'
 import { useOnboardingStatus } from '@/hooks/useOnboarding'
 
-const Header: React.FC = () => {
+type HeaderProps = {
+  isSidebarCollapsed: boolean
+  onToggleSidebar: () => void
+}
+
+const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) => {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [genericSearchValue, setGenericSearchValue] = useState('')
   const location = useLocation()
@@ -224,11 +229,70 @@ const Header: React.FC = () => {
           'teacher-wise': { title: 'Teacher Wise Timetable', subtitle: 'View and manage timetables organized by teacher' },
           'substitution': { title: 'Substitution', subtitle: 'Manage same-day teacher substitutions and temporary adjustments' },
           'versions': { title: 'Versions', subtitle: 'Review draft, published, and archived timetable versions' },
+          'formats': { title: 'Formats', subtitle: 'Download saved timetable versions in the selected file format' },
           'period-distribution': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
           'distribution': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
           'period-allocation': { title: 'Period Distribution', subtitle: 'Distribute periods among subjects for each class' },
         }
         const info = titleMap[subPage] || { title: 'Time Table', subtitle: 'School timetable management' }
+        return {
+          pageTitle: info.title,
+          pageSubtitle: info.subtitle,
+          showBackButton: false,
+          backTo: null,
+        }
+      }
+      case 'stdnt': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          'classes': { title: 'Classes', subtitle: 'Manage classes and sections for student record organization.' },
+          'student-info': { title: 'Student Info', subtitle: 'Dashboard view of student counts, sections, gender split, and age distribution.' },
+          'students': { title: 'Students', subtitle: 'Create, import, filter, and manage student records stored in the database.' },
+          'subjects': { title: 'Subjects', subtitle: 'Manage subjects taught in the classes.' },
+        }
+        const info = titleMap[subPage] || { title: 'Stdnt', subtitle: 'Student management workspace' }
+        return {
+          pageTitle: info.title,
+          pageSubtitle: info.subtitle,
+          showBackButton: false,
+          backTo: null,
+        }
+      }
+      case 'staaf': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          'staff-members': { title: 'Staff Members', subtitle: 'Create, import, filter, and manage staff member records.' },
+        }
+        const info = titleMap[subPage] || { title: 'STAAF', subtitle: 'Staff management workspace' }
+        return {
+          pageTitle: info.title,
+          pageSubtitle: info.subtitle,
+          showBackButton: false,
+          backTo: null,
+        }
+      }
+      case 'exmcl': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          'centre-details': { title: 'Centre Details', subtitle: 'Manage centre profile, candidate summary, and exam days' },
+          'exam-functionaries': { title: 'Exam Functionaries', subtitle: 'Manage examination functionaries and assignments' },
+          'duties': { title: 'Duties', subtitle: 'Assign exam functionaries to rooms for each exam day' },
+          'candidate-details': { title: 'Candidate Details', subtitle: 'Manage examination candidates and PDF imports' },
+          'subjects': { title: 'Subjects', subtitle: 'Manage subjects taught in the classes.' },
+          'examrooms': { title: 'Exam Room/Hall', subtitle: 'Assign rooms and halls for examinations' },
+          'answersheets': { title: 'Answer Sheets', subtitle: 'Track and manage answer sheet dispatches' },
+          'centre-guidelines': { title: 'Circulars', subtitle: 'Draft, publish, edit, update, and delete exam circulars' },
+          'result': { title: 'Result', subtitle: 'Prepare, upload, and publish internal exam results for student viewing' },
+          'report-card': { title: 'Report Card', subtitle: 'Generate final report card PDFs for printing and distribution' },
+          'award-list': { title: 'Award List', subtitle: 'Generate teacher award lists for paper checking and mark entry' },
+          'question-papers': { title: 'Question Papers', subtitle: 'Store and manage internal exam question paper records' },
+          'syllabus': { title: 'Syllabus', subtitle: 'Maintain subject-wise and exam-wise syllabus records' },
+          'marks-distribution': { title: 'Marks Distribution', subtitle: 'Distribute 100 marks across theory, practical, and internal components' },
+          'seatingplan': { title: 'Seating Plan', subtitle: 'Generate and manage seating plan PDFs' },
+          'performas': { title: "Performa's", subtitle: 'Generate relieving letters and answer sheet submission letters for centre operations.' },
+          'datesheets': { title: 'Date Sheets', subtitle: 'Create and manage examination date sheets' },
+        }
+        const info = titleMap[subPage] || { title: 'ExmCl', subtitle: 'Internal exams workspace' }
         return {
           pageTitle: info.title,
           pageSubtitle: info.subtitle,
@@ -332,11 +396,24 @@ const Header: React.FC = () => {
   }
 
   return (
-    <header className="h-20 flex-shrink-0 sticky top-0 z-40 glass border-b border-gray-100/80 dark:border-gray-800/80 transition-all duration-300">
-      <div className="h-full px-4 md:px-8 flex items-center">
+    <header className="h-16 flex-shrink-0 sticky top-0 z-40 glass border-b border-gray-100/80 dark:border-gray-800/80 transition-all duration-300">
+      <div className="h-full px-2 md:px-4 flex items-center">
         <div className="flex items-center justify-between w-full gap-6">
           {/* Left: Page context + optional back */}
-          <div className="min-w-0 flex-1 flex items-center gap-4">
+          <div className="min-w-0 flex-1 flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="p-1.5 text-secondary-600 dark:text-secondary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200 flex-shrink-0"
+              aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="3" y="5" width="18" height="14" rx="2" strokeWidth={1.8} />
+                <path d="M9 5v14" strokeWidth={1.8} />
+              </svg>
+            </button>
+            <span className="h-6 w-px bg-secondary-200 dark:bg-secondary-700 flex-shrink-0 mr-1" />
             {showBackButton && backTo && (
               <button
                 type="button"
@@ -352,7 +429,7 @@ const Header: React.FC = () => {
             {isDashboardRoute ? (
               dashboardHeaderLabel ? (
                 <div className="min-w-0 rounded-xl border border-secondary-200/70 dark:border-secondary-700 bg-white/70 dark:bg-secondary-800/40 px-3 py-2 shadow-sm">
-                  <h1 className="text-base sm:text-lg md:text-2xl font-bold text-secondary-900 dark:text-white truncate tracking-tight">
+                  <h1 className="text-sm sm:text-base md:text-lg font-bold text-secondary-900 dark:text-white truncate tracking-tight">
                     {dashboardHeaderLabel}
                   </h1>
                 </div>
@@ -372,11 +449,10 @@ const Header: React.FC = () => {
               ) : null
             ) : (
               <div className="min-w-0">
-                <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white truncate tracking-tight">
+                <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white truncate tracking-tight">
                   {pageTitle}
                 </h1>
-                <p className="hidden sm:flex items-center gap-1.5 text-xs md:text-sm text-gray-500 dark:text-gray-400 truncate mt-0.5 font-medium">
-                  <span className="w-1 h-1 rounded-full bg-primary-400 flex-shrink-0" />
+                <p className="hidden sm:block text-[11px] md:text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5 font-medium">
                   {pageSubtitle}
                 </p>
               </div>

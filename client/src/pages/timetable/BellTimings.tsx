@@ -3,7 +3,10 @@ import { Document, Page, pdfjs } from 'react-pdf'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import toast from 'react-hot-toast'
 import { useAcademicSession } from '@/contexts/AcademicSessionContext'
-import bellTimingsService, { type BellTimingsPayload } from '@/services/bellTimingsService'
+import bellTimingsService, {
+  type BellTimingsPayload,
+  type BellTimingVersionSummary,
+} from '@/services/bellTimingsService'
 
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
@@ -235,6 +238,12 @@ const BellTimings: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false)
   const [isLoadingSavedState, setIsLoadingSavedState] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [versions, setVersions] = useState<BellTimingVersionSummary[]>([])
+  const [selectedVersionId, setSelectedVersionId] = useState('')
+  const [versionName, setVersionName] = useState('')
+  const [isSavingVersion, setIsSavingVersion] = useState(false)
+  const [isApplyingVersion, setIsApplyingVersion] = useState(false)
+  const [isDeletingVersion, setIsDeletingVersion] = useState(false)
 
   /* ── PDF preview dialog state ── */
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null)
@@ -256,7 +265,10 @@ const BellTimings: React.FC = () => {
     const loadSavedBellTimings = async () => {
       setIsLoadingSavedState(true)
       try {
-        const saved = await bellTimingsService.getBellTimings()
+        const [saved, loadedVersions] = await Promise.all([
+          bellTimingsService.getBellTimings(),
+          bellTimingsService.getVersions(),
+        ])
         if (!mounted) return
 
         setMeta({
@@ -267,6 +279,7 @@ const BellTimings: React.FC = () => {
         })
         setStartTime(saved.startTime || defaultStartTime)
         setRows(normalizeBellRows(saved.rows))
+        setVersions(loadedVersions)
       } catch {
         if (!mounted) return
         toast.error('Failed to load saved bell timings.')
@@ -283,6 +296,14 @@ const BellTimings: React.FC = () => {
       mounted = false
     }
   }, [currentSession])
+
+  const refreshVersions = useCallback(async () => {
+    const loadedVersions = await bellTimingsService.getVersions()
+    setVersions(loadedVersions)
+    if (selectedVersionId && !loadedVersions.some((version) => version._id === selectedVersionId)) {
+      setSelectedVersionId('')
+    }
+  }, [selectedVersionId])
 
   /* ── Cleanup blob URL on unmount ── */
   useEffect(() => {
@@ -429,6 +450,65 @@ const BellTimings: React.FC = () => {
     }
   }
 
+  const handleSaveVersion = async () => {
+    setIsSavingVersion(true)
+    try {
+      const created = await bellTimingsService.createVersion(versionName.trim() || undefined)
+      await refreshVersions()
+      setSelectedVersionId(created._id)
+      setVersionName('')
+      toast.success('Bell timing version saved.')
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to save version.')
+    } finally {
+      setIsSavingVersion(false)
+    }
+  }
+
+  const handleApplyVersion = async () => {
+    if (!selectedVersionId) {
+      toast.error('Select a version to apply.')
+      return
+    }
+
+    setIsApplyingVersion(true)
+    try {
+      const applied = await bellTimingsService.applyVersion(selectedVersionId)
+      setMeta({
+        schoolName: applied.meta.schoolName || '',
+        title: applied.meta.title || defaultMeta.title,
+        session: currentSession || applied.meta.session || '',
+        effectiveDate: applied.meta.effectiveDate || '',
+      })
+      setStartTime(applied.startTime || defaultStartTime)
+      setRows(normalizeBellRows(applied.rows))
+      toast.success('Bell timing version applied.')
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to apply version.')
+    } finally {
+      setIsApplyingVersion(false)
+    }
+  }
+
+  const handleDeleteVersion = async () => {
+    if (!selectedVersionId) {
+      toast.error('Select a version to delete.')
+      return
+    }
+
+    setIsDeletingVersion(true)
+    try {
+      await bellTimingsService.deleteVersion(selectedVersionId)
+      await refreshVersions()
+      setSelectedVersionId('')
+      toast.success('Bell timing version deleted.')
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error?.message || 'Failed to delete version.')
+    } finally {
+      setIsDeletingVersion(false)
+    }
+  }
+
   const closePreviewDialog = () => {
     setShowPreviewDialog(false)
     setPreviewPageCount(0)
@@ -489,6 +569,54 @@ const BellTimings: React.FC = () => {
         </div>
       </div>
 
+      <div className="bg-white dark:bg-secondary-900 rounded-2xl border border-secondary-200 dark:border-secondary-700 p-4 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px_auto_auto] gap-3 items-center">
+          <input
+            type="text"
+            value={versionName}
+            onChange={(e) => setVersionName(e.target.value)}
+            placeholder="Version name (optional)"
+            className="input"
+          />
+          <select
+            value={selectedVersionId}
+            onChange={(e) => setSelectedVersionId(e.target.value)}
+            className="input"
+            title="Select bell timing version"
+          >
+            <option value="">Select saved version</option>
+            {versions.map((version) => (
+              <option key={version._id} value={version._id}>
+                {version.name}
+              </option>
+            ))}
+          </select>
+          <button
+            onClick={handleSaveVersion}
+            disabled={isSavingVersion || isLoadingSavedState}
+            className="btn btn-secondary"
+          >
+            {isSavingVersion ? 'Saving Version...' : 'Save Version'}
+          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleApplyVersion}
+              disabled={!selectedVersionId || isApplyingVersion}
+              className="btn btn-primary"
+            >
+              {isApplyingVersion ? 'Applying...' : 'Apply'}
+            </button>
+            <button
+              onClick={handleDeleteVersion}
+              disabled={!selectedVersionId || isDeletingVersion}
+              className="btn bg-error-500 hover:bg-error-600 text-white"
+            >
+              {isDeletingVersion ? 'Deleting...' : 'Delete'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* ── Meta fields card ── */}
       <div className="bg-white dark:bg-secondary-900 rounded-2xl border border-secondary-200 dark:border-secondary-700 p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -520,6 +648,7 @@ const BellTimings: React.FC = () => {
                 value={meta.session}
                 readOnly
                 tabIndex={-1}
+                title="Academic session"
                 className="input bg-secondary-50 dark:bg-secondary-800/50 cursor-default pr-8"
               />
               <svg className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -534,6 +663,7 @@ const BellTimings: React.FC = () => {
               type="date"
               value={meta.effectiveDate}
               onChange={e => setMeta(p => ({ ...p, effectiveDate: e.target.value }))}
+              title="Effective date"
               className="input"
             />
           </div>
@@ -543,6 +673,7 @@ const BellTimings: React.FC = () => {
               type="time"
               value={startTime}
               onChange={e => setStartTime(e.target.value)}
+              title="Bell timings start time"
               className="input"
             />
           </div>
@@ -578,6 +709,7 @@ const BellTimings: React.FC = () => {
                   type="text"
                   value={row.label}
                   onChange={e => updateRow(row.id, { label: e.target.value })}
+                  title="Period label"
                   className={`w-full max-w-[160px] px-2.5 py-1.5 text-sm rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-secondary-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none ${
                     row.type === 'break' ? 'font-semibold' : ''
                   }`}
@@ -635,6 +767,7 @@ const BellTimings: React.FC = () => {
                   max={480}
                   value={row.duration || ''}
                   onChange={e => handleDurationChange(row.id, e.target.value)}
+                  title="Duration in minutes"
                   className={`w-16 px-2.5 py-1.5 text-sm rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-800 text-secondary-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none text-center ${
                     row.type === 'break' ? 'font-semibold' : ''
                   }`}

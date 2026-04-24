@@ -196,9 +196,15 @@ const Subjects: React.FC = () => {
       <style>{`
         /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
         .subj-page {
-          padding: 20px 20px 32px;
+          padding: 32px 32px 48px;
           max-width: 1600px;
           margin: 0 auto;
+          min-height: 100vh;
+          background: rgba(249, 250, 251, 0.5);
+        }
+
+        .dark .subj-page {
+          background: #111827;
         }
 
         /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Success toast â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
@@ -226,20 +232,23 @@ const Subjects: React.FC = () => {
         /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Stat cards â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
         .subj-stats {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-          margin-bottom: 24px;
+          grid-template-columns: 1fr;
+          gap: 24px;
+          margin-bottom: 32px;
         }
-        @media (max-width: 768px) {
-          .subj-stats { grid-template-columns: 1fr; }
+        @media (min-width: 768px) {
+          .subj-stats { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (min-width: 1024px) {
+          .subj-stats { grid-template-columns: repeat(3, 1fr); }
         }
         .subj-stat {
           display: flex;
           align-items: center;
           gap: 16px;
           padding: 20px 24px;
-          border-radius: 16px;
-          border: 1px solid #e8ecf1;
+          border-radius: 12px;
+          border: 1px solid #e5e7eb;
           transition: all 0.25s ease;
           background: #fff;
           box-shadow: 0 1px 3px rgba(0,0,0,0.04);
@@ -255,7 +264,7 @@ const Subjects: React.FC = () => {
         .subj-stat-icon {
           width: 48px;
           height: 48px;
-          border-radius: 14px;
+          border-radius: 12px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -288,7 +297,7 @@ const Subjects: React.FC = () => {
         .subj-search-wrap {
           margin-bottom: 20px;
           position: relative;
-          max-width: 420px;
+          max-width: 288px;
         }
         .subj-toolbar .subj-search-wrap {
           margin-bottom: 0;
@@ -296,14 +305,14 @@ const Subjects: React.FC = () => {
         }
         .subj-search {
           width: 100%;
-          padding: 10px 16px 10px 42px;
-          border: 1.5px solid #e2e8f0;
-          border-radius: 12px;
-          font-size: 0.88rem;
+          padding: 8px 36px 8px 36px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 0.875rem;
           background: #fff;
           color: #334155;
           outline: none;
-          transition: all 0.2s ease;
+          transition: all 0.15s ease;
         }
         .dark .subj-search {
           background: #1e293b;
@@ -311,8 +320,8 @@ const Subjects: React.FC = () => {
           color: #e2e8f0;
         }
         .subj-search:focus {
-          border-color: #6366f1;
-          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
         }
         .subj-search-icon {
           position: absolute;
@@ -328,10 +337,10 @@ const Subjects: React.FC = () => {
         /* â”€â”€â”€â”€â”€â”€â”€â”€â”€ Card â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
         .subj-card {
           background: #fff;
-          border-radius: 16px;
+          border-radius: 12px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 6px 24px rgba(0,0,0,0.04);
           overflow: hidden;
-          border: 1px solid #e8ecf1;
+          border: 1px solid #e5e7eb;
           transition: box-shadow 0.3s ease;
         }
         .dark .subj-card {
@@ -348,14 +357,14 @@ const Subjects: React.FC = () => {
           align-items: center;
           justify-content: space-between;
           gap: 16px;
-          padding: 16px 24px;
-          background: linear-gradient(135deg, #f0f4ff 0%, #faf5ff 100%);
-          border-bottom: 1px solid #e2e8f0;
+          padding: 12px 16px;
+          background: rgba(249, 250, 251, 0.5);
+          border-bottom: 1px solid #e5e7eb;
           flex-wrap: wrap;
         }
         .dark .subj-toolbar {
-          background: linear-gradient(135deg, #1e2a3e 0%, #2a1e3e 100%);
-          border-color: #334155;
+          background: rgba(17, 24, 39, 0.5);
+          border-color: #374151;
         }
 
         /* Action buttons */
@@ -414,21 +423,21 @@ const Subjects: React.FC = () => {
           border-spacing: 0;
         }
         .subj-table thead th {
-          padding: 12px 18px;
-          font-size: 0.72rem;
-          font-weight: 700;
+          padding: 16px 24px;
+          font-size: 0.75rem;
+          font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.06em;
           color: #64748b;
-          background: #f8fafc;
-          border-bottom: 2px solid #e2e8f0;
+          background: rgba(249, 250, 251, 0.5);
+          border-bottom: 1px solid #e5e7eb;
           text-align: left;
           white-space: nowrap;
         }
         .dark .subj-table thead th {
-          background: #1e293b;
-          color: #94a3b8;
-          border-color: #334155;
+          background: rgba(17, 24, 39, 0.5);
+          color: #9ca3af;
+          border-color: #374151;
         }
         .subj-table thead th .subj-sort-btn {
           display: inline-flex;
@@ -465,15 +474,15 @@ const Subjects: React.FC = () => {
           transition: background 0.15s ease;
         }
         .subj-table tbody td {
-          padding: 12px 18px;
-          font-size: 0.88rem;
+          padding: 16px 24px;
+          font-size: 0.875rem;
           color: #334155;
-          border-bottom: 1px solid #f1f5f9;
+          border-bottom: 1px solid #e5e7eb;
           white-space: nowrap;
         }
         .dark .subj-table tbody td {
           color: #e2e8f0;
-          border-color: #1e293b;
+          border-color: #374151;
         }
 
         /* Class-based row colors */

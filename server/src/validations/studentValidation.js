@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { STUDENT_CLASSES, STUDENT_SECTIONS, REGEX_PATTERNS } = require('../utils/constants');
+const { STUDENT_CLASSES, STUDENT_GENDERS, REGEX_PATTERNS } = require('../utils/constants');
 
 // Base student schema
 const baseStudentSchema = {
@@ -7,7 +7,7 @@ const baseStudentSchema = {
     .pattern(REGEX_PATTERNS.ROLL_NUMBER)
     .required()
     .messages({
-      'string.pattern.base': 'Roll number must be 6-12 characters with letters and numbers only',
+      'string.pattern.base': 'Admission number must be 1-20 characters with letters and numbers only',
       'any.required': 'Roll number is required'
     }),
   
@@ -39,6 +39,15 @@ const baseStudentSchema = {
     .messages({
       'string.pattern.base': 'Please provide a valid 10-digit phone number'
     }),
+
+  penNumber: Joi.string()
+    .trim()
+    .max(50)
+    .optional()
+    .allow('')
+    .messages({
+      'string.max': 'PEN number cannot exceed 50 characters'
+    }),
   
   class: Joi.string()
     .valid(...Object.values(STUDENT_CLASSES))
@@ -49,12 +58,20 @@ const baseStudentSchema = {
     }),
   
   section: Joi.string()
-    .valid(...STUDENT_SECTIONS)
-    .uppercase()
+    .trim()
+    .max(50)
     .required()
     .messages({
-      'any.only': 'Section must be one of: ' + STUDENT_SECTIONS.join(', '),
+      'string.max': 'Section cannot exceed 50 characters',
       'any.required': 'Section is required'
+    }),
+
+  gender: Joi.string()
+    .valid(...STUDENT_GENDERS)
+    .optional()
+    .default('Unspecified')
+    .messages({
+      'any.only': 'Gender must be one of: ' + STUDENT_GENDERS.join(', ')
     }),
   
   subjects: Joi.array()
@@ -308,7 +325,7 @@ const studentQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(100).optional(),
   search: Joi.string().trim().optional(),
   class: Joi.string().valid(...Object.values(STUDENT_CLASSES)).optional(),
-  section: Joi.string().valid(...STUDENT_SECTIONS).optional(),
+  section: Joi.string().trim().max(50).optional(),
   subject: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional(),
   category: Joi.string().valid('General', 'OBC', 'SC', 'ST', 'EWS').optional(),
   isActive: Joi.string().valid('true', 'false').optional(),
@@ -351,10 +368,11 @@ const nextRollNumberSchema = Joi.object({
     }),
   
   section: Joi.string()
-    .valid(...STUDENT_SECTIONS)
+    .trim()
+    .max(50)
     .required()
     .messages({
-      'any.only': 'Section must be one of: ' + STUDENT_SECTIONS.join(', '),
+      'string.max': 'Section cannot exceed 50 characters',
       'any.required': 'Section is required'
     })
 });

@@ -233,21 +233,10 @@ const CandidateDetail: React.FC = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6 min-h-screen bg-gray-50/50 dark:bg-gray-900">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-center space-x-4">
-      <button
-      type="button"
-      onClick={() => navigate('/candidate-details')}
-      className="p-2 rounded-lg hover:bg-secondary-100 dark:hover:bg-secondary-700 transition-colors"
-      aria-label="Back to candidate details list"
-      title="Back to candidate details list"
-      >
-      <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-      </svg>
-      </button>
       {candidate.photoUrl ? (
         <img
           src={candidate.photoUrl}
@@ -287,7 +276,7 @@ const CandidateDetail: React.FC = () => {
         {/* Main Information */}
         <div className="lg:col-span-2 space-y-6">
           {/* Basic Information */}
-          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+          <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Basic Information
             </h2>
@@ -369,7 +358,7 @@ const CandidateDetail: React.FC = () => {
 
           {/* Family Information */}
           {(candidate.motherName || candidate.fatherName) && (
-            <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Family Information
               </h2>
@@ -396,7 +385,7 @@ const CandidateDetail: React.FC = () => {
 
           {/* Contact Information */}
           {(candidate.email || candidate.phone) && (
-            <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Contact Information
               </h2>
@@ -435,7 +424,7 @@ const CandidateDetail: React.FC = () => {
 
           {/* School Information */}
           {(candidate.schoolCode || candidate.schoolName || candidate.class) && (
-            <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 School Information
               </h2>
@@ -480,7 +469,7 @@ const CandidateDetail: React.FC = () => {
 
           {/* Subject Codes */}
           {candidate.subjectCodes && candidate.subjectCodes.length > 0 && (
-            <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Subject Codes
               </h2>
@@ -525,7 +514,7 @@ const CandidateDetail: React.FC = () => {
           )}
 
           {/* Enrolled Subjects (sorted by exam date) */}
-          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+          <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Enrolled Subjects
@@ -545,36 +534,36 @@ const CandidateDetail: React.FC = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">No subjects enrolled yet.</p>
               ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-secondary-200 dark:divide-secondary-700">
-                  <thead className="bg-secondary-50 dark:bg-secondary-800">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50/50 dark:bg-gray-900/50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Subject
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Exam Date
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Answer Sheet Type
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Serial No.
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Room No.
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Invigilator 1
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Invigilator 2
                       </th>
                       <th className="px-4 py-3" />
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-secondary-900 divide-y divide-secondary-200 dark:divide-secondary-700">
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {sortedSubjects.map((subject) => (
-                      <tr key={subject._id} className="hover:bg-secondary-50 dark:hover:bg-secondary-800">
+                      <tr key={subject._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                         <td className="px-4 py-3">
                           <div className="text-sm font-medium text-gray-900 dark:text-white">{subject.name}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">Code: {subject.code}</div>
@@ -589,7 +578,7 @@ const CandidateDetail: React.FC = () => {
                           {subjectSerials[subject._id]
                             ? subjectSerials[subject._id]
                             : serialsLoading
-                              ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent text-secondary-400" />
+                              ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent text-gray-400" />
                               : (subject.serialNumber ?? '—')}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
@@ -646,7 +635,7 @@ const CandidateDetail: React.FC = () => {
         <div className="space-y-6">
           {/* Candidate Photo */}
           {candidate.photoUrl && (
-            <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Candidate Photo
               </h2>
@@ -662,7 +651,7 @@ const CandidateDetail: React.FC = () => {
 
           {/* Import Information */}
           {candidate.importedFrom && (
-            <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
                 Import Information
               </h2>
@@ -701,7 +690,7 @@ const CandidateDetail: React.FC = () => {
           )}
 
           {/* Metadata */}
-          <div className="glass p-6 rounded-xl border border-secondary-200 dark:border-secondary-700">
+          <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Record Information
             </h2>

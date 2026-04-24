@@ -3,13 +3,13 @@ import { featuresAdminApi } from '../services/platformApi'
 import type { TenantFeaturePage, TenantWithFeatureSummary } from '../types/platform'
 
 const SUPPLEMENTAL_FEATURE_PAGES: TenantFeaturePage[] = [
-  { key: 'pwd_info', label: 'PwD Info', path: '/pwd-info', group: 'Centre Records' },
-  { key: 'umcs', label: "UMC's", path: '/umcs', group: 'Centre Records' },
-  { key: 'stickers', label: 'Stickers', path: '/stickers', group: 'Centre Records' },
-  { key: 'performas', label: "Performa's", path: '/performas', group: 'Centre Records' },
-  { key: 'candidates', label: 'Candidate Details', path: '/candidate-details', group: 'Centre Records' },
-  { key: 'dispatch_slip', label: 'Dispatch Slip', path: '/dispatch-slip', group: 'Centre Records' },
-  { key: 'remuneration', label: 'Remuneration', path: '/remuneration', group: 'Centre Records' },
+  { key: 'pwd_info', label: 'PwD Info', path: '/pwd-info', group: 'Centre Records', module: 'cntr' },
+  { key: 'umcs', label: "UMC's", path: '/umcs', group: 'Centre Records', module: 'cntr' },
+  { key: 'stickers', label: 'Stickers', path: '/stickers', group: 'Centre Records', module: 'cntr' },
+  { key: 'performas', label: "Performa's", path: '/performas', group: 'Centre Records', module: 'cntr' },
+  { key: 'candidates', label: 'Candidate Details', path: '/candidate-details', group: 'Centre Records', module: 'cntr' },
+  { key: 'dispatch_slip', label: 'Dispatch Slip', path: '/dispatch-slip', group: 'Centre Records', module: 'cntr' },
+  { key: 'remuneration', label: 'Remuneration', path: '/remuneration', group: 'Centre Records', module: 'cntr' },
 ]
 
 const mergeFeaturePages = (pages: TenantFeaturePage[]): TenantFeaturePage[] => {

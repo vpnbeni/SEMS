@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useTimetable, WEEKDAYS, EMPTY_CELL, type TimetableCell } from '@/contexts/TimetableContext'
 import bellTimingsService, { type BellTimingRowPayload } from '@/services/bellTimingsService'
+import timetableService, { type TimetableVersionSummary, type TimetableGridState } from '@/services/timetableService'
 import toast from 'react-hot-toast'
 
 /* ══════════════════════════════ Helpers ══════════════════════════════ */
@@ -125,6 +126,44 @@ const ClassWise: React.FC = () => {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const periodEditorRef = useRef<HTMLDivElement>(null)
   const [periodTimeRanges, setPeriodTimeRanges] = useState<string[]>([])
+
+  // ── Version state ──
+  const [versions, setVersions] = useState<TimetableVersionSummary[]>([])
+  const [selectedVersionId, setSelectedVersionId] = useState<string>('')
+  const [versionGrid, setVersionGrid] = useState<TimetableGridState | null>(null)
+  const [exportingExcel, setExportingExcel] = useState(false)
+  const [exportingPDF, setExportingPDF] = useState(false)
+
+  useEffect(() => {
+    timetableService.getVersions().then(setVersions).catch(() => setVersions([]))
+  }, [])
+
+  useEffect(() => {
+    if (!selectedVersionId) {
+      setVersionGrid(null)
+      return
+    }
+    timetableService.getVersion(selectedVersionId)
+      .then((v) => setVersionGrid(v.grid ?? null))
+      .catch(() => { setVersionGrid(null); toast.error('Failed to load version data.') })
+  }, [selectedVersionId])
+
+  const handleExportExcel = async () => {
+    if (!selectedVersionId) { toast.error('Select a version to export.'); return }
+    setExportingExcel(true)
+    try { await timetableService.exportExcel(selectedVersionId) }
+    catch { toast.error('Excel export failed.') }
+    finally { setExportingExcel(false) }
+  }
+
+  const handleExportPDF = async () => {
+    if (!selectedVersionId) { toast.error('Select a version to export.'); return }
+    if (!selectedClassId) { toast.error('Select a class to export.'); return }
+    setExportingPDF(true)
+    try { await timetableService.exportClassPDF(selectedVersionId, selectedClassId) }
+    catch { toast.error('PDF export failed.') }
+    finally { setExportingPDF(false) }
+  }
 
   // Auto-select first class if none selected
   const selectedClass = useMemo(
@@ -266,12 +305,16 @@ const ClassWise: React.FC = () => {
     }
   }, [])
 
-  // Get a cell from the grid
+  // Get a cell from the grid — reads version grid when a version is selected
   const getCell = useCallback(
     (classId: string, day: string, slot: number): TimetableCell => {
+      if (versionGrid) {
+        const cell = (versionGrid[classId]?.[day] as Record<string | number, TimetableCell> | undefined)?.[slot]
+        return cell ?? EMPTY_CELL
+      }
       return timetableGrid[classId]?.[day]?.[slot] ?? EMPTY_CELL
     },
-    [timetableGrid]
+    [timetableGrid, versionGrid]
   )
 
   // Stats for selected class
@@ -1400,6 +1443,67 @@ const ClassWise: React.FC = () => {
         }
         .cw-empty a:hover { text-decoration: underline; }
 
+        /* ───────── Version toolbar ───────── */
+        .cw-version-bar {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-bottom: 16px;
+        }
+        .cw-version-select {
+          padding: 6px 10px;
+          border-radius: 10px;
+          border: 1.5px solid #e2e8f0;
+          font-size: 0.82rem;
+          font-weight: 600;
+          background: #fff;
+          color: #475569;
+          min-width: 220px;
+        }
+        .dark .cw-version-select {
+          background: #1e293b;
+          border-color: #475569;
+          color: #94a3b8;
+        }
+        .cw-version-badge {
+          font-size: 0.78rem;
+          color: #6366f1;
+          font-weight: 600;
+        }
+        .cw-version-actions {
+          margin-left: auto;
+          display: flex;
+          gap: 8px;
+        }
+        .cw-export-btn {
+          padding: 6px 14px;
+          border-radius: 10px;
+          border: 1.5px solid #e2e8f0;
+          font-size: 0.82rem;
+          font-weight: 600;
+          background: #f1f5f9;
+          color: #475569;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+        .cw-export-btn:hover:not(:disabled) { background: #e2e8f0; }
+        .cw-export-btn:disabled { color: #cbd5e1; cursor: not-allowed; }
+        .dark .cw-export-btn { background: #1e293b; border-color: #475569; color: #94a3b8; }
+        .cw-export-btn-primary {
+          padding: 6px 14px;
+          border-radius: 10px;
+          border: none;
+          font-size: 0.82rem;
+          font-weight: 600;
+          background: #6366f1;
+          color: #fff;
+          cursor: pointer;
+          transition: background 0.15s;
+        }
+        .cw-export-btn-primary:hover:not(:disabled) { background: #4f46e5; }
+        .cw-export-btn-primary:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+
         /* ───────── No subjects notice ───────── */
         .cw-notice {
           display: flex;
@@ -1452,10 +1556,56 @@ const ClassWise: React.FC = () => {
         }
       `}</style>
 
+      {/* ── Version / Export toolbar ── */}
+      <div className="cw-version-bar">
+        <label htmlFor="cw-version-select" className="cw-class-label">Version:</label>
+        <select
+          id="cw-version-select"
+          className="cw-version-select"
+          title="Select a generated timetable version to view"
+          value={selectedVersionId}
+          onChange={(e) => setSelectedVersionId(e.target.value)}
+        >
+          <option value="">Manual (current grid)</option>
+          {versions.map((v) => (
+            <option key={v._id} value={v._id}>
+              {v.name} [{v.status}]
+            </option>
+          ))}
+        </select>
+
+        {selectedVersionId && versionGrid && (
+          <span className="cw-version-badge">
+            Viewing generated version — editing disabled
+          </span>
+        )}
+
+        <div className="cw-version-actions">
+          <button
+            type="button"
+            className="cw-export-btn"
+            onClick={handleExportPDF}
+            disabled={!selectedVersionId || exportingPDF}
+          >
+            {exportingPDF ? 'Exporting…' : 'Export PDF'}
+          </button>
+          <button
+            type="button"
+            className="cw-export-btn-primary"
+            onClick={handleExportExcel}
+            disabled={!selectedVersionId || exportingExcel}
+          >
+            {exportingExcel ? 'Exporting…' : 'Export Excel'}
+          </button>
+        </div>
+      </div>
+
       {/* ── Top bar ── */}
       <div className="cw-top-bar">
         <p>
-          Click a Period header to bulk-assign subjects by weekdays, or use Auto mode to fill the grid from Period Distribution.
+          {versionGrid
+            ? 'Showing generated timetable — select "Manual (current grid)" to edit cells.'
+            : 'Click a Period header to bulk-assign subjects by weekdays, or use Auto mode to fill the grid from Period Distribution.'}
         </p>
       </div>
 

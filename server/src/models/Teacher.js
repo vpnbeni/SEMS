@@ -14,16 +14,20 @@ const teacherSchema = new mongoose.Schema({
   // NOTE: Older data stored OASIS in `employeeId` — see migration.
   oasisId: {
     type: String,
-    required: function requiredOasisId() {
-      const dutyType = typeof this.get === 'function' ? (this.get('dutyType') || '') : (this.dutyType || '');
-      const dutyTypeLower = String(dutyType || '').trim().toLowerCase();
-      return dutyTypeLower !== 'class iv' && dutyTypeLower !== 'others';
-    },
     unique: true,
     sparse: true,
     trim: true,
-    match: [/^\d+$/, 'OASIS ID must contain digits only'],
-    default: null
+    validate: {
+      validator: function validateOasisId(value) {
+        if (value === null || value === undefined || String(value).trim() === '') return true;
+        return /^\d+$/.test(String(value).trim());
+      },
+      message: 'OASIS ID must contain digits only',
+    },
+    // Important: do not default to `null`.
+    // If we default to null, MongoDB will treat it as a value and can trigger
+    // unique index conflicts when multiple teachers have "empty" oasisId.
+    default: undefined
   },
   // School employee id (HR). Optional.
   // Use null for "not set" so legacy unique index constraints (if any) don't collide on ''.
@@ -95,6 +99,11 @@ const teacherSchema = new mongoose.Schema({
     lowercase: true,
     trim: true,
     sparse: true,
+    default: undefined,
+    set: (value) => {
+      const normalized = String(value ?? '').trim().toLowerCase()
+      return normalized ? normalized : undefined
+    },
     match: [
       REGEX_PATTERNS.EMAIL,
       'Please provide a valid email'
@@ -196,7 +205,12 @@ const teacherSchema = new mongoose.Schema({
         'ASI (Frisking Female)',
         'Clerk',
         'Class IV',
-        'Others'
+        'Others',
+        'Teacher',
+        'Driver',
+        'Conductor',
+        'Peon',
+        'Sweaper'
       ],
       message: '{VALUE} is not a valid duty type'
     },
@@ -217,7 +231,12 @@ const teacherSchema = new mongoose.Schema({
         'ASI (Frisking Female)',
         'Clerk',
         'Class IV',
-        'Others'
+        'Others',
+        'Teacher',
+        'Driver',
+        'Conductor',
+        'Peon',
+        'Sweaper'
       ],
       message: '{VALUE} is not a valid duty type'
     }
@@ -245,6 +264,15 @@ teacherSchema.index({ mobileNo: 1 });
 teacherSchema.index({ isActive: 1 });
 teacherSchema.index({ name: 'text', oasisId: 'text', employeeId: 'text', schoolName: 'text', schoolCode: 'text' });
 teacherSchema.index({ createdAt: -1 });
+// Ensure email uniqueness only for real emails (not missing/blank values).
+teacherSchema.index(
+  { email: 1 },
+  {
+    unique: true,
+    name: 'email_1_unique_nonempty',
+    partialFilterExpression: { email: { $type: 'string', $ne: '' } },
+  }
+);
 
 // Virtual for age
 teacherSchema.virtual('age').get(function () {

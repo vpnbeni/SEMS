@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Mail, RefreshCcw, Shield } from 'lucide-react'
 import authService from '@/services/authService'
+import { getUniversalAuthCopy } from '@/utils/publicBranding'
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const strongPasswordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9])(?=.*[!@#$%^&*]).{8,128}$/
@@ -31,6 +32,7 @@ const syncTenantInUrl = (tenantSlug: string | null) => {
 
 const ForgotPassword: React.FC = () => {
   const navigate = useNavigate()
+  const authCopy = getUniversalAuthCopy()
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState('')
@@ -210,20 +212,20 @@ const ForgotPassword: React.FC = () => {
                 Secure Recovery
               </div>
               <h1 className="mt-8 text-4xl font-bold leading-tight">
-                Reset your Cntr access
+                {authCopy.forgotTitle}
                 <span className="block bg-gradient-to-r from-primary-300 to-secondary-300 bg-clip-text text-transparent">
                   with email verification.
                 </span>
               </h1>
               <p className="mt-4 max-w-md text-gray-400">
-                Verify your account using OTP and set a strong new password that meets current security policy.
+                {authCopy.forgotDescription}
               </p>
             </div>
 
             <div className="space-y-4 text-sm text-gray-300">
               <p className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                User-aware email verification
+                Shared account recovery across modules
               </p>
               <p className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400" />

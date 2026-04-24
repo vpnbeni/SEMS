@@ -1,6 +1,7 @@
 const asyncHandler = require('../../middleware/asyncHandler');
 const {
   TENANT_FEATURE_PAGES,
+  TENANT_MODULE_CATALOG,
   normalizeTenantFeatureToggles,
 } = require('../../constants/tenantFeatures');
 const {
@@ -12,6 +13,13 @@ const listFeaturePages = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: TENANT_FEATURE_PAGES,
+  });
+});
+
+const listModules = asyncHandler(async (req, res) => {
+  res.status(200).json({
+    success: true,
+    data: TENANT_MODULE_CATALOG,
   });
 });
 
@@ -137,6 +145,7 @@ const updateTenantFeatures = asyncHandler(async (req, res) => {
 
 module.exports = {
   listFeaturePages,
+  listModules,
   listFeatureTenants,
   getDefaultFeatures,
   getTenantFeatures,

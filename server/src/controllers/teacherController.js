@@ -8,6 +8,8 @@ const { generateResponse, getPaginationParams, buildPaginationResponse, buildFil
 const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS } = require('../utils/constants');
 const { getPlatformModels } = require('../tenancy/platformModels');
 const { DEFAULT_TEMPLATE_COLUMNS } = require('./admin/masterTeacherTemplateController');
+const eventBus = require('../events/eventBus');
+const EVENTS = require('../events/eventNames');
 
 const RETRYABLE_DB_ERROR_PATTERNS = [
   'buffering timed out',
@@ -181,7 +183,21 @@ const buildGeneratedImportEmail = (employeeId, rowNumber, batchToken) => {
 // @access  Private
 const getTeachers = asyncHandler(async (req, res) => {
   const { page, limit, skip } = getPaginationParams(req);
-  const { search, department, subject, isActive, minExperience, maxExperience, joiningDateFrom, joiningDateTo, schoolName, sort = '-createdAt' } = req.query;
+  const {
+    search,
+    department,
+    subject,
+    isActive,
+    includeAllRecords,
+    includeDutyTypeAssigned,
+    minExperience,
+    maxExperience,
+    joiningDateFrom,
+    joiningDateTo,
+    schoolName,
+    dutyType,
+    sort = '-createdAt',
+  } = req.query;
 
   // Build filter object
   const filter = {};
@@ -209,9 +225,29 @@ const getTeachers = asyncHandler(async (req, res) => {
     filter.subjects = subject;
   }
 
-  if (isActive !== undefined) {
+  if (dutyType) {
+    filter.dutyType = String(dutyType).trim();
+  }
+
+  if (includeAllRecords === true || includeAllRecords === 'true') {
+    // Explicit override for admin reconciliation screens: return all records.
+    // No isActive/dutyType visibility filter is applied.
+  } else if (isActive !== undefined) {
     // Handle both boolean and string values when explicitly requested.
     filter.isActive = isActive === true || isActive === 'true';
+  } else if (includeDutyTypeAssigned === true || includeDutyTypeAssigned === 'true') {
+    // For Exam Functionaries listing: include records that are active OR have any functionary type.
+    const visibilityOr = [
+      { isActive: true },
+      { dutyType: { $exists: true, $ne: '' } },
+    ];
+    if (filter.$or) {
+      // Preserve existing search OR by combining via AND.
+      filter.$and = [{ $or: filter.$or }, { $or: visibilityOr }];
+      delete filter.$or;
+    } else {
+      filter.$or = visibilityOr;
+    }
   } else {
     // Default to active functionaries so soft-deleted records stay hidden.
     filter.isActive = true;
@@ -281,21 +317,25 @@ const getTeacher = asyncHandler(async (req, res) => {
 // @route   POST /api/teachers
 // @access  Private
 const createTeacher = asyncHandler(async (req, res) => {
+  // Email is optional. Persist only when non-empty (avoid "" which can trip legacy unique indexes).
+  const { email: rawEmail, ...bodyWithoutEmail } = req.body || {};
+  const normalizedEmail = normalizeString(rawEmail).toLowerCase();
+
   // Backward-compat: older clients sent OASIS in employeeId.
   // If oasisId is missing and employeeId is digits-only, treat it as oasisId and clear employeeId.
-  const legacyEmployeeId = normalizeString(req.body.employeeId);
-  const derivedOasisId = normalizeOasisId(req.body.oasisId) || normalizeOasisId(legacyEmployeeId);
-  const isLegacyEmployeeIdOasis = !normalizeOasisId(req.body.oasisId) && legacyEmployeeId && /^\d+$/.test(legacyEmployeeId);
+  const legacyEmployeeId = normalizeString(bodyWithoutEmail.employeeId);
+  const derivedOasisId = normalizeOasisId(bodyWithoutEmail.oasisId) || normalizeOasisId(legacyEmployeeId);
+  const isLegacyEmployeeIdOasis = !normalizeOasisId(bodyWithoutEmail.oasisId) && legacyEmployeeId && /^\d+$/.test(legacyEmployeeId);
 
   // Validate subjects first so resolvedSubjectCode is available for reactivation too
   let resolvedSubjectCode = '';
-  if (req.body.subjects && req.body.subjects.length > 0) {
+  if (bodyWithoutEmail.subjects && bodyWithoutEmail.subjects.length > 0) {
     const validSubjects = await Subject.find({
-      _id: { $in: req.body.subjects },
+      _id: { $in: bodyWithoutEmail.subjects },
       isActive: true
     });
 
-    if (validSubjects.length !== req.body.subjects.length) {
+    if (validSubjects.length !== bodyWithoutEmail.subjects.length) {
       return res.status(HTTP_STATUS.BAD_REQUEST).json(
         generateResponse(false, 'One or more invalid subject IDs provided')
       );
@@ -310,15 +350,17 @@ const createTeacher = asyncHandler(async (req, res) => {
   if (existingOasisId) {
     if (!existingOasisId.isActive) {
       // Reactivate the soft-deleted record with the new payload
+      const nextDutyType = normalizeDutyType(req.body.dutyType);
       const payload = {
-        ...req.body,
-        oasisId: derivedOasisId || req.body.oasisId || null,
-        employeeId: isLegacyEmployeeIdOasis ? null : (req.body.employeeId || null),
-        isActive: true,
-        email: req.body.email || `${String(derivedOasisId || '').toLowerCase()}@sems.local`,
-        subjectCode: resolvedSubjectCode || req.body.subjectCode || '',
-        accountNumber: digitsOnly(req.body.accountNumber),
-        phone: req.body.mobileNo || req.body.phone || ''
+        ...bodyWithoutEmail,
+        oasisId: derivedOasisId || bodyWithoutEmail.oasisId || undefined,
+        employeeId: isLegacyEmployeeIdOasis ? null : (bodyWithoutEmail.employeeId || null),
+        // Only surface in Exam Functionaries when a duty type is selected.
+        isActive: Boolean(nextDutyType),
+        ...(normalizedEmail ? { email: normalizedEmail } : {}),
+        subjectCode: resolvedSubjectCode || bodyWithoutEmail.subjectCode || '',
+        accountNumber: digitsOnly(bodyWithoutEmail.accountNumber),
+        phone: bodyWithoutEmail.mobileNo || bodyWithoutEmail.phone || ''
       };
       if (normalizeDutyType(payload.dutyType)) {
         payload.dutyHistory = mergeDutyHistory(existingOasisId.dutyHistory || [], payload.dutyType);
@@ -337,14 +379,17 @@ const createTeacher = asyncHandler(async (req, res) => {
     );
   }
 
+  const nextDutyType = normalizeDutyType(req.body.dutyType);
   const payload = {
-    ...req.body,
-    oasisId: derivedOasisId || req.body.oasisId || null,
-    employeeId: isLegacyEmployeeIdOasis ? null : (req.body.employeeId || null),
-    email: req.body.email || `${String(derivedOasisId || '').toLowerCase()}@sems.local`,
-    subjectCode: resolvedSubjectCode || req.body.subjectCode || '',
-    accountNumber: digitsOnly(req.body.accountNumber),
-    phone: req.body.mobileNo || req.body.phone || ''
+    ...bodyWithoutEmail,
+    oasisId: derivedOasisId || bodyWithoutEmail.oasisId || undefined,
+    employeeId: isLegacyEmployeeIdOasis ? null : (bodyWithoutEmail.employeeId || null),
+    ...(normalizedEmail ? { email: normalizedEmail } : {}),
+    subjectCode: resolvedSubjectCode || bodyWithoutEmail.subjectCode || '',
+    accountNumber: digitsOnly(bodyWithoutEmail.accountNumber),
+    phone: bodyWithoutEmail.mobileNo || bodyWithoutEmail.phone || '',
+    // Only surface in Exam Functionaries when a duty type is selected.
+    isActive: Boolean(nextDutyType)
   };
 
   if (normalizeDutyType(payload.dutyType)) {
@@ -393,8 +438,14 @@ const updateTeacher = asyncHandler(async (req, res) => {
 
   // Validate subjects if provided
   const updatePayload = { ...req.body };
+  // Email is optional. Persist only when non-empty; delete when blank.
+  if (Object.prototype.hasOwnProperty.call(updatePayload, 'email')) {
+    const normalizedEmail = normalizeString(updatePayload.email).toLowerCase();
+    if (!normalizedEmail) delete updatePayload.email;
+    else updatePayload.email = normalizedEmail;
+  }
   if (Object.prototype.hasOwnProperty.call(req.body, 'oasisId') || Object.prototype.hasOwnProperty.call(req.body, 'employeeId')) {
-    updatePayload.oasisId = derivedOasisIdUpdate || null;
+    updatePayload.oasisId = derivedOasisIdUpdate || undefined;
     if (isLegacyEmployeeIdOasisUpdate) {
       updatePayload.employeeId = null;
     }
@@ -418,9 +469,6 @@ const updateTeacher = asyncHandler(async (req, res) => {
   if (req.body.mobileNo) {
     updatePayload.phone = req.body.mobileNo;
   }
-  if ((updatePayload.oasisId || derivedOasisIdUpdate) && !req.body.email && !teacher.email) {
-    updatePayload.email = `${String(updatePayload.oasisId || derivedOasisIdUpdate || '').toLowerCase()}@sems.local`;
-  }
   if (Object.prototype.hasOwnProperty.call(req.body, 'dutyType')) {
     const previousDutyType = normalizeDutyType(teacher.dutyType);
     const nextDutyType = normalizeDutyType(req.body.dutyType);
@@ -432,6 +480,11 @@ const updateTeacher = asyncHandler(async (req, res) => {
         nextDutyType
       );
     }
+
+    // If a functionary type is selected later, make the record visible in Exam Functionaries.
+    if (nextDutyType && !teacher.isActive) {
+      updatePayload.isActive = true;
+    }
   }
 
   teacher = await Teacher.findByIdAndUpdate(
@@ -442,6 +495,13 @@ const updateTeacher = asyncHandler(async (req, res) => {
       runValidators: true
     }
   ).populate('subjects', 'name code class');
+
+  eventBus.emit(EVENTS.TEACHER_UPDATED, {
+    tenant: { dbName: req.tenant.dbName, slug: req.tenant.slug, id: String(req.tenant.id) },
+    teacherId: String(teacher._id),
+    teacherName: teacher.name,
+    teacherShortName: teacher.shortName,
+  });
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, SUCCESS_MESSAGES.UPDATED, teacher)
@@ -460,9 +520,26 @@ const deleteTeacher = asyncHandler(async (req, res) => {
     );
   }
 
-  // Soft delete - set isActive to false
-  teacher.isActive = false;
-  await teacher.save();
+  const permanentDelete = req.query?.permanent === true || req.query?.permanent === 'true';
+  const tenantContext = { dbName: req.tenant.dbName, slug: req.tenant.slug, id: String(req.tenant.id) };
+
+  if (permanentDelete) {
+    await Teacher.deleteOne({ _id: teacher._id });
+    eventBus.emit(EVENTS.TEACHER_DELETED, {
+      tenant: tenantContext,
+      teacherId: String(teacher._id),
+      teacherName: teacher.name,
+    });
+  } else {
+    // Soft delete - set isActive to false
+    teacher.isActive = false;
+    await teacher.save();
+    eventBus.emit(EVENTS.TEACHER_DEACTIVATED, {
+      tenant: tenantContext,
+      teacherId: String(teacher._id),
+      teacherName: teacher.name,
+    });
+  }
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, SUCCESS_MESSAGES.DELETED)
@@ -686,30 +763,28 @@ const bulkCreateTeachers = asyncHandler(async (req, res) => {
 
   for (const teacherData of teachers) {
     try {
-      // Check for existing teacher by email or employee ID
-      const existingTeacher = await Teacher.findOne({
-        $or: [
-          { email: teacherData.email },
-          { employeeId: teacherData.employeeId }
-        ]
-      });
+      // Email is hard-disabled for teachers. Only dedupe by employeeId (and oasisId when present).
+      const or = [];
+      if (teacherData?.employeeId) or.push({ employeeId: teacherData.employeeId });
+      if (teacherData?.oasisId) or.push({ oasisId: teacherData.oasisId });
+      const existingTeacher = or.length ? await Teacher.findOne({ $or: or }) : null;
 
       if (existingTeacher) {
         if (updateExisting) {
           const updatedTeacher = await Teacher.findByIdAndUpdate(
             existingTeacher._id,
-            teacherData,
+            { ...teacherData, email: undefined },
             { new: true, runValidators: true }
           );
           results.updated.push(updatedTeacher);
         } else if (skipDuplicates) {
           results.skipped.push({
-            email: teacherData.email,
+            email: undefined,
             reason: 'Duplicate entry'
           });
         } else {
           results.errors.push({
-            email: teacherData.email,
+            email: undefined,
             reason: 'Teacher already exists'
           });
         }
@@ -730,12 +805,12 @@ const bulkCreateTeachers = asyncHandler(async (req, res) => {
           }
         }
 
-        const newTeacher = await Teacher.create(teacherData);
+        const newTeacher = await Teacher.create({ ...teacherData, email: undefined });
         results.created.push(newTeacher);
       }
     } catch (error) {
       results.errors.push({
-        email: teacherData.email,
+        email: undefined,
         reason: error.message
       });
     }

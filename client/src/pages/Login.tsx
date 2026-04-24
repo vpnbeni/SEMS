@@ -9,11 +9,12 @@ import { useAcademicSession } from '../contexts/AcademicSessionContext'
 import sessionService from '../services/sessionService'
 import { getRememberPreference, persistAuthData, setRememberPreference } from '../utils/authStorage'
 import { resolveTenantSlug } from '../utils/tenantRuntime'
+import { getPublicAppOrigin, getUniversalAuthCopy } from '../utils/publicBranding'
 import type { AppDispatch } from '../redux/store'
 import type { LoginCredentials } from '../types/auth'
 import Loader from '../components/common/Loader'
-import fullLogo from '../assets/full logo.png'
 import loginImage from '../assets/login.png'
+import UniversalAuthBrand from '../components/auth/UniversalAuthBrand'
 
 const syncTenantInUrl = (tenantSlug: string | null) => {
   const url = new URL(window.location.href)
@@ -51,6 +52,8 @@ const Login: React.FC = () => {
   const navigate = useNavigate()
   const { loading, error, isAuthenticated } = useSelector(selectAuth)
   const { hasSession, setSession } = useAcademicSession()
+  const authCopy = getUniversalAuthCopy()
+  const appOrigin = getPublicAppOrigin()
 
   useEffect(() => {
     if (isAuthenticated && !resolvingTenant) {
@@ -106,7 +109,7 @@ const Login: React.FC = () => {
           const code = schoolCode.trim().toLowerCase()
           if (!code) {
             setShowSchoolCode(true)
-            setTenantLookupError('Enter your School Code to sign in with a username.')
+            setTenantLookupError('Enter your Workspace Code to sign in with a username.')
             return
           }
           localStorage.setItem('tenantSlug', code)
@@ -241,19 +244,15 @@ const Login: React.FC = () => {
             className="flex flex-col items-start gap-3"
           >
             <a
-              href="https://cntr.capabble.cloud"
+              href={appOrigin}
               target="_blank"
               rel="noopener noreferrer"
               className="transition-opacity hover:opacity-90"
             >
-              <img
-                src={fullLogo}
-                alt="Cntr - Exam Centre Control"
-                className="h-24 w-auto"
-              />
+              <UniversalAuthBrand subtitle="One account across modules" />
             </a>
             <div>
-              <p className="text-2xl font-bold tracking-[0.08em] text-primary-900">Exam Centre Control</p>
+              <p className="text-2xl font-bold tracking-[0.08em] text-primary-900">Universal module access</p>
             </div>
           </motion.div>
 
@@ -284,20 +283,16 @@ const Login: React.FC = () => {
           <div className="mb-8 text-center xl:mb-10">
             <div className="mb-6 flex justify-center lg:hidden">
               <a
-                href="https://cntr.capabble.cloud"
+                href={appOrigin}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="transition-opacity hover:opacity-90"
               >
-                <img
-                  src={fullLogo}
-                  alt="Cntr - Exam Centre Control"
-                  className="h-24 w-auto"
-                />
+                <UniversalAuthBrand compact subtitle="One account across modules" />
               </a>
             </div>
-            <h2 className="mb-2 text-3xl font-bold text-slate-900">Welcome to Cntr</h2>
-            <p className="text-slate-500">Enter your username/email and password to login.</p>
+            <h2 className="mb-2 text-3xl font-bold text-slate-900">Welcome to Capabble</h2>
+            <p className="text-slate-500">{authCopy.loginDescription}</p>
           </div>
 
           <div className="glass-morphism login-form-card relative rounded-3xl border border-slate-200 p-6 shadow-2xl shadow-slate-200/80 xl:p-8">
@@ -421,7 +416,7 @@ const Login: React.FC = () => {
                     exit={{ opacity: 0, height: 0 }}
                     className="space-y-2 overflow-hidden"
                   >
-                    <label htmlFor="schoolCode" className="ml-1 block text-sm font-medium text-slate-700">School Code</label>
+                    <label htmlFor="schoolCode" className="ml-1 block text-sm font-medium text-slate-700">Workspace Code</label>
                     <div className="group relative">
                       <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-slate-400 transition-colors group-focus-within:text-primary-500">
                         <Building2 className="h-5 w-5" />
@@ -437,7 +432,7 @@ const Login: React.FC = () => {
                         autoFocus
                       />
                     </div>
-                    <p className="ml-1 text-xs text-slate-500">Your school or institution code, provided by your administrator.</p>
+                    <p className="ml-1 text-xs text-slate-500">Your workspace or institution code, provided by your administrator.</p>
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -499,7 +494,7 @@ const Login: React.FC = () => {
               <p className="text-sm text-cyan-900">
                 New user?{' '}
                 <Link to="/signup" className="font-semibold text-cyan-700 underline underline-offset-2 hover:text-cyan-600">
-                  Create your account.
+                  Create one account for all enabled modules.
                 </Link>
               </p>
             </div>
@@ -508,7 +503,7 @@ const Login: React.FC = () => {
           </div>
 
           <p className="mt-8 text-center text-sm text-slate-500 xl:mt-10">
-            Copyright 2026 Bharat Examination Core Management System
+            Copyright 2026 Capabble
           </p>
         </motion.div>
       </div>

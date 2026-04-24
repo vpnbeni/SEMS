@@ -940,7 +940,7 @@ const AnswerSheets: React.FC = () => {
             activeTab={activeTab}
             onChange={setActiveTab}
             variant="pill"
-            size="md"
+            size="sm"
             ariaLabel="Answer sheet status"
           />
           <div className="flex items-center space-x-4 min-w-0">

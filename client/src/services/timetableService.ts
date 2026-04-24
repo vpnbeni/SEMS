@@ -1,4 +1,4 @@
-import api from './api'
+import api, { downloadFile } from './api'
 
 export interface TimetableClassState {
   id: string
@@ -7,12 +7,58 @@ export interface TimetableClassState {
   floor: string
   subjects: string[]
   incharge: string
+  classGroup: string
+  displayOrder: number
 }
 
 export interface TimetableSubjectState {
   id: string
   name: string
   type: string
+  requiresConsecutivePeriods: boolean
+  consecutivePeriodCount: number
+  color: string
+}
+
+// ── TimetableVersion types ───────────────────────────────────────────────────
+
+export interface ConflictReportEntry {
+  classId: string
+  className: string
+  subjectName: string
+  type: 'underallocated' | 'teacher_overload' | 'unfilled'
+  expected: number
+  actual: number
+  message: string
+}
+
+export interface GenerationStats {
+  totalSlots: number
+  filledSlots: number
+  conflictCount: number
+  durationMs: number
+}
+
+export interface TimetableVersionSummary {
+  _id: string
+  name: string
+  status: 'draft' | 'published' | 'archived'
+  generatedAt: string
+  publishedAt?: string
+  academicSession?: string
+  generationStats: GenerationStats
+  conflictCount: number
+}
+
+export interface TimetableVersion extends TimetableVersionSummary {
+  conflictReport: ConflictReportEntry[]
+  grid: TimetableGridState
+}
+
+export interface GenerateResult {
+  version: TimetableVersionSummary
+  conflictReport: ConflictReportEntry[]
+  stats: GenerationStats
 }
 
 export interface TimetableTeacherState {
@@ -98,51 +144,87 @@ const DEFAULT_TIMETABLE_STATE: TimetableStatePayload = {
   matrixSelection: {},
 }
 
+const normalizeStatePayload = (payload: Partial<TimetableStatePayload> | undefined): TimetableStatePayload => ({
+  classes: Array.isArray(payload?.classes) ? payload!.classes : [],
+  subjects: Array.isArray(payload?.subjects) ? payload!.subjects : [],
+  teachers: Array.isArray(payload?.teachers) ? payload!.teachers : [],
+  teacherSubjectAllocations: Array.isArray(payload?.teacherSubjectAllocations) ? payload!.teacherSubjectAllocations : [],
+  parallelSubjectPairs: Array.isArray(payload?.parallelSubjectPairs) ? payload!.parallelSubjectPairs : [],
+  commonPeriods: Array.isArray(payload?.commonPeriods) ? (payload!.commonPeriods as CommonPeriodState[]) : [],
+  periodsPerWeek:
+    typeof payload?.periodsPerWeek === 'number' && payload.periodsPerWeek > 0
+      ? payload.periodsPerWeek
+      : DEFAULT_TIMETABLE_STATE.periodsPerWeek,
+  periodAllocation: (payload?.periodAllocation ?? {}) as PeriodAllocationState,
+  timetableGrid: (payload?.timetableGrid ?? {}) as TimetableGridState,
+  matrixClasses: Array.isArray(payload?.matrixClasses) ? payload!.matrixClasses : [],
+  matrixSections: Array.isArray(payload?.matrixSections) ? payload!.matrixSections : [],
+  matrixSelection: (payload?.matrixSelection ?? {}) as TimetableMatrixSelectionState,
+})
+
 const timetableService = {
   async getState(): Promise<TimetableStatePayload> {
     const response = await api.get('/timetable/state')
-    const payload = response.data?.data as Partial<TimetableStatePayload> | undefined
-
-    return {
-      classes: Array.isArray(payload?.classes) ? payload!.classes : [],
-      subjects: Array.isArray(payload?.subjects) ? payload!.subjects : [],
-      teachers: Array.isArray(payload?.teachers) ? payload!.teachers : [],
-      teacherSubjectAllocations: Array.isArray(payload?.teacherSubjectAllocations) ? payload!.teacherSubjectAllocations : [],
-      parallelSubjectPairs: Array.isArray(payload?.parallelSubjectPairs) ? payload!.parallelSubjectPairs : [],
-      commonPeriods: Array.isArray(payload?.commonPeriods) ? (payload!.commonPeriods as CommonPeriodState[]) : [],
-      periodsPerWeek:
-        typeof payload?.periodsPerWeek === 'number' && payload.periodsPerWeek > 0
-          ? payload.periodsPerWeek
-          : DEFAULT_TIMETABLE_STATE.periodsPerWeek,
-      periodAllocation: (payload?.periodAllocation ?? {}) as PeriodAllocationState,
-      timetableGrid: (payload?.timetableGrid ?? {}) as TimetableGridState,
-      matrixClasses: Array.isArray(payload?.matrixClasses) ? payload!.matrixClasses : [],
-      matrixSections: Array.isArray(payload?.matrixSections) ? payload!.matrixSections : [],
-      matrixSelection: (payload?.matrixSelection ?? {}) as TimetableMatrixSelectionState,
-    }
+    return normalizeStatePayload(response.data?.data)
   },
 
   async saveState(state: TimetableStatePayload): Promise<TimetableStatePayload> {
     const response = await api.put('/timetable/state', state)
-    const payload = response.data?.data as Partial<TimetableStatePayload> | undefined
+    return normalizeStatePayload(response.data?.data)
+  },
 
-    return {
-      classes: Array.isArray(payload?.classes) ? payload!.classes : [],
-      subjects: Array.isArray(payload?.subjects) ? payload!.subjects : [],
-      teachers: Array.isArray(payload?.teachers) ? payload!.teachers : [],
-      teacherSubjectAllocations: Array.isArray(payload?.teacherSubjectAllocations) ? payload!.teacherSubjectAllocations : [],
-      parallelSubjectPairs: Array.isArray(payload?.parallelSubjectPairs) ? payload!.parallelSubjectPairs : [],
-      commonPeriods: Array.isArray(payload?.commonPeriods) ? (payload!.commonPeriods as CommonPeriodState[]) : [],
-      periodsPerWeek:
-        typeof payload?.periodsPerWeek === 'number' && payload.periodsPerWeek > 0
-          ? payload.periodsPerWeek
-          : DEFAULT_TIMETABLE_STATE.periodsPerWeek,
-      periodAllocation: (payload?.periodAllocation ?? {}) as PeriodAllocationState,
-      timetableGrid: (payload?.timetableGrid ?? {}) as TimetableGridState,
-      matrixClasses: Array.isArray(payload?.matrixClasses) ? payload!.matrixClasses : [],
-      matrixSections: Array.isArray(payload?.matrixSections) ? payload!.matrixSections : [],
-      matrixSelection: (payload?.matrixSelection ?? {}) as TimetableMatrixSelectionState,
-    }
+  // ── Generation ─────────────────────────────────────────────────────────────
+
+  async generate(name?: string): Promise<GenerateResult> {
+    const response = await api.post('/timetable/generate', name ? { name } : {})
+    return response.data?.data as GenerateResult
+  },
+
+  // ── Versions ───────────────────────────────────────────────────────────────
+
+  async getVersions(): Promise<TimetableVersionSummary[]> {
+    const response = await api.get('/timetable/versions')
+    const data = response.data?.data
+    return Array.isArray(data) ? data : []
+  },
+
+  async getVersion(id: string): Promise<TimetableVersion> {
+    const response = await api.get(`/timetable/versions/${id}`)
+    return response.data?.data as TimetableVersion
+  },
+
+  async publishVersion(id: string): Promise<TimetableVersionSummary> {
+    const response = await api.put(`/timetable/versions/${id}/publish`)
+    return response.data?.data as TimetableVersionSummary
+  },
+
+  async archiveVersion(id: string): Promise<TimetableVersionSummary> {
+    const response = await api.put(`/timetable/versions/${id}/archive`)
+    return response.data?.data as TimetableVersionSummary
+  },
+
+  async deleteVersion(id: string): Promise<void> {
+    await api.delete(`/timetable/versions/${id}`)
+  },
+
+  // ── Exports ────────────────────────────────────────────────────────────────
+
+  async exportExcel(id: string, filename?: string): Promise<void> {
+    await downloadFile(`/timetable/versions/${id}/export/excel`, filename ?? 'timetable.xlsx')
+  },
+
+  async exportClassPDF(id: string, classId?: string, filename?: string): Promise<void> {
+    const url = classId
+      ? `/timetable/versions/${id}/export/class-pdf/${classId}`
+      : `/timetable/versions/${id}/export/class-pdf`
+    await downloadFile(url, filename ?? 'class-timetable.pdf')
+  },
+
+  async exportTeacherPDF(id: string, teacherId?: string, filename?: string): Promise<void> {
+    const url = teacherId
+      ? `/timetable/versions/${id}/export/teacher-pdf/${teacherId}`
+      : `/timetable/versions/${id}/export/teacher-pdf`
+    await downloadFile(url, filename ?? 'teacher-timetable.pdf')
   },
 }
 

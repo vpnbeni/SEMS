@@ -25,7 +25,12 @@ const SupportTicket = require('../models/SupportTicket');
 const AcademicSession = require('../models/AcademicSession');
 const { AttendanceRecord, AttendanceUpload } = require('../models/AttendanceRecord');
 const TimetableState = require('../models/TimetableState');
+const TimetableVersion = require('../models/TimetableVersion');
+const BellTimingVersion = require('../models/BellTimingVersion');
 const OnboardingSession = require('../models/OnboardingSession');
+const ExamCircular = require('../models/ExamCircular');
+const ExamDefinition = require('../models/ExamDefinition');
+const { StaffAttendanceDaily, StudentAttendanceDaily } = require('../models/AttndDailyRecord');
 
 const tenantModelExports = {
   User,
@@ -57,7 +62,13 @@ const tenantModelExports = {
   AttendanceRecord,
   AttendanceUpload,
   TimetableState,
-  OnboardingSession
+  TimetableVersion,
+  BellTimingVersion,
+  OnboardingSession,
+  ExamCircular,
+  ExamDefinition,
+  StaffAttendanceDaily,
+  StudentAttendanceDaily
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

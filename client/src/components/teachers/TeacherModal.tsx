@@ -26,6 +26,7 @@ interface SchoolOption {
 interface TeacherModalProps {
   mode: "add" | "edit";
   onSuccess?: (teacher?: any) => void;
+  entityLabelSingular?: string;
 }
 
 const DEFAULT_SCHOOL_NAME = "International Bharti School";
@@ -83,7 +84,7 @@ const resolveDefaultSchoolOption = (options: SchoolOption[]): SchoolOption | nul
   return match || null;
 };
 
-const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
+const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess, entityLabelSingular }) => {
   const dispatch = useDispatch<AppDispatch>();
   const { showAddModal, showEditModal, loading, selectedTeacher } = useSelector(
     (state: RootState) => state.teachers
@@ -91,7 +92,9 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const { subjects } = useSelector((state: RootState) => state.subjects);
 
   const isOpen = mode === "add" ? showAddModal : showEditModal;
-  const modalTitle = mode === "add" ? "Add New Functionary" : "Edit Functionary";
+  const modalTitle = mode === "add"
+    ? `Add new ${entityLabelSingular ?? "teacher"}`
+    : `Edit ${entityLabelSingular ?? "teacher"}`;
 
   const [schoolOptions, setSchoolOptions] = useState<SchoolOption[]>([]);
   const [schoolsLoading, setSchoolsLoading] = useState(false);
@@ -99,6 +102,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   const [formData, setFormData] = useState({
     name: "",
     oasisId: "",
+    email: "",
     designation: "",
     subjectIds: [] as string[],
     subjectCode: "",
@@ -200,6 +204,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     setFormData({
       name: selectedTeacher.name || "",
       oasisId: (selectedTeacher as any).oasisId || "",
+      email: (selectedTeacher as any).email || "",
       designation: selectedTeacher.designation || "",
       subjectIds,
       subjectCode,
@@ -295,6 +300,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     setFormData({
       name: "",
       oasisId: "",
+      email: "",
       designation: "",
       subjectIds: [],
       subjectCode: "",
@@ -350,20 +356,10 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
   };
 
   const validateForm = () => {
-    const nextErrors: Record<string, string> = {};
-    if (!formData.name.trim()) nextErrors.name = "Teacher name is required";
-    if (!isClassIvFunctionary && !isDesignationOthers) {
-      if (!formData.oasisId.trim()) nextErrors.oasisId = "OASIS ID is required";
-      else if (!/^\d+$/.test(formData.oasisId.trim())) nextErrors.oasisId = "OASIS ID must contain digits only";
-    }
-    if (!formData.designation.trim()) nextErrors.designation = "Designation is required";
-    if (!subjectsDisabled && !isDesignationOthers && !formData.subjectIds.length) {
-      nextErrors.subjectIds = "At least one subject is required";
-    }
-    if (!formData.schoolName.trim()) nextErrors.schoolName = "School is required";
-    if (!formData.schoolCode.trim()) nextErrors.schoolCode = "School code is required";
-    setErrors(nextErrors);
-    return Object.keys(nextErrors).length === 0;
+    // Allow creating/updating without required-field checks.
+    // Any validation should come from the backend/API.
+    setErrors({});
+    return true;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -377,6 +373,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
     const payload = {
       name: formData.name.trim(),
       oasisId: resolvedOasisId,
+      ...(formData.email.trim() ? { email: formData.email.trim() } : {}),
       designation: isClassIvFunctionary ? "Class IV" : formData.designation.trim(),
       subjects: (isClassIvFunctionary || isDesignationOthers) ? [] : formData.subjectIds,
       subjectCode: (isClassIvFunctionary || isDesignationOthers) ? "N/A" : formData.subjectCode,
@@ -436,15 +433,31 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
 
           <div>
             <label htmlFor={`${fieldIdPrefix}name`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              Functionary Name <span className="text-error-500">*</span>
+              Functionary Name
             </label>
             <input id={`${fieldIdPrefix}name`} name="name" value={formData.name} onChange={handleInputChange} className={`input w-full ${errors.name ? "input-error" : ""}`} />
             {errors.name && <p className="text-error-500 text-xs mt-1">{errors.name}</p>}
           </div>
 
           <div>
+            <label htmlFor={`${fieldIdPrefix}email`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
+              Email
+            </label>
+            <input
+              id={`${fieldIdPrefix}email`}
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              placeholder="Optional"
+              className={`input w-full ${errors.email ? "input-error" : ""}`}
+            />
+            {errors.email && <p className="text-error-500 text-xs mt-1">{errors.email}</p>}
+          </div>
+
+          <div>
             <label htmlFor={`${fieldIdPrefix}oasisId`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              OASIS ID {!(isClassIvFunctionary || isDesignationOthers) && <span className="text-error-500">*</span>}
+              OASIS ID
             </label>
             <input
               id={`${fieldIdPrefix}oasisId`}
@@ -462,7 +475,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
 
           <div>
             <label htmlFor={`${fieldIdPrefix}designation`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              Designation <span className="text-error-500">*</span>
+              Designation
             </label>
             <select
               id={`${fieldIdPrefix}designation`}
@@ -486,7 +499,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
             <>
             <div>
             <label htmlFor={`${fieldIdPrefix}subjectSearch`} className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              Subjects <span className="text-error-500">*</span>
+              Subjects
             </label>
             <input
               id={`${fieldIdPrefix}subjectSearch`}
@@ -564,7 +577,7 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
 
           <div>
             <label className="block text-sm font-medium text-secondary-700 dark:text-secondary-300 mb-2">
-              School <span className="text-error-500">*</span>
+              School
             </label>
             <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2 min-h-[44px] max-h-40 overflow-y-auto">
               <div className="flex flex-wrap gap-2">
@@ -608,7 +621,13 @@ const TeacherModal: React.FC<TeacherModalProps> = ({ mode, onSuccess }) => {
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? (mode === "add" ? "Creating..." : "Updating...") : (mode === "add" ? "Create Functionary" : "Update Functionary")}
+            {loading
+              ? mode === "add"
+                ? "Creating..."
+                : "Updating..."
+              : mode === "add"
+                ? `Create ${entityLabelSingular ?? "teacher"}`
+                : `Update ${entityLabelSingular ?? "teacher"}`}
           </button>
         </div>
       </form>

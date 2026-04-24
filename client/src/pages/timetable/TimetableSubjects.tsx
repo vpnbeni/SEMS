@@ -6,6 +6,9 @@ const SUBJECT_TYPES = ['Language', 'Skill', 'Core', 'Elective', 'Co-Curricular',
 const EMPTY_FORM = {
   name: '',
   type: 'Other',
+  requiresConsecutivePeriods: false,
+  consecutivePeriodCount: 2,
+  color: '',
 }
 
 const EMPTY_PAIR_FORM = {
@@ -78,7 +81,15 @@ interface SubjectMatrixColumn {
   sectionSpecific: boolean
 }
 
-const TimetableSubjects: React.FC = () => {
+interface TimetableSubjectsProps {
+  showParallelSubjectPairs?: boolean
+  showCommonPeriod?: boolean
+}
+
+const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
+  showParallelSubjectPairs = true,
+  showCommonPeriod = true,
+}) => {
   const {
     classes,
     subjects,
@@ -123,6 +134,9 @@ const TimetableSubjects: React.FC = () => {
     addSubject({
       name: newItem.name.trim(),
       type: newItem.type || 'Other',
+      requiresConsecutivePeriods: newItem.requiresConsecutivePeriods,
+      consecutivePeriodCount: newItem.consecutivePeriodCount,
+      color: newItem.color,
     })
     setNewItem({ ...EMPTY_FORM })
     setIsAddingNew(false)
@@ -130,7 +144,7 @@ const TimetableSubjects: React.FC = () => {
 
   const handleEdit = (item: TimetableSubject) => {
     setEditingId(item.id)
-    setEditingData({ name: item.name, type: item.type })
+    setEditingData({ name: item.name, type: item.type, requiresConsecutivePeriods: item.requiresConsecutivePeriods, consecutivePeriodCount: item.consecutivePeriodCount, color: item.color })
   }
 
   const handleSave = (id: string) => {
@@ -964,17 +978,24 @@ const TimetableSubjects: React.FC = () => {
         }
         .ts-subject-matrix-table .ts-sticky-col-2 {
           left: 48px;
-          width: 72px;
-          min-width: 72px;
-          max-width: 72px;
+          width: 64px;
+          min-width: 64px;
+          max-width: 64px;
         }
         .ts-subject-matrix-table .ts-sticky-col-3 {
-          left: 120px;
-          min-width: 190px;
+          left: 112px;
+          min-width: 150px;
+          max-width: 150px;
         }
         .ts-subject-matrix-table .ts-sticky-col-4 {
-          left: 310px;
-          min-width: 140px;
+          left: 262px;
+          min-width: 110px;
+          max-width: 110px;
+        }
+        .ts-subject-matrix-table .ts-sticky-col-5 {
+          left: 372px;
+          min-width: 105px;
+          max-width: 105px;
         }
         .ts-subject-matrix-table .ts-sticky-divider {
           box-shadow: 2px 0 0 #e2e8f0, 6px 0 10px -8px rgba(15, 23, 42, 0.35);
@@ -1119,6 +1140,7 @@ const TimetableSubjects: React.FC = () => {
 
       <div className="mb-6" />
 
+      {showCommonPeriod && (
       <div className="ts-card">
         {/* ── Header ── */}
         <div className="ts-card-header">
@@ -1222,11 +1244,11 @@ const TimetableSubjects: React.FC = () => {
                 </th>
                 <th className="ts-sticky-col ts-sticky-col-2">Sr No</th>
                 <th className="ts-sticky-col ts-sticky-col-3">Name</th>
-                <th className="ts-sticky-col ts-sticky-col-4 ts-sticky-divider">Type</th>
+                <th className="ts-sticky-col ts-sticky-col-4">Type</th>
+                <th className="ts-sticky-col ts-sticky-col-5 ts-sticky-divider">Actions</th>
                 {matrixColumns.map((column) => (
                   <th key={column.key} className="ts-th-matrix">{column.label}</th>
                 ))}
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1245,7 +1267,7 @@ const TimetableSubjects: React.FC = () => {
                       className="ts-input"
                     />
                   </td>
-                  <td className="ts-sticky-col ts-sticky-col-4 ts-sticky-divider">
+                  <td className="ts-sticky-col ts-sticky-col-4">
                     <select
                       title="Subject type"
                       value={newItem.type}
@@ -1258,17 +1280,17 @@ const TimetableSubjects: React.FC = () => {
                       ))}
                     </select>
                   </td>
-                  {matrixColumns.length > 0 && (
-                    <td colSpan={matrixColumns.length}>
-                      <span className="ts-matrix-note">Save subject first, then assign to classes.</span>
-                    </td>
-                  )}
-                  <td>
+                  <td className="ts-sticky-col ts-sticky-col-5 ts-sticky-divider">
                     <div className="ts-action-group">
                       <button onClick={handleAdd} className="ts-action-link ts-action-save">Save</button>
                       <button onClick={handleCancelEdit} className="ts-action-link ts-action-cancel">Cancel</button>
                     </div>
                   </td>
+                  {matrixColumns.length > 0 && (
+                    <td colSpan={matrixColumns.length}>
+                      <span className="ts-matrix-note">Save subject first, then assign to classes.</span>
+                    </td>
+                  )}
                 </tr>
               )}
 
@@ -1303,7 +1325,7 @@ const TimetableSubjects: React.FC = () => {
                           className="ts-input"
                         />
                       </td>
-                      <td className="ts-sticky-col ts-sticky-col-4 ts-sticky-divider">
+                      <td className="ts-sticky-col ts-sticky-col-4">
                         <select
                           title="Edit subject type"
                           value={editingData.type}
@@ -1315,17 +1337,17 @@ const TimetableSubjects: React.FC = () => {
                           ))}
                         </select>
                       </td>
-                      {matrixColumns.length > 0 && (
-                        <td colSpan={matrixColumns.length}>
-                          <span className="ts-matrix-note">Update name/type and save. Matrix checkboxes stay in normal view.</span>
-                        </td>
-                      )}
-                      <td>
+                      <td className="ts-sticky-col ts-sticky-col-5 ts-sticky-divider">
                         <div className="ts-action-group">
                           <button onClick={() => handleSave(item.id)} className="ts-action-link ts-action-save">Save</button>
                           <button onClick={handleCancelEdit} className="ts-action-link ts-action-cancel">Cancel</button>
                         </div>
                       </td>
+                      {matrixColumns.length > 0 && (
+                        <td colSpan={matrixColumns.length}>
+                          <span className="ts-matrix-note">Update name/type and save. Matrix checkboxes stay in normal view.</span>
+                        </td>
+                      )}
                     </tr>
                   )
                 }
@@ -1345,13 +1367,21 @@ const TimetableSubjects: React.FC = () => {
                     </td>
                     <td className="ts-sticky-col ts-sticky-col-2"><span className="ts-sr">{index + 1}</span></td>
                     <td className="ts-sticky-col ts-sticky-col-3"><span className="ts-subject-name">{item.name}</span></td>
-                    <td className="ts-sticky-col ts-sticky-col-4 ts-sticky-divider">
+                    <td className="ts-sticky-col ts-sticky-col-4">
                       <span
                         className="ts-type-badge"
                         style={{ background: colors.bg, color: colors.color }}
                       >
                         {item.type}
                       </span>
+                    </td>
+                    <td className="ts-sticky-col ts-sticky-col-5 ts-sticky-divider">
+                      <button onClick={() => handleEdit(item)} className="ts-action-link ts-action-edit">
+                        <svg className="ts-edit-icon" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+                        </svg>
+                        Edit
+                      </button>
                     </td>
                     {matrixColumns.map((column) => (
                       <td key={`${item.id}-${column.key}`} className="ts-td-matrix">
@@ -1364,14 +1394,6 @@ const TimetableSubjects: React.FC = () => {
                         />
                       </td>
                     ))}
-                    <td>
-                      <button onClick={() => handleEdit(item)} className="ts-action-link ts-action-edit">
-                        <svg className="ts-edit-icon" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
-                        </svg>
-                        Edit
-                      </button>
-                    </td>
                   </tr>
                 )
               })}
@@ -1402,8 +1424,10 @@ const TimetableSubjects: React.FC = () => {
           </table>
         </div>
       </div>
+      )}
 
-      <div className="ts-card">
+      {showParallelSubjectPairs && (
+        <div className="ts-card">
         <div className="ts-card-header">
           <div>
             <h3>
@@ -1623,7 +1647,8 @@ const TimetableSubjects: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
+        </div>
+      )}
 
       <div className="ts-card">
         <div className="ts-card-header">
