@@ -15,10 +15,6 @@ type StudentRow = {
   section: string
 }
 
-type SubjectRow = {
-  id: string
-  name: string
-}
 
 const tabConfig = [{ id: 'exam' as const, label: 'Exam', color: 'indigo' as const }]
 
