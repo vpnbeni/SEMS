@@ -73,6 +73,7 @@ const MODULE_MODEL_KEYS = Object.freeze({
     'AttendanceUpload',
     'ExamCircular',
     'ExamDefinition',
+    'ExamResult',
   ]),
   attnd: Object.freeze([
     'Teacher',

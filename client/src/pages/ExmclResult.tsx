@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { X } from 'lucide-react'
 import { Tabs } from '@/components/common/Tabs'
 import exmclExamService, { type ExmclExamDefinition } from '@/services/exmclExamService'
+import exmclResultService from '@/services/exmclResultService'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useTimetable } from '@/contexts/TimetableContext'
@@ -15,19 +17,21 @@ type StudentRow = {
   section: string
 }
 
-
 const tabConfig = [{ id: 'exam' as const, label: 'Exam', color: 'indigo' as const }]
 
 const ExmclResult: React.FC = () => {
   const { matrixClasses, matrixSections, matrixSelection, classes: timetableClasses } = useTimetable()
   const [activeTab, setActiveTab] = useState<ResultTab>('exam')
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
   const [exams, setExams] = useState<ExmclExamDefinition[]>([])
   const [students, setStudents] = useState<StudentRow[]>([])
   const [selectedExamId, setSelectedExamId] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSection, setSelectedSection] = useState('')
   const [marksByStudent, setMarksByStudent] = useState<Record<string, Record<string, string>>>({})
+  const [deletedSubjectIds, setDeletedSubjectIds] = useState<Set<string>>(new Set())
   const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadInitialData = async () => {
@@ -93,7 +97,7 @@ const ExmclResult: React.FC = () => {
       .sort((a, b) => String(a.rollNumber).localeCompare(String(b.rollNumber), undefined, { numeric: true }))
   }, [students, selectedClass, selectedSection])
 
-  const filteredSubjects = useMemo(() => {
+  const allSubjects = useMemo(() => {
     if (!selectedClass) return []
     const classKey = selectedClass.trim().toLowerCase()
     const subjectNameSet = new Set<string>()
@@ -114,6 +118,11 @@ const ExmclResult: React.FC = () => {
       }))
   }, [selectedClass, timetableClasses])
 
+  const filteredSubjects = useMemo(
+    () => allSubjects.filter((s) => !deletedSubjectIds.has(s.id)),
+    [allSubjects, deletedSubjectIds]
+  )
+
   useEffect(() => {
     setSelectedSection('')
   }, [selectedClass])
@@ -131,6 +140,37 @@ const ExmclResult: React.FC = () => {
     }
   }, [selectedSection, sectionOptions])
 
+  useEffect(() => {
+    setDeletedSubjectIds(new Set())
+  }, [selectedClass, selectedExamId])
+
+  useEffect(() => {
+    if (!selectedExamId || !selectedClass || !selectedSection) return
+
+    let cancelled = false
+    exmclResultService
+      .getResults(selectedExamId, selectedClass, selectedSection)
+      .then((entries) => {
+        if (cancelled) return
+        const loaded: Record<string, Record<string, string>> = {}
+        for (const entry of entries) {
+          const sid = String(entry.studentId)
+          loaded[sid] = {}
+          for (const [subjectId, value] of Object.entries(entry.marks || {})) {
+            loaded[sid][subjectId] = value !== null && value !== undefined ? String(value) : ''
+          }
+        }
+        setMarksByStudent(loaded)
+      })
+      .catch(() => {
+        // silently ignore — marks just stay empty
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedExamId, selectedClass, selectedSection])
+
   const updateMark = (studentId: string, subjectId: string, value: string) => {
     if (value !== '' && !/^\d{0,3}(\.\d{0,2})?$/.test(value)) return
     setMarksByStudent((prev) => ({
@@ -141,6 +181,48 @@ const ExmclResult: React.FC = () => {
       },
     }))
   }
+
+  const deleteSubject = useCallback((subjectId: string) => {
+    setDeletedSubjectIds((prev) => new Set([...prev, subjectId]))
+  }, [])
+
+  const handleSave = async () => {
+    if (!selectedExamId || !selectedClass || !selectedSection) return
+    if (savingRef.current) return
+    savingRef.current = true
+    setSaving(true)
+    try {
+      const results = filteredStudents.map((student) => ({
+        studentId: student._id,
+        marks: Object.fromEntries(
+          filteredSubjects
+            .map((s) => {
+              const raw = marksByStudent[student._id]?.[s.id] ?? ''
+              const num = raw === '' ? null : Number(raw)
+              return [s.id, num] as [string, number | null]
+            })
+            .filter(([, v]) => v !== null)
+        ) as Record<string, number>,
+      }))
+
+      await exmclResultService.saveResults({
+        examId: selectedExamId,
+        class: selectedClass,
+        section: selectedSection,
+        results,
+      })
+
+      toast.success('Results saved successfully.')
+    } catch (error: any) {
+      const message = String(error?.response?.data?.message || error?.message || 'Failed to save results.')
+      toast.error(message)
+    } finally {
+      savingRef.current = false
+      setSaving(false)
+    }
+  }
+
+  const canSave = Boolean(selectedExamId && selectedClass && selectedSection)
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-gray-50/50 dark:bg-gray-900">
@@ -199,23 +281,44 @@ const ExmclResult: React.FC = () => {
               ))}
             </select>
           </div>
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Result Entry</h3>
+          <div className="flex items-center gap-3 shrink-0">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Result Entry</h3>
+            <button
+              onClick={handleSave}
+              disabled={!canSave || saving}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 transition-colors"
+            >
+              {saving ? (
+                <>
+                  <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Saving…
+                </>
+              ) : (
+                'Save Results'
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="max-h-[70vh] overflow-x-auto overflow-y-auto">
           {loading ? (
             <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">Loading result sheet...</div>
           ) : loadError ? (
-            <div className="p-10 text-center text-sm text-red-600 dark:text-red-400">
-              {loadError}
-            </div>
+            <div className="p-10 text-center text-sm text-red-600 dark:text-red-400">{loadError}</div>
           ) : !selectedExamId || !selectedClass || !selectedSection ? (
             <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
               Select Exam, Class, and Section to load students and enter marks.
             </div>
-          ) : filteredSubjects.length === 0 ? (
+          ) : filteredSubjects.length === 0 && allSubjects.length === 0 ? (
             <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
               No subjects found for selected class. Add subjects in Timetable and map them to this class.
+            </div>
+          ) : filteredSubjects.length === 0 ? (
+            <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
+              All subject columns have been removed. Change class or exam to reset.
             </div>
           ) : (
             <table className="min-w-[1100px] w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -230,9 +333,18 @@ const ExmclResult: React.FC = () => {
                   {filteredSubjects.map((subject) => (
                     <th
                       key={subject.id}
-                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                      className="group px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
                     >
-                      <div>{subject.name}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span>{subject.name}</span>
+                        <button
+                          onClick={() => deleteSubject(subject.id)}
+                          title="Remove from result entry"
+                          className="invisible group-hover:visible flex-shrink-0 rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
                     </th>
                   ))}
                 </tr>
