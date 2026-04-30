@@ -30,7 +30,9 @@ const BellTimingVersion = require('../models/BellTimingVersion');
 const OnboardingSession = require('../models/OnboardingSession');
 const ExamCircular = require('../models/ExamCircular');
 const ExamDefinition = require('../models/ExamDefinition');
+const ExamResult = require('../models/ExamResult');
 const { StaffAttendanceDaily, StudentAttendanceDaily } = require('../models/AttndDailyRecord');
+const SchoolProfile = require('../models/SchoolProfile');
 
 const tenantModelExports = {
   User,
@@ -67,8 +69,10 @@ const tenantModelExports = {
   OnboardingSession,
   ExamCircular,
   ExamDefinition,
+  ExamResult,
   StaffAttendanceDaily,
-  StudentAttendanceDaily
+  StudentAttendanceDaily,
+  SchoolProfile,
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

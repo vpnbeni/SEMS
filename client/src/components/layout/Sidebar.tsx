@@ -709,7 +709,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
     return filtered
   }
 
-  const filteredNavigation: NavEntry[] = navigation.reduce<NavEntry[]>((acc, entry) => {
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const filteredNavigation: NavEntry[] = useMemo(() => navigation.reduce<NavEntry[]>((acc, entry) => {
     // Filter by active module: skip entries that don't belong to the active module or core
     const entryModule = isGroup(entry) ? entry.module : (entry as NavItem).module
     if (entryModule && entryModule !== 'core' && entryModule !== activeModule) {
@@ -759,7 +760,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
     }
 
     return acc
-  }, [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []), [activeModule, currentUser?.featureToggles, counts])
 
   // Expand all groups/sub-groups once accessible navigation is resolved.
   useEffect(() => {
