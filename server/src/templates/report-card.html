@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Report Card</title>
+  <style>
+    @page {
+  size: A4;
+  margin: 10mm 12mm;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, sans-serif;
+  font-size: 11pt;
+  color: #000;
+}
+
+/* MAIN CARD */
+.card {
+  width: 100%;
+  min-height: 260mm;
+  border: 2px solid #000;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* HEADER */
+.school-header {
+  border-bottom: 2px solid #000;
+  padding-bottom: 6px;
+}
+
+.school-head-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* LOGOS FIXED */
+.school-logo-slot,
+.cbse-logo-slot {
+  width: 70px;
+  height: 70px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.school-logo-slot img,
+.cbse-logo-slot img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+}
+
+/* TITLE */
+.school-title-wrap {
+  flex: 1;
+  text-align: center;
+}
+
+.school-name {
+  font-size: 26px;
+  font-weight: bold;
+  letter-spacing: 2px;
+}
+
+.school-tagline {
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* META */
+.school-meta {
+  margin-top: 5px;
+  font-size: 11px;
+}
+
+.school-meta-row {
+  display: flex;
+  margin-top: 2px;
+}
+
+.school-meta-row span {
+  flex: 1;
+  text-align: center;
+}
+
+.school-meta-row span:first-child {
+  text-align: left;
+}
+
+.school-meta-row span:last-child {
+  text-align: right;
+}
+
+/* EXAM BOX */
+.exam-title-box {
+  border: 2px solid #000;
+  margin-top: 8px;
+}
+
+.exam-title {
+  text-align: center;
+  font-weight: bold;
+  padding: 6px;
+  border-bottom: 1.5px solid #000;
+  font-size: 14px;
+}
+
+/* STUDENT DETAILS */
+.student-details {
+  padding: 8px;
+}
+
+.student-details-heading {
+  font-weight: bold;
+  font-style: italic;
+  margin-bottom: 6px;
+}
+
+.student-details-grid {
+  display: flex;
+  gap: 20px;
+}
+
+.student-details-col {
+  flex: 1;
+}
+
+.student-field {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.student-field label {
+  width: 130px;
+}
+
+.underline-fill {
+  flex: 1;
+  border-bottom: 1px solid #000;
+}
+
+/* SECTION */
+.section-heading {
+  font-size: 16px;
+  font-weight: bold;
+  margin: 10px 0 6px;
+}
+
+/* TABLE */
+.marks-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.marks-table th,
+.marks-table td {
+  border: 1.2px solid #000;
+  padding: 5px;
+  text-align: center;
+}
+
+.marks-table th {
+  font-weight: bold;
+}
+
+.subject-name {
+  font-weight: bold;
+}
+
+.grand-total td {
+  font-weight: bold;
+}
+
+/* SUMMARY */
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.summary-table td {
+  border: 1.2px solid #000;
+  padding: 5px;
+  text-align: center;
+}
+
+.label-cell {
+  font-weight: bold;
+  font-style: italic;
+}
+
+/* FOOTER */
+.card-bottom {
+  margin-top: auto;
+}
+
+.footer-fields {
+  margin-top: 12px;
+}
+
+.footer-field {
+  display: flex;
+  margin-bottom: 8px;
+}
+
+.footer-field label {
+  width: 100px;
+}
+
+/* SIGNATURE */
+.signature-area {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 30px;
+}
+
+.signature-block {
+  text-align: center;
+}
+
+.signature-line {
+  width: 140px;
+  border-top: 1.5px solid #000;
+  margin: 0 auto 5px;
+}
+  </style>
+</head>
+<body>
+
+{{#each students}}
+<div class="card">
+
+  <!-- School Header -->
+  <div class="school-header">
+    <div class="school-head-top">
+      <div class="school-logo-slot">
+        {{#if ../schoolLogoUrl}}<img src="{{../schoolLogoUrl}}" alt="School Logo" />{{/if}}
+      </div>
+
+      <div class="school-title-wrap">
+        <div class="school-name">{{../schoolName}}</div>
+        {{#if ../schoolTagline}}<div class="school-tagline">{{../schoolTagline}}</div>{{/if}}
+      </div>
+
+      <div class="cbse-logo-slot">
+        {{#if ../cbseLogoDataUri}}<img src="{{../cbseLogoDataUri}}" alt="CBSE Emblem" />{{/if}}
+      </div>
+    </div>
+
+    <div class="school-meta">
+      <div class="school-meta-row">
+        {{#if ../schoolCode}}<span><strong>School Code:</strong> {{../schoolCode}}</span>{{else}}<span></span>{{/if}}
+        {{#if ../schoolAddress}}<span>{{../schoolAddress}}</span>{{else}}<span></span>{{/if}}
+        {{#if ../affiliationNo}}<span><strong>CBSE Aff. No:</strong> {{../affiliationNo}}</span>{{else}}<span></span>{{/if}}
+      </div>
+      <div class="school-meta-row">
+        {{#if ../schoolEmail}}<span><strong>Email:</strong> {{../schoolEmail}}</span>{{else}}<span></span>{{/if}}
+        {{#if ../schoolContact}}<span><strong>Contact No:</strong> {{../schoolContact}}</span>{{else}}<span></span>{{/if}}
+      </div>
+    </div>
+  </div>
+
+  <!-- Exam Title + Student Details Box -->
+  <div class="exam-title-box">
+    <div class="exam-title">{{../examTitle}}</div>
+    <div class="student-details">
+      <div class="student-details-heading">Student Details:</div>
+      <div class="student-details-grid">
+        <div class="student-details-col">
+          <div class="student-field">
+            <label>Name:</label>
+            <span class="underline-fill">{{name}}</span>
+          </div>
+          <div class="student-field">
+            <label>Mother Name:</label>
+            <span class="underline-fill">{{motherName}}</span>
+          </div>
+        </div>
+        <div class="student-details-col">
+          <div class="student-field">
+            <label>Adm. No:</label>
+            <span class="underline-fill">{{admNo}}</span>
+          </div>
+          <div class="student-field">
+            <label>Class &amp; Section:</label>
+            <span class="underline-fill">{{classSection}}</span>
+          </div>
+          <div class="student-field">
+            <label>Father Name:</label>
+            <span class="underline-fill">{{fatherName}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scholastic Area -->
+  <div class="section-heading">Scholastic Area:</div>
+
+  <table class="marks-table">
+    <thead>
+      <tr>
+        <th>Subjects</th>
+        <th>Maximum Marks</th>
+        <th>Marks Obtained</th>
+        <th>Grade</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each subjects}}
+      <tr>
+        <td class="subject-name">{{name}}</td>
+        <td>{{maxMarks}}</td>
+        <td>{{marksObtained}}</td>
+        <td>{{grade}}</td>
+      </tr>
+      {{/each}}
+      <tr class="grand-total">
+        <td class="subject-name">Grand Total</td>
+        <td>{{grandMax}}</td>
+        <td>{{grandObtained}}</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="summary-table">
+    <tr>
+      <td class="label-cell">Percentage</td>
+      <td class="value-cell">{{percentage}}%</td>
+      <td class="label-cell">Overall Grade</td>
+      <td class="value-cell">{{overallGrade}}</td>
+    </tr>
+  </table>
+
+  <!-- Footer fields -->
+  <div class="footer-fields">
+    <div class="footer-field">
+      <label>Attendance:</label>
+      <span class="underline-fill"></span>
+    </div>
+    <div class="footer-field">
+      <label>Remarks:</label>
+      <span class="underline-fill"></span>
+    </div>
+    <div class="footer-field">
+      <label>Date:</label>
+      <span class="underline-fill" style="max-width: 100pt;"></span>
+    </div>
+  </div>
+
+  <!-- Signatures -->
+  <div class="signature-area">
+    <div class="signature-block">
+      <div class="signature-line"></div>
+      Class Teacher Sign
+    </div>
+    <div class="signature-block">
+      <div class="signature-line"></div>
+      Principal Sign
+    </div>
+  </div>
+
+</div>
+{{/each}}
+
+</body>
+</html>

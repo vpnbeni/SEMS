@@ -32,6 +32,7 @@ const ExamCircular = require('../models/ExamCircular');
 const ExamDefinition = require('../models/ExamDefinition');
 const ExamResult = require('../models/ExamResult');
 const { StaffAttendanceDaily, StudentAttendanceDaily } = require('../models/AttndDailyRecord');
+const SchoolProfile = require('../models/SchoolProfile');
 
 const tenantModelExports = {
   User,
@@ -70,7 +71,8 @@ const tenantModelExports = {
   ExamDefinition,
   ExamResult,
   StaffAttendanceDaily,
-  StudentAttendanceDaily
+  StudentAttendanceDaily,
+  SchoolProfile,
 };
 
 const registerModelOnConnection = (modelExport, connection) => {
