@@ -18,6 +18,17 @@ const withTimeout = (promise, timeoutMs, message) => {
   ]);
 };
 
+const CANDIDATE_SORTABLE_FIELDS = new Set(['rollNumber', 'name', 'class']);
+
+/** Build a Mongoose sort object from a '-field' / 'field' query string, restricted to known-safe fields. */
+function buildCandidateSort(sortQuery) {
+  if (!sortQuery) return { rollNumber: 1 };
+  const desc = sortQuery.startsWith('-');
+  const field = desc ? sortQuery.slice(1) : sortQuery;
+  if (!CANDIDATE_SORTABLE_FIELDS.has(field)) return { rollNumber: 1 };
+  return { [field]: desc ? -1 : 1 };
+}
+
 /** Build candidate query from request query params (shared by getCandidates and getCandidateStats) */
 function buildCandidateQuery(queryParams) {
   const query = {};
@@ -76,7 +87,7 @@ const getCandidates = asyncHandler(async (req, res) => {
   const candidates = await Candidate.find(query)
     .populate('subjects', 'name code')
     .populate('createdBy', 'name email')
-    .sort({ rollNumber: 1 })
+    .sort(buildCandidateSort(req.query.sort))
     .skip(skip)
     .limit(limit);
 

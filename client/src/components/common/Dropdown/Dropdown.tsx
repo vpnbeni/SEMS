@@ -304,7 +304,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search..."
-              className="w-full pl-9 pr-3 py-2 text-sm bg-white dark:bg-secondary-900 border border-secondary-300 dark:border-secondary-600 rounded-lg focus:outline-none focus:ring-0 focus:border-2 focus:border-primary-500 dark:focus:border-primary-400 text-gray-900 dark:text-white placeholder-secondary-400"
+              className="w-full pl-9 pr-3 py-2 text-sm bg-white dark:bg-secondary-900 border border-secondary-300 dark:border-secondary-600 rounded-lg focus:outline-none focus:ring-1 focus:ring-inset focus:ring-primary-500 focus:border-primary-500 dark:focus:ring-primary-400 dark:focus:border-primary-400 text-gray-900 dark:text-white placeholder-secondary-400"
               autoFocus
             />
           </div>
@@ -351,21 +351,20 @@ export const Dropdown: React.FC<DropdownProps> = ({
       <div
         ref={containerRef}
         className={`
-          relative w-full
+          relative w-full box-border
           bg-white dark:bg-secondary-800
           border rounded-lg
-          ${error 
-            ? 'border-2 border-error-500' 
-            : 'border border-secondary-300 dark:border-secondary-600'
+          ${error
+            ? 'border-error-500 ring-1 ring-inset ring-error-500'
+            : isOpen
+              ? 'border-primary-500 dark:border-primary-400 ring-1 ring-inset ring-primary-500 dark:ring-primary-400'
+              : 'border-secondary-300 dark:border-secondary-600'
           }
-          ${disabled 
-            ? 'opacity-50 cursor-not-allowed' 
+          ${disabled
+            ? 'opacity-50 cursor-not-allowed'
             : 'cursor-pointer hover:border-primary-500 dark:hover:border-primary-400'
           }
-          ${isOpen 
-            ? 'border-2 border-primary-500 dark:border-primary-400' 
-            : ''
-          }
+          focus:outline-none
           transition-colors
           ${sizeClasses[size]}
         `}

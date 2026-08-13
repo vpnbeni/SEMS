@@ -396,7 +396,7 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
   }
 
   return (
-    <header className="h-16 flex-shrink-0 sticky top-0 z-40 glass border-b border-gray-100/80 dark:border-gray-800/80 transition-all duration-300">
+    <header className="h-16 flex-shrink-0 sticky top-0 z-40 bg-white dark:bg-secondary-900 border-b border-secondary-200 dark:border-secondary-700 transition-all duration-300">
       <div className="h-full px-2 md:px-4 flex items-center">
         <div className="flex items-center justify-between w-full gap-6">
           {/* Left: Page context + optional back */}

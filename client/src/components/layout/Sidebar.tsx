@@ -789,12 +789,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
 
   return (
     <div
-      className="glass border-r border-gray-100/80 dark:border-gray-800/80 h-[100vh] min-h-[100vh] transition-all duration-300 flex flex-col overflow-visible relative z-50"
+      className="bg-white dark:bg-secondary-900 border-r border-secondary-200 dark:border-secondary-700 h-[100vh] min-h-[100vh] transition-all duration-300 flex flex-col overflow-visible relative z-50"
       style={{ width: currentSidebarWidth }}
     >
-      {/* Decorative background accent */}
-      <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-primary-50/30 via-primary-50/10 to-transparent dark:from-primary-900/10 dark:via-transparent pointer-events-none" />
-
       {/* Module Switcher Header */}
       <div className={`flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'px-2 py-4' : 'px-4 py-4'} relative z-10`}>
         <div className="relative">

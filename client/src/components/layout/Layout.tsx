@@ -62,8 +62,10 @@ const Layout: React.FC = () => {
     }
   }, [isResizingSidebar])
 
+  const currentSidebarWidth = isSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
+
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 via-gray-50 to-primary-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
+    <div className="relative flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Sidebar */}
       <Sidebar
         isCollapsed={isSidebarCollapsed}
@@ -71,18 +73,22 @@ const Layout: React.FC = () => {
         collapsedWidth={SIDEBAR_COLLAPSED_WIDTH}
       />
 
-      {/* Draggable separator between sidebar and page */}
+      {/* Resize handle sits on the sidebar's right border */}
       <div
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize sidebar"
         onMouseDown={handleResizeStart}
-        className={`group relative z-40 w-2 cursor-col-resize bg-transparent transition ${
-          isSidebarCollapsed ? 'pointer-events-none opacity-40' : ''
+        style={{ left: currentSidebarWidth }}
+        className={`group absolute inset-y-0 z-50 w-3 -translate-x-1/2 cursor-col-resize ${
+          isSidebarCollapsed ? 'pointer-events-none' : ''
         }`}
       >
-        <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-slate-300 dark:bg-slate-600" />
-        <div className="absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 bg-blue-500/80 opacity-0 transition-opacity group-hover:opacity-100" />
+        <div
+          className={`absolute inset-y-0 left-1/2 w-[3px] -translate-x-1/2 bg-blue-500/80 transition-opacity ${
+            isResizingSidebar ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+          }`}
+        />
       </div>
 
       {/* Main Content */}

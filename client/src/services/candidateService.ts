@@ -13,6 +13,7 @@ export interface CandidateListParams {
   category?: string
   pwd?: string
   medium?: string
+  sort?: string
 }
 
 export interface CandidateListResponse {

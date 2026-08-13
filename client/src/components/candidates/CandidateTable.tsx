@@ -46,6 +46,8 @@ interface Pagination {
   limit: number
 }
 
+type SortableField = 'rollNumber' | 'name' | 'class'
+
 interface CandidateTableProps {
   candidates: Candidate[]
   loading: boolean
@@ -54,6 +56,9 @@ interface CandidateTableProps {
   pageSizeOptions?: { value: number; label: string }[]
   pageSize?: number
   onPageSizeChange?: (size: number) => void
+  sortField?: SortableField
+  sortDirection?: 'asc' | 'desc'
+  onSortChange?: (field: SortableField) => void
   /** When true, render only table + pagination (no card wrapper). Use when parent provides the card and toolbar. */
   noCard?: boolean
 }
@@ -66,6 +71,9 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
   pageSizeOptions,
   pageSize,
   onPageSizeChange,
+  sortField,
+  sortDirection,
+  onSortChange,
   noCard = false,
 }) => {
   const navigate = useNavigate()
@@ -78,8 +86,26 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
     })
   }
 
-  const cardClass = noCard ? '' : 'glass rounded-xl border border-secondary-200 dark:border-secondary-700'
-  const wrapperClass = noCard ? 'overflow-hidden' : 'glass rounded-xl border border-secondary-200 dark:border-secondary-700 overflow-hidden'
+  const SortableHeader: React.FC<{ field: SortableField; children: React.ReactNode }> = ({ field, children }) => {
+    const isActive = sortField === field
+    return (
+      <th
+        className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400 cursor-pointer select-none hover:text-secondary-900 dark:hover:text-white transition-colors group"
+        onClick={() => onSortChange?.(field)}
+      >
+        <span className="inline-flex items-center gap-1">
+          {children}
+          <span className={`inline-flex flex-col text-[8px] leading-none ${isActive ? 'text-primary-600 dark:text-primary-400' : 'text-secondary-400 dark:text-secondary-600 opacity-0 group-hover:opacity-100 transition-opacity'}`}>
+            <span className={isActive && sortDirection === 'asc' ? 'text-primary-600 dark:text-primary-400' : ''}>▲</span>
+            <span className={isActive && sortDirection === 'desc' ? 'text-primary-600 dark:text-primary-400' : ''}>▼</span>
+          </span>
+        </span>
+      </th>
+    )
+  }
+
+  const cardClass = noCard ? '' : 'bg-white dark:bg-secondary-900 rounded-lg border border-secondary-200 dark:border-secondary-700 shadow-sm'
+  const wrapperClass = noCard ? 'overflow-hidden' : 'bg-white dark:bg-secondary-900 rounded-lg border border-secondary-200 dark:border-secondary-700 shadow-sm overflow-hidden'
 
   if (loading) {
     return (
@@ -123,128 +149,105 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
     <div className={wrapperClass}>
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-secondary-200 dark:divide-secondary-700">
-          <thead className="bg-secondary-50 dark:bg-secondary-800">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
-                Roll No.
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
-                Candidate Info
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
-                Class
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+        <table className="min-w-full">
+          <thead>
+            <tr className="border-b border-secondary-200 dark:border-secondary-700">
+              <SortableHeader field="rollNumber">Roll no.</SortableHeader>
+              <SortableHeader field="name">Candidate</SortableHeader>
+              <SortableHeader field="class">Class</SortableHeader>
+              <th className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400">
                 Parents
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
+              <th className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400">
                 Details
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-secondary-500 dark:text-secondary-400 uppercase tracking-wider">
-                Subject Codes
+              <th className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400">
+                Subject codes
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white dark:bg-secondary-900 divide-y divide-secondary-200 dark:divide-secondary-700">
+          <tbody className="divide-y divide-secondary-100 dark:divide-secondary-800">
             {candidates.map((candidate) => (
               <tr
                 key={candidate._id}
                 onClick={() => navigate(`/candidate-details/${candidate._id}`)}
-                className="hover:bg-secondary-50 dark:hover:bg-secondary-800 transition-colors cursor-pointer"
+                className="hover:bg-secondary-50 dark:hover:bg-secondary-800/60 transition-colors cursor-pointer"
               >
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-medium text-gray-900 dark:text-white">
+                <td className="px-4 py-2.5 whitespace-nowrap">
+                  <div className="text-sm font-medium text-secondary-900 dark:text-white">
                     {candidate.rollNumber}
                   </div>
                   {candidate.flc && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                    <div className="text-xs text-secondary-500 dark:text-secondary-400">
                       FLC: {candidate.flc}
                     </div>
                   )}
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-3">
+                <td className="px-4 py-2.5">
+                  <div className="flex items-center gap-2.5">
                     {candidate.photoUrl ? (
                       <img
                         src={candidate.photoUrl}
                         alt={candidate.name}
-                        className="w-10 h-10 rounded-full object-cover border-2 border-gray-200 dark:border-gray-600 flex-shrink-0"
+                        className="w-8 h-8 rounded-full object-cover border border-secondary-200 dark:border-secondary-700 flex-shrink-0"
                       />
                     ) : (
-                      <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 flex-shrink-0 flex items-center justify-center">
-                        <svg className="w-5 h-5 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-8 h-8 rounded-full bg-secondary-100 dark:bg-secondary-800 border border-secondary-200 dark:border-secondary-700 flex-shrink-0 flex items-center justify-center">
+                        <svg className="w-4 h-4 text-secondary-400 dark:text-secondary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                       </div>
                     )}
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      <div className="text-sm font-medium text-secondary-900 dark:text-white">
                         {candidate.name}
                       </div>
-                      {candidate.dateOfBirth && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          DoB: {formatDate(candidate.dateOfBirth)}
-                        </div>
-                      )}
-                      {candidate.sex && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          Sex: {candidate.sex}
+                      {(candidate.dateOfBirth || candidate.sex) && (
+                        <div className="text-xs text-secondary-500 dark:text-secondary-400">
+                          {candidate.dateOfBirth && <span>DoB: {formatDate(candidate.dateOfBirth)}</span>}
+                          {candidate.dateOfBirth && candidate.sex && <span className="mx-1">·</span>}
+                          {candidate.sex && <span>Sex: {candidate.sex}</span>}
                         </div>
                       )}
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-2.5 whitespace-nowrap">
                   {candidate.class ? (
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${candidate.class === '12th'
-                      ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                      : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${candidate.class === '12th'
+                      ? 'bg-purple-50 text-purple-700 ring-purple-600/20 dark:bg-purple-400/10 dark:text-purple-400 dark:ring-purple-400/20'
+                      : 'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-400/10 dark:text-green-400 dark:ring-green-400/20'
                       }`}>
                       {candidate.class}
                     </span>
                   ) : (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">-</span>
+                    <span className="text-xs text-secondary-500 dark:text-secondary-400">-</span>
                   )}
                 </td>
-                <td className="px-6 py-4">
-                  {candidate.motherName && (
-                    <div className="text-xs text-gray-700 dark:text-gray-300">
-                      M: {candidate.motherName}
-                    </div>
-                  )}
-                  {candidate.fatherName && (
-                    <div className="text-xs text-gray-700 dark:text-gray-300">
-                      F: {candidate.fatherName}
-                    </div>
-                  )}
+                <td className="px-4 py-2.5">
+                  <div className="text-xs text-secondary-700 dark:text-secondary-300">
+                    {candidate.motherName && <span>M: {candidate.motherName}</span>}
+                    {candidate.motherName && candidate.fatherName && <span className="mx-1">·</span>}
+                    {candidate.fatherName && <span>F: {candidate.fatherName}</span>}
+                  </div>
                 </td>
-                <td className="px-6 py-4">
-                  <div className="space-y-1">
+                <td className="px-4 py-2.5">
+                  <div className="text-xs text-secondary-700 dark:text-secondary-300 space-x-1.5">
                     {candidate.category && (
-                      <div className="text-xs">
-                        <span className="text-gray-500 dark:text-gray-400">Cat:</span>{' '}
-                        <span className="text-gray-700 dark:text-gray-300">{candidate.category}</span>
-                      </div>
+                      <span><span className="text-secondary-500 dark:text-secondary-400">Cat:</span> {candidate.category}</span>
                     )}
                     {candidate.pwd && (
-                      <div className="text-xs">
-                        <span className="text-gray-500 dark:text-gray-400">PwD:</span>{' '}
-                        <span className="text-gray-700 dark:text-gray-300">{candidate.pwd}</span>
-                      </div>
+                      <span><span className="text-secondary-500 dark:text-secondary-400">PwD:</span> {candidate.pwd}</span>
                     )}
                     {candidate.consession && (
-                      <div className="text-xs">
-                        <span className="text-gray-500 dark:text-gray-400">Cons:</span>{' '}
-                        <span className="text-gray-700 dark:text-gray-300">{candidate.consession}</span>
-                      </div>
+                      <span><span className="text-secondary-500 dark:text-secondary-400">Cons:</span> {candidate.consession}</span>
                     )}
                   </div>
                 </td>
-                <td className="px-6 py-4">
+                <td className="px-4 py-2.5">
                   {candidate.schoolName && (
-                    <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2 pb-2 border-b border-gray-200 dark:border-gray-700">
-                      🏫 {candidate.schoolCode && <span className="font-bold text-primary-600 dark:text-primary-400">{candidate.schoolCode}</span>} {candidate.schoolName}
+                    <div className="text-xs font-medium text-secondary-700 dark:text-secondary-300 mb-1.5 pb-1.5 border-b border-secondary-100 dark:border-secondary-800">
+                      {candidate.schoolCode && <span className="font-semibold text-secondary-900 dark:text-white">{candidate.schoolCode}</span>} {candidate.schoolName}
                     </div>
                   )}
                   {candidate.subjectCodes && candidate.subjectCodes.length > 0 ? (
@@ -259,9 +262,9 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
                         return (
                           <span
                             key={index}
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${isHindi
-                              ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-                              : 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                            className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${isHindi
+                              ? 'bg-orange-50 text-orange-700 ring-orange-600/20 dark:bg-orange-400/10 dark:text-orange-400 dark:ring-orange-400/20'
+                              : 'bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-400 dark:ring-blue-400/20'
                               }`}
                             title={mediumLabel ? `Medium: ${mediumLabel}` : ''}
                           >
@@ -276,14 +279,14 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
                       {candidate.subjects.map((subject) => (
                         <span
                           key={subject._id}
-                          className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                          className="inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-400 dark:ring-blue-400/20"
                         >
                           {subject.code}
                         </span>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                    <div className="text-xs text-secondary-500 dark:text-secondary-400">
                       No subjects
                     </div>
                   )}
@@ -297,95 +300,72 @@ const CandidateTable: React.FC<CandidateTableProps> = ({
       {/* Pagination */}
       <div className="bg-white dark:bg-secondary-900 px-4 py-3 border-t border-secondary-200 dark:border-secondary-700 sm:px-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm text-secondary-700 dark:text-secondary-300">
-              Showing{' '}
-              <span className="font-medium">
+          <div className="flex flex-wrap items-center gap-3 text-sm text-secondary-600 dark:text-secondary-400">
+            <p>
+              <span className="font-semibold text-secondary-900 dark:text-white tabular-nums">
                 {pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.limit + 1}
-              </span>{' '}
-              to{' '}
-              <span className="font-medium">
+              </span>
+              {'–'}
+              <span className="font-semibold text-secondary-900 dark:text-white tabular-nums">
                 {Math.min(pagination.page * pagination.limit, pagination.total)}
-              </span>{' '}
-              of{' '}
-              <span className="font-medium">{pagination.total}</span> results
+              </span>
+              {' of '}
+              <span className="font-semibold text-secondary-900 dark:text-white tabular-nums">{pagination.total}</span>
+              {' results'}
             </p>
             {pageSizeOptions && pageSize && onPageSizeChange && (
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-500 dark:text-gray-400">Per page</span>
-                <Dropdown
-                  options={pageSizeOptions}
-                  value={pageSize}
-                  onChange={(value) => {
-                    const newSize = Number(Array.isArray(value) ? value[0] : value)
-                    onPageSizeChange(newSize)
-                  }}
-                  size="sm"
-                  clearable={false}
-                  searchable={false}
-                  placeholder=""
-                  className="w-20"
-                />
-              </div>
+              <>
+                <span className="hidden sm:inline text-secondary-300 dark:text-secondary-600">&bull;</span>
+                <div className="flex items-center gap-2">
+                  <span>Per page</span>
+                  <Dropdown
+                    options={pageSizeOptions}
+                    value={pageSize}
+                    onChange={(value) => {
+                      const newSize = Number(Array.isArray(value) ? value[0] : value)
+                      onPageSizeChange(newSize)
+                    }}
+                    size="sm"
+                    clearable={false}
+                    searchable={false}
+                    placeholder=""
+                    className="w-20"
+                  />
+                </div>
+              </>
             )}
           </div>
           {pagination.pages > 1 && (
-            <>
-              <div className="flex justify-between sm:hidden">
-                <button
-                  onClick={() => onPageChange(pagination.page - 1)}
-                  disabled={pagination.page === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-secondary-300 dark:border-secondary-600 text-sm font-medium rounded-md text-secondary-700 dark:text-secondary-300 bg-white dark:bg-secondary-800 hover:bg-secondary-50 dark:hover:bg-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => onPageChange(pagination.page + 1)}
-                  disabled={pagination.page === pagination.pages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-secondary-300 dark:border-secondary-600 text-sm font-medium rounded-md text-secondary-700 dark:text-secondary-300 bg-white dark:bg-secondary-800 hover:bg-secondary-50 dark:hover:bg-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                <button
-                  onClick={() => onPageChange(pagination.page - 1)}
-                  disabled={pagination.page === 1}
-                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-secondary-300 dark:border-secondary-600 bg-white dark:bg-secondary-800 text-sm font-medium text-secondary-500 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Previous page"
-                  title="Previous page"
-                >
-                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </button>
-
-                {Array.from({ length: pagination.pages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => onPageChange(page)}
-                    className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${page === pagination.page
-                      ? 'z-10 bg-primary-50 dark:bg-primary-900 border-primary-500 text-primary-600 dark:text-primary-400'
-                      : 'bg-white dark:bg-secondary-800 border-secondary-300 dark:border-secondary-600 text-secondary-500 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-700'
-                      }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-
-                <button
-                  onClick={() => onPageChange(pagination.page + 1)}
-                  disabled={pagination.page === pagination.pages}
-                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-secondary-300 dark:border-secondary-600 bg-white dark:bg-secondary-800 text-sm font-medium text-secondary-500 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Next page"
-                  title="Next page"
-                >
-                  <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </nav>
-            </>
+            <div className="inline-flex items-center gap-1 rounded-full border border-secondary-200 dark:border-secondary-700 bg-secondary-50 dark:bg-secondary-800/60 p-1 self-start sm:self-auto">
+              <button
+                onClick={() => onPageChange(pagination.page - 1)}
+                disabled={pagination.page === 1}
+                className="inline-flex items-center justify-center h-7 w-7 rounded-full text-secondary-500 dark:text-secondary-400 hover:bg-white dark:hover:bg-secondary-700 hover:text-secondary-900 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                aria-label="Previous page"
+                title="Previous page"
+              >
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <span className="flex items-center gap-1.5 px-1.5 text-sm tabular-nums">
+                <span className="inline-flex items-center justify-center h-6 min-w-[1.5rem] px-1.5 rounded-full bg-white dark:bg-secondary-900 border border-secondary-200 dark:border-secondary-700 text-secondary-900 dark:text-white text-xs font-semibold shadow-sm">
+                  {pagination.page}
+                </span>
+                <span className="text-secondary-400 dark:text-secondary-500">of {pagination.pages}</span>
+              </span>
+              <button
+                onClick={() => onPageChange(pagination.page + 1)}
+                disabled={pagination.page === pagination.pages}
+                className="inline-flex items-center justify-center h-7 w-7 rounded-full text-secondary-500 dark:text-secondary-400 hover:bg-white dark:hover:bg-secondary-700 hover:text-secondary-900 dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-not-allowed transition-colors"
+                aria-label="Next page"
+                title="Next page"
+              >
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
           )}
         </div>
       </div>
