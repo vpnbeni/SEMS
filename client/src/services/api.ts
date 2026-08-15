@@ -256,10 +256,13 @@ api.interceptors.response.use(
         showApiErrorToast(data?.message || 'Billing restriction applied. Open Billing to continue.')
         break
 
-      case 404:
-        // Not Found
-        showApiErrorToast(data?.error || data?.message || 'Resource not found')
+      case 404: {
+        const isSilent404 = (error.config as any)?._silent === true
+        if (!isSilent404) {
+          showApiErrorToast(data?.error || data?.message || 'Resource not found')
+        }
         break
+      }
 
       case 409:
         // Conflict

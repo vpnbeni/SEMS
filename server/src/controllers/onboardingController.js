@@ -6,7 +6,7 @@ const { parseAttendanceSheetPdf } = require('../utils/attendanceSheetParser');
 const { generateOnboardingReport } = require('../utils/onboardingValidator');
 const pdfParse = require('pdf-parse');
 const { cloudinary } = require('../config/cloudinary');
-const { attendanceQueue, isAttendanceQueueEnabled } = require('../queues/attendanceQueue');
+const { isAttendanceQueueReady, getAttendanceQueue } = require('../queues/attendanceQueue');
 const { Job } = require('bullmq');
 
 /**
@@ -574,13 +574,15 @@ const completeOnboarding = asyncHandler(async (req, res) => {
  * Returns immediately with { jobId } — the heavy work runs in attendanceWorker.
  */
 const queueAttendanceUpload = asyncHandler(async (req, res) => {
-  if (!isAttendanceQueueEnabled || !attendanceQueue) {
+  if (!isAttendanceQueueReady() || !getAttendanceQueue()) {
     return res.status(503).json({
       success: false,
       message:
-        'Attendance background processing is unavailable. Configure Redis and set REDIS_URL or ATTENDANCE_QUEUE_ENABLED=true.',
+        'Attendance background processing is unavailable. Start Redis or configure REDIS_URL.',
     });
   }
+
+  const attendanceQueue = getAttendanceQueue();
 
   const userId = req.user._id;
   const tenantDbName = req.tenant?.dbName;
@@ -640,13 +642,15 @@ const queueAttendanceUpload = asyncHandler(async (req, res) => {
  * GET /onboarding/jobs/:jobId/status
  */
 const getJobStatus = asyncHandler(async (req, res) => {
-  if (!isAttendanceQueueEnabled || !attendanceQueue) {
+  if (!isAttendanceQueueReady() || !getAttendanceQueue()) {
     return res.status(503).json({
       success: false,
       message:
-        'Attendance background processing is unavailable. Configure Redis and set REDIS_URL or ATTENDANCE_QUEUE_ENABLED=true.',
+        'Attendance background processing is unavailable. Start Redis or configure REDIS_URL.',
     });
   }
+
+  const attendanceQueue = getAttendanceQueue();
 
   const { jobId } = req.params;
 

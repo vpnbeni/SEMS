@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{cardTitle}}</title>
+  <style>
+    @page {
+      size: {{pageSize}} {{design.orientation}};
+      margin: 7mm;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5px;
+      color: #111;
+    }
+
+    .sheet {
+      page-break-after: always;
+    }
+
+    .sheet:last-child { page-break-after: auto; }
+
+    .sheet.two-up {
+      display: flex;
+      gap: 4mm;
+      align-items: stretch;
+    }
+
+    .sheet.two-up .card {
+      flex: 1 1 0;
+      min-width: 0;
+      font-size: 8px;
+    }
+
+    .card {
+      border: 2px solid #111;
+      padding: 2px;
+      height: 100%;
+    }
+
+    .inner {
+      border: 1px solid #111;
+      padding: 8px 10px 7px;
+      min-height: 100%;
+    }
+
+    .header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+
+    .logo, .logo-placeholder {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .logo-placeholder {
+      border: 1px solid #888;
+    }
+
+    .header-text {
+      flex: 1;
+      text-align: center;
+      padding-top: 2px;
+    }
+
+    .school-name {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      line-height: 1.2;
+    }
+
+    .card-title {
+      margin-top: 4px;
+      font-size: 12.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .entry-note {
+      margin-top: 4px;
+      font-size: 9.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .school-address {
+      margin-top: 2px;
+      font-size: 9px;
+      color: #333;
+    }
+
+    .rule {
+      border: none;
+      border-top: 1px solid #111;
+      margin: 6px 0;
+    }
+
+    .id-row {
+      display: flex;
+      gap: 0;
+    }
+
+    .id-cell {
+      flex: 1;
+      padding: 0 8px;
+      border-right: 1px solid #111;
+    }
+
+    .id-cell:first-child { padding-left: 0; }
+    .id-cell:last-child { border-right: none; padding-right: 0; }
+
+    .id-label { font-weight: 800; }
+    .id-value { margin-top: 2px; }
+
+    .words-row { margin-top: 6px; }
+    .words-row strong { font-weight: 800; }
+
+    .mid {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .photo-col { width: 92px; flex-shrink: 0; text-align: center; }
+
+    .photo, .photo-placeholder {
+      width: 88px;
+      height: 108px;
+      border: 1px solid #111;
+      object-fit: cover;
+    }
+
+    .photo-placeholder {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      color: #666;
+      font-size: 9px;
+      padding-bottom: 4px;
+    }
+
+    .photo-name {
+      margin-top: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .details { flex: 1; min-width: 0; }
+
+    .kv {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 3px;
+      line-height: 1.25;
+    }
+
+    .kv .label {
+      width: 148px;
+      flex-shrink: 0;
+      font-weight: 800;
+    }
+
+    .kv .value { flex: 1; text-transform: uppercase; }
+
+    .schedule {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin-top: 8px;
+    }
+
+    .qr, .qr-placeholder {
+      width: 108px;
+      height: 108px;
+      flex-shrink: 0;
+      object-fit: contain;
+    }
+
+    .qr-placeholder {
+      border: 1px solid #111;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      color: #666;
+    }
+
+    table.subjects {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5px;
+    }
+
+    table.subjects th,
+    table.subjects td {
+      border: 1px solid #111;
+      padding: 3px 5px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    table.subjects th {
+      font-weight: 800;
+      text-transform: uppercase;
+      font-size: 8.5px;
+    }
+
+    .instructions h4 {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .instructions p {
+      font-size: 8.3px;
+      line-height: 1.35;
+      margin-bottom: 2px;
+    }
+
+    .confirm {
+      margin-top: 7px;
+      font-size: 9.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .signs {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .sign {
+      flex: 1;
+      text-align: center;
+      font-size: 8.5px;
+      font-weight: 700;
+    }
+
+    .sign-mark {
+      height: 42px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+
+    .sign-mark img {
+      max-height: 40px;
+      max-width: 100%;
+      object-fit: contain;
+    }
+
+    .sign-line {
+      border-top: 1px solid #111;
+      padding-top: 4px;
+      line-height: 1.25;
+    }
+
+    .disclaimer {
+      margin-top: 10px;
+      color: #b00020;
+      font-size: 8px;
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  {{#each sheets}}
+  <div class="sheet{{#if @root.twoUp}} two-up{{/if}}">
+    {{#each this}}
+    <div class="card">
+      <div class="inner">
+        {{#if @root.design.showHeader}}
+        <div class="header">
+          {{#if @root.design.showSchoolLogo}}
+            {{#if @root.schoolLogoUrl}}
+              <img class="logo" src="{{@root.schoolLogoUrl}}" alt="School logo" />
+            {{else}}
+              <div class="logo-placeholder"></div>
+            {{/if}}
+          {{/if}}
+          <div class="header-text">
+            <div class="school-name">{{@root.schoolName}}</div>
+            {{#if @root.design.showSchoolAddress}}
+              {{#if @root.schoolAddress}}<div class="school-address">{{@root.schoolAddress}}</div>{{/if}}
+            {{/if}}
+            <div class="card-title">{{@root.cardTitle}}</div>
+            {{#if @root.design.showEntryNote}}
+              <div class="entry-note">{{@root.design.entryNote}}</div>
+            {{/if}}
+          </div>
+          {{#if @root.design.showSchoolLogo}}
+            {{#if @root.schoolLogoUrl}}
+              <img class="logo" src="{{@root.schoolLogoUrl}}" alt="" />
+            {{else}}
+              <div class="logo-placeholder"></div>
+            {{/if}}
+          {{/if}}
+        </div>
+        {{else}}
+          <div class="card-title" style="text-align:center;">{{@root.cardTitle}}</div>
+        {{/if}}
+
+        <hr class="rule" />
+
+        <div class="id-row">
+          {{#if @root.design.fields.rollNo}}
+          <div class="id-cell"><div class="id-label">Roll No.</div><div class="id-value">{{rollNo}}</div></div>
+          {{/if}}
+          {{#if @root.design.fields.dob}}
+          <div class="id-cell"><div class="id-label">Date of Birth</div><div class="id-value">{{dateOfBirth}}</div></div>
+          {{/if}}
+          {{#if @root.design.fields.schoolNo}}
+          <div class="id-cell"><div class="id-label">School No.</div><div class="id-value">{{schoolNo}}</div></div>
+          {{/if}}
+          {{#if @root.design.fields.centreNo}}
+          <div class="id-cell"><div class="id-label">Centre No.</div><div class="id-value">{{centreNo}}</div></div>
+          {{/if}}
+        </div>
+        {{#if @root.design.fields.rollNoInWords}}
+        <div class="words-row"><strong>Roll No. (In words):</strong> {{rollNoInWords}}</div>
+        {{/if}}
+
+        <hr class="rule" />
+
+        <div class="mid">
+          {{#if @root.design.fields.photo}}
+          <div class="photo-col">
+            {{#if photoUrl}}
+              <img class="photo" src="{{photoUrl}}" alt="Student photo" />
+            {{else}}
+              <div class="photo-placeholder">Photo</div>
+            {{/if}}
+            <div class="photo-name">{{name}}</div>
+          </div>
+          {{/if}}
+          <div class="details">
+            {{#if @root.design.fields.exam}}<div class="kv"><div class="label">Examination:</div><div class="value">{{examinationLabel}}</div></div>{{/if}}
+            {{#if @root.design.fields.name}}<div class="kv"><div class="label">Candidate’s Name:</div><div class="value">{{name}}</div></div>{{/if}}
+            {{#if @root.design.fields.motherName}}<div class="kv"><div class="label">Mother’s Name:</div><div class="value">{{motherName}}</div></div>{{/if}}
+            {{#if @root.design.fields.fatherName}}<div class="kv"><div class="label">Father/Guardian’s Name:</div><div class="value">{{fatherName}}</div></div>{{/if}}
+            {{#if @root.design.fields.schoolName}}<div class="kv"><div class="label">Name of School:</div><div class="value">{{schoolName}}</div></div>{{/if}}
+            {{#if @root.design.fields.examCentre}}<div class="kv"><div class="label">Exam Centre:</div><div class="value">{{examCentre}}</div></div>{{/if}}
+            {{#if @root.design.fields.pwdCategory}}<div class="kv"><div class="label">Category of PwD:</div><div class="value">{{pwdCategory}}</div></div>{{/if}}
+            {{#if @root.design.fields.admitCardId}}<div class="kv"><div class="label">Admit Card ID:</div><div class="value">{{admitCardId}}</div></div>{{/if}}
+            {{#if @root.design.fields.admissionNo}}<div class="kv"><div class="label">Admission No:</div><div class="value">{{admissionNo}}</div></div>{{/if}}
+            {{#if @root.design.fields.section}}<div class="kv"><div class="label">Section:</div><div class="value">{{section}}</div></div>{{/if}}
+          </div>
+        </div>
+
+        <div class="schedule">
+          {{#if @root.design.fields.qr}}
+            {{#if qrDataUrl}}
+              <img class="qr" src="{{qrDataUrl}}" alt="QR code" />
+            {{else}}
+              <div class="qr-placeholder">QR</div>
+            {{/if}}
+          {{/if}}
+          {{#if @root.design.fields.subjects}}
+          <table class="subjects">
+            <thead>
+              <tr>
+                <th>Sub Code</th>
+                <th>Subject Name</th>
+                <th>Medium</th>
+                <th>Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each subjects}}
+              <tr>
+                <td>{{code}}</td>
+                <td>{{name}}</td>
+                <td>{{medium}}</td>
+                <td>{{date}}</td>
+              </tr>
+              {{/each}}
+            </tbody>
+          </table>
+          {{/if}}
+        </div>
+
+        {{#if @root.design.showInstructions}}
+        <hr class="rule" />
+        <div class="instructions">
+          <h4>Important instructions to be strictly complied with -</h4>
+          {{#each @root.instructionLines}}
+            <p>{{this}}</p>
+          {{/each}}
+        </div>
+        {{/if}}
+
+        {{#if @root.design.showConfirmation}}
+          <div class="confirm">{{@root.design.confirmationText}}</div>
+        {{/if}}
+
+        <div class="signs">
+          {{#if @root.design.signatures.candidate}}
+          <div class="sign">
+            <div class="sign-mark"></div>
+            <div class="sign-line">Candidate</div>
+          </div>
+          {{/if}}
+          {{#if @root.design.signatures.parent}}
+          <div class="sign">
+            <div class="sign-mark"></div>
+            <div class="sign-line">Parents</div>
+          </div>
+          {{/if}}
+          {{#if @root.design.signatures.examIncharge}}
+          <div class="sign">
+            <div class="sign-mark">
+              {{#if @root.examInchargeSignUrl}}<img src="{{@root.examInchargeSignUrl}}" alt="Exam Incharge signature" />{{/if}}
+            </div>
+            <div class="sign-line">Exam Incharge</div>
+          </div>
+          {{/if}}
+          {{#if @root.design.signatures.principal}}
+          <div class="sign">
+            <div class="sign-mark">
+              {{#if @root.principalSignUrl}}<img src="{{@root.principalSignUrl}}" alt="Principal signature" />{{/if}}
+            </div>
+            <div class="sign-line">Principal</div>
+          </div>
+          {{/if}}
+        </div>
+
+        {{#if @root.design.showDisclaimer}}
+          <div class="disclaimer">{{@root.design.disclaimer}}</div>
+        {{/if}}
+      </div>
+    </div>
+    {{/each}}
+  </div>
+  {{/each}}
+</body>
+</html>

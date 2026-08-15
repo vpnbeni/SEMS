@@ -3,7 +3,7 @@ import { Download } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import exmclExamService, { type ExmclExamDefinition } from '@/services/exmclExamService'
-import exmclAwardListService, { type AwardListDesign } from '@/services/exmclAwardListService'
+import exmclAdmitCardService, { type AdmitCardDesign } from '@/services/exmclAdmitCardService'
 import api from '@/services/api'
 import { STUDENT_CLASS_OPTIONS } from '@/constants/studentClasses'
 
@@ -17,11 +17,11 @@ const sortClassNames = (left: string, right: string) =>
 const selectClassName =
   'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:text-white'
 
-const ExmclAwardList: React.FC = () => {
+const ExmclAdmitCards: React.FC = () => {
   const navigate = useNavigate()
   const [exams, setExams] = useState<ExmclExamDefinition[]>([])
   const [classSectionEntries, setClassSectionEntries] = useState<ClassSectionEntry[]>([])
-  const [design, setDesign] = useState<AwardListDesign | null>(null)
+  const [design, setDesign] = useState<AdmitCardDesign | null>(null)
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
   const [studentCount, setStudentCount] = useState<number | null>(null)
@@ -30,8 +30,6 @@ const ExmclAwardList: React.FC = () => {
   const [selectedExamId, setSelectedExamId] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSection, setSelectedSection] = useState('')
-  const [examDate, setExamDate] = useState('')
-  const [subjectName, setSubjectName] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -42,7 +40,7 @@ const ExmclAwardList: React.FC = () => {
         const [examList, statsRes, savedDesign] = await Promise.all([
           exmclExamService.getAll(),
           api.get('/students/stats'),
-          exmclAwardListService.getDesign(),
+          exmclAdmitCardService.getDesign(),
         ])
         if (cancelled) return
 
@@ -55,7 +53,7 @@ const ExmclAwardList: React.FC = () => {
         setDesign(savedDesign)
         if (examList.length > 0) setSelectedExamId(examList[0]._id)
       } catch {
-        if (!cancelled) toast.error('Failed to load award list.')
+        if (!cancelled) toast.error('Failed to load admit cards.')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -133,16 +131,15 @@ const ExmclAwardList: React.FC = () => {
 
     setGenerating(true)
     try {
-      await exmclAwardListService.downloadAwardList(
+      await exmclAdmitCardService.downloadAdmitCards(
         selectedExamId,
         selectedClass,
         selectedSection,
-        selectedExam?.code || 'exam',
-        { subject: subjectName, examDate }
+        selectedExam?.code || 'exam'
       )
-      toast.success('Award list PDF downloaded.')
+      toast.success('Admit cards PDF downloaded.')
     } catch (error: any) {
-      toast.error(String(error?.message || 'Failed to generate award list PDF.'))
+      toast.error(String(error?.message || 'Failed to generate admit cards.'))
     } finally {
       setGenerating(false)
     }
@@ -152,9 +149,9 @@ const ExmclAwardList: React.FC = () => {
     <div className="p-6">
       <div className="mx-auto max-w-xl space-y-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">Generate Award List</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-white">Generate Admit Cards</h2>
           <p className="mt-1 text-xs text-gray-500">
-            Download the PDF using the format saved under Formats.
+            Download admit cards using the format saved under Formats.
           </p>
         </div>
 
@@ -176,34 +173,14 @@ const ExmclAwardList: React.FC = () => {
             <option key={section} value={section}>{section}</option>
           ))}
         </select>
-        {design?.headerFields.subject ? (
-          <input
-            title="Subject"
-            aria-label="Subject"
-            placeholder="Subject"
-            value={subjectName}
-            onChange={(e) => setSubjectName(e.target.value)}
-            className={selectClassName}
-          />
-        ) : null}
-        {design?.headerFields.date ? (
-          <input
-            type="date"
-            title="Date"
-            aria-label="Date"
-            value={examDate}
-            onChange={(e) => setExamDate(e.target.value)}
-            className={selectClassName}
-          />
-        ) : null}
 
         <p className="text-[11px] text-slate-500">
-          Format: {design?.title || 'Award List'} · {design?.pageSize === 'legal' ? 'Legal' : 'A4'} · {design?.orientation === 'portrait' ? 'Portrait' : 'Landscape'}
+          Format: {design?.title || 'Admit Card'} · {design?.pageSize === 'legal' ? 'Legal' : 'A4'} · {design?.orientation === 'landscape' ? 'Landscape' : 'Portrait'}
           {design?.copiesPerSheet === 2 ? ' · 2 per sheet' : ''}
           {' · '}
           <button
             type="button"
-            onClick={() => navigate('/exmcl/performas/award-list')}
+            onClick={() => navigate('/exmcl/performas/admit-card')}
             className="font-medium text-blue-600 hover:underline"
           >
             Change format
@@ -225,7 +202,7 @@ const ExmclAwardList: React.FC = () => {
               ? 'Checking students...'
               : studentCount === null
                 ? 'Unable to load student count.'
-                : `${studentCount} student${studentCount === 1 ? '' : 's'} will be included.`
+                : `${studentCount} admit card${studentCount === 1 ? '' : 's'} will be generated.`
             : 'Select exam, class, and section to generate.'}
         </p>
       </div>
@@ -233,4 +210,4 @@ const ExmclAwardList: React.FC = () => {
   )
 }
 
-export default ExmclAwardList
+export default ExmclAdmitCards

@@ -6,9 +6,20 @@ const USER_ROLES = {
 
 // Student classes
 const STUDENT_CLASSES = {
+  CLASS_1: '1st',
+  CLASS_2: '2nd',
+  CLASS_3: '3rd',
+  CLASS_4: '4th',
+  CLASS_5: '5th',
+  CLASS_6: '6th',
+  CLASS_7: '7th',
+  CLASS_8: '8th',
+  CLASS_9: '9th',
   CLASS_10: '10th',
-  CLASS_12: '12th'
+  CLASS_11: '11th',
+  CLASS_12: '12th',
 };
+const STUDENT_CLASS_LIST = Object.values(STUDENT_CLASSES);
 
 // Student sections
 const STUDENT_SECTIONS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -140,6 +151,7 @@ const REGEX_PATTERNS = {
 module.exports = {
   USER_ROLES,
   STUDENT_CLASSES,
+  STUDENT_CLASS_LIST,
   STUDENT_SECTIONS,
   STUDENT_GENDERS,
   EXAM_TYPES,

@@ -273,6 +273,22 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
       }
       case 'exmcl': {
         const subPage = segments[1] || ''
+        if (subPage === 'performas' && segments[2] === 'award-list') {
+          return {
+            pageTitle: 'Award List Format',
+            pageSubtitle: 'Design the award list layout used when generating PDFs',
+            showBackButton: true,
+            backTo: '/exmcl/performas',
+          }
+        }
+        if (subPage === 'performas' && segments[2] === 'admit-card') {
+          return {
+            pageTitle: 'Admit Card Format',
+            pageSubtitle: 'Design the admit card layout used when generating PDFs',
+            showBackButton: true,
+            backTo: '/exmcl/performas',
+          }
+        }
         const titleMap: Record<string, { title: string; subtitle: string }> = {
           'centre-details': { title: 'Centre Details', subtitle: 'Manage centre profile, candidate summary, and exam days' },
           'exam-functionaries': { title: 'Exam Functionaries', subtitle: 'Manage examination functionaries and assignments' },
@@ -282,14 +298,15 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
           'examrooms': { title: 'Exam Room/Hall', subtitle: 'Assign rooms and halls for examinations' },
           'answersheets': { title: 'Answer Sheets', subtitle: 'Track and manage answer sheet dispatches' },
           'centre-guidelines': { title: 'Circulars', subtitle: 'Draft, publish, edit, update, and delete exam circulars' },
+          'admit-cards': { title: 'Admit Cards', subtitle: 'Download admit card PDFs using the saved format' },
           'result': { title: 'Result', subtitle: 'Prepare, upload, and publish internal exam results for student viewing' },
           'report-card': { title: 'Report Card', subtitle: 'Generate final report card PDFs for printing and distribution' },
-          'award-list': { title: 'Award List', subtitle: 'Generate teacher award lists for paper checking and mark entry' },
+          'award-list': { title: 'Award List', subtitle: 'Download award list PDFs using the saved format' },
           'question-papers': { title: 'Question Papers', subtitle: 'Store and manage internal exam question paper records' },
           'syllabus': { title: 'Syllabus', subtitle: 'Maintain subject-wise and exam-wise syllabus records' },
           'marks-distribution': { title: 'Marks Distribution', subtitle: 'Distribute 100 marks across theory, practical, and internal components' },
           'seatingplan': { title: 'Seating Plan', subtitle: 'Generate and manage seating plan PDFs' },
-          'performas': { title: "Performa's", subtitle: 'Generate relieving letters and answer sheet submission letters for centre operations.' },
+          'performas': { title: 'Formats', subtitle: 'Design exam formats for award lists, datesheets, seating plans, and related records.' },
           'datesheets': { title: 'Date Sheets', subtitle: 'Create and manage examination date sheets' },
         }
         const info = titleMap[subPage] || { title: 'ExmCl', subtitle: 'Internal exams workspace' }

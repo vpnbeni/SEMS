@@ -1,13 +1,18 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const Student = require('../models/Student');
 const Subject = require('../models/Subject');
-const { generateResponse, getPaginationParams, buildPaginationResponse } = require('../utils/helpers');
-const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS, STUDENT_CLASSES, STUDENT_GENDERS } = require('../utils/constants');
+const { generateResponse, buildPaginationResponse } = require('../utils/helpers');
+const { SUCCESS_MESSAGES, ERROR_MESSAGES, HTTP_STATUS, STUDENT_GENDERS } = require('../utils/constants');
 const ExcelJS = require('exceljs');
 const path = require('path');
 const fsSync = require('fs');
 const fs = fsSync.promises;
 const { uploadToCloudinary, deleteFromCloudinary, extractPublicId, uploadDocumentToCloudinary, deleteRawFromCloudinary } = require('../config/cloudinary');
+const SchoolProfile = require('../models/SchoolProfile');
+const {
+  reassignClassSections,
+  backfillClassRollNumbersIfNeeded,
+} = require('../utils/assignClassRollNumbers');
 
 const STUDENT_TEMPLATE_COLUMNS = [
   { key: 'rollNumber', label: 'ADMISSION NO', required: true, aliases: ['ROLL NUMBER'] },
@@ -90,12 +95,32 @@ const parseCsvBuffer = (buffer) => {
   return rows;
 };
 
+const getOrdinalSuffix = (value) => {
+  const remainderTen = value % 10;
+  const remainderHundred = value % 100;
+  if (remainderTen === 1 && remainderHundred !== 11) return 'st';
+  if (remainderTen === 2 && remainderHundred !== 12) return 'nd';
+  if (remainderTen === 3 && remainderHundred !== 13) return 'rd';
+  return 'th';
+};
+
 const normalizeClassValue = (value) => {
-  const normalized = normalizeString(value).toLowerCase();
-  if (!normalized) return '';
-  if (normalized === '10' || normalized === '10th' || normalized === 'x' || normalized === 'class 10') return STUDENT_CLASSES.CLASS_10;
-  if (normalized === '12' || normalized === '12th' || normalized === 'xii' || normalized === 'class 12') return STUDENT_CLASSES.CLASS_12;
-  return STUDENT_CLASSES[normalized.toUpperCase()] || normalizeString(value);
+  const raw = normalizeString(value);
+  if (!raw) return '';
+
+  const normalized = raw.toLowerCase().replace(/\s+/g, ' ');
+  if (normalized === '10' || normalized === '10th' || normalized === 'x' || normalized === 'class 10') return '10th';
+  if (normalized === '12' || normalized === '12th' || normalized === 'xii' || normalized === 'class 12') return '12th';
+
+  const numericMatch = normalized.match(/^(?:class\s+)?(\d+)(?:st|nd|rd|th)?$/i);
+  if (numericMatch) {
+    const classNumber = Number.parseInt(numericMatch[1], 10);
+    if (Number.isFinite(classNumber) && classNumber > 0) {
+      return `${classNumber}${getOrdinalSuffix(classNumber)}`;
+    }
+  }
+
+  return raw;
 };
 
 const normalizeGenderValue = (value) => {
@@ -284,7 +309,9 @@ const getAllowedLabelsForColumn = (column) => [column.label, ...(column.aliases 
 // @route   GET /api/students
 // @access  Private
 const getStudents = asyncHandler(async (req, res) => {
-  const { page, limit, skip } = getPaginationParams(req);
+  const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
+  const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit), 10) || 100));
+  const skip = (page - 1) * limit;
   const { 
     search, 
     class: className, 
@@ -297,28 +324,33 @@ const getStudents = asyncHandler(async (req, res) => {
 
   // Build filter object
   const filter = {};
-  
+
   if (search) {
-    filter.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { rollNumber: { $regex: search, $options: 'i' } },
-      { fatherName: { $regex: search, $options: 'i' } },
-      { email: { $regex: search, $options: 'i' } }
+    // Keep search $or nested so it does not collide with academic-session $or.
+    filter.$and = [
+      {
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { rollNumber: { $regex: search, $options: 'i' } },
+          { fatherName: { $regex: search, $options: 'i' } },
+          { email: { $regex: search, $options: 'i' } },
+        ],
+      },
     ];
   }
-  
+
   if (className) {
-    filter.class = className;
+    filter.class = { $regex: `^${escapeRegexValue(String(className).trim())}$`, $options: 'i' };
   }
-  
+
   if (section) {
     filter.section = { $regex: `^${escapeRegexValue(normalizeSectionValue(section))}$`, $options: 'i' };
   }
-  
+
   if (subject) {
     filter.subjects = subject;
   }
-  
+
   if (isActive !== undefined) {
     filter.isActive = isActive === 'true';
   }
@@ -328,6 +360,8 @@ const getStudents = asyncHandler(async (req, res) => {
   }
 
   // Get total count for pagination
+  const StudentModel = req.models?.Student || Student;
+  await backfillClassRollNumbersIfNeeded(req.models?.SchoolProfile || SchoolProfile, StudentModel);
   const totalCount = await Student.countDocuments(filter);
 
   // Execute query with pagination
@@ -338,8 +372,7 @@ const getStudents = asyncHandler(async (req, res) => {
     .limit(limit)
     .lean();
 
-  // Build pagination response
-  const pagination = buildPaginationResponse(page, limit, totalCount);
+  const { pagination } = buildPaginationResponse(students, totalCount, page, limit);
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, SUCCESS_MESSAGES.FETCHED, {
@@ -464,9 +497,13 @@ const createStudent = asyncHandler(async (req, res) => {
 
   // Populate subjects before sending response
   await student.populate('subjects', 'name code type');
+  await reassignClassSections(req.models?.Student || Student, [
+    { className: student.class, section: student.section },
+  ]);
+  const numberedStudent = await Student.findById(student._id).populate('subjects', 'name code type');
 
   res.status(HTTP_STATUS.CREATED).json(
-    generateResponse(true, SUCCESS_MESSAGES.CREATED, student)
+    generateResponse(true, SUCCESS_MESSAGES.CREATED, numberedStudent)
   );
 });
 
@@ -547,6 +584,13 @@ const updateStudent = asyncHandler(async (req, res) => {
   if ('nationality' in updateData) updateData.nationality = optionalText(updateData.nationality) || 'Indian';
   if ('notes' in updateData) updateData.notes = optionalText(updateData.notes);
   if ('gender' in updateData) updateData.gender = normalizeGenderValue(updateData.gender);
+  delete updateData.classRollNo;
+  if (updateData.isActive === false) {
+    updateData.classRollNo = null;
+  }
+
+  const previousClass = existingStudent.class;
+  const previousSection = existingStudent.section;
 
   // Update student
   const student = await Student.findByIdAndUpdate(
@@ -559,9 +603,14 @@ const updateStudent = asyncHandler(async (req, res) => {
   ).populate('subjects', 'name code type');
 
   await syncLinkedStudentRecords(req, existingStudent, student);
+  await reassignClassSections(req.models?.Student || Student, [
+    { className: previousClass, section: previousSection },
+    { className: student.class, section: student.section },
+  ]);
+  const numberedStudent = await Student.findById(student._id).populate('subjects', 'name code type');
 
   res.status(HTTP_STATUS.OK).json(
-    generateResponse(true, SUCCESS_MESSAGES.UPDATED, student)
+    generateResponse(true, SUCCESS_MESSAGES.UPDATED, numberedStudent)
   );
 });
 
@@ -603,7 +652,10 @@ const deleteStudent = asyncHandler(async (req, res) => {
     }
   }
 
+  const className = student.class;
+  const section = student.section;
   await student.deleteOne();
+  await reassignClassSections(req.models?.Student || Student, [{ className, section }]);
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, SUCCESS_MESSAGES.DELETED)
@@ -743,7 +795,10 @@ const removeSubjects = asyncHandler(async (req, res) => {
 // @route   GET /api/students/stats
 // @access  Private
 const getStudentStats = asyncHandler(async (req, res) => {
-  const stats = await Student.getStats();
+  const stats = await Student.getStats({
+    className: req.query.class,
+    section: req.query.section,
+  });
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, 'Student statistics fetched successfully', stats)
@@ -884,6 +939,11 @@ const bulkCreateStudents = asyncHandler(async (req, res) => {
   const message = results.failed.length === 0 
     ? 'All students created successfully' 
     : `${results.successful.length} students created, ${results.failed.length} failed`;
+
+  await reassignClassSections(
+    req.models?.Student || Student,
+    results.successful.map((row) => ({ className: row.class, section: row.section }))
+  );
 
   res.status(statusCode).json(
     generateResponse(true, message, results)
@@ -1042,6 +1102,7 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
 
   const generatedRollNumbersInRequest = new Set();
   const importTasks = [];
+  const importGroups = [];
   const requestAcademicSession = normalizeString(req.academicSession);
   let classSectionLookup = new Map();
 
@@ -1052,6 +1113,15 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       .lean();
     classSectionLookup = buildClassSectionMatrixLookup(latestTimetableState);
   }
+
+  const existingStudents = await StudentModel.find({})
+    .select('rollNumber')
+    .lean();
+  const existingRollNumbers = new Set(
+    existingStudents
+      .map((student) => String(student.rollNumber || '').trim().toUpperCase())
+      .filter(Boolean)
+  );
 
   for (const { rowNumber, valueAt } of dataRows) {
     const rowData = {};
@@ -1100,10 +1170,12 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     let rollNumberAutoFilled = false;
     if (!normalizedRow.rollNumber) {
       normalizedRow.rollNumber = buildGeneratedImportRollNumber(rowNumber);
-      while (generatedRollNumbersInRequest.has(normalizedRow.rollNumber)) {
+      while (
+        existingRollNumbers.has(normalizedRow.rollNumber) ||
+        generatedRollNumbersInRequest.has(normalizedRow.rollNumber)
+      ) {
         normalizedRow.rollNumber = buildGeneratedImportRollNumber(rowNumber);
       }
-      generatedRollNumbersInRequest.add(normalizedRow.rollNumber);
       rollNumberAutoFilled = true;
       fallbackNotes.push('roll number');
     }
@@ -1111,6 +1183,14 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       normalizedRow.rollNumber = normalizedRow.rollNumber.slice(0, 20);
       fallbackNotes.push('roll number length');
     }
+    if (!rollNumberAutoFilled && (
+      existingRollNumbers.has(normalizedRow.rollNumber) ||
+      generatedRollNumbersInRequest.has(normalizedRow.rollNumber)
+    )) {
+      results.skipped += 1;
+      continue;
+    }
+    generatedRollNumbersInRequest.add(normalizedRow.rollNumber);
     if (!normalizedRow.name) {
       normalizedRow.name = `Student ${normalizedRow.rollNumber}`;
       fallbackNotes.push('name');
@@ -1120,8 +1200,11 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       fallbackNotes.push('name length');
     }
     if (!normalizedRow.class) {
-      normalizedRow.class = Object.values(STUDENT_CLASSES)[0];
-      fallbackNotes.push('class');
+      results.errors.push({
+        row: rowNumber,
+        message: 'Class is required.'
+      });
+      continue;
     }
     const allowedSections = classSectionLookup.get(normalizedRow.class) || [];
     const allowedSectionByKey = new Map(
@@ -1205,9 +1288,9 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       fallbackNotes.push('pincode');
     }
 
-    if (!Object.values(STUDENT_CLASSES).includes(normalizedRow.class)) {
-      normalizedRow.class = Object.values(STUDENT_CLASSES)[0];
-      fallbackNotes.push('invalid class');
+    if (normalizedRow.class.length > 50) {
+      normalizedRow.class = normalizedRow.class.slice(0, 50);
+      fallbackNotes.push('class length');
     }
 
     if (!STUDENT_GENDERS.includes(normalizedRow.gender)) {
@@ -1281,33 +1364,12 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     importTasks.push(
       (async () => {
         try {
-          const existingStudent = await StudentModel.findOne({ rollNumber: normalizedRow.rollNumber })
-            .select('_id')
-            .lean();
-
-          if (existingStudent?._id) {
-            const previousStudent = await StudentModel.findById(existingStudent._id).lean();
-            const updatedStudent = await StudentModel.findByIdAndUpdate(existingStudent._id, normalizedRow, {
-              new: true,
-              runValidators: true
-            });
-            await syncLinkedStudentRecords(req, previousStudent, updatedStudent);
-            results.updated += 1;
-            return;
-          }
-
           await StudentModel.create(normalizedRow);
           results.created += 1;
+          importGroups.push({ className: normalizedRow.class, section: normalizedRow.section });
         } catch (error) {
           if (error?.code === 11000) {
-            const duplicateField = Object.keys(error?.keyPattern || {})[0] || 'field';
-            const duplicateValue = error?.keyValue?.[duplicateField];
-            results.errors.push({
-              row: rowNumber,
-              message: duplicateValue
-                ? `Duplicate ${duplicateField}: ${duplicateValue}`
-                : `Duplicate value found for ${duplicateField}`
-            });
+            results.skipped += 1;
             return;
           }
 
@@ -1322,6 +1384,7 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
 
   if (importTasks.length > 0) {
     await Promise.allSettled(importTasks);
+    await reassignClassSections(StudentModel, importGroups);
   }
 
   return res.status(HTTP_STATUS.OK).json(

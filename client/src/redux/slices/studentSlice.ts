@@ -5,6 +5,7 @@ import api from '../../services/api'
 export interface Student {
   _id: string
   rollNumber: string
+  classRollNo?: number | null
   name: string
   gender?: 'Boy' | 'Girl' | 'Other' | 'Unspecified'
   email?: string
@@ -198,9 +199,11 @@ export const updateStudent = createAsyncThunk(
 
 export const deleteStudent = createAsyncThunk(
   'students/deleteStudent',
-  async (id: string, { rejectWithValue }) => {
+  async (payload: string | { id: string; silent?: boolean }, { rejectWithValue }) => {
+    const id = typeof payload === 'string' ? payload : payload.id
+    const silent = typeof payload === 'object' && payload.silent === true
     try {
-      await api.delete(`/students/${id}`)
+      await api.delete(`/students/${id}`, { _silent: silent } as any)
       return id
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete student')
@@ -259,9 +262,14 @@ export const removeSubjects = createAsyncThunk(
 
 export const fetchStudentStats = createAsyncThunk(
   'students/fetchStudentStats',
-  async (_, { rejectWithValue }) => {
+  async (params: { class?: string; section?: string } | undefined, { rejectWithValue }) => {
     try {
-      const response = await api.get('/students/stats')
+      const response = await api.get('/students/stats', {
+        params: {
+          ...(params?.class ? { class: params.class } : {}),
+          ...(params?.section ? { section: params.section } : {}),
+        },
+      })
       return response.data
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch student statistics')
@@ -347,8 +355,20 @@ const studentSlice = createSlice({
       })
       .addCase(fetchStudents.fulfilled, (state, action) => {
         state.loading = false
-        state.students = action.payload.data.students
-        state.pagination = action.payload.data.pagination
+        state.students = action.payload.data.students || []
+        const rawPagination = action.payload.data.pagination || {}
+        const nestedPagination =
+          rawPagination.pagination && typeof rawPagination.pagination === 'object'
+            ? rawPagination.pagination
+            : rawPagination
+        state.pagination = {
+          currentPage: Number(nestedPagination.currentPage) || 1,
+          totalPages: Number(nestedPagination.totalPages) || 1,
+          totalItems: Number(nestedPagination.totalItems ?? nestedPagination.totalCount) || 0,
+          itemsPerPage: Number(nestedPagination.itemsPerPage ?? nestedPagination.limit) || 10,
+          hasNextPage: Boolean(nestedPagination.hasNextPage),
+          hasPrevPage: Boolean(nestedPagination.hasPrevPage),
+        }
       })
       .addCase(fetchStudents.rejected, (state, action) => {
         state.loading = false
@@ -410,7 +430,6 @@ const studentSlice = createSlice({
     // Delete student
     builder
       .addCase(deleteStudent.pending, (state) => {
-        state.loading = true
         state.error = null
       })
       .addCase(deleteStudent.fulfilled, (state, action) => {

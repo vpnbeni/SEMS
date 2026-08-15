@@ -7,7 +7,11 @@ dotenv.config();
 // Import database connection
 const { connectPlatformDB, getCentralDbName } = require('./config/platformDatabase');
 const { runTenantModelStartupSanityCheck } = require('./tenancy/startupTenantModelSanityCheck');
-const { isAttendanceQueueEnabled } = require('./queues/attendanceQueue');
+const {
+  initAttendanceQueue,
+  isAttendanceQueueEnabled,
+  isAttendanceQueueReady,
+} = require('./queues/attendanceQueue');
 
 // Import app
 const app = require('./app');
@@ -65,21 +69,34 @@ const initializeServer = async () => {
 };
 
 // Initialize server
-initializeServer().then(() => {
+initializeServer().then(async () => {
   // Start attendance background worker after DB is ready.
   // Skip on Vercel (serverless — no persistent workers).
-  if (!process.env.VERCEL && isAttendanceQueueEnabled) {
-    try {
-      require('./workers/attendanceWorker');
-      console.log('✅ Attendance background worker started'.green.bold);
-    } catch (workerErr) {
-      // Worker failing to start (e.g. Redis not available) should not kill the server.
-      console.warn('⚠️  Attendance worker failed to start (Redis may be unavailable):'.yellow, workerErr.message);
-    }
-  } else if (!process.env.VERCEL && !isAttendanceQueueEnabled) {
+  if (process.env.VERCEL) {
+    return;
+  }
+
+  if (!isAttendanceQueueEnabled) {
     console.warn(
       '⚠️  Attendance worker disabled (set REDIS_URL or ATTENDANCE_QUEUE_ENABLED=true to enable).'
         .yellow
+    );
+    return;
+  }
+
+  try {
+    const queueReady = await initAttendanceQueue();
+    if (!queueReady) {
+      return;
+    }
+
+    require('./workers/attendanceWorker');
+    console.log('✅ Attendance background worker started'.green.bold);
+  } catch (workerErr) {
+    // Worker failing to start (e.g. Redis not available) should not kill the server.
+    console.warn(
+      '⚠️  Attendance worker failed to start (Redis may be unavailable):'.yellow,
+      workerErr.message
     );
   }
 });
@@ -106,7 +123,7 @@ process.on('unhandledRejection', (err) => {
 // Handle SIGTERM
 process.on('SIGTERM', () => {
   console.log('👋 SIGTERM RECEIVED. Shutting down gracefully');
-  if (isAttendanceQueueEnabled) {
+  if (isAttendanceQueueReady()) {
     const worker = require('./workers/attendanceWorker');
     worker.close().catch(() => {});
   }
@@ -118,7 +135,7 @@ process.on('SIGTERM', () => {
 // Handle SIGINT (Ctrl+C)
 process.on('SIGINT', () => {
   console.log('\n👋 SIGINT RECEIVED. Shutting down gracefully');
-  if (isAttendanceQueueEnabled) {
+  if (isAttendanceQueueReady()) {
     const worker = require('./workers/attendanceWorker');
     worker.close().catch(() => {});
   }

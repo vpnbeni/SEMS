@@ -1,6 +1,7 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
-import { Download, Filter, RefreshCw, Search, Trash2, Upload, UserPlus, Users } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { Download, Filter, LayoutGrid, RefreshCw, Search, Trash2, Upload, UserPlus, Users } from 'lucide-react'
 import type { AppDispatch, RootState } from '../redux/store'
 import {
   createStudent,
@@ -13,8 +14,10 @@ import {
 import api from '../services/api'
 import studentService from '../services/studentService'
 import timetableService from '../services/timetableService'
+import { STUDENT_CLASS_OPTIONS } from '../constants/studentClasses'
 
-const STUDENTS_PAGE_SIZE = 100
+const STUDENTS_PAGE_SIZE = 250
+const BULK_DELETE_TOAST_ID = 'stdnt-bulk-delete'
 
 type StudentFormState = {
   rollNumber: string
@@ -135,6 +138,50 @@ const sortClassNames = (left: string, right: string) => {
   return left.localeCompare(right)
 }
 
+const mergeClassSectionOptions = (
+  sources: Array<ClassSectionOption[] | undefined>
+): ClassSectionOption[] => {
+  const merged = new Map<string, Set<string>>()
+
+  sources.forEach((source) => {
+    (source || []).forEach((option) => {
+      const className = String(option.className || '').trim()
+      if (!className) return
+      if (!merged.has(className)) merged.set(className, new Set())
+      option.sections.forEach((section) => {
+        const normalized = String(section || '').trim()
+        if (normalized) merged.get(className)!.add(normalized)
+      })
+    })
+  })
+
+  return Array.from(merged.entries())
+    .map(([className, sectionSet]) => ({
+      className,
+      sections: Array.from(sectionSet).sort((a, b) => a.localeCompare(b)),
+    }))
+    .sort((a, b) => sortClassNames(a.className, b.className))
+}
+
+const buildClassSectionOptionsFromStats = (stats: RootState['students']['stats']): ClassSectionOption[] => {
+  const byClass = new Map<string, Set<string>>()
+
+  ;(stats?.byClassSection || []).forEach((entry) => {
+    const className = String(entry?._id?.class || '').trim()
+    const section = String(entry?._id?.section || '').trim()
+    if (!className) return
+    if (!byClass.has(className)) byClass.set(className, new Set())
+    if (section) byClass.get(className)!.add(section)
+  })
+
+  return Array.from(byClass.entries())
+    .map(([className, sectionSet]) => ({
+      className,
+      sections: Array.from(sectionSet).sort((a, b) => a.localeCompare(b)),
+    }))
+    .sort((a, b) => sortClassNames(a.className, b.className))
+}
+
 const buildClassSectionOptions = (state: Awaited<ReturnType<typeof timetableService.getState>>): ClassSectionOption[] => {
   const matrixClasses = Array.isArray(state?.matrixClasses) ? state.matrixClasses : []
   const matrixSections = Array.isArray(state?.matrixSections) ? state.matrixSections : []
@@ -208,10 +255,10 @@ const Students: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [tableSortField, setTableSortField] = useState<'rollNumber' | 'name' | 'class' | 'section' | 'fatherName' | 'dateOfBirth' | 'gender' | 'category' | 'phone' | 'penNumber'>('rollNumber')
+  const [tableSortField, setTableSortField] = useState<'rollNumber' | 'classRollNo' | 'name' | 'class' | 'section' | 'fatherName' | 'dateOfBirth' | 'gender' | 'category' | 'phone' | 'penNumber' | null>(null)
   const [tableSortDirection, setTableSortDirection] = useState<'asc' | 'desc'>('asc')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [classSectionOptions, setClassSectionOptions] = useState<ClassSectionOption[]>([])
+  const [timetableClassSectionOptions, setTimetableClassSectionOptions] = useState<ClassSectionOption[]>([])
   const [editingSectionStudentId, setEditingSectionStudentId] = useState<string | null>(null)
   const [sectionUpdateLoadingById, setSectionUpdateLoadingById] = useState<Record<string, boolean>>({})
   const [sectionOverrideByStudentId, setSectionOverrideByStudentId] = useState<Record<string, string>>({})
@@ -223,8 +270,11 @@ const Students: React.FC = () => {
   const deferredSearch = useDeferredValue(searchTerm)
 
   useEffect(() => {
-    dispatch(fetchStudentStats())
-  }, [dispatch])
+    dispatch(fetchStudentStats({
+      ...(classFilter ? { class: classFilter } : {}),
+      ...(sectionFilter ? { section: sectionFilter } : {}),
+    }))
+  }, [classFilter, dispatch, sectionFilter])
 
   useEffect(() => {
     let isMounted = true
@@ -235,7 +285,7 @@ const Students: React.FC = () => {
         if (!isMounted) return
 
         const nextOptions = buildClassSectionOptions(state)
-        setClassSectionOptions(nextOptions)
+        setTimetableClassSectionOptions(nextOptions)
 
         if (nextOptions.length === 0) return
 
@@ -259,7 +309,7 @@ const Students: React.FC = () => {
         })
       } catch {
         if (!isMounted) return
-        setClassSectionOptions([])
+        setTimetableClassSectionOptions([])
       }
     }
 
@@ -303,20 +353,70 @@ const Students: React.FC = () => {
     }
   }, [selectedPhotoPreview])
 
-  const totalSections = useMemo(
+  useEffect(() => {
+    if (!pageMessage) return
+
+    const timeoutId = window.setTimeout(
+      () => setPageMessage(null),
+      pageMessage.tone === 'error' ? 8000 : 5000
+    )
+
+    return () => window.clearTimeout(timeoutId)
+  }, [pageMessage])
+
+  const classSectionOptions = useMemo(
+    () => mergeClassSectionOptions([
+      timetableClassSectionOptions,
+      buildClassSectionOptionsFromStats(stats),
+    ]),
+    [stats, timetableClassSectionOptions]
+  )
+
+  const totalClasses = useMemo(
     () => (
       new Set(
         (stats?.byClassSection || [])
-          .filter((entry) => (entry?.active ?? 0) > 0)
-          .map((entry) => `${entry._id.class}-${entry._id.section}`)
+          .map((entry) => String(entry?._id?.class || '').trim())
+          .filter(Boolean)
       ).size
     ),
     [stats]
   )
-  const classOptions = useMemo(
-    () => classSectionOptions.map((option) => option.className),
-    [classSectionOptions]
+  const totalSections = useMemo(
+    () => (
+      new Set(
+        (stats?.byClassSection || [])
+          .map((entry) => String(entry?._id?.section || '').trim())
+          .filter(Boolean)
+      ).size
+    ),
+    [stats]
   )
+  const totalClassSections = useMemo(
+    () => (
+      new Set(
+        (stats?.byClassSection || [])
+          .map((entry) => `${String(entry?._id?.class || '').trim()}::${String(entry?._id?.section || '').trim()}`)
+          .filter((key) => key !== '::')
+      ).size
+    ),
+    [stats]
+  )
+  const boysCount = useMemo(
+    () => (stats?.byGender || []).find((entry) => entry._id === 'Boy')?.count ?? 0,
+    [stats]
+  )
+  const girlsCount = useMemo(
+    () => (stats?.byGender || []).find((entry) => entry._id === 'Girl')?.count ?? 0,
+    [stats]
+  )
+  const classOptions = useMemo(() => {
+    const names = new Set<string>([
+      ...STUDENT_CLASS_OPTIONS,
+      ...classSectionOptions.map((option) => option.className),
+    ])
+    return Array.from(names).filter(Boolean).sort(sortClassNames)
+  }, [classSectionOptions])
   const sectionOptionsForSelectedClass = useMemo(
     () => classSectionOptions.find((option) => option.className === formData.class)?.sections || [],
     [classSectionOptions, formData.class]
@@ -325,6 +425,7 @@ const Students: React.FC = () => {
     () => {
       if (!classFilter) {
         return Array.from(new Set(classSectionOptions.flatMap((option) => option.sections)))
+          .sort((a, b) => a.localeCompare(b))
       }
 
       return classSectionOptions.find((option) => option.className === classFilter)?.sections || []
@@ -340,11 +441,16 @@ const Students: React.FC = () => {
 
   const selectedCount = selectedIds.length
   const sortedStudents = useMemo(() => {
+    if (!tableSortField) return students
+
     const getSortableValue = (student: any) => {
       if (tableSortField === 'section') return sectionOverrideByStudentId[student._id] ?? student.section ?? ''
       if (tableSortField === 'dateOfBirth') {
         const parsed = new Date(student.dateOfBirth || '').getTime()
         return Number.isNaN(parsed) ? 0 : parsed
+      }
+      if (tableSortField === 'classRollNo') {
+        return Number(student.classRollNo) || 0
       }
       return String(student?.[tableSortField] ?? '').toLowerCase()
     }
@@ -361,7 +467,7 @@ const Students: React.FC = () => {
   const visibleStudentIds = sortedStudents.map((student) => student._id)
   const allVisibleSelected = visibleStudentIds.length > 0 && visibleStudentIds.every((id) => selectedIds.includes(id))
 
-  const handleSort = (field: typeof tableSortField) => {
+  const handleSort = (field: NonNullable<typeof tableSortField>) => {
     if (tableSortField === field) {
       setTableSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
       return
@@ -465,7 +571,10 @@ const Students: React.FC = () => {
   }
 
   const refreshStudentData = (targetPage = page) => {
-    dispatch(fetchStudentStats())
+    dispatch(fetchStudentStats({
+      ...(classFilter ? { class: classFilter } : {}),
+      ...(sectionFilter ? { section: sectionFilter } : {}),
+    }))
     dispatch(
       fetchStudents({
         page: targetPage,
@@ -635,14 +744,13 @@ const Students: React.FC = () => {
       const response = await studentService.uploadImportTemplate(selectedFile)
       const result = response?.data ?? {}
       const createdCount = result.created ?? 0
-      const updatedCount = result.updated ?? 0
       const skippedCount = result.skipped ?? 0
       const errors = Array.isArray(result.errors) ? result.errors : []
       const warnings = Array.isArray(result.warnings) ? result.warnings : []
       const errorPreview = errors.slice(0, 2).map((entry: any) => `Row ${entry?.row}: ${entry?.message}`).join(' | ')
       setPageMessage({
-        tone: (createdCount + updatedCount) > 0 ? 'success' : 'error',
-        text: `Import completed. Created: ${createdCount}, Updated: ${updatedCount}, Skipped: ${skippedCount}, Errors: ${errors.length}, Warnings: ${warnings.length}.${errorPreview ? ` ${errorPreview}` : ''}`,
+        tone: errors.length > 0 && createdCount === 0 ? 'error' : 'success',
+        text: `Import completed. Created: ${createdCount}, Skipped (already exist): ${skippedCount}, Errors: ${errors.length}, Warnings: ${warnings.length}.${errorPreview ? ` ${errorPreview}` : ''}`,
       })
       refreshStudentData(1)
       setPage(1)
@@ -690,20 +798,52 @@ const Students: React.FC = () => {
   }
 
   const handleBulkDelete = async () => {
-    if (selectedIds.length === 0) return
+    if (selectedIds.length === 0 || isBulkDeleting) return
 
+    const total = selectedIds.length
     setIsBulkDeleting(true)
     let deletedCount = 0
+    let failedCount = 0
+
+    const renderProgressToast = (done: number, failed: number, complete = false) => {
+      const processed = done + failed
+      const percent = total === 0 ? 0 : Math.round((processed / total) * 100)
+
+      toast.custom(
+        () => (
+          <div className="flex min-w-[280px] flex-col gap-2 rounded-xl bg-slate-800 px-4 py-3 text-white shadow-lg">
+            <div className="flex items-center justify-between gap-3 text-sm font-medium">
+              <span>{done} of {total} deleted</span>
+              {failed > 0 ? <span className="text-rose-300">{failed} failed</span> : null}
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-slate-600">
+              <div
+                className={`h-full rounded-full transition-all ${failed > 0 && complete ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+          </div>
+        ),
+        {
+          id: BULK_DELETE_TOAST_ID,
+          duration: complete ? 3500 : Infinity,
+        }
+      )
+    }
+
+    renderProgressToast(0, 0)
 
     for (const id of selectedIds) {
       try {
-        await dispatch(deleteStudent(id)).unwrap()
+        await dispatch(deleteStudent({ id, silent: true })).unwrap()
         deletedCount += 1
       } catch (_error) {
-        // Keep going so one failure does not block the rest.
+        failedCount += 1
       }
+      renderProgressToast(deletedCount, failedCount)
     }
 
+    renderProgressToast(deletedCount, failedCount, true)
     setIsBulkDeleting(false)
     setSelectedIds([])
     refreshStudentData()
@@ -739,6 +879,16 @@ const Students: React.FC = () => {
       await api.put(`/students/${studentId}`, { class: className, section: normalizedSection })
       setSectionOverrideByStudentId((prev) => ({ ...prev, [studentId]: normalizedSection }))
       setPageMessage({ tone: 'success', text: `Section updated to ${normalizedSection}.` })
+      dispatch(
+        fetchStudents({
+          page,
+          limit: STUDENTS_PAGE_SIZE,
+          sort: '-createdAt',
+          ...(deferredSearch.trim() ? { search: deferredSearch.trim() } : {}),
+          ...(classFilter ? { class: classFilter } : {}),
+          ...(sectionFilter ? { section: sectionFilter } : {}),
+        })
+      )
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
@@ -757,7 +907,7 @@ const Students: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       {pageMessage ? (
         <div
           className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
@@ -770,61 +920,95 @@ const Students: React.FC = () => {
         </div>
       ) : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-              <Users className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Total Students</p>
-              <p className="text-3xl font-bold tracking-tight text-slate-900">{stats?.total ?? 0}</p>
-            </div>
+      <div className="space-y-2">
+      <section className="flex flex-wrap gap-3">
+        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+            <Users className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium leading-tight text-slate-500">Total Students</p>
+            <p className="text-lg font-semibold leading-tight tracking-tight text-slate-900">{stats?.total ?? 0}</p>
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-              <RefreshCw className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Active Students</p>
-              <p className="text-3xl font-bold tracking-tight text-slate-900">{stats?.activeTotal ?? 0}</p>
-            </div>
+        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+            <RefreshCw className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium leading-tight text-slate-500">Active Students</p>
+            <p className="text-lg font-semibold leading-tight tracking-tight text-slate-900">{stats?.activeTotal ?? 0}</p>
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
-              <Filter className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Class Sections</p>
-              <p className="text-3xl font-bold tracking-tight text-slate-900">{totalSections}</p>
-            </div>
+        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
+            <Users className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium leading-tight text-slate-500">Boys</p>
+            <p className="text-lg font-semibold leading-tight tracking-tight text-slate-900">{boysCount}</p>
           </div>
         </div>
 
+        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-pink-50 text-pink-600">
+            <Users className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium leading-tight text-slate-500">Girls</p>
+            <p className="text-lg font-semibold leading-tight tracking-tight text-slate-900">{girlsCount}</p>
+          </div>
+        </div>
+
+        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+            <LayoutGrid className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium leading-tight text-slate-500">Classes</p>
+            <p className="text-lg font-semibold leading-tight tracking-tight text-slate-900">{totalClasses}</p>
+          </div>
+        </div>
+
+        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+            <Filter className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium leading-tight text-slate-500">Sections</p>
+            <p className="text-lg font-semibold leading-tight tracking-tight text-slate-900">{totalSections}</p>
+          </div>
+        </div>
+
+        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <LayoutGrid className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-[11px] font-medium leading-tight text-slate-500">Class × Section</p>
+            <p className="text-lg font-semibold leading-tight tracking-tight text-slate-900">{totalClassSections}</p>
+          </div>
+        </div>
       </section>
 
-      <section className="rounded-[30px] border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-6 py-5">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="w-full max-w-md">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-4 py-2.5">
+          <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+            <div className="w-full max-w-sm">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                 <input
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
                   placeholder="Search students..."
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-2.5 pl-11 pr-4 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2">
               <input
                 type="file"
                 accept=".csv,.xlsx"
@@ -837,56 +1021,59 @@ const Students: React.FC = () => {
 
               <button
                 onClick={handleDownloadTemplate}
-                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loading || isTemplateDownloading || isTemplateUploading}
               >
-                <Download className="h-4 w-4" />
+                <Download className="h-3.5 w-3.5" />
                 {isTemplateDownloading ? 'Downloading...' : 'Template'}
               </button>
 
               <button
                 onClick={() => document.getElementById('student-template-upload-input')?.click()}
-                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loading || isTemplateDownloading || isTemplateUploading}
               >
-                <Upload className="h-4 w-4" />
+                <Upload className="h-3.5 w-3.5" />
                 {isTemplateUploading ? 'Uploading...' : 'Upload'}
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowFilterPanel((prev) => !prev)}
-                className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
               >
-                <Filter className="h-4 w-4" />
+                <Filter className="h-3.5 w-3.5" />
                 Filters
               </button>
 
               <button
                 onClick={handleAddStudentClick}
-                className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
               >
-                <UserPlus className="h-4 w-4" />
+                <UserPlus className="h-3.5 w-3.5" />
                 {showAddForm ? 'Hide Form' : 'Add Student'}
               </button>
 
               <button
                 onClick={handleBulkDelete}
-                className="inline-flex items-center gap-2 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loading || isBulkDeleting || selectedCount === 0}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3.5 w-3.5" />
                 {isBulkDeleting ? 'Deleting...' : `Delete Selected${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
               </button>
             </div>
           </div>
 
           {showFilterPanel ? (
-            <div className="mt-4 grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-2">
                 <select
                   value={classFilter}
-                  onChange={(event) => setClassFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  onChange={(event) => {
+                    setClassFilter(event.target.value)
+                    setSectionFilter('')
+                  }}
+                  className="w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 >
                   <option value="">All Classes</option>
                   {classOptions.map((option) => (
@@ -899,19 +1086,32 @@ const Students: React.FC = () => {
                 <select
                   value={sectionFilter}
                   onChange={(event) => setSectionFilter(event.target.value)}
-                  className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 >
                   <option value="">All Sections</option>
                   {filterSectionOptions.map((option) => (
                     <option key={option} value={option}>
-                      Section {option}
+                      {option}
                     </option>
                 ))}
               </select>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setClassFilter('')
+                  setSectionFilter('')
+                }}
+                disabled={!classFilter && !sectionFilter}
+                className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Clear Filters
+              </button>
             </div>
           ) : null}
         </div>
       </section>
+      </div>
 
       {(showAddForm || isEditModalOpen) ? (
         <div
@@ -1324,13 +1524,6 @@ const Students: React.FC = () => {
       ) : null}
 
       <section className="rounded-[30px] border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-6 py-5">
-          <h2 className="text-xl font-semibold tracking-tight text-slate-900">Students</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Review, filter, select, and manage the student records already stored in the database.
-          </p>
-        </div>
-
         <div className="overflow-x-auto overflow-y-auto max-h-[960px]">
           <table className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
@@ -1346,6 +1539,7 @@ const Students: React.FC = () => {
                 </th>
                 {[
                   { label: 'Admission No', field: 'rollNumber' as const },
+                  { label: 'Roll No', field: 'classRollNo' as const },
                   { label: 'Student Name', field: 'name' as const },
                   { label: 'Class', field: 'class' as const },
                   { label: 'Section', field: 'section' as const },
@@ -1404,6 +1598,7 @@ const Students: React.FC = () => {
                       />
                     </td>
                     <td className="px-4 py-4 align-top font-semibold text-slate-900">{student.rollNumber}</td>
+                    <td className="px-4 py-4 align-top">{student.classRollNo || '-'}</td>
                     <td className="px-4 py-4 align-top">
                       <div className="font-semibold text-slate-900">{student.name}</div>
                     </td>
