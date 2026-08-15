@@ -67,6 +67,7 @@ const parseDesign = (source = {}) => {
       name: toBoolean(fields.name, true),
       motherName: toBoolean(fields.motherName, true),
       fatherName: toBoolean(fields.fatherName, true),
+      gender: toBoolean(fields.gender, true),
       schoolName: toBoolean(fields.schoolName, true),
       examCentre: toBoolean(fields.examCentre, true),
       pwdCategory: toBoolean(fields.pwdCategory, true),
@@ -218,7 +219,7 @@ const generateAdmitCards = asyncHandler(async (req, res) => {
       section: sectionFilter,
       isActive: true,
     })
-      .select('rollNumber classRollNo name class section fatherName motherName dateOfBirth profileImage subjects medicalInfo')
+      .select('rollNumber classRollNo name class section fatherName motherName gender dateOfBirth profileImage subjects medicalInfo')
       .populate('subjects', 'name code')
       .sort({ classRollNo: 1, name: 1 })
       .lean(),
@@ -271,6 +272,9 @@ const generateAdmitCards = asyncHandler(async (req, res) => {
     return {
       name: String(student.name || '').toUpperCase(),
       fatherName: String(student.fatherName || '').toUpperCase(),
+      gender: String(student.gender || '').trim() && String(student.gender).trim() !== 'Unspecified'
+        ? String(student.gender).trim()
+        : '',
       motherName: String(student.motherName || '').toUpperCase(),
       className: student.class || className,
       section: student.section || section,

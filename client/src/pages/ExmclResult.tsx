@@ -3,30 +3,64 @@ import { X } from 'lucide-react'
 import { Tabs } from '@/components/common/Tabs'
 import exmclExamService, { type ExmclExamDefinition } from '@/services/exmclExamService'
 import exmclResultService from '@/services/exmclResultService'
+import subjectService from '@/services/subjectService'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useTimetable } from '@/contexts/TimetableContext'
+import { STUDENT_CLASS_OPTIONS } from '@/constants/studentClasses'
 
 type ResultTab = 'exam'
 
 type StudentRow = {
   _id: string
   rollNumber: string
+  classRollNo?: number | null
   name: string
   class: string
   section: string
+  subjects?: Array<{ _id?: string; name?: string } | string>
+}
+
+type ClassSectionEntry = {
+  _id?: { class?: string; section?: string }
+}
+
+type SubjectColumn = {
+  id: string
+  name: string
 }
 
 const tabConfig = [{ id: 'exam' as const, label: 'Exam', color: 'indigo' as const }]
+
+const sortClassNames = (left: string, right: string) =>
+  left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
+
+const subjectKey = (name: string) => String(name || '').trim().toLowerCase().replace(/\s+/g, '-')
+
+const extractStudentList = (payload: any): StudentRow[] => {
+  if (Array.isArray(payload?.data?.students)) return payload.data.students
+  if (Array.isArray(payload?.students)) return payload.students
+  if (Array.isArray(payload?.data)) return payload.data
+  return []
+}
+
+const extractSubjectList = (payload: any): Array<{ _id?: string; name?: string; class?: string }> => {
+  if (Array.isArray(payload?.data?.data)) return payload.data.data
+  if (Array.isArray(payload?.data)) return payload.data
+  return []
+}
 
 const ExmclResult: React.FC = () => {
   const { matrixClasses, matrixSections, matrixSelection, classes: timetableClasses } = useTimetable()
   const [activeTab, setActiveTab] = useState<ResultTab>('exam')
   const [loading, setLoading] = useState(true)
+  const [studentsLoading, setStudentsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const savingRef = useRef(false)
   const [exams, setExams] = useState<ExmclExamDefinition[]>([])
+  const [classSectionEntries, setClassSectionEntries] = useState<ClassSectionEntry[]>([])
   const [students, setStudents] = useState<StudentRow[]>([])
+  const [classSubjects, setClassSubjects] = useState<SubjectColumn[]>([])
   const [selectedExamId, setSelectedExamId] = useState('')
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSection, setSelectedSection] = useState('')
@@ -34,92 +68,125 @@ const ExmclResult: React.FC = () => {
   const [deletedSubjectIds, setDeletedSubjectIds] = useState<Set<string>>(new Set())
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  const loadInitialData = async () => {
-    setLoading(true)
-    setLoadError(null)
-    try {
-      const [examList, studentRes] = await Promise.all([
-        exmclExamService.getAll(),
-        api.get('/students', { params: { page: 1, limit: 100, isActive: true } }),
-      ])
-
-      const studentList = Array.isArray(studentRes?.data?.data?.students) ? studentRes.data.data.students : []
-
-      setExams(examList)
-      setStudents(studentList)
-      if (examList.length > 0) setSelectedExamId(examList[0]._id)
-    } catch (error: any) {
-      const message = String(error?.response?.data?.message || error?.message || 'Failed to load result setup data.')
-      setLoadError(message)
-      toast.error(message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    void loadInitialData()
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setLoadError(null)
+      try {
+        const [examList, statsRes] = await Promise.all([
+          exmclExamService.getAll(),
+          api.get('/students/stats'),
+        ])
+        if (cancelled) return
+
+        const byClassSection = Array.isArray(statsRes?.data?.data?.byClassSection)
+          ? statsRes.data.data.byClassSection
+          : []
+
+        setExams(examList)
+        setClassSectionEntries(byClassSection)
+        if (examList.length > 0) setSelectedExamId(examList[0]._id)
+      } catch (error: any) {
+        if (cancelled) return
+        const message = String(error?.response?.data?.message || error?.message || 'Failed to load result setup data.')
+        setLoadError(message)
+        toast.error(message)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
+  const timetableClassOptions = useMemo(
+    () =>
+      (matrixClasses || [])
+        .map((item) => String(item.name || '').trim())
+        .filter(Boolean),
+    [matrixClasses]
+  )
+
   const classOptions = useMemo(() => {
-    return matrixClasses
-      .map((item) => String(item.name || '').trim())
+    const fromStudents = classSectionEntries
+      .map((entry) => String(entry?._id?.class || '').trim())
       .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-  }, [matrixClasses])
+    return Array.from(new Set([...STUDENT_CLASS_OPTIONS, ...fromStudents, ...timetableClassOptions])).sort(sortClassNames)
+  }, [classSectionEntries, timetableClassOptions])
 
   const sectionOptions = useMemo(() => {
     if (!selectedClass) return []
-    const classRow = matrixClasses.find(
-      (item) => String(item.name || '').trim().toLowerCase() === selectedClass.trim().toLowerCase()
-    )
-    if (!classRow) return []
 
-    const allowedSections = matrixSections
-      .filter((section) => Boolean(matrixSelection[classRow.id]?.[section.id]))
-      .map((section) => String(section.name || '').trim())
+    const fromStudents = classSectionEntries
+      .filter((entry) => String(entry?._id?.class || '').trim().toLowerCase() === selectedClass.trim().toLowerCase())
+      .map((entry) => String(entry?._id?.section || '').trim())
       .filter(Boolean)
 
-    return allowedSections.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
-  }, [matrixClasses, matrixSections, matrixSelection, selectedClass])
+    const classRow = (matrixClasses || []).find(
+      (item) => String(item.name || '').trim().toLowerCase() === selectedClass.trim().toLowerCase()
+    )
+    const fromTimetable = classRow
+      ? (matrixSections || [])
+          .filter((section) => Boolean(matrixSelection?.[classRow.id]?.[section.id]))
+          .map((section) => String(section.name || '').trim())
+          .filter(Boolean)
+      : []
+
+    return Array.from(new Set([...fromStudents, ...fromTimetable])).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    )
+  }, [classSectionEntries, matrixClasses, matrixSections, matrixSelection, selectedClass])
 
   const filteredStudents = useMemo(() => {
-    const classKey = selectedClass.trim().toLowerCase()
-    const sectionKey = selectedSection.trim().toLowerCase()
-    return students
-      .filter((item) => {
-        if (!classKey || !sectionKey) return false
-        return (
-          String(item.class || '').trim().toLowerCase() === classKey &&
-          String(item.section || '').trim().toLowerCase() === sectionKey
-        )
-      })
-      .sort((a, b) => String(a.rollNumber).localeCompare(String(b.rollNumber), undefined, { numeric: true }))
-  }, [students, selectedClass, selectedSection])
+    return [...students].sort((a, b) => {
+      const rollA = Number(a.classRollNo) || 0
+      const rollB = Number(b.classRollNo) || 0
+      if (rollA !== rollB) return rollA - rollB
+      return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' })
+    })
+  }, [students])
 
   const allSubjects = useMemo(() => {
-    if (!selectedClass) return []
-    const classKey = selectedClass.trim().toLowerCase()
-    const subjectNameSet = new Set<string>()
+    const byKey = new Map<string, SubjectColumn>()
 
-    timetableClasses.forEach((row) => {
-      if (String(row.className || '').trim().toLowerCase() !== classKey) return
-      ;(row.subjects || []).forEach((subjectName) => {
-        const trimmed = String(subjectName || '').trim()
-        if (trimmed) subjectNameSet.add(trimmed)
+    const addSubject = (name: string, id?: string) => {
+      const trimmed = String(name || '').trim()
+      if (!trimmed) return
+      const key = subjectKey(trimmed)
+      if (!key || byKey.has(key)) return
+      byKey.set(key, { id: key, name: trimmed })
+      if (id && id !== key && !byKey.has(id)) {
+        byKey.set(key, { id: key, name: trimmed })
+      }
+    }
+
+    classSubjects.forEach((subject) => addSubject(subject.name, subject.id))
+
+    if (selectedClass) {
+      const classKey = selectedClass.trim().toLowerCase()
+      ;(timetableClasses || []).forEach((row) => {
+        if (String(row.className || '').trim().toLowerCase() !== classKey) return
+        ;(row.subjects || []).forEach((subjectName) => addSubject(String(subjectName)))
+      })
+    }
+
+    students.forEach((student) => {
+      ;(student.subjects || []).forEach((subject) => {
+        if (typeof subject === 'string') addSubject(subject)
+        else addSubject(String(subject?.name || ''), subject?._id)
       })
     })
 
-    return Array.from(subjectNameSet)
-      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
-      .map((name) => ({
-        id: name.toLowerCase().replace(/\s+/g, '-'),
-        name,
-      }))
-  }, [selectedClass, timetableClasses])
+    return Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+  }, [classSubjects, selectedClass, students, timetableClasses])
 
   const filteredSubjects = useMemo(
-    () => allSubjects.filter((s) => !deletedSubjectIds.has(s.id)),
+    () => allSubjects.filter((subject) => !deletedSubjectIds.has(subject.id)),
     [allSubjects, deletedSubjectIds]
   )
 
@@ -128,14 +195,7 @@ const ExmclResult: React.FC = () => {
   }, [selectedClass])
 
   useEffect(() => {
-    if (selectedClass && !classOptions.includes(selectedClass)) {
-      setSelectedClass('')
-      setSelectedSection('')
-    }
-  }, [selectedClass, classOptions])
-
-  useEffect(() => {
-    if (selectedSection && !sectionOptions.includes(selectedSection)) {
+    if (selectedSection && sectionOptions.length > 0 && !sectionOptions.includes(selectedSection)) {
       setSelectedSection('')
     }
   }, [selectedSection, sectionOptions])
@@ -145,7 +205,63 @@ const ExmclResult: React.FC = () => {
   }, [selectedClass, selectedExamId])
 
   useEffect(() => {
-    if (!selectedExamId || !selectedClass || !selectedSection) return
+    if (!selectedClass || !selectedSection) {
+      setStudents([])
+      setClassSubjects([])
+      return
+    }
+
+    let cancelled = false
+    setStudentsLoading(true)
+
+    const loadSheet = async () => {
+      try {
+        const [studentRes, subjectRes] = await Promise.all([
+          api.get('/students', {
+            params: {
+              page: 1,
+              limit: 500,
+              class: selectedClass,
+              section: selectedSection,
+              isActive: true,
+              sort: 'classRollNo',
+            },
+          }),
+          subjectService.getAll({ page: 1, limit: 500, class: selectedClass }).catch(() => null),
+        ])
+        if (cancelled) return
+
+        setStudents(extractStudentList(studentRes?.data))
+        setClassSubjects(
+          extractSubjectList(subjectRes)
+            .filter((subject) => String(subject.class || '').trim().toLowerCase() === selectedClass.trim().toLowerCase() || !subject.class)
+            .map((subject) => ({
+              id: subjectKey(String(subject.name || '')),
+              name: String(subject.name || '').trim(),
+            }))
+            .filter((subject) => subject.name)
+        )
+      } catch (error: any) {
+        if (cancelled) return
+        setStudents([])
+        setClassSubjects([])
+        toast.error(String(error?.response?.data?.message || error?.message || 'Failed to load students.'))
+      } finally {
+        if (!cancelled) setStudentsLoading(false)
+      }
+    }
+
+    void loadSheet()
+    return () => {
+      cancelled = true
+    }
+  }, [selectedClass, selectedSection])
+
+  useEffect(() => {
+    if (!selectedExamId || !selectedClass || !selectedSection) {
+      setMarksByStudent({})
+      return
+    }
 
     let cancelled = false
     exmclResultService
@@ -163,7 +279,7 @@ const ExmclResult: React.FC = () => {
         setMarksByStudent(loaded)
       })
       .catch(() => {
-        // silently ignore — marks just stay empty
+        if (!cancelled) setMarksByStudent({})
       })
 
     return () => {
@@ -196,12 +312,12 @@ const ExmclResult: React.FC = () => {
         studentId: student._id,
         marks: Object.fromEntries(
           filteredSubjects
-            .map((s) => {
-              const raw = marksByStudent[student._id]?.[s.id] ?? ''
+            .map((subject) => {
+              const raw = marksByStudent[student._id]?.[subject.id] ?? ''
               const num = raw === '' ? null : Number(raw)
-              return [s.id, num] as [string, number | null]
+              return [subject.id, num] as [string, number | null]
             })
-            .filter(([, v]) => v !== null)
+            .filter(([, value]) => value !== null)
         ) as Record<string, number>,
       }))
 
@@ -222,7 +338,7 @@ const ExmclResult: React.FC = () => {
     }
   }
 
-  const canSave = Boolean(selectedExamId && selectedClass && selectedSection)
+  const canSave = Boolean(selectedExamId && selectedClass && selectedSection && filteredStudents.length > 0)
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-gray-50/50 dark:bg-gray-900">
@@ -273,7 +389,7 @@ const ExmclResult: React.FC = () => {
               className="min-w-[140px] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               disabled={!selectedClass}
             >
-              <option value="">Section</option>
+              <option value="">{selectedClass ? 'Section' : 'Select class first'}</option>
               {sectionOptions.map((section) => (
                 <option key={section} value={section}>
                   {section}
@@ -312,9 +428,11 @@ const ExmclResult: React.FC = () => {
             <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
               Select Exam, Class, and Section to load students and enter marks.
             </div>
+          ) : studentsLoading ? (
+            <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">Loading students...</div>
           ) : filteredSubjects.length === 0 && allSubjects.length === 0 ? (
             <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
-              No subjects found for selected class. Add subjects in Timetable and map them to this class.
+              No subjects found for the selected class. Assign subjects to students or add them in Subjects.
             </div>
           ) : filteredSubjects.length === 0 ? (
             <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -327,7 +445,10 @@ const ExmclResult: React.FC = () => {
                   <th className="sticky left-0 z-50 w-[110px] min-w-[110px] bg-gray-50/95 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
                     Adm. No.
                   </th>
-                  <th className="sticky left-[110px] z-50 w-[220px] min-w-[220px] bg-gray-50/95 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
+                  <th className="sticky left-[110px] z-50 w-[80px] min-w-[80px] bg-gray-50/95 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
+                    Roll No
+                  </th>
+                  <th className="sticky left-[190px] z-50 w-[220px] min-w-[220px] bg-gray-50/95 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
                     Student Name
                   </th>
                   {filteredSubjects.map((subject) => (
@@ -353,10 +474,10 @@ const ExmclResult: React.FC = () => {
                 {filteredStudents.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={2 + filteredSubjects.length}
+                      colSpan={3 + filteredSubjects.length}
                       className="px-4 py-10 text-center text-sm text-gray-400 dark:text-gray-500"
                     >
-                      No students assigned to this class-section yet.
+                      No students found for class {selectedClass}, section {selectedSection}. Add them in Student Management.
                     </td>
                   </tr>
                 ) : (
@@ -365,13 +486,17 @@ const ExmclResult: React.FC = () => {
                       <td className="sticky left-0 z-20 w-[110px] min-w-[110px] bg-white px-4 py-3 text-sm font-medium text-gray-900 dark:bg-gray-800 dark:text-white">
                         {student.rollNumber}
                       </td>
-                      <td className="sticky left-[110px] z-20 w-[220px] min-w-[220px] bg-white px-4 py-3 text-sm text-gray-900 dark:bg-gray-800 dark:text-white">
+                      <td className="sticky left-[110px] z-20 w-[80px] min-w-[80px] bg-white px-4 py-3 text-sm text-gray-900 dark:bg-gray-800 dark:text-white">
+                        {student.classRollNo || '—'}
+                      </td>
+                      <td className="sticky left-[190px] z-20 w-[220px] min-w-[220px] bg-white px-4 py-3 text-sm text-gray-900 dark:bg-gray-800 dark:text-white">
                         {student.name}
                       </td>
                       {filteredSubjects.map((subject) => (
                         <td key={`${student._id}-${subject.id}`} className="px-4 py-2">
                           <input
                             type="text"
+                            inputMode="decimal"
                             title={`Marks for ${student.name} in ${subject.name}`}
                             value={marksByStudent[student._id]?.[subject.id] ?? ''}
                             onChange={(e) => updateMark(student._id, subject.id, e.target.value)}

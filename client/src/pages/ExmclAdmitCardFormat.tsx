@@ -7,6 +7,7 @@ import exmclAdmitCardService, {
   type AdmitCardDesign,
 } from '@/services/exmclAdmitCardService'
 import schoolProfileService, { type SchoolProfile } from '@/services/schoolProfileService'
+import AdmitCardPreview from '@/components/exmcl/AdmitCardPreview'
 
 const PREVIEW_SCHOOL = {
   name: 'INTL BHARTI SCHOOL, ROHTAK',
@@ -19,13 +20,6 @@ const PAGE_ASPECT: Record<'A4' | 'legal', Record<'portrait' | 'landscape', strin
   legal: { portrait: '8.5 / 14', landscape: '14 / 8.5' },
 }
 
-const SAMPLE_SUBJECTS = [
-  { code: '041', name: 'MATHEMATICS STANDARD', date: '17.02.2026' },
-  { code: '184', name: 'ENGLISH', date: '21.02.2026' },
-  { code: '086', name: 'SCIENCE', date: '25.02.2026' },
-  { code: '087', name: 'SOCIAL SCIENCE', date: '07.03.2026' },
-]
-
 const selectClassName =
   'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white disabled:opacity-60 dark:border-gray-600 dark:bg-gray-900 dark:text-white'
 
@@ -35,207 +29,6 @@ const segmentButton = (active: boolean) =>
       ? 'bg-blue-600 text-white shadow-sm'
       : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-gray-900 dark:text-slate-300 dark:hover:bg-gray-700'
   }`
-
-const Kv = ({ label, value }: { label: string; value: string }) => (
-  <div className="mb-0.5 flex gap-1.5 text-[10px] leading-tight">
-    <span className="w-[118px] shrink-0 font-bold">{label}</span>
-    <span className="min-w-0 flex-1 uppercase">{value}</span>
-  </div>
-)
-
-const AdmitCardPreview = ({
-  design,
-  schoolName,
-  schoolAddress,
-  schoolCode,
-  logoUrl,
-  compact,
-}: {
-  design: AdmitCardDesign
-  schoolName: string
-  schoolAddress: string
-  schoolCode: string
-  logoUrl?: string
-  compact: boolean
-}) => {
-  const cardTitle = (design.title || 'ADMIT CARD FOR {exam}').replace(/\{exam\}/gi, 'SECONDARY EXAMINATION')
-  const instructionLines = String(design.instructions || '')
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-
-  return (
-    <div className={`border-2 border-slate-900 p-0.5 ${compact ? 'text-[8px]' : ''}`}>
-      <div className="border border-slate-900 p-2.5">
-        {design.showHeader ? (
-          <div className="mb-1.5 flex items-start gap-2">
-            {design.showSchoolLogo ? (
-              logoUrl ? (
-                <img src={logoUrl} alt="School logo" className="h-12 w-12 shrink-0 rounded-full object-contain" />
-              ) : (
-                <div className="h-12 w-12 shrink-0 rounded-full border border-slate-400" />
-              )
-            ) : null}
-            <div className="min-w-0 flex-1 text-center">
-              <p className="text-[12px] font-extrabold uppercase leading-tight text-slate-900 dark:text-white">{schoolName}</p>
-              {design.showSchoolAddress ? (
-                <p className="mt-0.5 text-[9px] text-slate-600 dark:text-slate-300">{schoolAddress}</p>
-              ) : null}
-              <p className="mt-1 text-[11px] font-extrabold uppercase text-slate-900 dark:text-white">{cardTitle}</p>
-              {design.showEntryNote ? (
-                <p className="mt-0.5 text-[8.5px] font-extrabold uppercase">{design.entryNote}</p>
-              ) : null}
-            </div>
-            {design.showSchoolLogo ? (
-              logoUrl ? (
-                <img src={logoUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-contain" />
-              ) : (
-                <div className="h-12 w-12 shrink-0 rounded-full border border-slate-400" />
-              )
-            ) : null}
-          </div>
-        ) : (
-          <p className="mb-1.5 text-center text-[11px] font-extrabold uppercase">{cardTitle}</p>
-        )}
-
-        <div className="my-1.5 border-t border-slate-900" />
-
-        <div className="flex text-[10px]">
-          {design.fields.rollNo ? (
-            <div className="flex-1 border-r border-slate-900 pr-2">
-              <div className="font-bold">Roll No.</div>
-              <div>12</div>
-            </div>
-          ) : null}
-          {design.fields.dob ? (
-            <div className="flex-1 border-r border-slate-900 px-2">
-              <div className="font-bold">Date of Birth</div>
-              <div>24.10.2010</div>
-            </div>
-          ) : null}
-          {design.fields.schoolNo ? (
-            <div className="flex-1 border-r border-slate-900 px-2">
-              <div className="font-bold">School No.</div>
-              <div>{schoolCode || '40291'}</div>
-            </div>
-          ) : null}
-          {design.fields.centreNo ? (
-            <div className="flex-1 pl-2">
-              <div className="font-bold">Centre No.</div>
-              <div>{schoolCode || '829259'}</div>
-            </div>
-          ) : null}
-        </div>
-        {design.fields.rollNoInWords ? (
-          <p className="mt-1.5 text-[10px]"><span className="font-bold">Roll No. (In words):</span> TWELVE ONLY</p>
-        ) : null}
-
-        <div className="my-1.5 border-t border-slate-900" />
-
-        <div className="flex gap-2">
-          {design.fields.photo ? (
-            <div className="w-[72px] shrink-0 text-center">
-              <div className="flex h-[88px] w-[72px] items-end justify-center border border-slate-900 text-[8px] text-slate-500">Photo</div>
-              <p className="mt-1 text-[8px] font-bold uppercase">Aarav Sharma</p>
-            </div>
-          ) : null}
-          <div className="min-w-0 flex-1">
-            {design.fields.exam ? <Kv label="Examination:" value="Secondary Examination - Class: 10" /> : null}
-            {design.fields.name ? <Kv label="Candidate’s Name:" value="Aarav Sharma" /> : null}
-            {design.fields.motherName ? <Kv label="Mother’s Name:" value="Manisha Sharma" /> : null}
-            {design.fields.fatherName ? <Kv label="Father/Guardian’s Name:" value="Rajesh Sharma" /> : null}
-            {design.fields.schoolName ? <Kv label="Name of School:" value={schoolName} /> : null}
-            {design.fields.examCentre ? <Kv label="Exam Centre:" value={schoolName} /> : null}
-            {design.fields.pwdCategory ? <Kv label="Category of PwD:" value="Not Applicable" /> : null}
-            {design.fields.admitCardId ? <Kv label="Admit Card ID:" value="ACUT12" /> : null}
-            {design.fields.admissionNo ? <Kv label="Admission No:" value="3361" /> : null}
-            {design.fields.section ? <Kv label="Section:" value="A" /> : null}
-          </div>
-        </div>
-
-        <div className="mt-2 flex gap-2">
-          {design.fields.qr ? (
-            <div className="flex h-[84px] w-[84px] shrink-0 items-center justify-center border border-slate-900 text-[9px] text-slate-500">QR</div>
-          ) : null}
-          {design.fields.subjects ? (
-            <table className="w-full border-collapse text-[8.5px]">
-              <thead>
-                <tr>
-                  {['Sub Code', 'Subject Name', 'Medium', 'Date'].map((heading) => (
-                    <th key={heading} className="border border-slate-900 px-1 py-0.5 text-left font-bold uppercase">{heading}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {SAMPLE_SUBJECTS.map((subject) => (
-                  <tr key={subject.code}>
-                    <td className="border border-slate-900 px-1 py-0.5">{subject.code}</td>
-                    <td className="border border-slate-900 px-1 py-0.5">{subject.name}</td>
-                    <td className="border border-slate-900 px-1 py-0.5" />
-                    <td className="border border-slate-900 px-1 py-0.5">{subject.date}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : null}
-        </div>
-
-        {design.showInstructions ? (
-          <>
-            <div className="my-1.5 border-t border-slate-900" />
-            <p className="mb-1 text-[9px] font-extrabold uppercase">Important instructions to be strictly complied with -</p>
-            {instructionLines.map((line) => (
-              <p key={line} className="text-[8px] leading-snug text-slate-700 dark:text-slate-300">{line}</p>
-            ))}
-          </>
-        ) : null}
-
-        {design.showConfirmation ? (
-          <p className="mt-1.5 text-[9px] font-extrabold uppercase">{design.confirmationText}</p>
-        ) : null}
-
-        <div className="mt-4 flex justify-between gap-2 text-center text-[8px] font-semibold">
-          {design.signatures.candidate ? (
-            <span className="flex-1">
-              <span className="mb-1 block h-8" />
-              <span className="block border-t border-slate-900 pt-1">Candidate</span>
-            </span>
-          ) : null}
-          {design.signatures.parent ? (
-            <span className="flex-1">
-              <span className="mb-1 block h-8" />
-              <span className="block border-t border-slate-900 pt-1">Parents</span>
-            </span>
-          ) : null}
-          {design.signatures.examIncharge ? (
-            <span className="flex-1">
-              <span className="mb-1 flex h-8 items-end justify-center">
-                {design.signatures.examInchargeDigital && design.signatures.examInchargeSignatureUrl ? (
-                  <img src={design.signatures.examInchargeSignatureUrl} alt="Exam Incharge signature" className="max-h-8 max-w-full object-contain" />
-                ) : null}
-              </span>
-              <span className="block border-t border-slate-900 pt-1">Exam Incharge</span>
-            </span>
-          ) : null}
-          {design.signatures.principal ? (
-            <span className="flex-1">
-              <span className="mb-1 flex h-8 items-end justify-center">
-                {design.signatures.principalDigital && design.signatures.principalSignatureUrl ? (
-                  <img src={design.signatures.principalSignatureUrl} alt="Principal signature" className="max-h-8 max-w-full object-contain" />
-                ) : null}
-              </span>
-              <span className="block border-t border-slate-900 pt-1">Principal</span>
-            </span>
-          ) : null}
-        </div>
-
-        {design.showDisclaimer ? (
-          <p className="mt-2 text-[8px] font-bold text-red-700 dark:text-red-400">{design.disclaimer}</p>
-        ) : null}
-      </div>
-    </div>
-  )
-}
 
 const ExmclAdmitCardFormat: React.FC = () => {
   const navigate = useNavigate()
@@ -389,6 +182,7 @@ const ExmclAdmitCardFormat: React.FC = () => {
             <Toggle label="Candidate Name" checked={design.fields.name} onChange={(value) => updateField('name', value)} />
             <Toggle label="Mother Name" checked={design.fields.motherName} onChange={(value) => updateField('motherName', value)} />
             <Toggle label="Father Name" checked={design.fields.fatherName} onChange={(value) => updateField('fatherName', value)} />
+            <Toggle label="Gender" checked={design.fields.gender} onChange={(value) => updateField('gender', value)} />
             <Toggle label="Name of School" checked={design.fields.schoolName} onChange={(value) => updateField('schoolName', value)} />
             <Toggle label="Exam Centre" checked={design.fields.examCentre} onChange={(value) => updateField('examCentre', value)} />
             <Toggle label="PwD category" checked={design.fields.pwdCategory} onChange={(value) => updateField('pwdCategory', value)} />
@@ -518,11 +312,26 @@ const ExmclAdmitCardFormat: React.FC = () => {
                   <div key={index} className={twoUp ? 'min-w-0 flex-1' : ''}>
                     <AdmitCardPreview
                       design={design}
-                      schoolName={schoolName}
-                      schoolAddress={schoolAddress}
-                      schoolCode={schoolCode}
-                      logoUrl={school.logoUrl}
                       compact={twoUp}
+                      data={{
+                        schoolName,
+                        schoolAddress,
+                        schoolCode,
+                        logoUrl: school.logoUrl,
+                        examName: 'SECONDARY EXAMINATION',
+                        student: {
+                          name: 'Aarav Sharma',
+                          fatherName: 'Rajesh Sharma',
+                          gender: 'Male',
+                          motherName: 'Manisha Sharma',
+                          className: '10th',
+                          section: 'A',
+                          rollNo: 12,
+                          admissionNo: '3361',
+                          dateOfBirth: '24.10.2010',
+                          admitCardId: 'ACUT12',
+                        },
+                      }}
                     />
                   </div>
                 ))}

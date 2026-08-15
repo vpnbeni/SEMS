@@ -2,10 +2,10 @@ const SchoolProfile = require('../models/SchoolProfile');
 
 const STUDENT_ROLL_NUMBER_RULE = {
   mode: 'alphabetical_by_class_section',
-  sortBy: 'name',
+  sortBy: 'name_then_father_name',
   scope: 'each class and section',
   description:
-    'Roll numbers are assigned automatically to students of each section of each class by sorting them in alphabetical order of name. If a student changes section, roll numbers in both the previous and new sections are reassigned.',
+    'Roll numbers are assigned automatically to students of each section of each class by sorting them in alphabetical order of name. If two students have the same name, they are ordered alphabetically by father name. If a student changes section, roll numbers in both the previous and new sections are reassigned.',
 };
 
 const escapeRegexValue = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -22,6 +22,13 @@ const sortStudentsAlphabetically = (left, right) => {
     numeric: true,
   });
   if (byName !== 0) return byName;
+
+  const byFatherName = String(left.fatherName || '').localeCompare(String(right.fatherName || ''), undefined, {
+    sensitivity: 'base',
+    numeric: true,
+  });
+  if (byFatherName !== 0) return byFatherName;
+
   return String(left.rollNumber || '').localeCompare(String(right.rollNumber || ''), undefined, {
     sensitivity: 'base',
     numeric: true,
@@ -44,7 +51,7 @@ const assignClassSectionRollNumbers = async (StudentModel, className, section) =
   if (!StudentModel || !className || !section) return 0;
 
   const students = await StudentModel.find(classSectionFilter(className, section))
-    .select('_id name rollNumber classRollNo')
+    .select('_id name fatherName rollNumber classRollNo')
     .lean();
 
   students.sort(sortStudentsAlphabetically);
@@ -109,14 +116,19 @@ const ensureStudentRollNumberRule = async (SchoolProfileModel) => {
 
 const backfillClassRollNumbersIfNeeded = async (SchoolProfileModel, StudentModel) => {
   if (!StudentModel) return;
-  await ensureStudentRollNumberRule(SchoolProfileModel || SchoolProfile);
+  const ProfileModel = SchoolProfileModel || SchoolProfile;
+  const existing = await ProfileModel.findOne({}).select('metadata.studentRollNumberAssignment').lean();
+  const storedSortBy = existing?.metadata?.studentRollNumberAssignment?.sortBy;
+  const ruleChanged = storedSortBy !== STUDENT_ROLL_NUMBER_RULE.sortBy;
+
+  await ensureStudentRollNumberRule(ProfileModel);
 
   const missingCount = await StudentModel.countDocuments({
     isActive: true,
     $or: [{ classRollNo: { $exists: false } }, { classRollNo: null }],
   });
 
-  if (missingCount > 0) {
+  if (missingCount > 0 || ruleChanged) {
     await assignAllClassRollNumbers(StudentModel);
   }
 };

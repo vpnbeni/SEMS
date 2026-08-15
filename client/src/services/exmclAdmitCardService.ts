@@ -27,6 +27,7 @@ export type AdmitCardDesign = {
     name: boolean
     motherName: boolean
     fatherName: boolean
+    gender: boolean
     schoolName: boolean
     examCentre: boolean
     pwdCategory: boolean
@@ -87,6 +88,7 @@ export const DEFAULT_ADMIT_CARD_DESIGN: AdmitCardDesign = {
     name: true,
     motherName: true,
     fatherName: true,
+    gender: true,
     schoolName: true,
     examCentre: true,
     pwdCategory: true,
