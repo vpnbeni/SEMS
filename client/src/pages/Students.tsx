@@ -14,7 +14,7 @@ import {
 import api from '../services/api'
 import studentService from '../services/studentService'
 import timetableService from '../services/timetableService'
-import { STUDENT_CLASS_OPTIONS } from '../constants/studentClasses'
+import { STUDENT_CLASS_OPTIONS, sortSectionNames } from '../constants/studentClasses'
 
 const STUDENTS_PAGE_SIZE = 250
 const BULK_DELETE_TOAST_ID = 'stdnt-bulk-delete'
@@ -158,7 +158,7 @@ const mergeClassSectionOptions = (
   return Array.from(merged.entries())
     .map(([className, sectionSet]) => ({
       className,
-      sections: Array.from(sectionSet).sort((a, b) => a.localeCompare(b)),
+      sections: Array.from(sectionSet).sort((a, b) => sortSectionNames(a, b, className)),
     }))
     .sort((a, b) => sortClassNames(a.className, b.className))
 }
@@ -177,7 +177,7 @@ const buildClassSectionOptionsFromStats = (stats: RootState['students']['stats']
   return Array.from(byClass.entries())
     .map(([className, sectionSet]) => ({
       className,
-      sections: Array.from(sectionSet).sort((a, b) => a.localeCompare(b)),
+      sections: Array.from(sectionSet).sort((a, b) => sortSectionNames(a, b, className)),
     }))
     .sort((a, b) => sortClassNames(a.className, b.className))
 }
@@ -208,6 +208,7 @@ const buildClassSectionOptions = (state: Awaited<ReturnType<typeof timetableServ
         .map(([sectionId]) => sectionNameById.get(sectionId) || '')
         .map((name) => name.trim())
         .filter(Boolean)
+        .sort((a, b) => sortSectionNames(a, b, className))
 
       if (sections.length === 0) return null
       return { className, sections }
@@ -230,7 +231,7 @@ const buildClassSectionOptions = (state: Awaited<ReturnType<typeof timetableServ
   return Array.from(fallbackMap.entries())
     .map(([className, sectionSet]) => ({
       className,
-      sections: Array.from(sectionSet).sort((a, b) => a.localeCompare(b)),
+      sections: Array.from(sectionSet).sort((a, b) => sortSectionNames(a, b, className)),
     }))
     .sort((a, b) => sortClassNames(a.className, b.className))
 }

@@ -2,6 +2,7 @@ const { StaffAttendanceDaily, StudentAttendanceDaily } = require('../models/Attn
 const Teacher = require('../models/Teacher');
 const Student = require('../models/Student');
 const TimetableState = require('../models/TimetableState');
+const { sortSectionNames } = require('../utils/sortSections');
 
 const normalizeDateKey = (value) => {
   const date = new Date(value);
@@ -91,7 +92,7 @@ const getStudentFilters = async (req, res) => {
           }
         });
         if (sectionList.length > 0) {
-          classMap.set(className, sectionList.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })));
+          classMap.set(className, sectionList.sort((a, b) => sortSectionNames(a, b, className)));
         }
       });
     }
@@ -118,7 +119,7 @@ const getStudentFilters = async (req, res) => {
       .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
       .map(([className, sections]) => ({
         className,
-        sections: sections.sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
+        sections: sections.sort((a, b) => sortSectionNames(a, b, className)),
       }));
 
     res.json({

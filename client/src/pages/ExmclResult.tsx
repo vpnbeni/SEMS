@@ -7,7 +7,7 @@ import subjectService from '@/services/subjectService'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useTimetable } from '@/contexts/TimetableContext'
-import { STUDENT_CLASS_OPTIONS } from '@/constants/studentClasses'
+import { sortSectionNames } from '@/constants/studentClasses'
 
 type ResultTab = 'exam'
 
@@ -23,6 +23,8 @@ type StudentRow = {
 
 type ClassSectionEntry = {
   _id?: { class?: string; section?: string }
+  count?: number
+  active?: number
 }
 
 type SubjectColumn = {
@@ -36,6 +38,29 @@ const sortClassNames = (left: string, right: string) =>
   left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
 
 const subjectKey = (name: string) => String(name || '').trim().toLowerCase().replace(/\s+/g, '-')
+
+const formatScore = (value: number) =>
+  Number.isInteger(value) ? String(value) : value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')
+
+const parseEnteredMark = (raw: string | undefined): number | null => {
+  if (raw == null || raw === '') return null
+  const num = Number(raw)
+  return Number.isFinite(num) ? num : null
+}
+
+const isAbsentToken = (value: string) => /^(a|ab|abs|absent)$/i.test(value.trim())
+
+const setSubjectAbsentFlag = (
+  prev: Record<string, Record<string, boolean>>,
+  studentId: string,
+  subjectId: string,
+  absent: boolean
+) => {
+  const current = { ...(prev[studentId] || {}) }
+  if (absent) current[subjectId] = true
+  else delete current[subjectId]
+  return { ...prev, [studentId]: current }
+}
 
 const extractStudentList = (payload: any): StudentRow[] => {
   if (Array.isArray(payload?.data?.students)) return payload.data.students
@@ -65,6 +90,7 @@ const ExmclResult: React.FC = () => {
   const [selectedClass, setSelectedClass] = useState('')
   const [selectedSection, setSelectedSection] = useState('')
   const [marksByStudent, setMarksByStudent] = useState<Record<string, Record<string, string>>>({})
+  const [absentByStudent, setAbsentByStudent] = useState<Record<string, Record<string, boolean>>>({})
   const [deletedSubjectIds, setDeletedSubjectIds] = useState<Set<string>>(new Set())
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -104,20 +130,16 @@ const ExmclResult: React.FC = () => {
     }
   }, [])
 
-  const timetableClassOptions = useMemo(
-    () =>
-      (matrixClasses || [])
-        .map((item) => String(item.name || '').trim())
-        .filter(Boolean),
-    [matrixClasses]
-  )
-
   const classOptions = useMemo(() => {
     const fromStudents = classSectionEntries
+      .filter((entry) => {
+        const enrolled = Number(entry.active ?? entry.count)
+        return Number.isFinite(enrolled) ? enrolled > 0 : Boolean(entry?._id?.class)
+      })
       .map((entry) => String(entry?._id?.class || '').trim())
       .filter(Boolean)
-    return Array.from(new Set([...STUDENT_CLASS_OPTIONS, ...fromStudents, ...timetableClassOptions])).sort(sortClassNames)
-  }, [classSectionEntries, timetableClassOptions])
+    return Array.from(new Set(fromStudents)).sort(sortClassNames)
+  }, [classSectionEntries])
 
   const sectionOptions = useMemo(() => {
     if (!selectedClass) return []
@@ -138,7 +160,7 @@ const ExmclResult: React.FC = () => {
       : []
 
     return Array.from(new Set([...fromStudents, ...fromTimetable])).sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+      sortSectionNames(a, b, selectedClass)
     )
   }, [classSectionEntries, matrixClasses, matrixSections, matrixSelection, selectedClass])
 
@@ -260,6 +282,7 @@ const ExmclResult: React.FC = () => {
   useEffect(() => {
     if (!selectedExamId || !selectedClass || !selectedSection) {
       setMarksByStudent({})
+      setAbsentByStudent({})
       return
     }
 
@@ -269,17 +292,31 @@ const ExmclResult: React.FC = () => {
       .then((entries) => {
         if (cancelled) return
         const loaded: Record<string, Record<string, string>> = {}
+        const absent: Record<string, Record<string, boolean>> = {}
         for (const entry of entries) {
           const sid = String(entry.studentId)
           loaded[sid] = {}
+          const subjectFlags: Record<string, boolean> = {}
+          const savedSubjects = Array.isArray(entry.absentSubjects) ? entry.absentSubjects : []
+          savedSubjects.forEach((subjectId) => {
+            if (subjectId) subjectFlags[String(subjectId)] = true
+          })
+          if (entry.absent && savedSubjects.length === 0) {
+            subjectFlags['*'] = true
+          }
+          absent[sid] = subjectFlags
           for (const [subjectId, value] of Object.entries(entry.marks || {})) {
             loaded[sid][subjectId] = value !== null && value !== undefined ? String(value) : ''
           }
         }
         setMarksByStudent(loaded)
+        setAbsentByStudent(absent)
       })
       .catch(() => {
-        if (!cancelled) setMarksByStudent({})
+        if (!cancelled) {
+          setMarksByStudent({})
+          setAbsentByStudent({})
+        }
       })
 
     return () => {
@@ -287,8 +324,51 @@ const ExmclResult: React.FC = () => {
     }
   }, [selectedExamId, selectedClass, selectedSection])
 
+  const selectedExam = exams.find((exam) => exam._id === selectedExamId)
+  const maxMarks = Number(selectedExam?.maximumMarks)
+  const hasMaxMarks = Number.isFinite(maxMarks) && maxMarks > 0
+
+  const isSubjectAbsent = useCallback(
+    (studentId: string, subjectId: string) => {
+      const flags = absentByStudent[studentId]
+      if (!flags) return false
+      return Boolean(flags['*'] || flags[subjectId])
+    },
+    [absentByStudent]
+  )
+
   const updateMark = (studentId: string, subjectId: string, value: string) => {
+    if (isAbsentToken(value)) {
+      setAbsentByStudent((prev) => {
+        const flags = prev[studentId] || {}
+        if (flags['*']) return prev
+        return setSubjectAbsentFlag(prev, studentId, subjectId, true)
+      })
+      return
+    }
+
+    setAbsentByStudent((prev) => {
+      const flags = prev[studentId] || {}
+      const currently = Boolean(flags['*'] || flags[subjectId])
+      if (!currently) return prev
+      if (flags['*']) {
+        const expanded: Record<string, boolean> = {}
+        filteredSubjects.forEach((subject) => {
+          if (subject.id !== subjectId) expanded[subject.id] = true
+        })
+        return { ...prev, [studentId]: expanded }
+      }
+      const next = { ...flags }
+      delete next[subjectId]
+      return { ...prev, [studentId]: next }
+    })
+
     if (value !== '' && !/^\d{0,3}(\.\d{0,2})?$/.test(value)) return
+    if (value !== '' && Number(value) < 0) return
+    if (hasMaxMarks && value !== '' && Number(value) > maxMarks) {
+      toast.error(`Marks cannot exceed M.M. ${maxMarks}.`)
+      return
+    }
     setMarksByStudent((prev) => ({
       ...prev,
       [studentId]: {
@@ -296,6 +376,38 @@ const ExmclResult: React.FC = () => {
         [subjectId]: value,
       },
     }))
+  }
+
+  const toggleSubjectAbsent = (studentId: string, subjectId: string) => {
+    setAbsentByStudent((prev) => {
+      const flags = prev[studentId] || {}
+      const currently = Boolean(flags['*'] || flags[subjectId])
+      if (flags['*']) {
+        const expanded: Record<string, boolean> = {}
+        filteredSubjects.forEach((subject) => {
+          expanded[subject.id] = subject.id !== subjectId ? true : !currently
+        })
+        if (currently) delete expanded[subjectId]
+        return { ...prev, [studentId]: expanded }
+      }
+      return setSubjectAbsentFlag(prev, studentId, subjectId, !currently)
+    })
+  }
+
+  const toggleAbsent = (studentId: string) => {
+    setAbsentByStudent((prev) => {
+      const flags = prev[studentId] || {}
+      const fullyAbsent =
+        Boolean(flags['*']) ||
+        (filteredSubjects.length > 0 && filteredSubjects.every((subject) => flags[subject.id]))
+      if (fullyAbsent) {
+        return { ...prev, [studentId]: {} }
+      }
+      return {
+        ...prev,
+        [studentId]: Object.fromEntries(filteredSubjects.map((subject) => [subject.id, true])),
+      }
+    })
   }
 
   const deleteSubject = useCallback((subjectId: string) => {
@@ -308,18 +420,41 @@ const ExmclResult: React.FC = () => {
     savingRef.current = true
     setSaving(true)
     try {
-      const results = filteredStudents.map((student) => ({
-        studentId: student._id,
-        marks: Object.fromEntries(
-          filteredSubjects
-            .map((subject) => {
-              const raw = marksByStudent[student._id]?.[subject.id] ?? ''
-              const num = raw === '' ? null : Number(raw)
-              return [subject.id, num] as [string, number | null]
-            })
-            .filter(([, value]) => value !== null)
-        ) as Record<string, number>,
-      }))
+      if (hasMaxMarks) {
+        const overMax = filteredStudents.some((student) =>
+          filteredSubjects.some((subject) => {
+            if (isSubjectAbsent(student._id, subject.id)) return false
+            const raw = marksByStudent[student._id]?.[subject.id] ?? ''
+            if (raw === '') return false
+            const num = Number(raw)
+            return Number.isFinite(num) && num > maxMarks
+          })
+        )
+        if (overMax) {
+          toast.error(`Marks cannot exceed M.M. ${maxMarks} for ${selectedExam?.code || 'this exam'}.`)
+          return
+        }
+      }
+      const results = filteredStudents.map((student) => {
+        const absentSubjects = filteredSubjects
+          .filter((subject) => isSubjectAbsent(student._id, subject.id))
+          .map((subject) => subject.id)
+        return {
+          studentId: student._id,
+          absent: absentSubjects.length > 0 && absentSubjects.length === filteredSubjects.length,
+          absentSubjects,
+          marks: Object.fromEntries(
+            filteredSubjects
+              .map((subject) => {
+                if (isSubjectAbsent(student._id, subject.id)) return [subject.id, null] as [string, number | null]
+                const raw = marksByStudent[student._id]?.[subject.id] ?? ''
+                const num = raw === '' ? null : Number(raw)
+                return [subject.id, num] as [string, number | null]
+              })
+              .filter(([, value]) => value !== null)
+          ) as Record<string, number>,
+        }
+      })
 
       await exmclResultService.saveResults({
         examId: selectedExamId,
@@ -339,6 +474,85 @@ const ExmclResult: React.FC = () => {
   }
 
   const canSave = Boolean(selectedExamId && selectedClass && selectedSection && filteredStudents.length > 0)
+
+  const subjectAverages = useMemo(() => {
+    const averages: Record<string, string> = {}
+    filteredSubjects.forEach((subject) => {
+      let sum = 0
+      let count = 0
+      filteredStudents.forEach((student) => {
+        if (isSubjectAbsent(student._id, subject.id)) return
+        const raw = marksByStudent[student._id]?.[subject.id] ?? ''
+        if (raw === '') return
+        const num = Number(raw)
+        if (!Number.isFinite(num)) return
+        sum += num
+        count += 1
+      })
+      if (count === 0) {
+        averages[subject.id] = '—'
+        return
+      }
+      averages[subject.id] = formatScore(sum / count)
+    })
+    return averages
+  }, [filteredStudents, filteredSubjects, isSubjectAbsent, marksByStudent])
+
+  const studentScoreById = useMemo(() => {
+    const byStudent: Record<string, { total: string; percentage: string; totalNum: number | null; pctNum: number | null }> = {}
+
+    filteredStudents.forEach((student) => {
+      const appeared = filteredSubjects.filter((subject) => !isSubjectAbsent(student._id, subject.id))
+      if (filteredSubjects.length > 0 && appeared.length === 0) {
+        byStudent[student._id] = { total: 'Ab', percentage: 'Ab', totalNum: null, pctNum: null }
+        return
+      }
+      let total = 0
+      let entered = 0
+      appeared.forEach((subject) => {
+        const num = parseEnteredMark(marksByStudent[student._id]?.[subject.id])
+        if (num == null) return
+        total += num
+        entered += 1
+      })
+      if (entered === 0) {
+        byStudent[student._id] = { total: '—', percentage: '—', totalNum: null, pctNum: null }
+        return
+      }
+      const maxTotal = hasMaxMarks ? maxMarks * appeared.length : 0
+      const pct = maxTotal > 0 ? (total / maxTotal) * 100 : null
+      byStudent[student._id] = {
+        total: formatScore(total),
+        percentage: pct == null ? '—' : `${formatScore(pct)}%`,
+        totalNum: total,
+        pctNum: pct,
+      }
+    })
+
+    return byStudent
+  }, [filteredStudents, filteredSubjects, hasMaxMarks, isSubjectAbsent, marksByStudent, maxMarks])
+
+  const classScoreAverages = useMemo(() => {
+    let totalSum = 0
+    let totalCount = 0
+    let pctSum = 0
+    let pctCount = 0
+    filteredStudents.forEach((student) => {
+      const row = studentScoreById[student._id]
+      if (row?.totalNum != null) {
+        totalSum += row.totalNum
+        totalCount += 1
+      }
+      if (row?.pctNum != null) {
+        pctSum += row.pctNum
+        pctCount += 1
+      }
+    })
+    return {
+      total: totalCount > 0 ? formatScore(totalSum / totalCount) : '—',
+      percentage: pctCount > 0 ? `${formatScore(pctSum / pctCount)}%` : '—',
+    }
+  }, [filteredStudents, studentScoreById])
 
   return (
     <div className="p-8 max-w-[1600px] mx-auto min-h-screen bg-gray-50/50 dark:bg-gray-900">
@@ -398,7 +612,10 @@ const ExmclResult: React.FC = () => {
             </select>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Result Entry</h3>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Result Entry
+              {hasMaxMarks ? <span className="ml-2 text-xs font-medium text-indigo-600 dark:text-indigo-400">M.M. {maxMarks}</span> : null}
+            </h3>
             <button
               onClick={handleSave}
               disabled={!canSave || saving}
@@ -439,79 +656,203 @@ const ExmclResult: React.FC = () => {
               All subject columns have been removed. Change class or exam to reset.
             </div>
           ) : (
-            <table className="min-w-[1100px] w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <table className="w-max table-fixed border-collapse divide-y divide-gray-200 dark:divide-gray-700">
+              <colgroup>
+                <col className="w-[88px]" />
+                <col className="w-[64px]" />
+                <col className="w-[168px]" />
+                <col className="w-[52px]" />
+                {filteredSubjects.map((subject) => (
+                  <col key={subject.id} className="w-[72px]" />
+                ))}
+                <col className="w-[72px]" />
+                <col className="w-[76px]" />
+              </colgroup>
               <thead className="sticky top-0 z-40 bg-gray-50/95 backdrop-blur dark:bg-gray-900/95">
                 <tr>
-                  <th className="sticky left-0 z-50 w-[110px] min-w-[110px] bg-gray-50/95 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
+                  <th className="sticky left-0 z-50 bg-gray-50/95 px-2 py-2 text-left text-xs font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
                     Adm. No.
                   </th>
-                  <th className="sticky left-[110px] z-50 w-[80px] min-w-[80px] bg-gray-50/95 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
+                  <th className="sticky left-[88px] z-50 bg-gray-50/95 px-2 py-2 text-left text-xs font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
                     Roll No
                   </th>
-                  <th className="sticky left-[190px] z-50 w-[220px] min-w-[220px] bg-gray-50/95 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
+                  <th className="sticky left-[152px] z-50 bg-gray-50/95 px-2 py-2 text-left text-xs font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
                     Student Name
+                  </th>
+                  <th
+                    className="sticky left-[320px] z-50 bg-gray-50/95 px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400"
+                    title="Tick to mark absent in all subjects. To mark one subject only, type Ab in that cell."
+                  >
+                    Abs
                   </th>
                   {filteredSubjects.map((subject) => (
                     <th
                       key={subject.id}
-                      className="group px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                      className="group px-1 py-2 text-left text-[11px] font-semibold uppercase leading-tight tracking-normal text-gray-500 dark:text-gray-400"
                     >
-                      <div className="flex items-center gap-1.5">
-                        <span>{subject.name}</span>
+                      <div className="flex items-start gap-0.5">
+                        <span className="min-w-0 break-words">
+                          {subject.name}
+                          {hasMaxMarks ? <span className="ml-0.5 text-[10px] font-medium normal-case text-indigo-500">/{maxMarks}</span> : null}
+                        </span>
                         <button
                           onClick={() => deleteSubject(subject.id)}
                           title="Remove from result entry"
-                          className="invisible group-hover:visible flex-shrink-0 rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
+                          className="invisible mt-0.5 shrink-0 rounded p-0.5 text-gray-400 hover:bg-red-50 hover:text-red-500 group-hover:visible dark:hover:bg-red-900/30 dark:hover:text-red-400 transition-colors"
                         >
-                          <X size={12} />
+                          <X size={11} />
                         </button>
                       </div>
                     </th>
                   ))}
+                  <th className="px-1 py-2 text-left text-[11px] font-semibold uppercase leading-tight tracking-normal text-gray-600 dark:text-gray-300">
+                    Total
+                    {hasMaxMarks && filteredSubjects.length > 0 ? (
+                      <span className="ml-0.5 text-[10px] font-medium normal-case text-indigo-500">
+                        /{maxMarks * filteredSubjects.length}
+                      </span>
+                    ) : null}
+                  </th>
+                  <th className="px-1 py-2 text-left text-[11px] font-semibold uppercase leading-tight tracking-normal text-gray-600 dark:text-gray-300">
+                    %
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
                 {filteredStudents.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={3 + filteredSubjects.length}
+                      colSpan={6 + filteredSubjects.length}
                       className="px-4 py-10 text-center text-sm text-gray-400 dark:text-gray-500"
                     >
                       No students found for class {selectedClass}, section {selectedSection}. Add them in Student Management.
                     </td>
                   </tr>
                 ) : (
-                  filteredStudents.map((student) => (
-                    <tr key={student._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                      <td className="sticky left-0 z-20 w-[110px] min-w-[110px] bg-white px-4 py-3 text-sm font-medium text-gray-900 dark:bg-gray-800 dark:text-white">
+                  filteredStudents.map((student) => {
+                    const fullyAbsent =
+                      filteredSubjects.length > 0 &&
+                      filteredSubjects.every((subject) => isSubjectAbsent(student._id, subject.id))
+                    const partlyAbsent =
+                      !fullyAbsent && filteredSubjects.some((subject) => isSubjectAbsent(student._id, subject.id))
+                    const stickyBg = fullyAbsent
+                      ? 'bg-amber-50 dark:bg-amber-950/40'
+                      : 'bg-white dark:bg-gray-800'
+                    return (
+                    <tr
+                      key={student._id}
+                      className={
+                        fullyAbsent
+                          ? 'bg-amber-50/80 dark:bg-amber-950/30'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                      }
+                    >
+                      <td className={`sticky left-0 z-20 px-2 py-1.5 text-sm font-medium text-gray-900 dark:text-white ${stickyBg}`}>
                         {student.rollNumber}
                       </td>
-                      <td className="sticky left-[110px] z-20 w-[80px] min-w-[80px] bg-white px-4 py-3 text-sm text-gray-900 dark:bg-gray-800 dark:text-white">
+                      <td className={`sticky left-[88px] z-20 px-2 py-1.5 text-sm text-gray-900 dark:text-white ${stickyBg}`}>
                         {student.classRollNo || '—'}
                       </td>
-                      <td className="sticky left-[190px] z-20 w-[220px] min-w-[220px] bg-white px-4 py-3 text-sm text-gray-900 dark:bg-gray-800 dark:text-white">
+                      <td
+                        className={`sticky left-[152px] z-20 truncate px-2 py-1.5 text-sm text-gray-900 dark:text-white ${stickyBg}`}
+                        title={student.name}
+                      >
                         {student.name}
                       </td>
-                      {filteredSubjects.map((subject) => (
-                        <td key={`${student._id}-${subject.id}`} className="px-4 py-2">
+                      <td className={`sticky left-[320px] z-20 px-1 py-1.5 text-center ${stickyBg}`}>
+                        <input
+                          type="checkbox"
+                          checked={fullyAbsent}
+                          ref={(el) => {
+                            if (el) el.indeterminate = partlyAbsent
+                          }}
+                          onChange={() => toggleAbsent(student._id)}
+                          title={
+                            fullyAbsent
+                              ? `Mark ${student.name} present in all subjects`
+                              : `Mark ${student.name} absent in all subjects`
+                          }
+                          aria-label={
+                            fullyAbsent
+                              ? `Mark ${student.name} present in all subjects`
+                              : `Mark ${student.name} absent in all subjects`
+                          }
+                          className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                        />
+                      </td>
+                      {filteredSubjects.map((subject) => {
+                        const subjectAbsent = isSubjectAbsent(student._id, subject.id)
+                        return (
+                        <td key={`${student._id}-${subject.id}`} className="px-1 py-1">
                           <input
                             type="text"
-                            inputMode="decimal"
-                            title={`Marks for ${student.name} in ${subject.name}`}
-                            value={marksByStudent[student._id]?.[subject.id] ?? ''}
+                            inputMode="text"
+                            title={
+                              subjectAbsent
+                                ? `${student.name} is absent in ${subject.name}. Type marks to mark present, or click Ab.`
+                                : `Marks for ${student.name} in ${subject.name}${hasMaxMarks ? ` (max ${maxMarks})` : ''}. Type Ab to mark absent.`
+                            }
+                            value={subjectAbsent ? 'Ab' : marksByStudent[student._id]?.[subject.id] ?? ''}
                             onChange={(e) => updateMark(student._id, subject.id, e.target.value)}
-                            placeholder="0"
-                            className="w-20 rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                            onDoubleClick={() => toggleSubjectAbsent(student._id, subject.id)}
+                            onFocus={(e) => {
+                              if (subjectAbsent) e.currentTarget.select()
+                            }}
+                            placeholder={hasMaxMarks ? `0–${maxMarks}` : '0'}
+                            className={
+                              subjectAbsent
+                                ? 'w-14 rounded-md border border-amber-300 bg-amber-50 px-1.5 py-1 text-center text-xs font-semibold text-amber-800 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300'
+                                : 'w-14 rounded-md border border-gray-300 bg-white px-1.5 py-1 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white'
+                            }
                           />
                         </td>
-                      ))}
+                        )
+                      })}
+                      <td className="px-1 py-1.5 text-sm font-semibold tabular-nums text-gray-900 dark:text-white">
+                        {studentScoreById[student._id]?.total ?? '—'}
+                      </td>
+                      <td className="px-1 py-1.5 text-sm font-semibold tabular-nums text-gray-900 dark:text-white">
+                        {studentScoreById[student._id]?.percentage ?? '—'}
+                      </td>
                     </tr>
-                  ))
+                    )
+                  })
                 )}
               </tbody>
+              {filteredStudents.length > 0 ? (
+                <tfoot className="sticky bottom-0 z-30">
+                  <tr className="border-t-2 border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/50">
+                    <td
+                      colSpan={3}
+                      className="sticky left-0 z-40 bg-indigo-50 px-2 py-2 text-xs font-semibold uppercase tracking-normal text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200"
+                    >
+                      Subject Average
+                    </td>
+                    <td className="px-1 py-2" />
+                    {filteredSubjects.map((subject) => (
+                      <td
+                        key={`avg-${subject.id}`}
+                        className="px-1 py-2 text-sm font-semibold tabular-nums text-indigo-800 dark:text-indigo-200"
+                        title={`Average of entered ${subject.name} marks`}
+                      >
+                        {subjectAverages[subject.id]}
+                      </td>
+                    ))}
+                    <td className="px-1 py-2 text-sm font-semibold tabular-nums text-indigo-800 dark:text-indigo-200">
+                      {classScoreAverages.total}
+                    </td>
+                    <td className="px-1 py-2 text-sm font-semibold tabular-nums text-indigo-800 dark:text-indigo-200">
+                      {classScoreAverages.percentage}
+                    </td>
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
           )}
         </div>
+        <p className="border-t border-gray-100 px-4 py-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          Double click the cell to mark student absent in the subject.
+        </p>
       </div>
     </div>
   )

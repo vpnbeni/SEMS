@@ -29,6 +29,14 @@ const examResultSchema = new mongoose.Schema(
       of: Number,
       default: {},
     },
+    absent: {
+      type: Boolean,
+      default: false,
+    },
+    absentSubjects: {
+      type: [String],
+      default: [],
+    },
   },
   {
     timestamps: true,

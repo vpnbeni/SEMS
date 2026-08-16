@@ -14,6 +14,8 @@ const formatExamDate = (value) => {
   return raw;
 };
 
+const escapeRegexValue = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const toBoolean = (value, fallback = true) => {
   if (value === undefined || value === null || value === '') return fallback;
   if (typeof value === 'boolean') return value;
@@ -144,6 +146,9 @@ const saveAwardListDesign = asyncHandler(async (req, res) => {
 
 const generateAwardList = asyncHandler(async (req, res) => {
   const payload = req.method === 'POST' ? req.body || {} : req.query || {};
+  const examId = String(payload.examId || '').trim();
+  const className = String(payload.class || '').trim();
+  const section = String(payload.section || '').trim();
   const examDate = formatExamDate(payload.examDate || payload.date);
   const subjectName = String(payload.subject || payload.subjectName || '').trim();
   const SchoolProfileModel = req.models?.SchoolProfile || SchoolProfile;

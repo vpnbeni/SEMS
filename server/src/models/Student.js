@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { STUDENT_GENDERS, REGEX_PATTERNS } = require('../utils/constants');
+const { sortSectionNames } = require('../utils/sortSections');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
 const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
@@ -405,7 +406,7 @@ studentSchema.statics.getStats = async function(filters = {}) {
     byClassSection: Array.from(byClassSectionMap.values()).sort((a, b) => {
       const classDiff = sortClassValue(a._id.class) - sortClassValue(b._id.class);
       if (classDiff !== 0) return classDiff;
-      return String(a._id.section).localeCompare(String(b._id.section));
+      return sortSectionNames(String(a._id.section), String(b._id.section), a._id.class);
     }),
     byGender: STUDENT_GENDERS.map((gender) => byGenderMap.get(gender) || {
       _id: gender,

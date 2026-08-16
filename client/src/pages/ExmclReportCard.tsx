@@ -5,6 +5,7 @@ import exmclReportCardService from '@/services/exmclReportCardService'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useTimetable } from '@/contexts/TimetableContext'
+import { sortSectionNames } from '@/constants/studentClasses'
 
 type StudentRow = {
   _id: string
@@ -80,7 +81,7 @@ const ExmclReportCard: React.FC = () => {
       .filter((section) => Boolean(matrixSelection[classRow.id]?.[section.id]))
       .map((section) => String(section.name || '').trim())
       .filter(Boolean)
-      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+      .sort((a, b) => sortSectionNames(a, b, selectedClass))
   }, [matrixClasses, matrixSections, matrixSelection, selectedClass])
 
   useEffect(() => { setSelectedSection('') }, [selectedClass])

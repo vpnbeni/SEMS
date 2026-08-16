@@ -3,6 +3,8 @@ import api from './api'
 export interface ResultEntry {
   studentId: string
   marks: Record<string, number>
+  absent?: boolean
+  absentSubjects?: string[]
 }
 
 export interface BulkSavePayload {

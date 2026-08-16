@@ -162,11 +162,11 @@ const AwardListCopy = ({
           </tbody>
         </table>
       </div>
-      <div className={`mt-6 grid grid-cols-2 gap-y-5 font-semibold text-slate-800 dark:text-slate-200 ${compact ? 'text-[8px]' : 'text-[11px]'}`}>
-        <span className="text-left">{design.signatures.subjectTeacher ? 'Subject Teacher' : ''}</span>
-        <span className="text-right">{design.signatures.hod ? 'HOD' : ''}</span>
-        <span className="text-left">{design.signatures.examIncharge ? 'Exam Incharge' : ''}</span>
-        <span className="text-right">{design.signatures.principal ? 'Principal' : ''}</span>
+      <div className={`mt-10 grid grid-cols-2 gap-y-10 font-semibold text-slate-800 dark:text-slate-200 ${compact ? 'text-[8px]' : 'text-[11px]'}`}>
+        <span className="pt-6 text-left">{design.signatures.subjectTeacher ? 'Subject Teacher' : ''}</span>
+        <span className="pt-6 text-right">{design.signatures.hod ? 'HOD' : ''}</span>
+        <span className="pt-2 text-left">{design.signatures.examIncharge ? 'Exam Incharge' : ''}</span>
+        <span className="pt-2 text-right">{design.signatures.principal ? 'Principal' : ''}</span>
       </div>
     </div>
   )

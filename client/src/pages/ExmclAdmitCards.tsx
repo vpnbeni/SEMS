@@ -9,7 +9,7 @@ import exmclAdmitCardService, {
 } from '@/services/exmclAdmitCardService'
 import schoolProfileService, { type SchoolProfile } from '@/services/schoolProfileService'
 import api from '@/services/api'
-import { STUDENT_CLASS_OPTIONS } from '@/constants/studentClasses'
+import { sortSectionNames } from '@/constants/studentClasses'
 import AdmitCardPreview, {
   type AdmitCardPreviewStudent,
   type AdmitCardPreviewSubject,
@@ -17,6 +17,8 @@ import AdmitCardPreview, {
 
 type ClassSectionEntry = {
   _id?: { class?: string; section?: string }
+  count?: number
+  active?: number
 }
 
 const sortClassNames = (left: string, right: string) =>
@@ -92,24 +94,33 @@ const ExmclAdmitCards: React.FC = () => {
     }
   }, [])
 
+  const populatedClassSections = useMemo(
+    () =>
+      classSectionEntries.filter((entry) => {
+        const enrolled = Number(entry.active ?? entry.count)
+        return Number.isFinite(enrolled) ? enrolled > 0 : Boolean(entry?._id?.class)
+      }),
+    [classSectionEntries]
+  )
+
   const classOptions = useMemo(() => {
-    const fromStudents = classSectionEntries
+    const fromStudents = populatedClassSections
       .map((entry) => String(entry?._id?.class || '').trim())
       .filter(Boolean)
-    return Array.from(new Set([...STUDENT_CLASS_OPTIONS, ...fromStudents])).sort(sortClassNames)
-  }, [classSectionEntries])
+    return Array.from(new Set(fromStudents)).sort(sortClassNames)
+  }, [populatedClassSections])
 
   const sectionOptions = useMemo(() => {
     if (!selectedClass) return []
     return Array.from(
       new Set(
-        classSectionEntries
+        populatedClassSections
           .filter((entry) => String(entry?._id?.class || '').trim() === selectedClass)
           .map((entry) => String(entry?._id?.section || '').trim())
           .filter(Boolean)
       )
-    ).sort((a, b) => a.localeCompare(b))
-  }, [classSectionEntries, selectedClass])
+    ).sort((a, b) => sortSectionNames(a, b, selectedClass))
+  }, [populatedClassSections, selectedClass])
 
   useEffect(() => {
     setSelectedSection('')
