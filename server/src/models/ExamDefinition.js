@@ -32,6 +32,10 @@ const examDefinitionSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    subjectKeys: {
+      type: [String],
+      default: [],
+    },
     isActive: {
       type: Boolean,
       default: true,

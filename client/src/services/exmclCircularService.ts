@@ -1,6 +1,7 @@
 import api from './api'
 
 export type ExmclCircularStatus = 'draft' | 'published'
+export type ExmclCircularPageSize = 'A4' | 'legal' | 'letter'
 
 export interface ExmclCircular {
   _id: string
@@ -9,6 +10,7 @@ export interface ExmclCircular {
   circularDate: string
   referenceSeries?: string
   referenceNumber: string
+  pageSize?: ExmclCircularPageSize
   status: ExmclCircularStatus
   publishedAt?: string | null
   createdAt: string
@@ -22,9 +24,12 @@ const getAll = async (): Promise<ExmclCircular[]> => {
 
 type CreateCircularPayload = Pick<ExmclCircular, 'title' | 'content' | 'circularDate' | 'referenceNumber'> & {
   referenceSeries?: string
+  pageSize?: ExmclCircularPageSize
 }
 
-type UpdateCircularPayload = Partial<Pick<ExmclCircular, 'title' | 'content' | 'circularDate' | 'referenceSeries' | 'referenceNumber'>>
+type UpdateCircularPayload = Partial<
+  Pick<ExmclCircular, 'title' | 'content' | 'circularDate' | 'referenceSeries' | 'referenceNumber' | 'pageSize'>
+>
 
 const create = async (payload: CreateCircularPayload): Promise<ExmclCircular> => {
   const response = await api.post('/exam-circulars', payload)

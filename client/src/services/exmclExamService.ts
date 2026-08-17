@@ -7,8 +7,16 @@ export interface ExmclExamDefinition {
   duration?: string
   maximumMarks?: number
   displayOrder: number
+  subjectKeys?: string[]
   createdAt: string
   updatedAt: string
+}
+
+export type ExamSubjectMatrix = Record<string, string[]>
+
+export interface ExamSubjectMatrixPayload {
+  exams: Array<Pick<ExmclExamDefinition, '_id' | 'name' | 'code' | 'displayOrder' | 'subjectKeys'>>
+  matrix: ExamSubjectMatrix
 }
 
 type ExamPayload = Pick<ExmclExamDefinition, 'name' | 'code' | 'displayOrder' | 'duration' | 'maximumMarks'>
@@ -16,6 +24,24 @@ type ExamPayload = Pick<ExmclExamDefinition, 'name' | 'code' | 'displayOrder' | 
 const getAll = async (): Promise<ExmclExamDefinition[]> => {
   const response = await api.get('/exam-definitions')
   return Array.isArray(response?.data?.data) ? response.data.data : []
+}
+
+const getSubjectMatrix = async (): Promise<ExamSubjectMatrixPayload> => {
+  const response = await api.get('/exam-definitions/subject-matrix')
+  const data = response?.data?.data || {}
+  return {
+    exams: Array.isArray(data.exams) ? data.exams : [],
+    matrix: data.matrix && typeof data.matrix === 'object' ? data.matrix : {},
+  }
+}
+
+const saveSubjectMatrix = async (matrix: ExamSubjectMatrix): Promise<ExamSubjectMatrixPayload> => {
+  const response = await api.put('/exam-definitions/subject-matrix', { matrix })
+  const data = response?.data?.data || {}
+  return {
+    exams: Array.isArray(data.exams) ? data.exams : [],
+    matrix: data.matrix && typeof data.matrix === 'object' ? data.matrix : {},
+  }
 }
 
 const create = async (payload: ExamPayload): Promise<ExmclExamDefinition> => {
@@ -37,6 +63,8 @@ const exmclExamService = {
   create,
   update,
   remove,
+  getSubjectMatrix,
+  saveSubjectMatrix,
 }
 
 export default exmclExamService

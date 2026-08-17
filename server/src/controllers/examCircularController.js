@@ -3,6 +3,30 @@ const ExamCircular = require('../models/ExamCircular');
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+const PAGE_SIZES = ['A4', 'legal', 'letter'];
+
+const normalizePageSize = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  if (key === 'lgl' || key === 'legal') return 'legal';
+  if (key === 'ltr' || key === 'letter') return 'letter';
+  return 'A4';
+};
+
+const sanitizeCircularHtml = (html) =>
+  String(html || '')
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?>[\s\S]*?<\/style>/gi, '')
+    .replace(/<iframe[\s\S]*?>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/javascript:/gi, '')
+    .trim();
+
+const isBlankCircularContent = (html) =>
+  sanitizeCircularHtml(html)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .trim() === '';
+
 const deriveSeriesFromReference = (referenceNumber) => {
   const trimmed = String(referenceNumber || '').trim();
   if (!trimmed) return '';
@@ -49,13 +73,14 @@ const listCirculars = asyncHandler(async (req, res) => {
 const createCircular = asyncHandler(async (req, res) => {
   const CircularModel = req.models?.ExamCircular || ExamCircular;
   const title = String(req.body?.title || '').trim();
-  const content = String(req.body?.content || '').trim();
+  const content = sanitizeCircularHtml(req.body?.content);
   const circularDateRaw = req.body?.circularDate;
   const referenceSeriesRaw = String(req.body?.referenceSeries || '').trim();
   let referenceNumber = String(req.body?.referenceNumber || '').trim();
   const circularDate = circularDateRaw ? new Date(circularDateRaw) : null;
+  const pageSize = normalizePageSize(req.body?.pageSize);
 
-  if (!title || !content || !circularDate || Number.isNaN(circularDate.getTime())) {
+  if (!title || isBlankCircularContent(content) || !circularDate || Number.isNaN(circularDate.getTime())) {
     return res.status(400).json({
       success: false,
       message: 'Title, content, and date are required.',
@@ -81,6 +106,7 @@ const createCircular = asyncHandler(async (req, res) => {
     circularDate,
     referenceSeries,
     referenceNumber,
+    pageSize,
     status: 'draft',
     ...(req.academicSession ? { academicSession: req.academicSession } : {}),
   });
@@ -100,7 +126,7 @@ const updateCircular = asyncHandler(async (req, res) => {
     updates.title = String(req.body.title || '').trim();
   }
   if (Object.prototype.hasOwnProperty.call(req.body || {}, 'content')) {
-    updates.content = String(req.body.content || '').trim();
+    updates.content = sanitizeCircularHtml(req.body.content);
   }
   if (Object.prototype.hasOwnProperty.call(req.body || {}, 'circularDate')) {
     const value = req.body.circularDate ? new Date(req.body.circularDate) : null;
@@ -118,8 +144,15 @@ const updateCircular = asyncHandler(async (req, res) => {
   if (Object.prototype.hasOwnProperty.call(req.body || {}, 'referenceNumber')) {
     updates.referenceNumber = String(req.body.referenceNumber || '').trim();
   }
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'pageSize')) {
+    const nextSize = normalizePageSize(req.body.pageSize);
+    if (!PAGE_SIZES.includes(nextSize)) {
+      return res.status(400).json({ success: false, message: 'Page size must be A4, Legal, or Letter.' });
+    }
+    updates.pageSize = nextSize;
+  }
 
-  if (updates.title === '' || updates.content === '' || updates.referenceNumber === '') {
+  if (updates.title === '' || (Object.prototype.hasOwnProperty.call(updates, 'content') && isBlankCircularContent(updates.content)) || updates.referenceNumber === '') {
     return res.status(400).json({
       success: false,
       message: 'Title, content, and reference number cannot be empty.',

@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, Eye } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import exmclExamService, { type ExmclExamDefinition } from '@/services/exmclExamService'
 import exmclReportCardService from '@/services/exmclReportCardService'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
-import { useTimetable } from '@/contexts/TimetableContext'
 import { sortSectionNames } from '@/constants/studentClasses'
 
 type StudentRow = {
@@ -15,12 +15,29 @@ type StudentRow = {
   section: string
 }
 
-const ExmclReportCard: React.FC = () => {
-  const { matrixClasses, matrixSections, matrixSelection } = useTimetable()
+type ClassSectionEntry = {
+  _id?: { class?: string; section?: string }
+  count?: number
+  active?: number
+}
 
+const sortClassNames = (left: string, right: string) =>
+  left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
+
+const extractStudentList = (payload: any): StudentRow[] => {
+  if (Array.isArray(payload?.data?.students)) return payload.data.students
+  if (Array.isArray(payload?.students)) return payload.students
+  if (Array.isArray(payload?.data)) return payload.data
+  return []
+}
+
+const ExmclReportCard: React.FC = () => {
+  const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
+  const [studentsLoading, setStudentsLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [exams, setExams] = useState<ExmclExamDefinition[]>([])
+  const [classSectionEntries, setClassSectionEntries] = useState<ClassSectionEntry[]>([])
   const [students, setStudents] = useState<StudentRow[]>([])
 
   const [selectedExamId, setSelectedExamId] = useState('')
@@ -38,16 +55,16 @@ const ExmclReportCard: React.FC = () => {
       setLoading(true)
       setLoadError(null)
       try {
-        const [examList, studentRes] = await Promise.all([
+        const [examList, statsRes] = await Promise.all([
           exmclExamService.getAll(),
-          api.get('/students', { params: { page: 1, limit: 100, isActive: true } }),
+          api.get('/students/stats'),
         ])
         if (cancelled) return
-        const studentList = Array.isArray(studentRes?.data?.data?.students)
-          ? studentRes.data.data.students
+        const byClassSection = Array.isArray(statsRes?.data?.data?.byClassSection)
+          ? statsRes.data.data.byClassSection
           : []
         setExams(examList)
-        setStudents(studentList)
+        setClassSectionEntries(byClassSection)
         if (examList.length > 0) setSelectedExamId(examList[0]._id)
       } catch (error: any) {
         if (cancelled) return
@@ -62,54 +79,95 @@ const ExmclReportCard: React.FC = () => {
     return () => { cancelled = true }
   }, [])
 
-  const classOptions = useMemo(
+  const populatedClassSections = useMemo(
     () =>
-      matrixClasses
-        .map((item) => String(item.name || '').trim())
-        .filter(Boolean)
-        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
-    [matrixClasses]
+      classSectionEntries.filter((entry) => {
+        const enrolled = Number(entry.active ?? entry.count)
+        return Number.isFinite(enrolled) ? enrolled > 0 : Boolean(entry?._id?.class)
+      }),
+    [classSectionEntries]
   )
+
+  const classOptions = useMemo(() => {
+    const fromStudents = populatedClassSections
+      .map((entry) => String(entry?._id?.class || '').trim())
+      .filter(Boolean)
+    return Array.from(new Set(fromStudents)).sort(sortClassNames)
+  }, [populatedClassSections])
 
   const sectionOptions = useMemo(() => {
     if (!selectedClass) return []
-    const classRow = matrixClasses.find(
-      (item) => String(item.name || '').trim().toLowerCase() === selectedClass.trim().toLowerCase()
-    )
-    if (!classRow) return []
-    return matrixSections
-      .filter((section) => Boolean(matrixSelection[classRow.id]?.[section.id]))
-      .map((section) => String(section.name || '').trim())
-      .filter(Boolean)
-      .sort((a, b) => sortSectionNames(a, b, selectedClass))
-  }, [matrixClasses, matrixSections, matrixSelection, selectedClass])
+    const classKey = selectedClass.trim().toLowerCase()
+    return Array.from(
+      new Set(
+        populatedClassSections
+          .filter((entry) => String(entry?._id?.class || '').trim().toLowerCase() === classKey)
+          .map((entry) => String(entry?._id?.section || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => sortSectionNames(a, b, selectedClass))
+  }, [populatedClassSections, selectedClass])
 
-  useEffect(() => { setSelectedSection('') }, [selectedClass])
   useEffect(() => {
-    if (selectedClass && !classOptions.includes(selectedClass)) {
+    setSelectedSection('')
+  }, [selectedClass])
+
+  useEffect(() => {
+    if (selectedClass && classOptions.length > 0 && !classOptions.includes(selectedClass)) {
       setSelectedClass('')
       setSelectedSection('')
     }
   }, [selectedClass, classOptions])
+
   useEffect(() => {
-    if (selectedSection && !sectionOptions.includes(selectedSection)) setSelectedSection('')
+    if (selectedSection && sectionOptions.length > 0 && !sectionOptions.includes(selectedSection)) {
+      setSelectedSection('')
+    }
   }, [selectedSection, sectionOptions])
 
-  const filteredStudents = useMemo(() => {
-    const classKey = selectedClass.trim().toLowerCase()
-    const sectionKey = selectedSection.trim().toLowerCase()
-    return students
-      .filter((s) => {
-        if (!classKey || !sectionKey) return false
-        return (
-          String(s.class || '').trim().toLowerCase() === classKey &&
-          String(s.section || '').trim().toLowerCase() === sectionKey
-        )
+  useEffect(() => {
+    if (!selectedClass || !selectedSection) {
+      setStudents([])
+      return
+    }
+
+    let cancelled = false
+    setStudentsLoading(true)
+    api
+      .get('/students', {
+        params: {
+          page: 1,
+          limit: 500,
+          class: selectedClass,
+          section: selectedSection,
+          isActive: true,
+          sort: 'classRollNo',
+        },
       })
-      .sort((a, b) =>
-        String(a.rollNumber).localeCompare(String(b.rollNumber), undefined, { numeric: true })
-      )
-  }, [students, selectedClass, selectedSection])
+      .then((response) => {
+        if (cancelled) return
+        const list = extractStudentList(response?.data)
+        setStudents(list)
+      })
+      .catch((error: any) => {
+        if (cancelled) return
+        setStudents([])
+        toast.error(String(error?.response?.data?.message || error?.message || 'Failed to load students.'))
+      })
+      .finally(() => {
+        if (!cancelled) setStudentsLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedClass, selectedSection])
+
+  const filteredStudents = useMemo(() => {
+    return [...students].sort((a, b) =>
+      String(a.rollNumber).localeCompare(String(b.rollNumber), undefined, { numeric: true })
+    )
+  }, [students])
 
   // Reset selection when filters change
   useEffect(() => { setSelectedIds(new Set()) }, [selectedExamId, selectedClass, selectedSection])
@@ -217,7 +275,7 @@ const ExmclReportCard: React.FC = () => {
               disabled={!selectedClass}
               className="min-w-[140px] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
             >
-              <option value="">Section</option>
+              <option value="">{selectedClass ? 'Section' : 'Select class first'}</option>
               {sectionOptions.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
@@ -225,7 +283,17 @@ const ExmclReportCard: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Report Card</h3>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+              Report Card
+              {' · '}
+              <button
+                type="button"
+                onClick={() => navigate('/exmcl/performas/report-card')}
+                className="font-medium text-blue-600 hover:underline"
+              >
+                Change format
+              </button>
+            </h3>
             <button
               onClick={handleDownloadBulk}
               disabled={!canDownloadBulk || bulkDownloading}
@@ -260,6 +328,8 @@ const ExmclReportCard: React.FC = () => {
             <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
               Select Exam, Class, and Section to load students.
             </div>
+          ) : studentsLoading ? (
+            <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">Loading students...</div>
           ) : filteredStudents.length === 0 ? (
             <div className="p-10 text-center text-sm text-gray-500 dark:text-gray-400">
               No students found for this class-section.

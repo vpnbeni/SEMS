@@ -289,6 +289,14 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
             backTo: '/exmcl/performas',
           }
         }
+        if (subPage === 'performas' && segments[2] === 'report-card') {
+          return {
+            pageTitle: 'Report Card Format',
+            pageSubtitle: 'Design the report card layout used when generating PDFs',
+            showBackButton: true,
+            backTo: '/exmcl/performas',
+          }
+        }
         const titleMap: Record<string, { title: string; subtitle: string }> = {
           'centre-details': { title: 'Centre Details', subtitle: 'Manage centre profile, candidate summary, and exam days' },
           'exam-functionaries': { title: 'Exam Functionaries', subtitle: 'Manage examination functionaries and assignments' },

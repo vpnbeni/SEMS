@@ -40,6 +40,11 @@ const examCircularSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    pageSize: {
+      type: String,
+      enum: ['A4', 'legal', 'letter'],
+      default: 'A4',
+    },
     isActive: {
       type: Boolean,
       default: true,

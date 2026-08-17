@@ -175,9 +175,89 @@ const deleteExamDefinition = asyncHandler(async (req, res) => {
   });
 });
 
+const normalizeSubjectKey = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-');
+
+const getExamSubjectMatrix = asyncHandler(async (req, res) => {
+  const ExamDefinitionModel = req.models?.ExamDefinition || ExamDefinition;
+  const rows = await ExamDefinitionModel.find({ isActive: true })
+    .sort({ displayOrder: 1, createdAt: 1 })
+    .select('_id name code subjectKeys displayOrder')
+    .lean();
+
+  const matrix = {};
+  rows.forEach((row) => {
+    matrix[String(row._id)] = Array.isArray(row.subjectKeys)
+      ? row.subjectKeys.map((key) => normalizeSubjectKey(key)).filter(Boolean)
+      : [];
+  });
+
+  res.status(200).json({
+    success: true,
+    data: {
+      exams: rows,
+      matrix,
+    },
+  });
+});
+
+const saveExamSubjectMatrix = asyncHandler(async (req, res) => {
+  const ExamDefinitionModel = req.models?.ExamDefinition || ExamDefinition;
+  const incoming = req.body?.matrix && typeof req.body.matrix === 'object' ? req.body.matrix : null;
+
+  if (!incoming) {
+    return res.status(400).json({
+      success: false,
+      message: 'matrix object is required.',
+    });
+  }
+
+  const exams = await ExamDefinitionModel.find({ isActive: true }).select('_id').lean();
+  const examIds = new Set(exams.map((row) => String(row._id)));
+
+  const ops = Object.entries(incoming)
+    .filter(([examId]) => examIds.has(String(examId)))
+    .map(([examId, keys]) => {
+      const subjectKeys = Array.isArray(keys)
+        ? [...new Set(keys.map((key) => normalizeSubjectKey(key)).filter(Boolean))]
+        : [];
+      return {
+        updateOne: {
+          filter: { _id: examId, isActive: true },
+          update: { $set: { subjectKeys } },
+        },
+      };
+    });
+
+  if (ops.length > 0) {
+    await ExamDefinitionModel.bulkWrite(ops);
+  }
+
+  const rows = await ExamDefinitionModel.find({ isActive: true })
+    .sort({ displayOrder: 1, createdAt: 1 })
+    .select('_id name code subjectKeys displayOrder')
+    .lean();
+
+  const matrix = {};
+  rows.forEach((row) => {
+    matrix[String(row._id)] = Array.isArray(row.subjectKeys) ? row.subjectKeys : [];
+  });
+
+  res.status(200).json({
+    success: true,
+    message: 'Exam-subject matrix saved.',
+    data: { exams: rows, matrix },
+  });
+});
+
 module.exports = {
   listExamDefinitions,
   createExamDefinition,
   updateExamDefinition,
   deleteExamDefinition,
+  getExamSubjectMatrix,
+  saveExamSubjectMatrix,
 };

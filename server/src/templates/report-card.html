@@ -5,235 +5,264 @@
   <title>Report Card</title>
   <style>
     @page {
-  size: A4;
-  margin: 10mm 12mm;
-}
+      size: {{pageSizeCss}};
+      margin: 10mm 12mm;
+    }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
 
-body {
-  font-family: Arial, sans-serif;
-  font-size: 11pt;
-  color: #000;
-}
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11pt;
+      color: #000;
+    }
 
-/* MAIN CARD */
-.card {
-  width: 100%;
-  min-height: 260mm;
-  border: 2px solid #000;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-}
+    .card {
+      position: relative;
+      width: 100%;
+      min-height: 260mm;
+      border: 3px double #000;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      page-break-after: always;
+      overflow: hidden;
+    }
 
-/* HEADER */
-.school-header {
-  border-bottom: 2px solid #000;
-  padding-bottom: 6px;
-}
+    .card:last-child {
+      page-break-after: auto;
+    }
 
-.school-head-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
+    .school-header {
+      border: 2px solid #000;
+      padding: 8px 10px 10px;
+    }
 
-/* LOGOS FIXED */
-.school-logo-slot,
-.cbse-logo-slot {
-  width: 70px;
-  height: 70px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+    .school-head-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
 
-.school-logo-slot img,
-.cbse-logo-slot img {
-  width: 60px;
-  height: 60px;
-  object-fit: contain;
-}
+    .school-logo-slot,
+    .cbse-logo-slot {
+      width: 82px;
+      height: 82px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-/* TITLE */
-.school-title-wrap {
-  flex: 1;
-  text-align: center;
-}
+    .school-logo-slot img,
+    .cbse-logo-slot img {
+      width: 78px;
+      height: 78px;
+      object-fit: contain;
+    }
 
-.school-name {
-  font-size: 26px;
-  font-weight: bold;
-  letter-spacing: 2px;
-}
+    .school-title-wrap {
+      flex: 1;
+      text-align: center;
+      padding: 0 6px;
+    }
 
-.school-tagline {
-  font-size: 11px;
-  font-style: italic;
-}
+    .school-name {
+      letter-spacing: 1.2px;
+      line-height: 1.1;
+      text-transform: uppercase;
+    }
 
-/* META */
-.school-meta {
-  margin-top: 5px;
-  font-size: 11px;
-}
+    .school-tagline {
+      margin-top: 4px;
+      font-family: "Segoe Script", "Lucida Handwriting", Georgia, "Times New Roman", serif;
+    }
 
-.school-meta-row {
-  display: flex;
-  margin-top: 2px;
-}
+    .school-meta-table {
+      width: 100%;
+      margin-top: 8px;
+      border-collapse: collapse;
+      table-layout: fixed;
+      line-height: 1.45;
+    }
 
-.school-meta-row span {
-  flex: 1;
-  text-align: center;
-}
+    .school-meta-table td {
+      vertical-align: top;
+      padding: 0 4px;
+    }
 
-.school-meta-row span:first-child {
-  text-align: left;
-}
+    .school-meta-table .meta-left {
+      width: 32%;
+      text-align: left;
+    }
 
-.school-meta-row span:last-child {
-  text-align: right;
-}
+    .school-meta-table .meta-center {
+      width: 36%;
+      text-align: center;
+    }
 
-/* EXAM BOX */
-.exam-title-box {
-  border: 2px solid #000;
-  margin-top: 8px;
-}
+    .school-meta-table .meta-right {
+      width: 32%;
+      text-align: right;
+    }
 
-.exam-title {
-  text-align: center;
-  font-weight: bold;
-  padding: 6px;
-  border-bottom: 1.5px solid #000;
-  font-size: 14px;
-}
+    .exam-title-box {
+      border: 2px solid #000;
+      margin-top: 8px;
+    }
 
-/* STUDENT DETAILS */
-.student-details {
-  padding: 8px;
-}
+    .exam-title {
+      text-align: center;
+      padding: 7px 8px 6px;
+      border-bottom: 1.5px solid #000;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
 
-.student-details-heading {
-  font-weight: bold;
-  font-style: italic;
-  margin-bottom: 6px;
-}
+    .student-details {
+      padding: 8px 10px 10px;
+    }
 
-.student-details-grid {
-  display: flex;
-  gap: 20px;
-}
+    .student-details-heading {
+      margin-bottom: 8px;
+    }
 
-.student-details-col {
-  flex: 1;
-}
+    .student-details-grid {
+      display: flex;
+      gap: 28px;
+    }
 
-.student-field {
-  display: flex;
-  align-items: baseline;
-  margin-bottom: 6px;
-}
+    .student-details-col {
+      flex: 1;
+    }
 
-.student-field label {
-  width: 130px;
-}
+    .student-field {
+      display: flex;
+      align-items: baseline;
+      margin-bottom: 7px;
+    }
 
-.underline-fill {
-  flex: 1;
-  border-bottom: 1px solid #000;
-}
+    .student-field label {
+      white-space: nowrap;
+      margin-right: 6px;
+    }
 
-/* SECTION */
-.section-heading {
-  font-size: 16px;
-  font-weight: bold;
-  margin: 10px 0 6px;
-}
+    .underline-fill {
+      flex: 1;
+      border-bottom: 1px solid #000;
+      min-height: 14px;
+      padding: 0 2px 1px;
+    }
 
-/* TABLE */
-.marks-table {
-  width: 100%;
-  border-collapse: collapse;
-}
+    .section-heading {
+      margin: 12px 0 6px;
+    }
 
-.marks-table th,
-.marks-table td {
-  border: 1.2px solid #000;
-  padding: 5px;
-  text-align: center;
-}
+    .marks-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
 
-.marks-table th {
-  font-weight: bold;
-}
+    .marks-table th,
+    .marks-table td {
+      border: 1.2px solid #000;
+      padding: 5px;
+      text-align: center;
+    }
 
-.subject-name {
-  font-weight: bold;
-}
+    .marks-table th {
+      font-weight: bold;
+    }
 
-.grand-total td {
-  font-weight: bold;
-}
+    .subject-name {
+      font-weight: bold;
+      text-align: left;
+      padding-left: 8px;
+    }
 
-/* SUMMARY */
-.summary-table {
-  width: 100%;
-  border-collapse: collapse;
-}
+    .grand-total td {
+      font-weight: bold;
+    }
 
-.summary-table td {
-  border: 1.2px solid #000;
-  padding: 5px;
-  text-align: center;
-}
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
 
-.label-cell {
-  font-weight: bold;
-  font-style: italic;
-}
+    .summary-table td {
+      border: 1.2px solid #000;
+      padding: 5px;
+      text-align: center;
+    }
 
-/* FOOTER */
-.card-bottom {
-  margin-top: auto;
-}
+    .label-cell {
+      font-weight: bold;
+      font-style: italic;
+    }
 
-.footer-fields {
-  margin-top: 12px;
-}
+    .footer-fields {
+      margin-top: 14px;
+    }
 
-.footer-field {
-  display: flex;
-  margin-bottom: 8px;
-}
+    .footer-field {
+      display: flex;
+      align-items: baseline;
+      margin-bottom: 10px;
+    }
 
-.footer-field label {
-  width: 100px;
-}
+    .footer-field label {
+      width: 92px;
+      flex-shrink: 0;
+    }
 
-/* SIGNATURE */
-.signature-area {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 30px;
-}
+    .signature-area {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 36px;
+      padding: 0 8px;
+    }
 
-.signature-block {
-  text-align: center;
-}
+    .signature-block {
+      text-align: center;
+    }
 
-.signature-line {
-  width: 140px;
-  border-top: 1.5px solid #000;
-  margin: 0 auto 5px;
-}
+    .signature-line {
+      width: 150px;
+      border-top: 1.5px solid #000;
+      margin: 0 auto 5px;
+    }
+
+    .card-bottom {
+      margin-top: auto;
+    }
+
+    .canvas-item {
+      position: absolute;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .canvas-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .canvas-item-text {
+      width: 100%;
+      height: 100%;
+      white-space: pre;
+      line-height: 1.05;
+      padding: 1px;
+      overflow: hidden;
+    }
   </style>
 </head>
 <body>
@@ -242,6 +271,7 @@ body {
 <div class="card">
 
   <!-- School Header -->
+  {{#if ../showHeader}}
   <div class="school-header">
     <div class="school-head-top">
       <div class="school-logo-slot">
@@ -249,8 +279,8 @@ body {
       </div>
 
       <div class="school-title-wrap">
-        <div class="school-name">{{../schoolName}}</div>
-        {{#if ../schoolTagline}}<div class="school-tagline">{{../schoolTagline}}</div>{{/if}}
+        <div class="school-name" style="{{{../styleCss.schoolName}}}">{{../schoolName}}</div>
+        {{#if ../schoolTagline}}<div class="school-tagline" style="{{{../styleCss.tagline}}}">{{../schoolTagline}}</div>{{/if}}
       </div>
 
       <div class="cbse-logo-slot">
@@ -258,24 +288,26 @@ body {
       </div>
     </div>
 
-    <div class="school-meta">
-      <div class="school-meta-row">
-        {{#if ../schoolCode}}<span><strong>School Code:</strong> {{../schoolCode}}</span>{{else}}<span></span>{{/if}}
-        {{#if ../schoolAddress}}<span>{{../schoolAddress}}</span>{{else}}<span></span>{{/if}}
-        {{#if ../affiliationNo}}<span><strong>CBSE Aff. No:</strong> {{../affiliationNo}}</span>{{else}}<span></span>{{/if}}
-      </div>
-      <div class="school-meta-row">
-        {{#if ../schoolEmail}}<span><strong>Email:</strong> {{../schoolEmail}}</span>{{else}}<span></span>{{/if}}
-        {{#if ../schoolContact}}<span><strong>Contact No:</strong> {{../schoolContact}}</span>{{else}}<span></span>{{/if}}
-      </div>
-    </div>
+    <table class="school-meta-table" style="{{{../styleCss.meta}}}">
+      <tr>
+        <td class="meta-left">{{#if ../showSchoolCode}}<strong>School Code:</strong> {{../schoolCode}}{{/if}}</td>
+        <td class="meta-center">{{../schoolAddressLine1}}</td>
+        <td class="meta-right">{{#if ../showAffiliation}}<strong>CBSE Aff. No:</strong> {{../affiliationNo}}{{/if}}</td>
+      </tr>
+      <tr>
+        <td class="meta-left">{{#if ../showEmail}}<strong>Email Id:</strong> {{../schoolEmail}}{{/if}}</td>
+        <td class="meta-center">{{../schoolAddressLine2}}</td>
+        <td class="meta-right">{{#if ../showContact}}<strong>Contact No:</strong> {{../schoolContact}}{{/if}}</td>
+      </tr>
+    </table>
   </div>
+  {{/if}}
 
   <!-- Exam Title + Student Details Box -->
   <div class="exam-title-box">
-    <div class="exam-title">{{../examTitle}}</div>
-    <div class="student-details">
-      <div class="student-details-heading">Student Details:</div>
+    <div class="exam-title" style="{{{../styleCss.examTitle}}}">{{../examTitle}}</div>
+    <div class="student-details" style="{{{../styleCss.studentFields}}}">
+      <div class="student-details-heading" style="{{{../styleCss.sectionHeading}}}">{{../labels.studentDetails}}</div>
       <div class="student-details-grid">
         <div class="student-details-col">
           <div class="student-field">
@@ -285,6 +317,10 @@ body {
           <div class="student-field">
             <label>Mother Name:</label>
             <span class="underline-fill">{{motherName}}</span>
+          </div>
+          <div class="student-field">
+            <label>Gender:</label>
+            <span class="underline-fill">{{gender}}</span>
           </div>
         </div>
         <div class="student-details-col">
@@ -306,18 +342,24 @@ body {
   </div>
 
   <!-- Scholastic Area -->
-  <div class="section-heading">Scholastic Area:</div>
+  <div class="section-heading" style="{{{../styleCss.sectionHeading}}}">{{../labels.scholasticArea}}</div>
 
   <table class="marks-table">
+    <colgroup>
+      <col style="width: {{../columnWidths.subjects}}%" />
+      <col style="width: {{../columnWidths.maxMarks}}%" />
+      <col style="width: {{../columnWidths.marksObtained}}%" />
+      <col style="width: {{../columnWidths.grade}}%" />
+    </colgroup>
     <thead>
-      <tr>
-        <th>Subjects</th>
-        <th>Maximum Marks</th>
-        <th>Marks Obtained</th>
-        <th>Grade</th>
+      <tr style="{{{../styleCss.tableHeader}}}">
+        <th>{{../labels.subjects}}</th>
+        <th>{{../labels.maxMarks}}</th>
+        <th>{{../labels.marksObtained}}</th>
+        <th>{{../labels.grade}}</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody style="{{{../styleCss.tableBody}}}">
       {{#each subjects}}
       <tr>
         <td class="subject-name">{{name}}</td>
@@ -327,7 +369,7 @@ body {
       </tr>
       {{/each}}
       <tr class="grand-total">
-        <td class="subject-name">Grand Total</td>
+        <td class="subject-name">{{../labels.grandTotal}}</td>
         <td>{{grandMax}}</td>
         <td>{{grandObtained}}</td>
         <td></td>
@@ -336,41 +378,68 @@ body {
   </table>
 
   <table class="summary-table">
+    <colgroup>
+      <col style="width: {{../columnWidths.subjects}}%" />
+      <col style="width: {{../columnWidths.maxMarks}}%" />
+      <col style="width: {{../columnWidths.marksObtained}}%" />
+      <col style="width: {{../columnWidths.grade}}%" />
+    </colgroup>
     <tr>
-      <td class="label-cell">Percentage</td>
-      <td class="value-cell">{{percentage}}%</td>
-      <td class="label-cell">Overall Grade</td>
-      <td class="value-cell">{{overallGrade}}</td>
+      <td class="label-cell" style="{{{../styleCss.tableHeader}}}">{{../labels.percentage}}</td>
+      <td class="value-cell" style="{{{../styleCss.tableBody}}}">{{percentage}}%</td>
+      <td class="label-cell" style="{{{../styleCss.tableHeader}}}">{{../labels.overallGrade}}</td>
+      <td class="value-cell" style="{{{../styleCss.tableBody}}}">{{overallGrade}}</td>
     </tr>
   </table>
 
   <!-- Footer fields -->
-  <div class="footer-fields">
+  <div class="footer-fields" style="{{{../styleCss.footer}}}">
+    {{#if ../showAttendance}}
     <div class="footer-field">
-      <label>Attendance:</label>
+      <label>{{../labels.attendance}}</label>
       <span class="underline-fill"></span>
     </div>
+    {{/if}}
+    {{#if ../showRemarks}}
     <div class="footer-field">
-      <label>Remarks:</label>
+      <label>{{../labels.remarks}}</label>
       <span class="underline-fill"></span>
     </div>
+    {{/if}}
+    {{#if ../showDate}}
     <div class="footer-field">
-      <label>Date:</label>
+      <label>{{../labels.date}}</label>
       <span class="underline-fill" style="max-width: 100pt;"></span>
     </div>
+    {{/if}}
   </div>
 
-  <!-- Signatures -->
-  <div class="signature-area">
+  <div class="signature-area" style="{{{../styleCss.signatures}}}">
+    {{#if ../showClassTeacherSign}}
     <div class="signature-block">
       <div class="signature-line"></div>
-      Class Teacher Sign
+      {{../labels.classTeacherSign}}
     </div>
+    {{else}}
+    <div class="signature-block"></div>
+    {{/if}}
+    {{#if ../showPrincipalSign}}
     <div class="signature-block">
       <div class="signature-line"></div>
-      Principal Sign
+      {{../labels.principalSign}}
     </div>
+    {{/if}}
   </div>
+
+  {{#each ../canvasItems}}
+  <div class="canvas-item" style="{{{boxStyle}}}">
+    {{#if isImage}}
+    <img src="{{imageUrl}}" alt="" />
+    {{else}}
+    <div class="canvas-item-text" style="{{{textStyle}}}">{{text}}</div>
+    {{/if}}
+  </div>
+  {{/each}}
 
 </div>
 {{/each}}

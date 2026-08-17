@@ -1,6 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
-import exmclCircularService, { type ExmclCircular } from '@/services/exmclCircularService'
+import exmclCircularService, { type ExmclCircular, type ExmclCircularPageSize } from '@/services/exmclCircularService'
+import CircularRichTextEditor from '@/components/exmcl/CircularRichTextEditor'
+
+const PAGE_SIZE_OPTIONS: Array<{ value: ExmclCircularPageSize; label: string }> = [
+  { value: 'A4', label: 'A4' },
+  { value: 'legal', label: 'Lgl' },
+  { value: 'letter', label: 'Ltr' },
+]
+
+const fieldClassName =
+  'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white'
 
 const toInputDate = (value?: string | null) => {
   if (!value) return ''
@@ -49,6 +59,17 @@ const formatDate = (value?: string | null) => {
   })
 }
 
+const pageSizeLabel = (value?: string) =>
+  PAGE_SIZE_OPTIONS.find((option) => option.value === value)?.label || 'A4'
+
+const isBlankHtml = (html: string) =>
+  String(html || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .trim() === ''
+
+const looksLikeHtml = (value: string) => /<\/?[a-z][\s\S]*>/i.test(value)
+
 const ExmclCirculars: React.FC = () => {
   const [circulars, setCirculars] = useState<ExmclCircular[]>([])
   const [loading, setLoading] = useState(true)
@@ -59,6 +80,7 @@ const ExmclCirculars: React.FC = () => {
   const [circularDate, setCircularDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [referenceSeries, setReferenceSeries] = useState('')
   const [referenceNumber, setReferenceNumber] = useState('')
+  const [pageSize, setPageSize] = useState<ExmclCircularPageSize>('A4')
 
   const loadCirculars = async () => {
     setLoading(true)
@@ -81,6 +103,7 @@ const ExmclCirculars: React.FC = () => {
     setTitle('')
     setContent('')
     setCircularDate(new Date().toISOString().slice(0, 10))
+    setPageSize('A4')
   }
 
   useEffect(() => {
@@ -98,7 +121,7 @@ const ExmclCirculars: React.FC = () => {
   }, [referenceSeries, circulars, editingId])
 
   const handleSave = async () => {
-    if (!title.trim() || !content.trim() || !circularDate || !referenceNumber.trim()) {
+    if (!title.trim() || isBlankHtml(content) || !circularDate || !referenceNumber.trim()) {
       toast.error('Title, content, date, and reference number are required.')
       return
     }
@@ -112,6 +135,7 @@ const ExmclCirculars: React.FC = () => {
           circularDate,
           referenceSeries: referenceSeries.trim(),
           referenceNumber: referenceNumber.trim(),
+          pageSize,
         })
         toast.success('Circular updated.')
       } else {
@@ -121,6 +145,7 @@ const ExmclCirculars: React.FC = () => {
           circularDate,
           referenceSeries: referenceSeries.trim(),
           referenceNumber: referenceNumber.trim(),
+          pageSize,
         })
         toast.success('Circular drafted.')
       }
@@ -136,10 +161,11 @@ const ExmclCirculars: React.FC = () => {
   const handleEdit = (item: ExmclCircular) => {
     setEditingId(item._id)
     setTitle(item.title)
-    setContent(item.content)
+    setContent(looksLikeHtml(item.content) ? item.content : String(item.content || '').replace(/\n/g, '<br>'))
     setCircularDate(toInputDate(item.circularDate))
     setReferenceSeries(item.referenceSeries?.trim() || deriveSeriesFromReference(item.referenceNumber))
     setReferenceNumber(item.referenceNumber || '')
+    setPageSize(item.pageSize === 'legal' || item.pageSize === 'letter' ? item.pageSize : 'A4')
   }
 
   const handlePublish = async (id: string) => {
@@ -170,110 +196,88 @@ const ExmclCirculars: React.FC = () => {
   const draftCount = circulars.length - publishedCount
 
   return (
-    <div className="space-y-6 p-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {editingId ? 'Edit Circular' : 'Draft Circular'}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Create exam circular drafts and publish when ready.
-        </p>
-
-        <div className="mt-4 grid grid-cols-1 gap-4">
-          <div>
-            <label htmlFor="circular-title" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Title
-            </label>
-            <input
-              id="circular-title"
-              type="text"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Enter circular title"
-              className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 md:max-w-xl dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div>
-              <label htmlFor="circular-date" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Date
-              </label>
-              <input
-                id="circular-date"
-                type="date"
-                value={circularDate}
-                onChange={(event) => setCircularDate(event.target.value)}
-                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-              />
-            </div>
-            <div>
-              <label htmlFor="circular-reference-series" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Reference Series
-              </label>
-              <input
-                id="circular-reference-series"
-                type="text"
-                value={referenceSeries}
-                onChange={(event) => setReferenceSeries(event.target.value)}
-                placeholder="e.g. EXMCL/2026/"
-                className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-              />
-            </div>
-            <div>
-              <label htmlFor="circular-reference-number" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                Reference Number
-              </label>
-              <input
-                id="circular-reference-number"
-                type="text"
-                value={referenceNumber}
-                readOnly={!editingId}
-                onChange={(event) => setReferenceNumber(event.target.value)}
-                placeholder="Auto-generated from series"
-                className="mt-1 block w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="circular-content" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Circular Content
-            </label>
-            <textarea
-              id="circular-content"
-              rows={8}
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              placeholder="Write the circular details..."
-              className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center gap-3">
+    <div className="p-6">
+      <div className="mx-auto max-w-[1400px] space-y-4">
+      <section className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            id="circular-title"
+            type="text"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Title"
+            title="Title"
+            aria-label="Title"
+            className={`${fieldClassName} min-w-[180px] flex-1`}
+          />
+          <input
+            id="circular-date"
+            type="date"
+            value={circularDate}
+            onChange={(event) => setCircularDate(event.target.value)}
+            title="Date"
+            aria-label="Date"
+            className={`${fieldClassName} w-[150px]`}
+          />
+          <input
+            id="circular-reference-series"
+            type="text"
+            value={referenceSeries}
+            onChange={(event) => setReferenceSeries(event.target.value)}
+            placeholder="Ref. series"
+            title="Reference series"
+            aria-label="Reference series"
+            className={`${fieldClassName} min-w-[140px]`}
+          />
+          <input
+            id="circular-reference-number"
+            type="text"
+            value={referenceNumber}
+            readOnly={!editingId}
+            onChange={(event) => setReferenceNumber(event.target.value)}
+            placeholder="Ref. number"
+            title="Reference number"
+            aria-label="Reference number"
+            className={`${fieldClassName} min-w-[150px] bg-slate-50 dark:bg-gray-900`}
+          />
+          <select
+            title="Page size"
+            aria-label="Page size"
+            value={pageSize}
+            onChange={(event) => setPageSize(event.target.value as ExmclCircularPageSize)}
+            className={`${fieldClassName} w-[88px]`}
+          >
+            {PAGE_SIZE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? 'Saving...' : editingId ? 'Update Circular' : 'Save as Draft'}
+            {saving ? 'Saving...' : editingId ? 'Update' : 'Save Draft'}
           </button>
           {editingId && (
             <button
               type="button"
               onClick={resetForm}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
             >
-              Cancel Edit
+              Cancel
             </button>
           )}
         </div>
+        <div className="mt-3">
+          <CircularRichTextEditor value={content} onChange={setContent} />
+        </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <div className="mb-4 flex items-center justify-between">
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="mb-3 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Circulars</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
@@ -283,7 +287,7 @@ const ExmclCirculars: React.FC = () => {
           <button
             type="button"
             onClick={() => void loadCirculars()}
-            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
           >
             Refresh
           </button>
@@ -306,7 +310,7 @@ const ExmclCirculars: React.FC = () => {
                   <div>
                     <h3 className="text-base font-semibold text-slate-900 dark:text-white">{item.title}</h3>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Date: {formatDate(item.circularDate)} | Ref: {item.referenceNumber || '-'}
+                      Date: {formatDate(item.circularDate)} | Ref: {item.referenceNumber || '-'} | Page: {pageSizeLabel(item.pageSize)}
                     </p>
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Updated: {formatDate(item.updatedAt)} | Published: {formatDate(item.publishedAt)}
@@ -345,14 +349,22 @@ const ExmclCirculars: React.FC = () => {
                     </button>
                   </div>
                 </div>
-                <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
-                  {item.content}
-                </p>
+                {looksLikeHtml(item.content) ? (
+                  <div
+                    className="prose prose-sm mt-3 max-w-none text-slate-700 dark:prose-invert dark:text-slate-300"
+                    dangerouslySetInnerHTML={{ __html: item.content }}
+                  />
+                ) : (
+                  <p className="mt-3 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-300">
+                    {item.content}
+                  </p>
+                )}
               </article>
             ))}
           </div>
         )}
       </section>
+      </div>
     </div>
   )
 }

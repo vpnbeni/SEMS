@@ -6,6 +6,8 @@ const {
   createExamDefinition,
   updateExamDefinition,
   deleteExamDefinition,
+  getExamSubjectMatrix,
+  saveExamSubjectMatrix,
 } = require('../controllers/examDefinitionController');
 
 const router = express.Router();
@@ -20,6 +22,9 @@ const objectIdSchema = Joi.string()
 router.route('/')
   .get(listExamDefinitions)
   .post(createExamDefinition);
+
+router.get('/subject-matrix', getExamSubjectMatrix);
+router.put('/subject-matrix', saveExamSubjectMatrix);
 
 router.put('/:id', validateParams(Joi.object({ id: objectIdSchema })), updateExamDefinition);
 router.delete('/:id', validateParams(Joi.object({ id: objectIdSchema })), deleteExamDefinition);

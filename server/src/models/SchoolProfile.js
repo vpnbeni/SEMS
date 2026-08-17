@@ -13,6 +13,7 @@ const schoolProfileSchema = new mongoose.Schema({
   email: { type: String, default: '', trim: true },
   awardListDesign: { type: mongoose.Schema.Types.Mixed, default: null },
   admitCardDesign: { type: mongoose.Schema.Types.Mixed, default: null },
+  reportCardDesign: { type: mongoose.Schema.Types.Mixed, default: null },
   metadata: {
     studentRollNumberAssignment: {
       mode: { type: String, default: 'alphabetical_by_class_section' },
