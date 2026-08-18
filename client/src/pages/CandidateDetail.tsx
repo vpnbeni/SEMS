@@ -154,14 +154,14 @@ const CandidateDetail: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      active: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
-      inactive: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
-      graduated: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-      suspended: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+      active: 'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-400/10 dark:text-green-400 dark:ring-green-400/20',
+      inactive: 'bg-yellow-50 text-yellow-700 ring-yellow-600/20 dark:bg-yellow-400/10 dark:text-yellow-400 dark:ring-yellow-400/20',
+      graduated: 'bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-400 dark:ring-blue-400/20',
+      suspended: 'bg-red-50 text-red-700 ring-red-600/20 dark:bg-red-400/10 dark:text-red-400 dark:ring-red-400/20'
     }
 
     return (
-      <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusConfig[status as keyof typeof statusConfig]}`}>
+      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${statusConfig[status as keyof typeof statusConfig]}`}>
         {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     )
@@ -233,88 +233,89 @@ const CandidateDetail: React.FC = () => {
   }
 
   return (
-    <div className="p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6 min-h-screen bg-gray-50/50 dark:bg-gray-900">
+    <div className="p-5 max-w-[1600px] mx-auto space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center space-x-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="flex items-center gap-3">
       {candidate.photoUrl ? (
         <img
           src={candidate.photoUrl}
           alt={candidate.name}
-          className="w-14 h-14 rounded-full object-cover border-2 border-secondary-200 dark:border-secondary-600"
+          className="w-11 h-11 rounded-full object-cover border border-secondary-200 dark:border-secondary-700 flex-shrink-0"
         />
       ) : (
-        <div className="w-14 h-14 rounded-full bg-secondary-200 dark:bg-secondary-700 flex items-center justify-center">
-          <svg className="w-7 h-7 text-secondary-400 dark:text-secondary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="w-11 h-11 rounded-full bg-secondary-100 dark:bg-secondary-800 border border-secondary-200 dark:border-secondary-700 flex items-center justify-center flex-shrink-0">
+          <svg className="w-5 h-5 text-secondary-400 dark:text-secondary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
           </svg>
         </div>
       )}
-      <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {candidate.name}
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Roll Number: {candidate.rollNumber}
+      <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-semibold text-secondary-900 dark:text-white truncate">
+                {candidate.name}
+              </h1>
+              {getStatusBadge(candidate.status)}
+            </div>
+            <p className="text-sm text-secondary-500 dark:text-secondary-400 tabular-nums">
+              Roll number: {candidate.rollNumber}
             </p>
           </div>
         </div>
-        <div className="mt-4 sm:mt-0 flex space-x-3">
-          <button
-            onClick={() => navigate(`/candidate-details/${candidate._id}/edit`)}
-            className="btn btn-secondary"
-          >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            Edit Candidate
-          </button>
-        </div>
+        <button
+          onClick={() => navigate(`/candidate-details/${candidate._id}/edit`)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-secondary-300 dark:border-secondary-600 text-sm font-medium rounded-md text-secondary-700 dark:text-secondary-200 bg-white dark:bg-secondary-800 hover:bg-secondary-50 dark:hover:bg-secondary-700 transition-colors flex-shrink-0"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+          Edit candidate
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Main Information */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-4">
           {/* Basic Information */}
-          <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Basic Information
+          <div className="p-5 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
+            <h2 className="text-sm font-semibold text-secondary-900 dark:text-white mb-3">
+              Basic information
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Full Name
+                <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                  Full name
                 </label>
-                <p className="text-gray-900 dark:text-white">{candidate.name}</p>
+                <p className="text-sm text-secondary-900 dark:text-white">{candidate.name}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Roll Number
+                <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                  Roll number
                 </label>
-                <p className="text-gray-900 dark:text-white font-mono">{candidate.rollNumber}</p>
+                <p className="text-sm text-secondary-900 dark:text-white tabular-nums">{candidate.rollNumber}</p>
               </div>
               {candidate.flc && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
                     FLC
                   </label>
-                  <p className="text-gray-900 dark:text-white">{candidate.flc}</p>
+                  <p className="text-sm text-secondary-900 dark:text-white">{candidate.flc}</p>
                 </div>
               )}
               {candidate.sex && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
                     Sex
                   </label>
-                  <p className="text-gray-900 dark:text-white">{candidate.sex}</p>
+                  <p className="text-sm text-secondary-900 dark:text-white">{candidate.sex}</p>
                 </div>
               )}
               {candidate.dateOfBirth && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                    Date of Birth
+                  <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                    Date of birth
                   </label>
-                  <p className="text-gray-900 dark:text-white">
+                  <p className="text-sm text-secondary-900 dark:text-white">
                     {new Date(candidate.dateOfBirth).toLocaleDateString('en-US', {
                       year: 'numeric',
                       month: 'long',
@@ -325,58 +326,52 @@ const CandidateDetail: React.FC = () => {
               )}
               {candidate.category && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
                     Category
                   </label>
-                  <p className="text-gray-900 dark:text-white">{candidate.category}</p>
+                  <p className="text-sm text-secondary-900 dark:text-white">{candidate.category}</p>
                 </div>
               )}
               {candidate.pwd && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
                     PwD
                   </label>
-                  <p className="text-gray-900 dark:text-white">{candidate.pwd}</p>
+                  <p className="text-sm text-secondary-900 dark:text-white">{candidate.pwd}</p>
                 </div>
               )}
               {candidate.consession && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
                     Consession
                   </label>
-                  <p className="text-gray-900 dark:text-white">{candidate.consession}</p>
+                  <p className="text-sm text-secondary-900 dark:text-white">{candidate.consession}</p>
                 </div>
               )}
-              <div>
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Status
-                </label>
-                <div>{getStatusBadge(candidate.status)}</div>
-              </div>
             </div>
           </div>
 
           {/* Family Information */}
           {(candidate.motherName || candidate.fatherName) && (
-            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Family Information
+            <div className="p-5 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
+              <h2 className="text-sm font-semibold text-secondary-900 dark:text-white mb-3">
+                Family information
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 {candidate.motherName && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      Mother's Name
+                    <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                      Mother's name
                     </label>
-                    <p className="text-gray-900 dark:text-white">{candidate.motherName}</p>
+                    <p className="text-sm text-secondary-900 dark:text-white">{candidate.motherName}</p>
                   </div>
                 )}
                 {candidate.fatherName && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      Father's Name
+                    <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                      Father's name
                     </label>
-                    <p className="text-gray-900 dark:text-white">{candidate.fatherName}</p>
+                    <p className="text-sm text-secondary-900 dark:text-white">{candidate.fatherName}</p>
                   </div>
                 )}
               </div>
@@ -385,16 +380,16 @@ const CandidateDetail: React.FC = () => {
 
           {/* Contact Information */}
           {(candidate.email || candidate.phone) && (
-            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Contact Information
+            <div className="p-5 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
+              <h2 className="text-sm font-semibold text-secondary-900 dark:text-white mb-3">
+                Contact information
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
                     Email
                   </label>
-                  <p className="text-gray-900 dark:text-white">
+                  <p className="text-sm text-secondary-900 dark:text-white">
                     {candidate.email ? (
                       <a href={`mailto:${candidate.email}`} className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
                         {candidate.email}
@@ -405,10 +400,10 @@ const CandidateDetail: React.FC = () => {
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                  <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
                     Phone
                   </label>
-                  <p className="text-gray-900 dark:text-white">
+                  <p className="text-sm text-secondary-900 dark:text-white">
                     {candidate.phone ? (
                       <a href={`tel:${candidate.phone}`} className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
                         {candidate.phone}
@@ -424,40 +419,40 @@ const CandidateDetail: React.FC = () => {
 
           {/* School Information */}
           {(candidate.schoolCode || candidate.schoolName || candidate.class) && (
-            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                School Information
+            <div className="p-5 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
+              <h2 className="text-sm font-semibold text-secondary-900 dark:text-white mb-3">
+                School information
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 {candidate.schoolCode && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      School Code
+                    <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                      School code
                     </label>
-                    <p className="text-gray-900 dark:text-white font-mono font-semibold text-primary-600 dark:text-primary-400">
+                    <p className="text-sm font-semibold text-secondary-900 dark:text-white tabular-nums">
                       {candidate.schoolCode}
                     </p>
                   </div>
                 )}
                 {candidate.schoolName && (
                   <div className={candidate.schoolCode ? 'md:col-span-1' : 'md:col-span-2'}>
-                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      School Name
+                    <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                      School name
                     </label>
-                    <p className="text-gray-900 dark:text-white">
-                      🏫 {candidate.schoolName}
+                    <p className="text-sm text-secondary-900 dark:text-white">
+                      {candidate.schoolName}
                     </p>
                   </div>
                 )}
                 {candidate.class && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+                    <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
                       Class
                     </label>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      candidate.class === '12th' 
-                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${
+                      candidate.class === '12th'
+                        ? 'bg-purple-50 text-purple-700 ring-purple-600/20 dark:bg-purple-400/10 dark:text-purple-400 dark:ring-purple-400/20'
+                        : 'bg-green-50 text-green-700 ring-green-600/20 dark:bg-green-400/10 dark:text-green-400 dark:ring-green-400/20'
                     }`}>
                       {candidate.class}
                     </span>
@@ -469,44 +464,30 @@ const CandidateDetail: React.FC = () => {
 
           {/* Subject Codes */}
           {candidate.subjectCodes && candidate.subjectCodes.length > 0 && (
-            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Subject Codes
+            <div className="p-5 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
+              <h2 className="text-sm font-semibold text-secondary-900 dark:text-white mb-3">
+                Subject codes
               </h2>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {candidate.subjectCodes.map((item, index) => {
                   const code = typeof item === 'string' ? item : item.code;
                   const medium = typeof item === 'object' && item.medium ? item.medium : '';
                   const isHindi = medium === '2';
                   const isEnglish = medium === '1';
                   const mediumLabel = isHindi ? 'Hindi' : isEnglish ? 'English' : '';
-                  
+
                   return (
-                    <div 
-                      key={index} 
-                      className={`px-4 py-2 rounded-lg ${
-                        isHindi 
-                          ? 'bg-orange-50 dark:bg-orange-900/30'
-                          : 'bg-blue-50 dark:bg-blue-900/30'
+                    <span
+                      key={index}
+                      className={`inline-flex items-center rounded px-2 py-1 text-xs font-medium ring-1 ring-inset ${
+                        isHindi
+                          ? 'bg-orange-50 text-orange-700 ring-orange-600/20 dark:bg-orange-400/10 dark:text-orange-400 dark:ring-orange-400/20'
+                          : 'bg-blue-50 text-blue-700 ring-blue-600/20 dark:bg-blue-400/10 dark:text-blue-400 dark:ring-blue-400/20'
                       }`}
                     >
-                      <span className={`text-sm font-medium ${
-                        isHindi
-                          ? 'text-orange-900 dark:text-orange-200'
-                          : 'text-blue-900 dark:text-blue-200'
-                      }`}>
-                        {code}
-                      </span>
-                      {mediumLabel && (
-                        <span className={`ml-2 text-xs ${
-                          isHindi
-                            ? 'text-orange-700 dark:text-orange-300'
-                            : 'text-blue-700 dark:text-blue-300'
-                        }`}>
-                          ({mediumLabel})
-                        </span>
-                      )}
-                    </div>
+                      {code}
+                      {mediumLabel && <span className="ml-1 opacity-70">({mediumLabel})</span>}
+                    </span>
                   );
                 })}
               </div>
@@ -514,101 +495,101 @@ const CandidateDetail: React.FC = () => {
           )}
 
           {/* Enrolled Subjects (sorted by exam date) */}
-          <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Enrolled Subjects
+          <div className="rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900 overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3.5 border-b border-secondary-200 dark:border-secondary-700">
+                <h2 className="text-sm font-semibold text-secondary-900 dark:text-white">
+                  Enrolled subjects
                 </h2>
                 <button
                   type="button"
                   onClick={() => setAssignSubjectOpen(true)}
-                  className="btn btn-primary btn-sm inline-flex items-center gap-1"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-secondary-300 dark:border-secondary-600 text-xs font-medium rounded-md text-secondary-700 dark:text-secondary-200 bg-white dark:bg-secondary-800 hover:bg-secondary-50 dark:hover:bg-secondary-700 transition-colors"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  Assign Subject
+                  Assign subject
                 </button>
               </div>
               {(!candidate.subjects || candidate.subjects.length === 0) ? (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No subjects enrolled yet.</p>
+                <p className="text-sm text-secondary-500 dark:text-secondary-400 px-5 py-4">No subjects enrolled yet.</p>
               ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50/50 dark:bg-gray-900/50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <table className="min-w-full">
+                  <thead>
+                    <tr className="border-b border-secondary-200 dark:border-secondary-700">
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400">
                         Subject
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Exam Date
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400">
+                        Exam date
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Answer Sheet Type
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400">
+                        Answer sheet
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Serial No.
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400">
+                        Serial no.
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Room No.
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400">
+                        Room no.
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400">
                         Invigilator 1
                       </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      <th className="px-4 py-2.5 text-left text-xs font-medium text-secondary-600 dark:text-secondary-400">
                         Invigilator 2
                       </th>
-                      <th className="px-4 py-3" />
+                      <th className="px-4 py-2.5" />
                     </tr>
                   </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  <tbody className="divide-y divide-secondary-100 dark:divide-secondary-800">
                     {sortedSubjects.map((subject) => (
-                      <tr key={subject._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td className="px-4 py-3">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{subject.name}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">Code: {subject.code}</div>
+                      <tr key={subject._id} className="hover:bg-secondary-50 dark:hover:bg-secondary-800/60 transition-colors">
+                        <td className="px-4 py-2.5">
+                          <div className="text-sm font-medium text-secondary-900 dark:text-white">{subject.name}</div>
+                          <div className="text-xs text-secondary-500 dark:text-secondary-400">Code: {subject.code}</div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-2.5 text-sm text-secondary-700 dark:text-secondary-300">
                           {formatExamDate(subject.examDate)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-2.5 text-sm text-secondary-700 dark:text-secondary-300">
                           {subject.answerSheetType ?? '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-2.5 text-sm text-secondary-700 dark:text-secondary-300">
                           {subjectSerials[subject._id]
                             ? subjectSerials[subject._id]
                             : serialsLoading
-                              ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent text-gray-400" />
+                              ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent text-secondary-400" />
                               : (subject.serialNumber ?? '—')}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-2.5 text-sm text-secondary-700 dark:text-secondary-300">
                           {subject.roomNo ?? '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-2.5 text-sm text-secondary-700 dark:text-secondary-300">
                           {subject.invigilator1 ? (
                             <div>
                               <div>{subject.invigilator1.name}</div>
                               {subject.invigilator1.oasisId && (
-                                <div className="text-xs text-gray-500 dark:text-gray-400">OASIS: {subject.invigilator1.oasisId}</div>
+                                <div className="text-xs text-secondary-500 dark:text-secondary-400">OASIS: {subject.invigilator1.oasisId}</div>
                               )}
                             </div>
                           ) : (
                             '—'
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-700 dark:text-gray-300">
+                        <td className="px-4 py-2.5 text-sm text-secondary-700 dark:text-secondary-300">
                           {subject.invigilator2 ? (
                             <div>
                               <div>{subject.invigilator2.name}</div>
                               {subject.invigilator2.oasisId && (
-                                <div className="text-xs text-gray-500 dark:text-gray-400">OASIS: {subject.invigilator2.oasisId}</div>
+                                <div className="text-xs text-secondary-500 dark:text-secondary-400">OASIS: {subject.invigilator2.oasisId}</div>
                               )}
                             </div>
                           ) : (
                             '—'
                           )}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-2.5">
                           {!importedSubjectCodes.has(subject.code) && (
                             <button
                               type="button"
@@ -632,94 +613,93 @@ const CandidateDetail: React.FC = () => {
         </div>
 
         {/* Sidebar */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Candidate Photo */}
           {candidate.photoUrl && (
-            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Candidate Photo
+            <div className="p-5 rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900">
+              <h2 className="text-sm font-semibold text-secondary-900 dark:text-white mb-3">
+                Candidate photo
               </h2>
               <div className="flex justify-center">
                 <img
                   src={candidate.photoUrl}
                   alt={candidate.name}
-                  className="w-48 h-auto rounded-lg border border-secondary-200 dark:border-secondary-600 shadow-sm object-contain"
+                  className="w-40 h-auto rounded-md border border-secondary-200 dark:border-secondary-700 object-contain"
                 />
               </div>
             </div>
           )}
 
-          {/* Import Information */}
-          {candidate.importedFrom && (
-            <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Import Information
-              </h2>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                    Source File
-                  </label>
-                  <p className="text-gray-900 dark:text-white text-sm">
-                    📄 {candidate.importedFrom.fileName}
-                  </p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                    Import Date
-                  </label>
-                  <p className="text-gray-900 dark:text-white text-sm">
-                    {formatDate(candidate.importedFrom.uploadDate)}
-                  </p>
-                </div>
-                <div>
+          {/* Metadata: import + record info, sectioned in one compact card */}
+          <div className="rounded-lg border border-secondary-200 dark:border-secondary-700 bg-white dark:bg-secondary-900 divide-y divide-secondary-200 dark:divide-secondary-700">
+            {candidate.importedFrom && (
+              <div className="p-5">
+                <h2 className="text-sm font-semibold text-secondary-900 dark:text-white mb-3">
+                  Import information
+                </h2>
+                <div className="space-y-2.5">
+                  <div>
+                    <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                      Source file
+                    </label>
+                    <p className="text-sm text-secondary-900 dark:text-white truncate">
+                      {candidate.importedFrom.fileName}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                      Import date
+                    </label>
+                    <p className="text-sm text-secondary-900 dark:text-white">
+                      {formatDate(candidate.importedFrom.uploadDate)}
+                    </p>
+                  </div>
                   <a
                     href={candidate.importedFrom.cloudinaryUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                    className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
                   >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                     </svg>
-                    View Original PDF
+                    View original PDF
                   </a>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Metadata */}
-          <div className="p-6 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Record Information
-            </h2>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Created
-                </label>
-                <p className="text-gray-900 dark:text-white text-sm">
-                  {formatDate(candidate.createdAt)}
-                </p>
-                {candidate.createdBy && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    by {candidate.createdBy.name}
+            <div className="p-5">
+              <h2 className="text-sm font-semibold text-secondary-900 dark:text-white mb-3">
+                Record information
+              </h2>
+              <div className="space-y-2.5">
+                <div>
+                  <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                    Created
+                  </label>
+                  <p className="text-sm text-secondary-900 dark:text-white">
+                    {formatDate(candidate.createdAt)}
                   </p>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Last Updated
-                </label>
-                <p className="text-gray-900 dark:text-white text-sm">
-                  {formatDate(candidate.updatedAt)}
-                </p>
-                {candidate.updatedBy && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    by {candidate.updatedBy.name}
+                  {candidate.createdBy && (
+                    <p className="text-xs text-secondary-500 dark:text-secondary-400">
+                      by {candidate.createdBy.name}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-0.5">
+                    Last updated
+                  </label>
+                  <p className="text-sm text-secondary-900 dark:text-white">
+                    {formatDate(candidate.updatedAt)}
                   </p>
-                )}
+                  {candidate.updatedBy && (
+                    <p className="text-xs text-secondary-500 dark:text-secondary-400">
+                      by {candidate.updatedBy.name}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
           </div>

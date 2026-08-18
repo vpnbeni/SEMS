@@ -116,17 +116,14 @@ const ExmclExams: React.FC = () => {
     }
   }
 
-  return (
-    <div className="space-y-6 p-6">
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-          {editingId ? 'Edit Exam' : 'Create Exam'}
-        </h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Define exams that will be conducted across the current academic session.
-        </p>
+  const fieldClassName =
+    'rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white'
 
-        <div className="mt-4 flex flex-wrap gap-2">
+  return (
+    <div className="p-6">
+      <div className="mx-auto max-w-[1400px] space-y-4">
+      <section className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
           {DEFAULT_EXAM_TEMPLATES.map((template) => (
             <button
               key={template.code}
@@ -139,78 +136,60 @@ const ExmclExams: React.FC = () => {
               {template.code}
             </button>
           ))}
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div className="md:col-span-2">
-            <label htmlFor="exam-name" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Exam Name
-            </label>
-            <input
-              id="exam-name"
-              type="text"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. Unit Test 1"
-              className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-            />
-          </div>
-          <div>
-            <label htmlFor="exam-code" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Exam Code
-            </label>
-            <input
-              id="exam-code"
-              type="text"
-              value={code}
-              onChange={(event) => setCode(event.target.value.toUpperCase())}
-              placeholder="e.g. UT1"
-              className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-            />
-          </div>
-          <div>
-            <label htmlFor="exam-duration" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Duration
-            </label>
-            <input
-              id="exam-duration"
-              type="text"
-              value={duration}
-              onChange={(event) => setDuration(event.target.value)}
-              placeholder="e.g. 3 Hours"
-              className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-            />
-          </div>
-          <div>
-            <label htmlFor="exam-mm" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-              Maximum Marks (M.M.)
-            </label>
-            <input
-              id="exam-mm"
-              type="number"
-              min={0}
-              value={maximumMarks}
-              onChange={(event) => setMaximumMarks(event.target.value)}
-              placeholder="e.g. 100"
-              className="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-            />
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center gap-3">
+          <input
+            id="exam-name"
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Exam name"
+            title="Exam name"
+            aria-label="Exam name"
+            className={`${fieldClassName} min-w-[180px] flex-1`}
+          />
+          <input
+            id="exam-code"
+            type="text"
+            value={code}
+            onChange={(event) => setCode(event.target.value.toUpperCase())}
+            placeholder="Code"
+            title="Exam code"
+            aria-label="Exam code"
+            className={`${fieldClassName} w-[110px]`}
+          />
+          <input
+            id="exam-duration"
+            type="text"
+            value={duration}
+            onChange={(event) => setDuration(event.target.value)}
+            placeholder="Duration"
+            title="Duration"
+            aria-label="Duration"
+            className={`${fieldClassName} w-[120px]`}
+          />
+          <input
+            id="exam-mm"
+            type="number"
+            min={0}
+            value={maximumMarks}
+            onChange={(event) => setMaximumMarks(event.target.value)}
+            placeholder="M.M."
+            title="Maximum marks"
+            aria-label="Maximum marks"
+            className={`${fieldClassName} w-[88px]`}
+          />
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {saving ? 'Saving...' : editingId ? 'Update Exam' : 'Create Exam'}
+            {saving ? 'Saving...' : editingId ? 'Update' : 'Create Exam'}
           </button>
           {(editingId || name || code || duration || maximumMarks) && (
             <button
               type="button"
               onClick={resetForm}
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+              className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
             >
               Clear
             </button>
@@ -218,8 +197,8 @@ const ExmclExams: React.FC = () => {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-        <div className="mb-4 flex items-center justify-between">
+      <section className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="mb-3 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Session Exams</h2>
             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Total exams: {items.length}</p>
@@ -289,6 +268,7 @@ const ExmclExams: React.FC = () => {
           </div>
         )}
       </section>
+      </div>
     </div>
   )
 }

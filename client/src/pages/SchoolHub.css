@@ -216,3 +216,67 @@
 .hub-card--becms:hover {
   box-shadow: 0 16px 48px rgba(0, 97, 255, 0.45);
 }
+
+.hub-card--award-list {
+  background: linear-gradient(135deg, #f5576c 0%, #ff8a65 100%);
+  box-shadow: 0 8px 32px rgba(245, 87, 108, 0.35);
+}
+.hub-card--award-list:hover {
+  box-shadow: 0 16px 48px rgba(245, 87, 108, 0.45);
+}
+
+.hub-card--admit-card {
+  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%);
+  box-shadow: 0 8px 32px rgba(14, 165, 233, 0.35);
+}
+.hub-card--admit-card:hover {
+  box-shadow: 0 16px 48px rgba(99, 102, 241, 0.45);
+}
+
+.hub-card--datesheet {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  box-shadow: 0 8px 32px rgba(79, 172, 254, 0.35);
+}
+.hub-card--datesheet:hover {
+  box-shadow: 0 16px 48px rgba(79, 172, 254, 0.45);
+}
+
+.hub-card--seating-plan {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  box-shadow: 0 8px 32px rgba(67, 233, 123, 0.35);
+}
+.hub-card--seating-plan:hover {
+  box-shadow: 0 16px 48px rgba(67, 233, 123, 0.45);
+}
+
+.hub-card--duties {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  box-shadow: 0 8px 32px rgba(250, 112, 154, 0.35);
+}
+.hub-card--duties:hover {
+  box-shadow: 0 16px 48px rgba(250, 112, 154, 0.45);
+}
+
+.hub-card--rechecking {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 8px 32px rgba(102, 126, 234, 0.35);
+}
+.hub-card--rechecking:hover {
+  box-shadow: 0 16px 48px rgba(102, 126, 234, 0.45);
+}
+
+.hub-card--report-card {
+  background: linear-gradient(135deg, #4f6d9a 0%, #5da9c8 100%);
+  box-shadow: 0 8px 32px rgba(79, 109, 154, 0.35);
+}
+.hub-card--report-card:hover {
+  box-shadow: 0 16px 48px rgba(79, 109, 154, 0.45);
+}
+
+.hub-card--consolidated-sheet {
+  background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);
+  box-shadow: 0 8px 32px rgba(161, 140, 209, 0.35);
+}
+.hub-card--consolidated-sheet:hover {
+  box-shadow: 0 16px 48px rgba(161, 140, 209, 0.45);
+}

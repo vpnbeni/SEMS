@@ -10,6 +10,14 @@ export interface SchoolProfile {
   address: string
   contact: string
   email: string
+  metadata?: {
+    studentRollNumberAssignment?: {
+      mode?: string
+      sortBy?: string
+      scope?: string
+      description?: string
+    }
+  }
 }
 
 type SchoolProfileUpdatePayload = Pick<

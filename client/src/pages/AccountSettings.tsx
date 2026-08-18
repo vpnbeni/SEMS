@@ -102,7 +102,7 @@ const AccountSettings: React.FC = () => {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 max-w-5xl">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-2">Account Settings</h1>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-          Manage school profile details used in report cards.
+          Address, email, and contact number from this page print on the report card header.
         </p>
 
         {loading ? (

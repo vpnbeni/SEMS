@@ -666,6 +666,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
       ),
       children: [
         { name: 'Circulars', href: '/exmcl/centre-guidelines', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>), badge: null },
+        { name: 'Admit Cards', href: '/exmcl/admit-cards', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 9h3.75M15 12h3.75M15 15h3.75M4.5 19.5h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5zm6-10.125a1.875 1.875 0 11-3.75 0 1.875 1.875 0 013.75 0zm1.294 6.336a6.721 6.721 0 01-3.17.789 6.721 6.721 0 01-3.168-.789 3.376 3.376 0 016.338 0z" /></svg>), badge: null },
         { name: 'Exams', href: '/exmcl/exams', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 6.75h7.5m-7.5 4.5h7.5m-7.5 4.5h4.5M6 3.75h12A2.25 2.25 0 0120.25 6v12A2.25 2.25 0 0118 20.25H6A2.25 2.25 0 013.75 18V6A2.25 2.25 0 016 3.75z" /></svg>), badge: null },
         { name: 'Result', href: '/exmcl/result', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-6m3 6V7m3 10v-3m5 5H4" /></svg>), badge: null },
         { name: 'Report Card', href: '/exmcl/report-card', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-6-8h6m2 13H7a2 2 0 01-2-2V5a2 2 0 012-2h7l5 5v11a2 2 0 01-2 2z" /></svg>), badge: null },
@@ -680,7 +681,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
         { name: 'Seating Plan', href: '/exmcl/seatingplan', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>), badge: null },
         { name: 'Duties', href: '/exmcl/duties', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M9 5a2 2 0 012-2h2a2 2 0 012 2M9 5a2 2 0 002 2h2a2 2 0 002-2m-6 9l2 2 4-4" /></svg>), badge: null },
         { name: 'Attendance', href: '/exmcl/attendance', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>), badge: null },
-        { name: "Performa's", href: '/exmcl/performas', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-3-8h3m-9 13h10.5A2.25 2.25 0 0019.5 18.75V8.121a2.25 2.25 0 00-.659-1.591l-2.371-2.371a2.25 2.25 0 00-1.591-.659H9A2.25 2.25 0 006.75 5.75v13A2.25 2.25 0 009 21z" /></svg>), badge: null },
+        { name: 'Formats', href: '/exmcl/performas', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-3-8h3m-9 13h10.5A2.25 2.25 0 0019.5 18.75V8.121a2.25 2.25 0 00-.659-1.591l-2.371-2.371a2.25 2.25 0 00-1.591-.659H9A2.25 2.25 0 006.75 5.75v13A2.25 2.25 0 009 21z" /></svg>), badge: null },
         { name: 'Candidate Details', href: '/exmcl/candidate-details', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>), badge: null },
       ],
     },
@@ -789,12 +790,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
 
   return (
     <div
-      className="glass border-r border-gray-100/80 dark:border-gray-800/80 h-[100vh] min-h-[100vh] transition-all duration-300 flex flex-col overflow-visible relative z-50"
+      className="bg-white dark:bg-secondary-900 border-r border-secondary-200 dark:border-secondary-700 h-[100vh] min-h-[100vh] transition-all duration-300 flex flex-col overflow-visible relative z-50"
       style={{ width: currentSidebarWidth }}
     >
-      {/* Decorative background accent */}
-      <div className="absolute top-0 left-0 w-full h-40 bg-gradient-to-b from-primary-50/30 via-primary-50/10 to-transparent dark:from-primary-900/10 dark:via-transparent pointer-events-none" />
-
       {/* Module Switcher Header */}
       <div className={`flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'px-2 py-4' : 'px-4 py-4'} relative z-10`}>
         <div className="relative">

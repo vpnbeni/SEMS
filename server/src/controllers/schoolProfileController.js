@@ -2,6 +2,7 @@ const asyncHandler = require('../middleware/asyncHandler');
 const { HTTP_STATUS } = require('../utils/constants');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../config/cloudinary');
 const SchoolProfile = require('../models/SchoolProfile');
+const { ensureStudentRollNumberRule } = require('../utils/assignClassRollNumbers');
 const fs = require('fs');
 
 const ALLOWED_UPDATE_FIELDS = [
@@ -24,11 +25,15 @@ const buildProfileResponse = (tenant, profile) => ({
   address: profile?.address || '',
   contact: profile?.contact || '',
   email: profile?.email || '',
+  metadata: {
+    studentRollNumberAssignment: profile?.metadata?.studentRollNumberAssignment || null,
+  },
 });
 
 // GET /school-profile
 exports.getProfile = asyncHandler(async (req, res) => {
   const SchoolProfileModel = req.models?.SchoolProfile || SchoolProfile;
+  await ensureStudentRollNumberRule(SchoolProfileModel);
   const profile = await SchoolProfileModel.findOne({}).lean();
 
   return res.status(HTTP_STATUS.OK).json({

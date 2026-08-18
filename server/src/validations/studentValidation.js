@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { STUDENT_CLASSES, STUDENT_GENDERS, REGEX_PATTERNS } = require('../utils/constants');
+const { STUDENT_GENDERS, REGEX_PATTERNS } = require('../utils/constants');
 
 // Base student schema
 const baseStudentSchema = {
@@ -50,10 +50,13 @@ const baseStudentSchema = {
     }),
   
   class: Joi.string()
-    .valid(...Object.values(STUDENT_CLASSES))
+    .trim()
+    .min(1)
+    .max(50)
     .required()
     .messages({
-      'any.only': 'Class must be one of: ' + Object.values(STUDENT_CLASSES).join(', '),
+      'string.min': 'Class is required',
+      'string.max': 'Class cannot exceed 50 characters',
       'any.required': 'Class is required'
     }),
   
@@ -322,9 +325,9 @@ const assignSubjectsSchema = Joi.object({
 // Student query schema
 const studentQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).optional(),
-  limit: Joi.number().integer().min(1).max(100).optional(),
+  limit: Joi.number().integer().min(1).max(500).optional(),
   search: Joi.string().trim().optional(),
-  class: Joi.string().valid(...Object.values(STUDENT_CLASSES)).optional(),
+  class: Joi.string().trim().max(50).optional(),
   section: Joi.string().trim().max(50).optional(),
   subject: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional(),
   category: Joi.string().valid('General', 'OBC', 'SC', 'ST', 'EWS').optional(),
@@ -360,10 +363,13 @@ const documentUploadSchema = Joi.object({
 // Next roll number query schema
 const nextRollNumberSchema = Joi.object({
   class: Joi.string()
-    .valid(...Object.values(STUDENT_CLASSES))
+    .trim()
+    .min(1)
+    .max(50)
     .required()
     .messages({
-      'any.only': 'Class must be one of: ' + Object.values(STUDENT_CLASSES).join(', '),
+      'string.min': 'Class is required',
+      'string.max': 'Class cannot exceed 50 characters',
       'any.required': 'Class is required'
     }),
   

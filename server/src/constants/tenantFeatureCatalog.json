@@ -337,6 +337,14 @@
     "prefixes": ["/exmcl/award-list"]
   },
   {
+    "key": "exmcl_admit_cards",
+    "label": "ExmCl - Admit Cards",
+    "path": "/exmcl/admit-cards",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/admit-cards"]
+  },
+  {
     "key": "exmcl_question_papers",
     "label": "ExmCl - Question Papers",
     "path": "/exmcl/question-papers",
@@ -418,7 +426,7 @@
   },
   {
     "key": "exmcl_performas",
-    "label": "ExmCl - Performa's",
+    "label": "ExmCl - Formats",
     "path": "/exmcl/performas",
     "group": "ExmCl",
     "module": "exmcl",

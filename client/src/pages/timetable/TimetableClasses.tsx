@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useTimetable, type TimetableClass } from '@/contexts/TimetableContext'
+import { STUDENT_CLASS_OPTIONS } from '@/constants/studentClasses'
 
 const FLOOR_OPTIONS = ['Ground Floor', 'First Floor', 'Second Floor', 'Third Floor']
 
@@ -56,6 +57,7 @@ const comboKey = (className: string, section: string) => `${className.trim().toL
 
 const TimetableClasses: React.FC = () => {
   const {
+    isHydrated,
     classes,
     addClass,
     updateClass,
@@ -303,6 +305,46 @@ const TimetableClasses: React.FC = () => {
       matrixSelection: nextSelection,
     })
   }, [hasPersistedMatrix, classes, setMatrixState])
+
+  useEffect(() => {
+    if (!isHydrated) return
+
+    const existingByName = new Map(
+      matrixClasses.map((item) => [item.name.trim().toLowerCase(), item])
+    )
+    const missingStandardClasses = STUDENT_CLASS_OPTIONS.filter(
+      (className) => !existingByName.has(className.toLowerCase())
+    )
+    if (missingStandardClasses.length === 0) return
+
+    const extraClasses = matrixClasses.filter(
+      (item) => !STUDENT_CLASS_OPTIONS.some(
+        (className) => className.toLowerCase() === item.name.trim().toLowerCase()
+      )
+    )
+
+    const nextMatrixClasses = [
+      ...STUDENT_CLASS_OPTIONS.map((className) => (
+        existingByName.get(className.toLowerCase()) || { id: genMatrixId('tmc'), name: className }
+      )),
+      ...extraClasses,
+    ]
+
+    const nextMatrixSelection: Record<string, Record<string, boolean>> = { ...matrixSelection }
+    nextMatrixClasses.forEach((classItem) => {
+      if (nextMatrixSelection[classItem.id]) return
+      nextMatrixSelection[classItem.id] = matrixSections.reduce<Record<string, boolean>>((acc, sectionItem) => {
+        acc[sectionItem.id] = false
+        return acc
+      }, {})
+    })
+
+    setMatrixState({
+      matrixClasses: nextMatrixClasses,
+      matrixSections,
+      matrixSelection: nextMatrixSelection,
+    })
+  }, [isHydrated, matrixClasses, matrixSections, matrixSelection, setMatrixState])
 
   const handleAddMatrixClass = () => {
     const classId = genMatrixId('tmc')

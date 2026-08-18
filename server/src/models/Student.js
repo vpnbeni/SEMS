@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const { STUDENT_CLASSES, STUDENT_GENDERS, REGEX_PATTERNS } = require('../utils/constants');
+const { STUDENT_GENDERS, REGEX_PATTERNS } = require('../utils/constants');
+const { sortSectionNames } = require('../utils/sortSections');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
 const academicSessionPlugin = require('./plugins/academicSessionPlugin');
 
@@ -45,13 +46,19 @@ const studentSchema = new mongoose.Schema({
   class: {
     type: String,
     required: [true, 'Class is required'],
-    enum: Object.values(STUDENT_CLASSES)
+    trim: true,
+    maxlength: [50, 'Class cannot be more than 50 characters']
   },
   section: {
     type: String,
     required: [true, 'Section is required'],
     trim: true,
     maxlength: [50, 'Section cannot be more than 50 characters']
+  },
+  classRollNo: {
+    type: Number,
+    min: 1,
+    default: null
   },
   gender: {
     type: String,
@@ -227,7 +234,7 @@ const studentSchema = new mongoose.Schema({
 
 // Indexes
 studentSchema.index({ rollNumber: 1 });
-studentSchema.index({ class: 1, section: 1 });
+studentSchema.index({ class: 1, section: 1, classRollNo: 1 });
 studentSchema.index({ email: 1 });
 studentSchema.index({ guardianPhone: 1 });
 studentSchema.index({ isActive: 1 });
@@ -304,8 +311,20 @@ studentSchema.statics.findBySubject = function(subjectId) {
 };
 
 // Static method to get student statistics
-studentSchema.statics.getStats = async function() {
-  const students = await this.find({}, 'class section isActive gender dateOfBirth').lean();
+studentSchema.statics.getStats = async function(filters = {}) {
+  const query = {};
+  const className = String(filters.className || '').trim();
+  const section = String(filters.section || '').trim();
+  const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  if (className) {
+    query.class = { $regex: `^${escapeRegex(className)}$`, $options: 'i' };
+  }
+  if (section) {
+    query.section = { $regex: `^${escapeRegex(section)}$`, $options: 'i' };
+  }
+
+  const students = await this.find(query, 'class section isActive gender dateOfBirth').lean();
   const now = new Date();
 
   const byClassSectionMap = new Map();
@@ -387,7 +406,7 @@ studentSchema.statics.getStats = async function() {
     byClassSection: Array.from(byClassSectionMap.values()).sort((a, b) => {
       const classDiff = sortClassValue(a._id.class) - sortClassValue(b._id.class);
       if (classDiff !== 0) return classDiff;
-      return String(a._id.section).localeCompare(String(b._id.section));
+      return sortSectionNames(String(a._id.section), String(b._id.section), a._id.class);
     }),
     byGender: STUDENT_GENDERS.map((gender) => byGenderMap.get(gender) || {
       _id: gender,

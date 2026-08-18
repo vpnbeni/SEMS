@@ -72,6 +72,10 @@ import ExmclCirculars from './pages/ExmclCirculars'
 import ExmclResult from './pages/ExmclResult'
 import ExmclReportCard from './pages/ExmclReportCard'
 import ExmclAwardList from './pages/ExmclAwardList'
+import ExmclAwardListFormat from './pages/ExmclAwardListFormat'
+import ExmclAdmitCards from './pages/ExmclAdmitCards'
+import ExmclAdmitCardFormat from './pages/ExmclAdmitCardFormat'
+import ExmclReportCardFormat from './pages/ExmclReportCardFormat'
 import ExmclQuestionPapers from './pages/ExmclQuestionPapers'
 import ExmclSyllabus from './pages/ExmclSyllabus'
 import ExmclMarksDistribution from './pages/ExmclMarksDistribution'
@@ -319,8 +323,12 @@ function App() {
               <Route path="exmcl/answersheets" element={<AnswerSheets />} />
               <Route path="exmcl/answersheets/:id" element={<AnswerSheetDetails />} />
               <Route path="exmcl/attendance" element={<Attendance />} />
+              <Route path="exmcl/performas/award-list" element={<ExmclAwardListFormat />} />
+              <Route path="exmcl/performas/admit-card" element={<ExmclAdmitCardFormat />} />
+              <Route path="exmcl/performas/report-card" element={<ExmclReportCardFormat />} />
               <Route path="exmcl/performas" element={<Performas />} />
               <Route path="exmcl/centre-guidelines" element={<ExmclCirculars />} />
+              <Route path="exmcl/admit-cards" element={<ExmclAdmitCards />} />
               <Route path="exmcl/exams" element={<ExmclExams />} />
               <Route path="exmcl/result" element={<ExmclResult />} />
               <Route path="exmcl/report-card" element={<ExmclReportCard />} />

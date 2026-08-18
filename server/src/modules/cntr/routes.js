@@ -29,6 +29,8 @@ const examCircularRoutes = require('../../routes/examCircularRoutes');
 const examDefinitionRoutes = require('../../routes/examDefinitionRoutes');
 const examResultRoutes = require('../../routes/examResultRoutes');
 const reportCardRoutes = require('../../routes/reportCardRoutes');
+const awardListRoutes = require('../../routes/awardListRoutes');
+const admitCardRoutes = require('../../routes/admitCardRoutes');
 const schoolProfileRoutes = require('../../routes/schoolProfileRoutes');
 
 const mountRoutes = (router) => {
@@ -51,6 +53,8 @@ const mountRoutes = (router) => {
   router.use('/exam-definitions', requireTenantFeature('exmcl_exams'), examDefinitionRoutes);
   router.use('/exam-results', requireTenantFeature('exmcl_exams'), examResultRoutes);
   router.use('/report-card', requireTenantFeature('exmcl_exams'), reportCardRoutes);
+  router.use('/award-list', requireTenantFeature('exmcl_award_list'), awardListRoutes);
+  router.use('/admit-cards', requireTenantFeature('exmcl_admit_cards'), admitCardRoutes);
   router.use('/school-profile', schoolProfileRoutes);
 };
 

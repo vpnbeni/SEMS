@@ -164,8 +164,12 @@ app.use(mongoSanitize({
   allowDots: true,
 }));
 
-// Data sanitization against XSS
-app.use(xss());
+// Data sanitization against XSS (keep HTML on exam circulars so formatting can be saved)
+const xssSanitize = xss();
+app.use((req, res, next) => {
+  if (String(req.originalUrl || '').includes('/exam-circulars')) return next();
+  return xssSanitize(req, res, next);
+});
 
 // Prevent parameter pollution
 app.use(hpp());
