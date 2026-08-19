@@ -1,6 +1,9 @@
 import api from './api'
+import { mergeCanvasItems, type FormatCanvasItem } from '@/components/format-editor'
 
 export type AwardListDesign = {
+  formatId?: 'award-list'
+  templateId?: string
   title: string
   pageSize: 'A4' | 'legal'
   orientation: 'landscape' | 'portrait'
@@ -36,9 +39,12 @@ export type AwardListDesign = {
     principal: boolean
   }
   extraMarkColumns: number
+  canvasItems: FormatCanvasItem[]
 }
 
 export const DEFAULT_AWARD_LIST_DESIGN: AwardListDesign = {
+  formatId: 'award-list',
+  templateId: 'landscape-default',
   title: 'Award List',
   pageSize: 'A4',
   orientation: 'landscape',
@@ -74,6 +80,7 @@ export const DEFAULT_AWARD_LIST_DESIGN: AwardListDesign = {
     principal: true,
   },
   extraMarkColumns: 0,
+  canvasItems: [],
 }
 
 const triggerDownload = (blob: Blob, filename: string) => {
@@ -87,21 +94,35 @@ const triggerDownload = (blob: Blob, filename: string) => {
   URL.revokeObjectURL(url)
 }
 
+export const mergeAwardListDesign = (data: Partial<AwardListDesign> = {}): AwardListDesign => ({
+  ...DEFAULT_AWARD_LIST_DESIGN,
+  ...data,
+  formatId: 'award-list',
+  templateId: data.templateId || DEFAULT_AWARD_LIST_DESIGN.templateId,
+  columns: { ...DEFAULT_AWARD_LIST_DESIGN.columns, ...(data.columns || {}) },
+  signatures: { ...DEFAULT_AWARD_LIST_DESIGN.signatures, ...(data.signatures || {}) },
+  headerFields: { ...DEFAULT_AWARD_LIST_DESIGN.headerFields, ...(data.headerFields || {}) },
+  canvasItems: mergeCanvasItems(data.canvasItems),
+})
+
 const getDesign = async (): Promise<AwardListDesign> => {
   const response = await api.get('/award-list/design')
-  const data = response?.data?.data || {}
-  return {
-    ...DEFAULT_AWARD_LIST_DESIGN,
-    ...data,
-    columns: { ...DEFAULT_AWARD_LIST_DESIGN.columns, ...(data.columns || {}) },
-    signatures: { ...DEFAULT_AWARD_LIST_DESIGN.signatures, ...(data.signatures || {}) },
-    headerFields: { ...DEFAULT_AWARD_LIST_DESIGN.headerFields, ...(data.headerFields || {}) },
-  }
+  return mergeAwardListDesign(response?.data?.data || {})
 }
 
 const saveDesign = async (design: AwardListDesign): Promise<AwardListDesign> => {
   const response = await api.put('/award-list/design', { design }, { _silent: true } as any)
-  return { ...DEFAULT_AWARD_LIST_DESIGN, ...(response?.data?.data || design) }
+  return mergeAwardListDesign(response?.data?.data || design)
+}
+
+const uploadCanvasImage = async (file: File): Promise<{ url: string }> => {
+  const formData = new FormData()
+  formData.append('image', file)
+  const response = await api.post('/award-list/design/image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    _silent: true,
+  } as any)
+  return { url: String(response?.data?.data?.url || '') }
 }
 
 const downloadAwardList = async (
@@ -140,6 +161,6 @@ const downloadAwardList = async (
   triggerDownload(blob, filename)
 }
 
-const exmclAwardListService = { getDesign, saveDesign, downloadAwardList }
+const exmclAwardListService = { getDesign, saveDesign, uploadCanvasImage, downloadAwardList }
 
 export default exmclAwardListService

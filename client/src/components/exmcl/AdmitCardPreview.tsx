@@ -1,4 +1,3 @@
-import React from 'react'
 import type { AdmitCardDesign } from '@/services/exmclAdmitCardService'
 
 export type AdmitCardPreviewStudent = {

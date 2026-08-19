@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Save } from 'lucide-react'
+import { RotateCcw, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import exmclAdmitCardService, {
@@ -8,6 +8,8 @@ import exmclAdmitCardService, {
 } from '@/services/exmclAdmitCardService'
 import schoolProfileService, { type SchoolProfile } from '@/services/schoolProfileService'
 import AdmitCardPreview from '@/components/exmcl/AdmitCardPreview'
+import { CanvasOverlay, FormatToolbar, type FormatTextStyle } from '@/components/format-editor'
+import { useFormatCanvas } from '@/hooks/useFormatCanvas'
 
 const PREVIEW_SCHOOL = {
   name: 'INTL BHARTI SCHOOL, ROHTAK',
@@ -68,6 +70,32 @@ const ExmclAdmitCardFormat: React.FC = () => {
   const twoUp = design.copiesPerSheet === 2
   const pageAspect = PAGE_ASPECT[design.pageSize][design.orientation]
   const copyCount = useMemo(() => (twoUp ? [0, 1] : [0]), [twoUp])
+  const canvas = useFormatCanvas(
+    design.canvasItems || [],
+    (canvasItems) => setDesign((prev) => ({ ...prev, canvasItems })),
+    (file) => exmclAdmitCardService.uploadCanvasImage(file)
+  )
+  const defaultStyle: FormatTextStyle = { fontFamily: 'Arial', fontSize: 12, bold: false, italic: false, underline: false }
+  const activeStyle: FormatTextStyle =
+    canvas.selected?.type === 'text'
+      ? {
+          fontFamily: canvas.selected.fontFamily,
+          fontSize: canvas.selected.fontSize,
+          bold: canvas.selected.bold,
+          italic: canvas.selected.italic,
+          underline: canvas.selected.underline,
+        }
+      : defaultStyle
+  const selectionLabel =
+    canvas.selected?.type === 'text'
+      ? 'Text box'
+      : canvas.selected?.type === 'image'
+        ? 'Image'
+        : canvas.selected?.type === 'rect'
+          ? 'Box'
+          : canvas.selected?.type === 'line'
+            ? 'Line'
+            : 'Admit card'
 
   const updateField = (key: keyof AdmitCardDesign['fields'], value: boolean) => {
     setDesign((prev) => ({ ...prev, fields: { ...prev.fields, [key]: value } }))
@@ -296,45 +324,81 @@ const ExmclAdmitCardFormat: React.FC = () => {
           >
             Generate admit cards
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDesign(DEFAULT_ADMIT_CARD_DESIGN)
+              canvas.setSelectedId(null)
+              toast.success('Reset to the CBSE-style admit card template.')
+            }}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-gray-600 dark:text-slate-300 dark:hover:bg-gray-900"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset to template
+          </button>
         </aside>
 
         <section className="rounded-xl border border-gray-200 bg-slate-100 p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-            Live preview · {design.pageSize === 'legal' ? 'Legal' : 'A4'} · {design.orientation} · {twoUp ? '2 per sheet' : '1 per sheet'}
-          </p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              Live preview · {design.pageSize === 'legal' ? 'Legal' : 'A4'} · {design.orientation} · {twoUp ? '2 per sheet' : '1 per sheet'}
+            </p>
+            <FormatToolbar
+              selectionLabel={selectionLabel}
+              style={activeStyle}
+              styleDisabled={!canvas.selected || canvas.selected.type !== 'text'}
+              canvasItem={canvas.selected}
+              uploadingImage={canvas.uploading}
+              onStyleChange={canvas.applyStyle}
+              onAddText={() => canvas.addItem('text')}
+              onAddImage={canvas.addImage}
+              onAddRect={() => canvas.addItem('rect')}
+              onAddLine={() => canvas.addItem('line')}
+              onPatchCanvas={canvas.patchItem}
+              onDelete={canvas.removeSelected}
+            />
+          </div>
           <div className="overflow-auto">
             <div
               className="mx-auto max-w-full bg-white p-3 shadow-md dark:bg-gray-800"
               style={{ aspectRatio: pageAspect, width: design.orientation === 'portrait' ? 'min(100%, 640px)' : '100%' }}
             >
-              <div className={twoUp ? 'flex h-full gap-2' : 'h-full'}>
-                {copyCount.map((index) => (
-                  <div key={index} className={twoUp ? 'min-w-0 flex-1' : ''}>
-                    <AdmitCardPreview
-                      design={design}
-                      compact={twoUp}
-                      data={{
-                        schoolName,
-                        schoolAddress,
-                        schoolCode,
-                        logoUrl: school.logoUrl,
-                        examName: 'SECONDARY EXAMINATION',
-                        student: {
-                          name: 'Aarav Sharma',
-                          fatherName: 'Rajesh Sharma',
-                          gender: 'Male',
-                          motherName: 'Manisha Sharma',
-                          className: '10th',
-                          section: 'A',
-                          rollNo: 12,
-                          admissionNo: '3361',
-                          dateOfBirth: '24.10.2010',
-                          admitCardId: 'ACUT12',
-                        },
-                      }}
-                    />
-                  </div>
-                ))}
+              <div className="relative h-full">
+                <div className={twoUp ? 'flex h-full gap-2' : 'h-full'}>
+                  {copyCount.map((index) => (
+                    <div key={index} className={twoUp ? 'min-w-0 flex-1' : ''}>
+                      <AdmitCardPreview
+                        design={design}
+                        compact={twoUp}
+                        data={{
+                          schoolName,
+                          schoolAddress,
+                          schoolCode,
+                          logoUrl: school.logoUrl,
+                          examName: 'SECONDARY EXAMINATION',
+                          student: {
+                            name: 'Aarav Sharma',
+                            fatherName: 'Rajesh Sharma',
+                            gender: 'Male',
+                            motherName: 'Manisha Sharma',
+                            className: '10th',
+                            section: 'A',
+                            rollNo: 12,
+                            admissionNo: '3361',
+                            dateOfBirth: '24.10.2010',
+                            admitCardId: 'ACUT12',
+                          },
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <CanvasOverlay
+                  items={design.canvasItems || []}
+                  selectedId={canvas.selectedId}
+                  onSelect={canvas.setSelectedId}
+                  onChange={(canvasItems) => setDesign((prev) => ({ ...prev, canvasItems }))}
+                />
               </div>
             </div>
           </div>

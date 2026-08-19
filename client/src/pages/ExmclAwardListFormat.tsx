@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Save } from 'lucide-react'
+import { RotateCcw, Save } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import exmclAwardListService, {
@@ -7,6 +7,8 @@ import exmclAwardListService, {
   type AwardListDesign,
 } from '@/services/exmclAwardListService'
 import schoolProfileService, { type SchoolProfile } from '@/services/schoolProfileService'
+import { CanvasOverlay, FormatToolbar, type FormatTextStyle } from '@/components/format-editor'
+import { useFormatCanvas } from '@/hooks/useFormatCanvas'
 
 const SAMPLE_SUBJECTS = ['English', 'Mathematics', 'Science']
 const PREVIEW_SCHOOL = {
@@ -216,6 +218,32 @@ const ExmclAwardListFormat: React.FC = () => {
   const twoUp = design.copiesPerSheet === 2
   const pageAspect = PAGE_ASPECT[design.pageSize][design.orientation]
   const copyCount = useMemo(() => (twoUp ? [0, 1] : [0]), [twoUp])
+  const canvas = useFormatCanvas(
+    design.canvasItems || [],
+    (canvasItems) => setDesign((prev) => ({ ...prev, canvasItems })),
+    (file) => exmclAwardListService.uploadCanvasImage(file)
+  )
+  const defaultStyle: FormatTextStyle = { fontFamily: 'Arial', fontSize: 12, bold: false, italic: false, underline: false }
+  const activeStyle: FormatTextStyle =
+    canvas.selected?.type === 'text'
+      ? {
+          fontFamily: canvas.selected.fontFamily,
+          fontSize: canvas.selected.fontSize,
+          bold: canvas.selected.bold,
+          italic: canvas.selected.italic,
+          underline: canvas.selected.underline,
+        }
+      : defaultStyle
+  const selectionLabel =
+    canvas.selected?.type === 'text'
+      ? 'Text box'
+      : canvas.selected?.type === 'image'
+        ? 'Image'
+        : canvas.selected?.type === 'rect'
+          ? 'Box'
+          : canvas.selected?.type === 'line'
+            ? 'Line'
+            : 'Award list'
 
   const updateColumn = (key: keyof AwardListDesign['columns'], value: boolean) => {
     setDesign((prev) => ({ ...prev, columns: { ...prev.columns, [key]: value } }))
@@ -365,37 +393,70 @@ const ExmclAwardListFormat: React.FC = () => {
           >
             Generate award list
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDesign(DEFAULT_AWARD_LIST_DESIGN)
+              canvas.setSelectedId(null)
+              toast.success('Reset to the landscape award list template.')
+            }}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-gray-600 dark:text-slate-300 dark:hover:bg-gray-900"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset to template
+          </button>
         </aside>
 
         <section className="rounded-xl border border-gray-200 bg-slate-100 p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
-          <div className="mb-3 flex items-center justify-between">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
               Live preview · {design.pageSize === 'legal' ? 'Legal' : 'A4'} · {design.orientation} · {twoUp ? '2 per sheet' : '1 per sheet'}
             </p>
-            <p className="text-[11px] text-slate-400">Type into header lines to preview values</p>
+            <FormatToolbar
+              selectionLabel={selectionLabel}
+              style={activeStyle}
+              styleDisabled={!canvas.selected || canvas.selected.type !== 'text'}
+              canvasItem={canvas.selected}
+              uploadingImage={canvas.uploading}
+              onStyleChange={canvas.applyStyle}
+              onAddText={() => canvas.addItem('text')}
+              onAddImage={canvas.addImage}
+              onAddRect={() => canvas.addItem('rect')}
+              onAddLine={() => canvas.addItem('line')}
+              onPatchCanvas={canvas.patchItem}
+              onDelete={canvas.removeSelected}
+            />
           </div>
           <div className="overflow-auto">
             <div
               className="mx-auto max-w-full bg-white p-4 shadow-md dark:bg-gray-800"
               style={{ aspectRatio: pageAspect, width: design.orientation === 'portrait' ? 'min(100%, 520px)' : '100%' }}
             >
-              <div className={twoUp ? 'flex h-full gap-3' : 'h-full'}>
-                {copyCount.map((index) => (
-                  <div
-                    key={index}
-                    className={twoUp ? 'min-w-0 flex-1 border-r border-dashed border-slate-300 pr-3 last:border-r-0 last:pr-0 last:pl-3' : ''}
-                  >
-                    <AwardListCopy
-                      design={design}
-                      schoolName={schoolName}
-                      schoolAddress={schoolAddress}
-                      logoUrl={school.logoUrl}
-                      sample={sample}
-                      onSampleChange={handleSampleChange}
-                      compact={twoUp}
-                    />
-                  </div>
-                ))}
+              <div className="relative h-full">
+                <div className={twoUp ? 'flex h-full gap-3' : 'h-full'}>
+                  {copyCount.map((index) => (
+                    <div
+                      key={index}
+                      className={twoUp ? 'min-w-0 flex-1 border-r border-dashed border-slate-300 pr-3 last:border-r-0 last:pr-0 last:pl-3' : ''}
+                    >
+                      <AwardListCopy
+                        design={design}
+                        schoolName={schoolName}
+                        schoolAddress={schoolAddress}
+                        logoUrl={school.logoUrl}
+                        sample={sample}
+                        onSampleChange={handleSampleChange}
+                        compact={twoUp}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <CanvasOverlay
+                  items={design.canvasItems || []}
+                  selectedId={canvas.selectedId}
+                  onSelect={canvas.setSelectedId}
+                  onChange={(canvasItems) => setDesign((prev) => ({ ...prev, canvasItems }))}
+                />
               </div>
             </div>
           </div>

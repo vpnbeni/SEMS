@@ -435,6 +435,10 @@
   <div class="canvas-item" style="{{{boxStyle}}}">
     {{#if isImage}}
     <img src="{{imageUrl}}" alt="" />
+    {{else if isRect}}
+    <div style="{{{shapeStyle}}}"></div>
+    {{else if isLine}}
+    <div style="{{{shapeStyle}}}"></div>
     {{else}}
     <div class="canvas-item-text" style="{{{textStyle}}}">{{text}}</div>
     {{/if}}

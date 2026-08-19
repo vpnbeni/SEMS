@@ -5,6 +5,7 @@ const ExamDefinition = require('../models/ExamDefinition');
 const Student = require('../models/Student');
 const SchoolProfile = require('../models/SchoolProfile');
 const TimetableState = require('../models/TimetableState');
+const { parseCanvasItems, mapCanvasItemsForTemplate } = require('../utils/formatCanvasItems');
 
 const formatExamDate = (value) => {
   const raw = String(value || '').trim();
@@ -96,6 +97,9 @@ const parseDesign = (source = {}) => {
     },
     extraMarks,
     extraMarkColumns,
+    formatId: 'award-list',
+    templateId: String(source.templateId || 'landscape-default'),
+    canvasItems: parseCanvasItems(source.canvasItems),
   };
 };
 
@@ -113,6 +117,9 @@ const toPersistableDesign = (design) => ({
   columns: design.columns,
   signatures: design.signatures,
   extraMarkColumns: design.extraMarkColumns,
+  formatId: design.formatId,
+  templateId: design.templateId,
+  canvasItems: design.canvasItems,
 });
 
 const loadSavedDesign = async (SchoolProfileModel) => {
@@ -236,6 +243,7 @@ const generateAwardList = asyncHandler(async (req, res) => {
     copies: design.copiesPerSheet === 2 ? [{}, {}] : [{}],
     signatureLabels,
     showSignatures: signatureLabels.length > 0,
+    canvasItems: mapCanvasItemsForTemplate(design.canvasItems),
   };
 
   const pdfBuffer = await pdfGenerator.generatePDF('award-list', templateData);

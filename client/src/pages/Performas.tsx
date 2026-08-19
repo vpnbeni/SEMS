@@ -15,7 +15,7 @@ const FORMAT_TILES: FormatTile[] = [
   {
     id: 'award-list',
     name: 'Award List',
-    description: 'Design the award list layout used when generating PDFs.',
+    description: 'Open the shared format editor with the award list template, then generate PDFs from Award List.',
     href: '/exmcl/performas/award-list',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="hub-card-icon">
@@ -26,7 +26,7 @@ const FORMAT_TILES: FormatTile[] = [
   {
     id: 'admit-card',
     name: 'Admit Card',
-    description: 'Design the admit card layout used when generating student exam cards.',
+    description: 'Open the shared format editor with the admit card template, then generate PDFs from Admit Cards.',
     href: '/exmcl/performas/admit-card',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="hub-card-icon">
@@ -80,7 +80,7 @@ const FORMAT_TILES: FormatTile[] = [
   {
     id: 'report-card',
     name: 'Report Card',
-    description: 'Design the report card layout used when generating PDFs.',
+    description: 'Open the shared format editor with the IB-style report card template, then generate PDFs from Report Card.',
     href: '/exmcl/performas/report-card',
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="hub-card-icon">

@@ -10,6 +10,7 @@ const Student = require('../models/Student');
 const SchoolProfile = require('../models/SchoolProfile');
 const DateSheet = require('../models/DateSheet');
 const CentreDetail = require('../models/CentreDetail');
+const { parseCanvasItems, mapCanvasItemsForTemplate } = require('../utils/formatCanvasItems');
 
 const toBoolean = (value, fallback = true) => {
   if (value === undefined || value === null || value === '') return fallback;
@@ -90,6 +91,9 @@ const parseDesign = (source = {}) => {
       examInchargeSignaturePublicId: String(signatures.examInchargeSignaturePublicId || '').trim(),
       principalSignaturePublicId: String(signatures.principalSignaturePublicId || '').trim(),
     },
+    formatId: 'admit-card',
+    templateId: String(source.templateId || 'portrait-default'),
+    canvasItems: parseCanvasItems(source.canvasItems),
   };
 };
 
@@ -111,6 +115,9 @@ const toPersistableDesign = (design) => ({
   showDisclaimer: design.showDisclaimer,
   fields: design.fields,
   signatures: design.signatures,
+  formatId: design.formatId,
+  templateId: design.templateId,
+  canvasItems: design.canvasItems,
 });
 
 const formatDate = (value) => {
@@ -323,6 +330,7 @@ const generateAdmitCards = asyncHandler(async (req, res) => {
     pageSize: design.pageSize === 'legal' ? 'legal' : 'A4',
     twoUp: perSheet === 2,
     sheets,
+    canvasItems: mapCanvasItemsForTemplate(design.canvasItems),
   };
 
   const pdfBuffer = await pdfGenerator.generatePDF('admit-card', templateData);

@@ -9,6 +9,7 @@ const {
 
 router.get('/design', getAdmitCardDesign);
 router.put('/design', saveAdmitCardDesign);
+router.post('/design/image', require('../controllers/formatCanvasController').uploadFormatCanvasImage);
 router.post('/design/signature/:role', uploadAdmitCardSignature);
 router.get('/', generateAdmitCards);
 router.post('/', generateAdmitCards);

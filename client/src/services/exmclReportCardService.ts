@@ -1,4 +1,8 @@
 import api from './api'
+import {
+  mergeCanvasItems,
+  type FormatCanvasItem,
+} from '@/components/format-editor'
 
 export type ReportCardPageSize = 'A4' | 'legal' | 'letter'
 export type ReportCardOrientation = 'portrait' | 'landscape'
@@ -56,26 +60,11 @@ export type ReportCardStyleKey =
 
 export type ReportCardColumnKey = 'subjects' | 'maxMarks' | 'marksObtained' | 'grade'
 
-export type ReportCardCanvasItem = {
-  id: string
-  type: 'text' | 'image'
-  x: number
-  y: number
-  width: number
-  height: number
-  zIndex: number
-  text: string
-  imageUrl: string
-  fontFamily: ReportCardFontFamily
-  fontSize: number
-  bold: boolean
-  italic: boolean
-  underline: boolean
-  color: string
-  align: 'left' | 'center' | 'right'
-}
+export type ReportCardCanvasItem = FormatCanvasItem
 
 export type ReportCardDesign = {
+  formatId?: 'report-card'
+  templateId?: string
   schoolName: string
   tagline: string
   schoolCode: string
@@ -136,6 +125,8 @@ export const DEFAULT_REPORT_CARD_STYLES: Record<ReportCardStyleKey, ReportCardTe
 }
 
 export const DEFAULT_REPORT_CARD_DESIGN: ReportCardDesign = {
+  formatId: 'report-card',
+  templateId: 'ib-portrait',
   schoolName: 'I.B. SCHOOL',
   tagline: 'Always Learning, Learning All Ways.....',
   schoolCode: '40291',
@@ -198,25 +189,6 @@ const mergeStyle = (
   underline: extra?.underline ?? base.underline,
 })
 
-const mergeCanvasItem = (item: Partial<ReportCardCanvasItem>, index: number): ReportCardCanvasItem => ({
-  id: String(item.id || `canvas_${index}`),
-  type: item.type === 'image' ? 'image' : 'text',
-  x: Number(item.x) || 0,
-  y: Number(item.y) || 0,
-  width: Number(item.width) || 20,
-  height: Number(item.height) || 8,
-  zIndex: Number(item.zIndex) || index + 1,
-  text: String(item.text || ''),
-  imageUrl: String(item.imageUrl || ''),
-  fontFamily: parseFontFamily(item.fontFamily),
-  fontSize: Number(item.fontSize) > 0 ? Number(item.fontSize) : 16,
-  bold: Boolean(item.bold),
-  italic: Boolean(item.italic),
-  underline: Boolean(item.underline),
-  color: String(item.color || '#000000'),
-  align: item.align === 'center' || item.align === 'right' ? item.align : 'left',
-})
-
 export const mergeDesign = (data: Partial<ReportCardDesign> = {}): ReportCardDesign => {
   const pageSize = data.pageSize === 'legal' || data.pageSize === 'letter' ? data.pageSize : 'A4'
   const styles = { ...DEFAULT_REPORT_CARD_STYLES }
@@ -241,7 +213,11 @@ export const mergeDesign = (data: Partial<ReportCardDesign> = {}): ReportCardDes
       ...DEFAULT_REPORT_CARD_DESIGN.columnWidths,
       ...(data.columnWidths || {}),
     },
-    canvasItems: Array.isArray(data.canvasItems) ? data.canvasItems.map(mergeCanvasItem) : [],
+    formatId: 'report-card',
+    templateId: data.templateId || DEFAULT_REPORT_CARD_DESIGN.templateId,
+    canvasItems: mergeCanvasItems(
+      data.canvasItems || (data as { blocks?: { canvasItems?: ReportCardCanvasItem[] } }).blocks?.canvasItems
+    ),
   }
 }
 
