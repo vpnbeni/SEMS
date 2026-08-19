@@ -1,47 +1,85 @@
-export type ModuleId = 'cntr' | 'exmcl' | 'timetable' | 'stdnt' | 'staaf' | 'attnd'
+import cntrIcon from '../assets/CNTR.png'
+import exmclIcon from '../assets/EXMCL.png'
+import tmtblIcon from '../assets/TMTBL.png'
+import stdntIcon from '../assets/STDNT.png'
+import staafIcon from '../assets/STAFF.png'
+import attndIcon from '../assets/ATTND.png'
+import trnstIcon from '../assets/TRNST.png'
+import acdmcIcon from '../assets/ACDMC.png'
+import actvtIcon from '../assets/ACTVT.png'
+
+export type ModuleId = 'cntr' | 'exmcl' | 'timetable' | 'stdnt' | 'staaf' | 'attnd' | 'trnst' | 'acdmc' | 'actvt'
 
 export type ModuleDefinition = {
   id: ModuleId
   abbreviation: string
   title: string
   defaultRoute: string
+  icon: string
 }
 
 export const MODULE_REGISTRY: ModuleDefinition[] = [
   {
-    id: 'cntr',
-    abbreviation: 'Cntr',
-    title: 'Exam Centre Control',
-    defaultRoute: '/dashboard',
-  },
-  {
-    id: 'exmcl',
-    abbreviation: 'ExmCl',
-    title: 'Internal Exams',
-    defaultRoute: '/exmcl/centre-details',
-  },
-  {
-    id: 'timetable',
-    abbreviation: 'Tmtbl',
-    title: 'Timetable Management',
-    defaultRoute: '/school-hub',
-  },
-  {
     id: 'stdnt',
-    abbreviation: 'Stdnt',
+    abbreviation: 'STDNT',
     title: 'Student Management',
-    defaultRoute: '/stdnt/student-info',
+    defaultRoute: '/stdnt/stdntboard',
+    icon: stdntIcon,
   },
   {
     id: 'staaf',
     abbreviation: 'STAAF',
-    title: 'Staff Management',
-    defaultRoute: '/staaf/staff-members',
+    title: 'Human Resource Management',
+    defaultRoute: '/staaf/overview',
+    icon: staafIcon,
   },
   {
     id: 'attnd',
     abbreviation: 'ATTND',
     title: 'Attendance Management',
-    defaultRoute: '/attnd/staff-attendance',
+    defaultRoute: '/attnd/attndboard',
+    icon: attndIcon,
+  },
+  {
+    id: 'acdmc',
+    abbreviation: 'ACDMC',
+    title: 'Academics',
+    defaultRoute: '/acdmc/lesson-plan',
+    icon: acdmcIcon,
+  },
+  {
+    id: 'timetable',
+    abbreviation: 'TMTBL',
+    title: 'Timetable Management',
+    defaultRoute: '/school-hub',
+    icon: tmtblIcon,
+  },
+  {
+    id: 'actvt',
+    abbreviation: 'ACTVT',
+    title: 'Activities',
+    defaultRoute: '/actvt/clubs',
+    icon: actvtIcon,
+  },
+  {
+    id: 'trnst',
+    abbreviation: 'TRNST',
+    title: 'School Transport',
+    defaultRoute: '/trnst',
+    icon: trnstIcon,
+  },
+  {
+    id: 'exmcl',
+    abbreviation: 'EXMCL',
+    title: 'Internal Exams',
+    defaultRoute: '/exmcl/centre-details',
+    icon: exmclIcon,
+  },
+  {
+    id: 'cntr',
+    abbreviation: 'CNTR',
+    title: 'Exam Centre Control',
+    defaultRoute: '/dashboard',
+    icon: cntrIcon,
   },
 ]

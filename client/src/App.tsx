@@ -20,6 +20,10 @@ import StdntLanding from './pages/StdntLanding'
 import StudentInfo from './pages/StudentInfo'
 import Students from './pages/Students'
 import StaafStaffMembers from './pages/StaafStaffMembers'
+import StaafOverview from './pages/StaafOverview'
+import StaafStaffGroup from './pages/StaafStaffGroup'
+import StaafOrgStructure from './pages/StaafOrgStructure'
+import StaafRecruitment from './pages/StaafRecruitment'
 import Teachers from './pages/Teachers'
 import TeacherDetail from './pages/TeacherDetail'
 import Duties from './pages/Duties'
@@ -84,6 +88,22 @@ import ExmclDatesheets from './pages/ExmclDatesheets'
 import ExmclSubjects from './pages/ExmclSubjects'
 import AttndStaffAttendance from './pages/AttndStaffAttendance'
 import AttndStudentAttendance from './pages/AttndStudentAttendance'
+import Attndboard from './pages/Attndboard'
+import AlmniDirectory from './pages/AlmniDirectory'
+import TrnstOverview from './pages/TrnstOverview'
+import TrnstVehicles from './pages/TrnstVehicles'
+import TrnstRoutes from './pages/TrnstRoutes'
+import TrnstSelfStudents from './pages/TrnstSelfStudents'
+import AcdmcLessonPlan from './pages/acdmc/AcdmcLessonPlan'
+import AcdmcHomework from './pages/acdmc/AcdmcHomework'
+import AcdmcAssignment from './pages/acdmc/AcdmcAssignment'
+import AcdmcQuiz from './pages/acdmc/AcdmcQuiz'
+import AcdmcCurriculum from './pages/acdmc/AcdmcCurriculum'
+import ActvtClubs from './pages/actvt/ActvtClubs'
+import ActvtHouses from './pages/actvt/ActvtHouses'
+import ActvtTours from './pages/actvt/ActvtTours'
+import ActvtSports from './pages/actvt/ActvtSports'
+import ActvtFunctions from './pages/actvt/ActvtFunctions'
 import { OnboardingPage, ValidationReportPage } from './pages/Onboarding'
 import { getPublicBrandVariant } from './utils/publicBranding'
 
@@ -277,16 +297,45 @@ function App() {
               <Route path="time-table/distribution" element={<Navigate to="/time-table/period-distribution" replace />} />
               <Route path="time-table/period-allocation" element={<Navigate to="/time-table/period-distribution" replace />} />
               <Route path="time-table" element={<Navigate to="/time-table/classes" replace />} />
-              <Route path="stdnt/student-info" element={<StudentInfo />} />
+              <Route path="stdnt/stdntboard" element={<StudentInfo />} />
+              <Route path="stdnt/student-info" element={<Navigate to="/stdnt/stdntboard" replace />} />
               <Route path="stdnt/students" element={<Students />} />
               <Route path="stdnt/classes" element={<TimetableClasses />} />
               <Route path="stdnt/subjects" element={<TimetableSubjects />} />
-              <Route path="stdnt" element={<Navigate to="/stdnt/student-info" replace />} />
+              <Route path="stdnt/alumni" element={<AlmniDirectory />} />
+              <Route path="stdnt" element={<Navigate to="/stdnt/stdntboard" replace />} />
+              <Route path="staaf/overview" element={<StaafOverview />} />
+              <Route path="staaf/organisation-structure" element={<StaafOrgStructure />} />
+              <Route path="staaf/teaching-staff" element={<StaafStaffGroup group="teaching" />} />
+              <Route path="staaf/sports-coach" element={<StaafStaffGroup group="sportsCoach" />} />
+              <Route path="staaf/admin-staff" element={<StaafStaffGroup group="admin" />} />
+              <Route path="staaf/drivers" element={<StaafStaffGroup group="drivers" />} />
+              <Route path="staaf/conductors" element={<StaafStaffGroup group="conductors" />} />
+              <Route path="staaf/security" element={<StaafStaffGroup group="security" />} />
+              <Route path="staaf/recruitment" element={<StaafRecruitment />} />
               <Route path="staaf/staff-members" element={<StaafStaffMembers />} />
-              <Route path="staaf" element={<Navigate to="/staaf/staff-members" replace />} />
+              <Route path="staaf" element={<Navigate to="/staaf/overview" replace />} />
+              <Route path="attnd/attndboard" element={<Attndboard />} />
               <Route path="attnd/staff-attendance" element={<AttndStaffAttendance />} />
               <Route path="attnd/student-attendance" element={<AttndStudentAttendance />} />
-              <Route path="attnd" element={<Navigate to="/attnd/staff-attendance" replace />} />
+              <Route path="attnd" element={<Navigate to="/attnd/attndboard" replace />} />
+              <Route path="almni" element={<Navigate to="/stdnt/alumni" replace />} />
+              <Route path="trnst/vehicles" element={<TrnstVehicles />} />
+              <Route path="trnst/routes" element={<TrnstRoutes />} />
+              <Route path="trnst/self-students" element={<TrnstSelfStudents />} />
+              <Route path="trnst" element={<TrnstOverview />} />
+              <Route path="acdmc/lesson-plan" element={<AcdmcLessonPlan />} />
+              <Route path="acdmc/homework" element={<AcdmcHomework />} />
+              <Route path="acdmc/assignment" element={<AcdmcAssignment />} />
+              <Route path="acdmc/quiz" element={<AcdmcQuiz />} />
+              <Route path="acdmc/curriculum" element={<AcdmcCurriculum />} />
+              <Route path="acdmc" element={<Navigate to="/acdmc/lesson-plan" replace />} />
+              <Route path="actvt/clubs" element={<ActvtClubs />} />
+              <Route path="actvt/houses" element={<ActvtHouses />} />
+              <Route path="actvt/tours" element={<ActvtTours />} />
+              <Route path="actvt/sports" element={<ActvtSports />} />
+              <Route path="actvt/functions" element={<ActvtFunctions />} />
+              <Route path="actvt" element={<Navigate to="/actvt/clubs" replace />} />
               <Route path="centre-details" element={<CentreDetails />} />
               <Route
                 path="exam-functionaries"

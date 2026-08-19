@@ -82,11 +82,37 @@ const MODULE_MODEL_KEYS = Object.freeze({
     'TimetableState',
     'StaffAttendanceDaily',
     'StudentAttendanceDaily',
+    'StudentAttendanceDay',
   ]),
   timetable: Object.freeze([
     'TimetableState',
     'TimetableVersion',
     'BellTimingVersion',
+  ]),
+  stdnt: Object.freeze([
+    'Student',
+    'AcademicSession',
+    'Alumni',
+  ]),
+  trnst: Object.freeze([
+    'TransportVehicle',
+    'TransportRoute',
+    'TransportSelfStudent',
+    'Student',
+  ]),
+  acdmc: Object.freeze([
+    'AcademicLessonPlan',
+    'AcademicHomework',
+    'AcademicAssignment',
+    'AcademicQuiz',
+    'AcademicCurriculum',
+  ]),
+  actvt: Object.freeze([
+    'ActivityClub',
+    'ActivityHouse',
+    'ActivityTour',
+    'ActivitySportsMeet',
+    'ActivityFunction',
   ]),
 });
 
@@ -99,6 +125,10 @@ const MODULE_FEATURE_KEYS = Object.freeze({
   exmcl: Object.freeze(getModuleFeatureKeys('exmcl')),
   attnd: Object.freeze(getModuleFeatureKeys('attnd')),
   timetable: Object.freeze(getModuleFeatureKeys('timetable')),
+  stdnt: Object.freeze(getModuleFeatureKeys('stdnt')),
+  trnst: Object.freeze(getModuleFeatureKeys('trnst')),
+  acdmc: Object.freeze(getModuleFeatureKeys('acdmc')),
+  actvt: Object.freeze(getModuleFeatureKeys('actvt')),
 });
 
 /**
@@ -141,6 +171,22 @@ const getActiveModelKeys = (featureToggles) => {
 
   if (isModuleActive('attnd', featureToggles)) {
     keys.push(...MODULE_MODEL_KEYS.attnd);
+  }
+
+  if (isModuleActive('stdnt', featureToggles)) {
+    keys.push(...MODULE_MODEL_KEYS.stdnt);
+  }
+
+  if (isModuleActive('trnst', featureToggles)) {
+    keys.push(...MODULE_MODEL_KEYS.trnst);
+  }
+
+  if (isModuleActive('acdmc', featureToggles)) {
+    keys.push(...MODULE_MODEL_KEYS.acdmc);
+  }
+
+  if (isModuleActive('actvt', featureToggles)) {
+    keys.push(...MODULE_MODEL_KEYS.actvt);
   }
 
   return keys;

@@ -16,6 +16,7 @@ export interface Teacher {
   oasisId?: string
   employeeId: string
   designation: string
+  gender?: 'Male' | 'Female' | 'Other' | 'Unspecified' | string
   subjects: (string | { _id: string; name: string; code: string; class?: string })[]
   subjectCode?: string
   schoolName?: string

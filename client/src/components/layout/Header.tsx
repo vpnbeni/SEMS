@@ -7,6 +7,7 @@ import { useTimetable } from '@/contexts/TimetableContext'
 import { isFeatureEnabledForPath } from '@/constants/featureAccess'
 import { useCentreDetails } from '@/hooks/useCentreDetails'
 import { useOnboardingStatus } from '@/hooks/useOnboarding'
+import { AttndModeSwitch } from '@/components/attnd/AttndModeSwitch'
 
 type HeaderProps = {
   isSidebarCollapsed: boolean
@@ -21,6 +22,8 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
   const [searchParams, setSearchParams] = useSearchParams()
   const user = useSelector(selectUser)
   const isDashboardRoute = location.pathname === '/dashboard'
+  const isStudentAttendanceRoute = /\/attnd\/student-attendance\/?$/.test(location.pathname)
+  const isStaffAttendanceRoute = /\/attnd\/staff-attendance\/?$/.test(location.pathname)
   const canAccessCentreDetails = isFeatureEnabledForPath('/centre-details', user?.featureToggles)
   const { currentSession } = useAcademicSession()
   const { periodsPerWeek, setPeriodsPerWeek } = useTimetable()
@@ -246,11 +249,13 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
         const subPage = segments[1] || ''
         const titleMap: Record<string, { title: string; subtitle: string }> = {
           'classes': { title: 'Classes', subtitle: 'Manage classes and sections for student record organization.' },
-          'student-info': { title: 'Student Info', subtitle: 'Dashboard view of student counts, sections, gender split, and age distribution.' },
+          stdntboard: { title: 'Stdntboard', subtitle: 'Dashboard view of student counts, sections, gender split, and age distribution.' },
+          'student-info': { title: 'Stdntboard', subtitle: 'Dashboard view of student counts, sections, gender split, and age distribution.' },
           'students': { title: 'Students', subtitle: 'Create, import, filter, and manage student records stored in the database.' },
+          alumni: { title: 'Alumni Directory', subtitle: 'Passed-out Class XII students, kept across sessions' },
           'subjects': { title: 'Subjects', subtitle: 'Manage subjects taught in the classes.' },
         }
-        const info = titleMap[subPage] || { title: 'Stdnt', subtitle: 'Student management workspace' }
+        const info = titleMap[subPage] || { title: 'STDNT', subtitle: 'Student management workspace' }
         return {
           pageTitle: info.title,
           pageSubtitle: info.subtitle,
@@ -261,6 +266,15 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
       case 'staaf': {
         const subPage = segments[1] || ''
         const titleMap: Record<string, { title: string; subtitle: string }> = {
+          overview: { title: 'Overview', subtitle: 'Staff stats, gender matrix, group matrix, and designation matrix.' },
+          'organisation-structure': { title: 'Organisation Structure', subtitle: 'Hierarchy of the organisation from principal to support staff.' },
+          'teaching-staff': { title: 'Teaching Staff', subtitle: 'Detailed profiles of all teaching staff members.' },
+          'sports-coach': { title: 'Sports Coach', subtitle: 'Detailed profiles of all sports coaches.' },
+          'admin-staff': { title: 'Admin Staff', subtitle: 'Detailed profiles of all admin staff members.' },
+          drivers: { title: 'Drivers', subtitle: 'Detailed profiles of all drivers.' },
+          conductors: { title: 'Conductors', subtitle: 'Detailed profiles of all conductors.' },
+          security: { title: 'Security Personnel', subtitle: 'Detailed profiles of all security personnel.' },
+          recruitment: { title: 'Recruitment', subtitle: 'Vacant posts, advertisements, applications, schedules, and recruitment process flow.' },
           'staff-members': { title: 'Staff Members', subtitle: 'Create, import, filter, and manage staff member records.' },
         }
         const info = titleMap[subPage] || { title: 'STAAF', subtitle: 'Staff management workspace' }
@@ -317,7 +331,62 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
           'performas': { title: 'Formats', subtitle: 'Design exam formats for award lists, datesheets, seating plans, and related records.' },
           'datesheets': { title: 'Date Sheets', subtitle: 'Create and manage examination date sheets' },
         }
-        const info = titleMap[subPage] || { title: 'ExmCl', subtitle: 'Internal exams workspace' }
+        const info = titleMap[subPage] || { title: 'EXMCL', subtitle: 'Internal exams workspace' }
+        return {
+          pageTitle: info.title,
+          pageSubtitle: info.subtitle,
+          showBackButton: false,
+          backTo: null,
+        }
+      }
+      case 'acdmc': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          'lesson-plan': { title: 'Lesson Plan', subtitle: 'Prepare, edit, and manage class lesson plans' },
+          homework: { title: 'Homework', subtitle: 'Record and publish daily homework' },
+          assignment: { title: 'Assignment', subtitle: 'Prepare and publish class assignments' },
+          quiz: { title: 'Quiz', subtitle: 'Prepare topic quizzes for students to attempt' },
+          curriculum: { title: 'Curriculum', subtitle: 'Manage and select books for current and next session' },
+        }
+        const info = titleMap[subPage] || { title: 'ACDMC', subtitle: 'Academics planning and tracking' }
+        return { pageTitle: info.title, pageSubtitle: info.subtitle, showBackButton: false, backTo: null }
+      }
+      case 'actvt': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          clubs: { title: 'Clubs', subtitle: 'Create clubs and organise club activities' },
+          houses: { title: 'Houses', subtitle: 'School houses, students, and house activities' },
+          tours: { title: 'Tours & Trips', subtitle: 'Educational tours, trips, and student feedback' },
+          sports: { title: 'Sports', subtitle: 'Inter-house Annual Sports Meet' },
+          functions: { title: 'Functions', subtitle: 'Plan and record school functions' },
+        }
+        const info = titleMap[subPage] || { title: 'ACTVT', subtitle: 'Co-curricular and cultural activities' }
+        return { pageTitle: info.title, pageSubtitle: info.subtitle, showBackButton: false, backTo: null }
+      }
+      case 'trnst': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          '': { title: 'Transport', subtitle: 'School routes, vehicles, and stop timings' },
+          vehicles: { title: 'Vehicles', subtitle: 'Bus and van records, capacity, and assigned staff' },
+          routes: { title: 'Routes', subtitle: 'Pickup routes, stops, and vehicle assignment' },
+          'self-students': { title: 'Self Students', subtitle: 'Students who come to school on their own' },
+        }
+        const info = titleMap[subPage] || { title: 'TRNST', subtitle: 'School transport workspace' }
+        return {
+          pageTitle: info.title,
+          pageSubtitle: info.subtitle,
+          showBackButton: false,
+          backTo: null,
+        }
+      }
+      case 'attnd': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          attndboard: { title: 'Attndboard', subtitle: 'Attendance snapshot for staff and students' },
+          'staff-attendance': { title: 'Staff Attendance', subtitle: 'Mark and save daily staff attendance' },
+          'student-attendance': { title: 'Student Attendance', subtitle: 'Mark and save student attendance classwise or daywise' },
+        }
+        const info = titleMap[subPage] || { title: 'ATTND', subtitle: 'Attendance management workspace' }
         return {
           pageTitle: info.title,
           pageSubtitle: info.subtitle,
@@ -482,6 +551,7 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
                 </p>
               </div>
             )}
+            {isStudentAttendanceRoute || isStaffAttendanceRoute ? <AttndModeSwitch /> : null}
           </div>
 
           {/* Actions */}

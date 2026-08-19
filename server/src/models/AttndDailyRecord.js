@@ -15,7 +15,7 @@ const staffAttendanceDailySchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['P', 'A'],
+    enum: ['P', 'A', 'HD'],
     default: 'P',
   },
   remarks: {
@@ -56,8 +56,13 @@ const studentAttendanceDailySchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['P', 'A'],
+    enum: ['P', 'A', 'HD'],
     default: 'P',
+  },
+  category: {
+    type: String,
+    enum: ['academic', 'non-academic'],
+    default: 'academic',
   },
   remarks: {
     type: String,
@@ -72,10 +77,41 @@ const studentAttendanceDailySchema = new mongoose.Schema({
 studentAttendanceDailySchema.index({ attendanceDate: 1, studentId: 1 }, { unique: true });
 studentAttendanceDailySchema.index({ attendanceDate: 1, className: 1, section: 1, status: 1 });
 
+const studentAttendanceDaySchema = new mongoose.Schema({
+  attendanceDate: {
+    type: String,
+    required: [true, 'Attendance date is required'],
+    trim: true,
+  },
+  className: {
+    type: String,
+    required: [true, 'Class is required'],
+    trim: true,
+    maxlength: 30,
+  },
+  section: {
+    type: String,
+    required: [true, 'Section is required'],
+    trim: true,
+    maxlength: 50,
+  },
+  category: {
+    type: String,
+    enum: ['academic', 'non-academic'],
+    default: 'academic',
+  },
+}, {
+  timestamps: true,
+});
+
+studentAttendanceDaySchema.index({ attendanceDate: 1, className: 1, section: 1 }, { unique: true });
+studentAttendanceDaySchema.plugin(academicSessionPlugin);
+
 staffAttendanceDailySchema.plugin(academicSessionPlugin);
 studentAttendanceDailySchema.plugin(academicSessionPlugin);
 
 const StaffAttendanceDaily = createContextModelProxy('StaffAttendanceDaily', staffAttendanceDailySchema);
 const StudentAttendanceDaily = createContextModelProxy('StudentAttendanceDaily', studentAttendanceDailySchema);
+const StudentAttendanceDay = createContextModelProxy('StudentAttendanceDay', studentAttendanceDaySchema);
 
-module.exports = { StaffAttendanceDaily, StudentAttendanceDaily };
+module.exports = { StaffAttendanceDaily, StudentAttendanceDaily, StudentAttendanceDay };

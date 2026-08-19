@@ -43,6 +43,12 @@ const teacherSchema = new mongoose.Schema({
     trim: true,
     maxlength: [50, 'Designation cannot be more than 50 characters']
   },
+  gender: {
+    type: String,
+    trim: true,
+    enum: ['Male', 'Female', 'Other', 'Unspecified', ''],
+    default: 'Unspecified',
+  },
   subjects: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Subject'
@@ -210,7 +216,10 @@ const teacherSchema = new mongoose.Schema({
         'Driver',
         'Conductor',
         'Peon',
-        'Sweaper'
+        'Sweaper',
+        'Admin',
+        'Security',
+        'Sports Coach'
       ],
       message: '{VALUE} is not a valid duty type'
     },
@@ -236,7 +245,10 @@ const teacherSchema = new mongoose.Schema({
         'Driver',
         'Conductor',
         'Peon',
-        'Sweaper'
+        'Sweaper',
+        'Admin',
+        'Security',
+        'Sports Coach'
       ],
       message: '{VALUE} is not a valid duty type'
     }

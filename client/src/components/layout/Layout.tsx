@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import BillingBanner from './BillingBanner'
+import { AttndMatrixModeProvider } from '@/contexts/AttndMatrixModeContext'
 
 const SIDEBAR_EXPANDED_DEFAULT = 272
 const SIDEBAR_EXPANDED_MIN = 220
@@ -65,6 +66,7 @@ const Layout: React.FC = () => {
   const currentSidebarWidth = isSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth
 
   return (
+    <AttndMatrixModeProvider>
     <div className="relative flex h-screen bg-gray-50 dark:bg-gray-900">
       {/* Sidebar */}
       <Sidebar
@@ -109,6 +111,7 @@ const Layout: React.FC = () => {
         </main>
       </div>
     </div>
+    </AttndMatrixModeProvider>
   )
 }
 
