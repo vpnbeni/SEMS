@@ -41,7 +41,10 @@ export const AwardListPreview = ({
   const subjectColumns = design.columns.subjects
     ? (data.subjects && data.subjects.length > 0 ? data.subjects : (data.subject?.trim() ? [data.subject.trim()] : ['Marks']))
     : []
-  const students = data.students && data.students.length > 0 ? data.students : []
+  const students: AwardListPreviewStudent[] =
+    data.students && data.students.length > 0
+      ? data.students
+      : Array.from({ length: 4 }, (): AwardListPreviewStudent => ({}))
   const textScale = compact ? 'text-[9px]' : 'text-[11px]'
 
   return (
@@ -105,7 +108,7 @@ export const AwardListPreview = ({
             </tr>
           </thead>
           <tbody>
-            {(students.length > 0 ? students : Array.from({ length: 4 }, (): AwardListPreviewStudent => ({}))).map((student, index) => (
+{(students.length > 0 ? students : Array.from({ length: 4 }, (): AwardListPreviewStudent => ({}))).map((student, index) => (
               <tr key={`${student.rollNumber || 'row'}-${index}`}>
                 {design.columns.srNo ? <td className="border border-slate-300 px-1 py-1.5">{index + 1}</td> : null}
                 {design.columns.rollNumber ? <td className="border border-slate-300 px-1 py-1.5">{student.rollNumber || ''}</td> : null}
