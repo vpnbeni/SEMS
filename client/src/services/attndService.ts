@@ -154,11 +154,14 @@ const saveStudentAttendance = async (
   return api.put('/attnd/students', { className, section, ...payload })
 }
 
-const getStudentAttendanceByDate = async (date: string) => {
+const getStudentAttendanceByDate = async (date: string): Promise<{
+  records: Array<{ studentId: string; attendanceDate: string; status: AttendanceStatus; remarks?: string; className?: string; section?: string }>
+  daySettings: Array<{ attendanceDate: string; category?: 'academic' | 'non-academic'; className?: string; section?: string }>
+}> => {
   const response = await api.get('/attnd/students', { params: { date } })
   const payload = response?.data?.data
   if (Array.isArray(payload)) {
-    return { records: payload, daySettings: [] as Array<{ attendanceDate: string; category?: 'academic' | 'non-academic'; className?: string; section?: string }> }
+    return { records: payload, daySettings: [] }
   }
   return {
     records: Array.isArray(payload?.records) ? payload.records : [],

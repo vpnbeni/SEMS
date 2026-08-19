@@ -145,9 +145,9 @@ export const RecordManager = ({
                       <p className="mt-1 whitespace-pre-wrap text-sm text-slate-500">{cardMeta(item)}</p>
                     </div>
                     <div className="flex gap-2">
-                      <button type="button" onClick={() => { setEditingId(item._id); setForm({ ...empty, ...item }) }} className="text-xs font-semibold text-indigo-600">Edit</button>
+                      <button type="button" onClick={() => { setEditingId(String(item._id || '')); setForm({ ...empty, ...item }) }} className="text-xs font-semibold text-indigo-600">Edit</button>
                       <button type="button" onClick={async () => {
-                        if (!window.confirm('Remove this record?')) return
+                        if (!item._id || !window.confirm('Remove this record?')) return
                         await remove(item._id)
                         toast.success('Record removed.')
                         await load()

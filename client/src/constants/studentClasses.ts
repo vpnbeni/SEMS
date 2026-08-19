@@ -39,13 +39,11 @@ export const sortClassNames = (left: string, right: string) => {
 }
 
 export const sortSectionNames = (left: string, right: string, className = '') => {
-  const ordered = isSeniorSecondaryClass(className)
+  const ordered: readonly string[] = isSeniorSecondaryClass(className)
     ? SENIOR_SECONDARY_SECTION_ORDER
     : JUNIOR_SECTION_ORDER
   const rank = (name: string) => {
-    const index = ordered.indexOf(
-      String(name || '').trim().toLowerCase() as (typeof ordered)[number]
-    )
+    const index = ordered.indexOf(String(name || '').trim().toLowerCase())
     return index === -1 ? 1000 : index
   }
   const diff = rank(left) - rank(right)

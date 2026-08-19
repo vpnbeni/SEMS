@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { DateSwitcher } from '@/components/attnd/DateSwitcher'
 import attndService, { type StaffDirectoryItem } from '@/services/attndService'
