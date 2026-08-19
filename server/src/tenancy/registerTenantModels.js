@@ -31,8 +31,26 @@ const OnboardingSession = require('../models/OnboardingSession');
 const ExamCircular = require('../models/ExamCircular');
 const ExamDefinition = require('../models/ExamDefinition');
 const ExamResult = require('../models/ExamResult');
-const { StaffAttendanceDaily, StudentAttendanceDaily } = require('../models/AttndDailyRecord');
+const { StaffAttendanceDaily, StudentAttendanceDaily, StudentAttendanceDay } = require('../models/AttndDailyRecord');
 const SchoolProfile = require('../models/SchoolProfile');
+const Alumni = require('../models/Alumni');
+const TransportVehicle = require('../models/TransportVehicle');
+const TransportRoute = require('../models/TransportRoute');
+const TransportSelfStudent = require('../models/TransportSelfStudent');
+const {
+  AcademicLessonPlan,
+  AcademicHomework,
+  AcademicAssignment,
+  AcademicQuiz,
+  AcademicCurriculum,
+} = require('../models/AcademicRecords');
+const {
+  ActivityClub,
+  ActivityHouse,
+  ActivityTour,
+  ActivitySportsMeet,
+  ActivityFunction,
+} = require('../models/ActivityRecords');
 
 const tenantModelExports = {
   User,
@@ -72,7 +90,22 @@ const tenantModelExports = {
   ExamResult,
   StaffAttendanceDaily,
   StudentAttendanceDaily,
+  StudentAttendanceDay,
   SchoolProfile,
+  Alumni,
+  TransportVehicle,
+  TransportRoute,
+  TransportSelfStudent,
+  AcademicLessonPlan,
+  AcademicHomework,
+  AcademicAssignment,
+  AcademicQuiz,
+  AcademicCurriculum,
+  ActivityClub,
+  ActivityHouse,
+  ActivityTour,
+  ActivitySportsMeet,
+  ActivityFunction,
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

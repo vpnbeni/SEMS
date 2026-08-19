@@ -37,10 +37,10 @@
   {
     "key": "staaf_staff_members",
     "label": "STAAF - Staff Members",
-    "path": "/staaf/staff-members",
+    "path": "/staaf/overview",
     "group": "Staff Hub",
     "module": "staaf",
-    "prefixes": ["/staaf/staff-members"],
+    "prefixes": ["/staaf"],
     "fallbackPriority": 29
   },
   {
@@ -59,6 +59,42 @@
     "group": "Attendance Hub",
     "module": "attnd",
     "prefixes": ["/attnd/student-attendance"]
+  },
+  {
+    "key": "almni_directory",
+    "label": "Stdnt - Alumni Directory",
+    "path": "/stdnt/alumni",
+    "group": "Student Hub",
+    "module": "stdnt",
+    "prefixes": ["/stdnt/alumni", "/almni"],
+    "fallbackPriority": 32
+  },
+  {
+    "key": "trnst_transport",
+    "label": "TRNST - School Transport",
+    "path": "/trnst",
+    "group": "Transport Hub",
+    "module": "trnst",
+    "prefixes": ["/trnst"],
+    "fallbackPriority": 33
+  },
+  {
+    "key": "acdmc_academics",
+    "label": "ACDMC - Academics",
+    "path": "/acdmc/lesson-plan",
+    "group": "Academics Hub",
+    "module": "acdmc",
+    "prefixes": ["/acdmc"],
+    "fallbackPriority": 34
+  },
+  {
+    "key": "actvt_activities",
+    "label": "ACTVT - Activities",
+    "path": "/actvt/clubs",
+    "group": "Activities Hub",
+    "module": "actvt",
+    "prefixes": ["/actvt"],
+    "fallbackPriority": 35
   },
   {
     "key": "timetable_bell_timings",

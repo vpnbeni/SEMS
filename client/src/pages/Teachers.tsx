@@ -100,6 +100,8 @@ type TeachersProps = {
   enforceDesignationDutyRules?: boolean;
   alwaysEditableDutyType?: boolean;
   dutyTypeErrorLabel?: string;
+  recordFilter?: (teacher: Teacher) => boolean;
+  entityLabelPlural?: string;
 };
 
 const Teachers: React.FC<TeachersProps> = ({
@@ -125,6 +127,8 @@ const Teachers: React.FC<TeachersProps> = ({
   enforceDesignationDutyRules = true,
   alwaysEditableDutyType = false,
   dutyTypeErrorLabel,
+  recordFilter,
+  entityLabelPlural: entityLabelPluralOverride,
 }) => {
   const dispatch = useDispatch<AppDispatch>();
   const queryClient = useQueryClient();
@@ -422,6 +426,10 @@ const Teachers: React.FC<TeachersProps> = ({
 
     let filtered = transformed;
 
+    if (recordFilter) {
+      filtered = filtered.filter(recordFilter);
+    }
+
     if (needle) {
       filtered = filtered.filter((teacher) => {
         const name = String(teacher.name || '').toLowerCase();
@@ -480,7 +488,7 @@ const Teachers: React.FC<TeachersProps> = ({
       if (pa !== pb) return pa - pb;
       return (a.name || '').localeCompare(b.name || '');
     });
-  }, [availableTeachers, debouncedSearchTerm, filterSchoolCode, filterSubject, filterDutyType]);
+  }, [availableTeachers, debouncedSearchTerm, filterSchoolCode, filterSubject, filterDutyType, recordFilter]);
   const pagination = isLocalSource
     ? {
       currentPage: hidePagination ? 1 : currentPage,
@@ -525,8 +533,7 @@ const Teachers: React.FC<TeachersProps> = ({
   const selectedCount = selectedTeacherList.length;
   const allVisibleSelected = visibleTeacherIds.length > 0 && selectedCount === visibleTeacherIds.length;
 
-  // Total card should reflect currently visible (non-hidden) functionaries.
-  const visibleTotalTeachers = availableTeachers.length;
+  const visibleTotalTeachers = filteredTeachers.length;
   const normalizeValue = (value: string | undefined) => String(value || "").trim().toLowerCase();
   const isSelfSchoolTeacher = (teacher: Teacher) => {
     const teacherSchoolCode = normalizeValue(teacher.schoolCode);
@@ -545,13 +552,17 @@ const Teachers: React.FC<TeachersProps> = ({
     return false;
   };
 
-  const activeCount = displayTeachers.filter((t) => isSelfSchoolTeacher(t)).length;
-  const inactiveCount = Math.max(0, displayTeachers.length - activeCount);
+  const activeCount = filteredTeachers.filter((t) => isSelfSchoolTeacher(t)).length;
+  const inactiveCount = Math.max(0, filteredTeachers.length - activeCount);
   const tableColumnCount = 10 - (hideDutyType ? 1 : 0) - (hideSchoolCode ? 1 : 0) - (hideSchoolName ? 1 : 0);
-  const entityLabelPlural = entityLabelSingular.endsWith("y")
-    ? `${entityLabelSingular.slice(0, -1)}ies`
-    : `${entityLabelSingular}s`;
+  const entityLabelPlural = entityLabelPluralOverride
+    || (/personnel$/i.test(entityLabelSingular)
+      ? entityLabelSingular
+      : entityLabelSingular.endsWith("y")
+        ? `${entityLabelSingular.slice(0, -1)}ies`
+        : `${entityLabelSingular}s`);
   const entityLabelSingularTitle = `${entityLabelSingular.charAt(0).toUpperCase()}${entityLabelSingular.slice(1)}`;
+  const entityLabelPluralTitle = `${entityLabelPlural.charAt(0).toUpperCase()}${entityLabelPlural.slice(1)}`;
   const srNoOffset = hidePagination ? 0 : (currentPage - 1) * LIMIT;
 
   const invalidateTeachers = () => {
@@ -760,7 +771,7 @@ const Teachers: React.FC<TeachersProps> = ({
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total Functionaries</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Total {entityLabelPluralTitle}</p>
               <span key={visibleTotalTeachers} className="text-xl font-bold text-gray-900 dark:text-white inline-block animate-number-in">{visibleTotalTeachers}</span>
             </div>
           </div>
@@ -820,7 +831,7 @@ const Teachers: React.FC<TeachersProps> = ({
                 </div>
                 <input
                   type="text"
-                  placeholder="Search teachers..."
+                  placeholder={`Search ${entityLabelPlural}...`}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="input pl-10 w-full"
@@ -1219,12 +1230,12 @@ const Teachers: React.FC<TeachersProps> = ({
               </svg>
             </div>
             <h3 className="text-lg font-semibold text-secondary-900 dark:text-white mb-2">
-              No teachers found
+              No {entityLabelPlural} found
             </h3>
             <p className="text-secondary-600 dark:text-secondary-400 mb-6">
               {searchTerm || filterSchoolCode || filterSubject || filterDutyType
-                ? "No teachers match your search criteria. Try adjusting your filters."
-                : "Get started by adding your first teacher to the system."}
+                ? `No ${entityLabelPlural} match your search criteria. Try adjusting your filters.`
+                : `Get started by adding your first ${entityLabelSingular} to the system.`}
             </p>
             {!disableApiMutations && (
               <button
@@ -1245,7 +1256,7 @@ const Teachers: React.FC<TeachersProps> = ({
                     d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                   />
                 </svg>
-                Add Functionary
+                Add {entityLabelSingularTitle}
               </button>
             )}
           </div>

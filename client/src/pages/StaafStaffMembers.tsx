@@ -1,14 +1,6 @@
 import React from 'react'
 import Teachers from './Teachers'
-
-const STAAF_TYPE_OPTIONS = [
-  'Teacher',
-  'Driver',
-  'Conductor',
-  'Peon',
-  'Sweaper',
-  'Clerk',
-]
+import { STAAF_TYPE_OPTIONS } from '../utils/staafStaff'
 
 const StaafStaffMembers: React.FC = () => {
   return (

@@ -176,13 +176,17 @@ const createTeacherSchema = Joi.object({
       'Driver',
       'Conductor',
       'Peon',
-      'Sweaper'
+      'Sweaper',
+      'Admin',
+      'Security',
+      'Sports Coach'
     )
     .allow('')
     .default('')
     .messages({
       'any.only': 'Invalid duty type'
-    })
+    }),
+  gender: Joi.string().trim().valid('Male', 'Female', 'Other', 'Unspecified', '').allow('').optional(),
 });
 
 // Update teacher validation schema
@@ -343,12 +347,16 @@ const updateTeacherSchema = Joi.object({
       'Driver',
       'Conductor',
       'Peon',
-      'Sweaper'
+      'Sweaper',
+      'Admin',
+      'Security',
+      'Sports Coach'
     )
     .allow('')
     .messages({
       'any.only': 'Invalid duty type'
-    })
+    }),
+  gender: Joi.string().trim().valid('Male', 'Female', 'Other', 'Unspecified', '').allow('').optional(),
 });
 
 // Assign subjects validation schema

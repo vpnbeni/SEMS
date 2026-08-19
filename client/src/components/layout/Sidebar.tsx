@@ -8,6 +8,7 @@ import type { AppDispatch } from '../../redux/store'
 import { useAcademicSession } from '../../contexts/AcademicSessionContext'
 import { isFeatureEnabledForPath, getModuleForPath, getAccessibleModules, getFirstEnabledPathForModule } from '../../constants/featureAccess'
 import { MODULE_REGISTRY, type ModuleId } from '../../constants/moduleRegistry'
+import { PartyPopper } from 'lucide-react'
 import { useCentreDetails } from '../../hooks/useCentreDetails'
 import logoMark from '../../assets/image.png'
 import {
@@ -301,8 +302,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
       ],
     },
     {
-      name: 'Student Info',
-      href: '/stdnt/student-info',
+      name: 'Stdntboard',
+      href: '/stdnt/stdntboard',
       module: 'stdnt',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -346,12 +347,126 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
       badge: null,
     },
     {
-      name: 'Staff Members',
-      href: '/staaf/staff-members',
+      name: 'Alumni Directory',
+      href: '/stdnt/alumni',
+      module: 'stdnt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.905 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Overview',
+      href: '/staaf/overview',
       module: 'staaf',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Organisation Structure',
+      href: '/staaf/organisation-structure',
+      module: 'staaf',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7.5 6.75h9M12 6.75v4.5m-6 0h12M6 11.25v3.75m12-3.75v3.75M3.75 15h4.5v3.75h-4.5V15zm6 0h4.5v3.75h-4.5V15zm6 0h4.5v3.75h-4.5V15z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Teaching Staff',
+      href: '/staaf/teaching-staff',
+      module: 'staaf',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Sports Coach',
+      href: '/staaf/sports-coach',
+      module: 'staaf',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3.75a2.25 2.25 0 110 4.5 2.25 2.25 0 010-4.5zM8.25 10.5h7.5M9 10.5L7.5 20.25M15 10.5l1.5 9.75M6.75 14.25h10.5" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Admin Staff',
+      href: '/staaf/admin-staff',
+      module: 'staaf',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Drivers',
+      href: '/staaf/drivers',
+      module: 'staaf',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 18.75a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0h6m-9 0H3.375a1.125 1.125 0 01-1.125-1.125V14.25m17.25 4.5a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m3 0H21m-3.375 0h-1.5M4.5 14.25l1.318-6.588A2.25 2.25 0 017.993 6h8.014a2.25 2.25 0 012.175 1.662L19.5 14.25M4.5 14.25h15" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Conductors',
+      href: '/staaf/conductors',
+      module: 'staaf',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Security',
+      href: '/staaf/security',
+      module: 'staaf',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7.5 5h9l1 1.75H6.5L7.5 5z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 8.25a2.25 2.25 0 104.5 0 2.25 2.25 0 00-4.5 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 20.25v-1.5A4.5 4.5 0 0110.5 14.25h3A4.5 4.5 0 0118 18.75v1.5" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11.5v2.25" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.75 14.25h2.5" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Recruitment',
+      href: '/staaf/recruitment',
+      module: 'staaf',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Attndboard',
+      href: '/attnd/attndboard',
+      module: 'attnd',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
         </svg>
       ),
       badge: null,
@@ -363,6 +478,162 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Lesson Plan',
+      href: '/acdmc/lesson-plan',
+      module: 'acdmc',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25A8.966 8.966 0 0118 3.75c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Homework',
+      href: '/acdmc/homework',
+      module: 'acdmc',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Assignment',
+      href: '/acdmc/assignment',
+      module: 'acdmc',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Quiz',
+      href: '/acdmc/quiz',
+      module: 'acdmc',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Curriculum',
+      href: '/acdmc/curriculum',
+      module: 'acdmc',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5V6.5A2.5 2.5 0 016.5 4H20v13H6.5A2.5 2.5 0 004 19.5z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Clubs',
+      href: '/actvt/clubs',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Houses',
+      href: '/actvt/houses',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Tours & Trips',
+      href: '/actvt/tours',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0h.5A2.5 2.5 0 0020 5.5V3.935M3.055 11A9 9 0 1021 12H3.055z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Sports',
+      href: '/actvt/sports',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <circle cx="13.5" cy="4.2" r="2" strokeWidth={2} />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 8.5l-1.8 4.2-4.7 1" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.2 12.7L6.8 21" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.2 12.7l3.5 2 3.8 6.1" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 8.5l4.2 1.6 2.4-3.6" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Functions',
+      href: '/actvt/functions',
+      module: 'actvt',
+      icon: (
+        <PartyPopper className="w-5 h-5 transition-colors duration-200" />
+      ),
+      badge: null,
+    },
+    {
+      name: 'Transport',
+      href: '/trnst',
+      module: 'trnst',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 17a2 2 0 104 0 2 2 0 00-4 0zm8 0a2 2 0 104 0 2 2 0 00-4 0zM3 9h13l3 4v4h-2M3 9v8h2M3 9l2-3h8l2 3" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Vehicles',
+      href: '/trnst/vehicles',
+      module: 'trnst',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v-5l2-4h9l3 4v5M6 16a2 2 0 104 0 2 2 0 00-4 0zm8 0a2 2 0 104 0 2 2 0 00-4 0z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Self Students',
+      href: '/trnst/self-students',
+      module: 'trnst',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.25a7.5 7.5 0 0115 0" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Routes',
+      href: '/trnst/routes',
+      module: 'trnst',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
         </svg>
       ),
       badge: null,
@@ -804,7 +1075,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
               <div className="absolute inset-0 rounded-2xl bg-sky-400/20 blur-md transition-all group-hover:bg-sky-400/30"></div>
               <div className="relative flex h-12 w-12 items-center justify-center">
                 <img
-                  src={logoMark}
+                  src={activeModuleDef.icon || logoMark}
                   alt={activeModuleDef.title}
                   className="h-12 w-12 object-contain"
                 />
@@ -871,10 +1142,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
                             : 'hover:bg-secondary-50 dark:hover:bg-secondary-800/50'
                           }`}
                         >
-                          <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center shadow-sm">
-                            <span className="text-xs font-bold text-white">
-                              {mod.abbreviation.charAt(0)}
-                            </span>
+                          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white shadow-sm ring-1 ring-secondary-200 dark:bg-secondary-800 dark:ring-secondary-700">
+                            <img
+                              src={mod.icon}
+                              alt=""
+                              className="h-9 w-9 object-contain"
+                            />
                           </div>
                           <div className="min-w-0 flex-1 ml-3">
                             <p className={`text-sm font-semibold truncate ${isActive ? 'text-primary-700 dark:text-primary-400' : 'text-secondary-900 dark:text-white'}`}>

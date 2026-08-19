@@ -1,8 +1,8 @@
-const { StaffAttendanceDaily, StudentAttendanceDaily } = require('../models/AttndDailyRecord');
+const { StaffAttendanceDaily, StudentAttendanceDaily, StudentAttendanceDay } = require('../models/AttndDailyRecord');
 const Teacher = require('../models/Teacher');
 const Student = require('../models/Student');
 const TimetableState = require('../models/TimetableState');
-const { sortSectionNames } = require('../utils/sortSections');
+const { sortSectionNames, sortClassNames } = require('../utils/sortSections');
 
 const normalizeDateKey = (value) => {
   const date = new Date(value);
@@ -24,7 +24,7 @@ const getStaffDirectory = async (req, res) => {
   try {
     const TeacherModel = req.models?.Teacher || Teacher;
     const teachers = await TeacherModel.find({})
-      .select('_id name employeeId designation isActive')
+      .select('_id name employeeId designation dutyType isActive')
       .sort({ name: 1 })
       .lean();
 
@@ -53,7 +53,7 @@ const getStudentDirectory = async (req, res) => {
 
     const students = await StudentModel.find(filter)
       .select('_id name rollNumber class section isActive')
-      .sort({ rollNumber: 1, name: 1 })
+      .sort({ name: 1, rollNumber: 1 })
       .lean();
 
     res.json({
@@ -140,15 +140,17 @@ const getStudentFilters = async (req, res) => {
 const getStaffAttendance = async (req, res) => {
   try {
     const StaffAttendanceModel = req.models?.StaffAttendanceDaily || StaffAttendanceDaily;
+    const date = normalizeDateKey(req.query.date);
     const month = normalizeMonthKey(req.query.month);
-    if (!month) {
-      return res.status(400).json({ success: false, message: 'Valid month is required in YYYY-MM format.' });
+    if (!date && !month) {
+      return res.status(400).json({ success: false, message: 'Valid date or month is required.' });
     }
 
-    const records = await StaffAttendanceModel.find({
-      attendanceDate: { $regex: `^${month}-` },
-      status: 'A',
-    })
+    const filter = { status: 'A' };
+    if (date) filter.attendanceDate = date;
+    else filter.attendanceDate = { $regex: `^${month}-` };
+
+    const records = await StaffAttendanceModel.find(filter)
       .select('staffId attendanceDate status remarks')
       .lean();
 
@@ -161,21 +163,35 @@ const getStaffAttendance = async (req, res) => {
 const saveStaffAttendance = async (req, res) => {
   try {
     const StaffAttendanceModel = req.models?.StaffAttendanceDaily || StaffAttendanceDaily;
+    const date = normalizeDateKey(req.body?.date);
     const month = normalizeMonthKey(req.body?.month);
     const absences = Array.isArray(req.body?.absences) ? req.body.absences : [];
+    const staffIds = Array.isArray(req.body?.staffIds)
+      ? req.body.staffIds.map((item) => normalizeString(item)).filter(Boolean)
+      : [];
 
-    if (!month) {
-      return res.status(400).json({ success: false, message: 'Valid month is required in YYYY-MM format.' });
+    if (!date && !month) {
+      return res.status(400).json({ success: false, message: 'Valid date or month is required.' });
+    }
+    if (staffIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'staffIds are required so other groups are not overwritten.' });
     }
 
-    await StaffAttendanceModel.deleteMany({ attendanceDate: { $regex: `^${month}-` } });
+    const filter = { staffId: { $in: staffIds } };
+    if (date) filter.attendanceDate = date;
+    else filter.attendanceDate = { $regex: `^${month}-` };
+    await StaffAttendanceModel.deleteMany(filter);
 
     const docs = absences
       .map((item) => ({
         staffId: normalizeString(item.staffId),
         attendanceDate: normalizeDateKey(item.attendanceDate),
       }))
-      .filter((item) => item.staffId && item.attendanceDate && item.attendanceDate.startsWith(`${month}-`))
+      .filter((item) => {
+        if (!item.staffId || !item.attendanceDate || !staffIds.includes(item.staffId)) return false;
+        if (date) return item.attendanceDate === date;
+        return item.attendanceDate.startsWith(`${month}-`);
+      })
       .map((item) => ({
         ...item,
         status: 'A',
@@ -192,24 +208,50 @@ const saveStaffAttendance = async (req, res) => {
 const getStudentAttendance = async (req, res) => {
   try {
     const StudentAttendanceModel = req.models?.StudentAttendanceDaily || StudentAttendanceDaily;
+    const date = normalizeDateKey(req.query.date);
     const month = normalizeMonthKey(req.query.month);
     const className = normalizeString(req.query.className);
     const section = normalizeString(req.query.section);
 
-    if (!month || !className || !section) {
-      return res.status(400).json({ success: false, message: 'Month, className and section are required.' });
+    if (date && !className && !section) {
+      const records = await StudentAttendanceModel.find({ attendanceDate: date })
+        .select('studentId attendanceDate status remarks className section')
+        .lean();
+      const DayModel = req.models?.StudentAttendanceDay || StudentAttendanceDay;
+      const daySettings = await DayModel.find({ attendanceDate: date })
+        .select('attendanceDate category className section')
+        .lean();
+      return res.json({
+        success: true,
+        data: { records, daySettings },
+      });
     }
 
-    const records = await StudentAttendanceModel.find({
-      attendanceDate: { $regex: `^${month}-` },
-      className,
-      section,
-      status: 'A',
-    })
+    if (!className || !section || (!date && !month)) {
+      return res.status(400).json({ success: false, message: 'className, section, and date or month are required.' });
+    }
+
+    const filter = { className, section };
+    if (date) filter.attendanceDate = date;
+    else filter.attendanceDate = { $regex: `^${month}-` };
+
+    const records = await StudentAttendanceModel.find(filter)
       .select('studentId attendanceDate status remarks')
       .lean();
 
-    return res.json({ success: true, data: records });
+    const DayModel = req.models?.StudentAttendanceDay || StudentAttendanceDay;
+    const dayFilter = { className, section };
+    if (date) dayFilter.attendanceDate = date;
+    else dayFilter.attendanceDate = { $regex: `^${month}-` };
+    const daySettings = await DayModel.find(dayFilter).select('attendanceDate category').lean();
+
+    return res.json({
+      success: true,
+      data: {
+        records,
+        daySettings,
+      },
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to fetch student attendance', error: error.message });
   }
@@ -218,39 +260,341 @@ const getStudentAttendance = async (req, res) => {
 const saveStudentAttendance = async (req, res) => {
   try {
     const StudentAttendanceModel = req.models?.StudentAttendanceDaily || StudentAttendanceDaily;
+    const date = normalizeDateKey(req.body?.date);
     const month = normalizeMonthKey(req.body?.month);
     const className = normalizeString(req.body?.className);
     const section = normalizeString(req.body?.section);
+    const records = Array.isArray(req.body?.records) ? req.body.records : [];
     const absences = Array.isArray(req.body?.absences) ? req.body.absences : [];
 
-    if (!month || !className || !section) {
-      return res.status(400).json({ success: false, message: 'Month, className and section are required.' });
+    if (date && !className && !section) {
+      const DayModel = req.models?.StudentAttendanceDay || StudentAttendanceDay;
+      const daySettings = Array.isArray(req.body?.daySettings) ? req.body.daySettings : [];
+      const holidayKeys = new Set(
+        daySettings
+          .filter((item) => {
+            const category = String(item.category || '').toLowerCase()
+            return category === 'non-academic' || category === 'non-academic'
+          })
+          .map((item) => `${normalizeString(item.className)}||${normalizeString(item.section)}`)
+      );
+
+      await StudentAttendanceModel.deleteMany({ attendanceDate: date });
+      const docs = absences
+        .map((item) => ({
+          studentId: normalizeString(item.studentId),
+          attendanceDate: date,
+          className: normalizeString(item.className),
+          section: normalizeString(item.section),
+          status: 'A',
+        }))
+        .filter((item) => item.studentId && item.className && item.section && !holidayKeys.has(`${item.className}||${item.section}`));
+      if (docs.length > 0) await StudentAttendanceModel.insertMany(docs, { ordered: false });
+
+      const dayOps = daySettings
+        .map((item) => {
+          const settingClassName = normalizeString(item.className);
+          const settingSection = normalizeString(item.section);
+          if (!settingClassName || !settingSection) return null;
+          return {
+            updateOne: {
+              filter: { attendanceDate: date, className: settingClassName, section: settingSection },
+              update: {
+                $set: {
+                  category: String(item.category || 'academic').toLowerCase() === 'non-academic' ? 'non-academic' : 'academic',
+                },
+              },
+              upsert: true,
+            },
+          };
+        })
+        .filter(Boolean);
+      if (dayOps.length > 0) await DayModel.bulkWrite(dayOps, { ordered: false });
+
+      return res.json({ success: true, message: 'Student attendance saved successfully.' });
     }
 
-    await StudentAttendanceModel.deleteMany({
-      attendanceDate: { $regex: `^${month}-` },
-      className,
-      section,
-    });
+    if (!className || !section || (!date && !month)) {
+      return res.status(400).json({ success: false, message: 'className, section, and date or month are required.' });
+    }
 
-    const docs = absences
-      .map((item) => ({
-        studentId: normalizeString(item.studentId),
-        attendanceDate: normalizeDateKey(item.attendanceDate),
-      }))
-      .filter((item) => item.studentId && item.attendanceDate && item.attendanceDate.startsWith(`${month}-`))
-      .map((item) => ({
-        ...item,
+    const DayModel = req.models?.StudentAttendanceDay || StudentAttendanceDay;
+    const daySettings = Array.isArray(req.body?.daySettings) ? req.body.daySettings : [];
+    const holidayDates = new Set(
+      daySettings
+        .filter((item) => String(item.category || '').toLowerCase() === 'non-academic')
+        .map((item) => normalizeDateKey(item.attendanceDate || item.date))
+        .filter(Boolean)
+    );
+
+    if (date) {
+      await StudentAttendanceModel.deleteMany({ attendanceDate: date, className, section });
+      if (!holidayDates.has(date)) {
+        const docs = records
+          .map((item) => ({
+            studentId: normalizeString(item.studentId),
+            attendanceDate: date,
+            className,
+            section,
+            status: String(item.status || 'P').toUpperCase() === 'A' ? 'A' : 'P',
+          }))
+          .filter((item) => item.studentId && item.status === 'A');
+        if (docs.length > 0) await StudentAttendanceModel.insertMany(docs, { ordered: false });
+      }
+    } else {
+      await StudentAttendanceModel.deleteMany({
+        attendanceDate: { $regex: `^${month}-` },
         className,
         section,
-        status: 'A',
-      }));
+      });
 
-    if (docs.length > 0) await StudentAttendanceModel.insertMany(docs, { ordered: false });
+      const docs = absences
+        .map((item) => ({
+          studentId: normalizeString(item.studentId),
+          attendanceDate: normalizeDateKey(item.attendanceDate),
+        }))
+        .filter((item) => item.studentId && item.attendanceDate && item.attendanceDate.startsWith(`${month}-`) && !holidayDates.has(item.attendanceDate))
+        .map((item) => ({
+          ...item,
+          className,
+          section,
+          status: 'A',
+        }));
+
+      if (docs.length > 0) await StudentAttendanceModel.insertMany(docs, { ordered: false });
+    }
+
+    const monthPrefix = month || (date ? date.slice(0, 7) : '');
+    if (monthPrefix) {
+      await DayModel.deleteMany({
+        className,
+        section,
+        attendanceDate: { $regex: `^${monthPrefix}-` },
+      });
+      const dayDocs = daySettings
+        .map((item) => ({
+          attendanceDate: normalizeDateKey(item.attendanceDate || item.date),
+          className,
+          section,
+          category: String(item.category || 'academic').toLowerCase() === 'non-academic' ? 'non-academic' : 'academic',
+        }))
+        .filter((item) => item.attendanceDate && item.attendanceDate.startsWith(`${monthPrefix}-`));
+      if (dayDocs.length > 0) await DayModel.insertMany(dayDocs, { ordered: false });
+    }
 
     return res.json({ success: true, message: 'Student attendance saved successfully.' });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to save student attendance', error: error.message });
+  }
+};
+
+const pad2 = (value) => String(value).padStart(2, '0');
+
+const localDateKey = (date = new Date()) =>
+  `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
+const localMonthKey = (date = new Date()) => localDateKey(date).slice(0, 7);
+
+const isSundayKey = (dateKey) => new Date(`${dateKey}T00:00:00`).getDay() === 0;
+
+const daysInMonthKeys = (month) => {
+  const [yearValue, monthValue] = String(month).split('-').map(Number);
+  const count = new Date(yearValue, monthValue, 0).getDate();
+  return Array.from({ length: count }, (_, index) => `${month}-${pad2(index + 1)}`);
+};
+
+const isHalfDayRecord = (record) => {
+  const status = String(record?.status || '').toUpperCase();
+  if (status === 'HD' || status === 'H') return true;
+  return /half/i.test(String(record?.remarks || ''));
+};
+
+const isAbsentRecord = (record) => {
+  const status = String(record?.status || 'A').toUpperCase();
+  return (status === 'A' || status === 'ABSENT') && !isHalfDayRecord(record);
+};
+
+const STAFF_GROUP_ORDER = ['Teaching', 'Sports Coach', 'Admin', 'Drivers', 'Conductors', 'Security', 'Other'];
+
+const staffGroupOf = (staff) => {
+  const text = `${staff.dutyType || ''} ${staff.designation || ''}`.toLowerCase();
+  if (text.includes('driver')) return 'Drivers';
+  if (text.includes('conductor')) return 'Conductors';
+  if (text.includes('security') || text.includes('guard')) return 'Security';
+  if (text.includes('coach') || text.includes('pet') || text.includes('physical')) return 'Sports Coach';
+  if (text.includes('admin') || text.includes('clerk') || text.includes('accountant')) return 'Admin';
+  if (
+    text.includes('teacher') ||
+    /\bprt\b/.test(text) ||
+    /\btgt\b/.test(text) ||
+    /\bpgt\b/.test(text) ||
+    text.includes('principal')
+  ) {
+    return 'Teaching';
+  }
+  return 'Other';
+};
+
+const summarizeRecords = (records, dateKey) => {
+  const onDate = records.filter((item) => item.attendanceDate === dateKey);
+  return {
+    absent: onDate.filter(isAbsentRecord).length,
+    halfDay: onDate.filter(isHalfDayRecord).length,
+  };
+};
+
+const getDashboard = async (req, res) => {
+  try {
+    const month = normalizeMonthKey(req.query.month) || localMonthKey();
+    const todayKey = normalizeDateKey(req.query.date) || localDateKey();
+    const viewDate = todayKey.startsWith(`${month}-`) ? todayKey : `${month}-01`;
+
+    const TeacherModel = req.models?.Teacher || Teacher;
+    const StudentModel = req.models?.Student || Student;
+    const StaffAttendanceModel = req.models?.StaffAttendanceDaily || StaffAttendanceDaily;
+    const StudentAttendanceModel = req.models?.StudentAttendanceDaily || StudentAttendanceDaily;
+
+    const [staff, students, staffRecords, studentRecords] = await Promise.all([
+      TeacherModel.find({}).select('_id name employeeId designation dutyType isActive').lean(),
+      StudentModel.find({ isActive: true }).select('_id name rollNumber class section').lean(),
+      StaffAttendanceModel.find({ attendanceDate: { $regex: `^${month}-` } })
+        .select('staffId attendanceDate status remarks')
+        .lean(),
+      StudentAttendanceModel.find({ attendanceDate: { $regex: `^${month}-` } })
+        .select('studentId attendanceDate status remarks className section')
+        .lean(),
+    ]);
+
+    const dayKeys = daysInMonthKeys(month);
+    const elapsedDays = dayKeys.filter((dateKey) => dateKey <= viewDate && !isSundayKey(dateKey));
+    const workingDayCount = Math.max(elapsedDays.length, 1);
+
+    const staffToday = summarizeRecords(staffRecords, viewDate);
+    const studentToday = summarizeRecords(studentRecords, viewDate);
+    const staffMonthAbsent = staffRecords.filter(isAbsentRecord).length;
+    const staffMonthHalfDay = staffRecords.filter(isHalfDayRecord).length;
+    const studentMonthAbsent = studentRecords.filter(isAbsentRecord).length;
+    const studentMonthHalfDay = studentRecords.filter(isHalfDayRecord).length;
+
+    const staffStrength = staff.length;
+    const studentStrength = students.length;
+
+    const rate = (absent, halfDay, strength) => {
+      if (!strength) return 0;
+      const missed = absent + halfDay * 0.5;
+      return Math.round((1 - missed / (strength * workingDayCount)) * 1000) / 10;
+    };
+
+    const sectionSetByClass = new Map();
+    students.forEach((item) => {
+      const className = normalizeString(item.class);
+      const section = normalizeString(item.section);
+      if (!className || !section) return;
+      const current = sectionSetByClass.get(className) || new Set();
+      current.add(section);
+      sectionSetByClass.set(className, current);
+    });
+    studentRecords.forEach((item) => {
+      const className = normalizeString(item.className);
+      const section = normalizeString(item.section);
+      if (!className || !section) return;
+      const current = sectionSetByClass.get(className) || new Set();
+      current.add(section);
+      sectionSetByClass.set(className, current);
+    });
+
+    const classNames = Array.from(sectionSetByClass.keys()).sort(sortClassNames);
+    const allSections = Array.from(
+      new Set(classNames.flatMap((className) => Array.from(sectionSetByClass.get(className) || [])))
+    ).sort((left, right) => sortSectionNames(left, right));
+
+    const classMatrix = classNames.map((className) => {
+      const sections = Array.from(sectionSetByClass.get(className) || []).sort((left, right) =>
+        sortSectionNames(left, right, className)
+      );
+      return {
+        className,
+        sections: sections.map((section) => {
+          const strength = students.filter(
+            (item) => normalizeString(item.class) === className && normalizeString(item.section) === section
+          ).length;
+          const classRecords = studentRecords.filter(
+            (item) => normalizeString(item.className) === className && normalizeString(item.section) === section
+          );
+          const today = summarizeRecords(classRecords, viewDate);
+          return {
+            section,
+            strength,
+            todayAbsent: today.absent,
+            todayHalfDay: today.halfDay,
+            monthAbsent: classRecords.filter(isAbsentRecord).length,
+            monthHalfDay: classRecords.filter(isHalfDayRecord).length,
+          };
+        }),
+      };
+    });
+
+    const staffMatrix = STAFF_GROUP_ORDER.map((group) => {
+      const members = staff.filter((item) => staffGroupOf(item) === group);
+      const ids = new Set(members.map((item) => String(item._id)));
+      const groupRecords = staffRecords.filter((item) => ids.has(String(item.staffId)));
+      const today = summarizeRecords(groupRecords, viewDate);
+      return {
+        group,
+        strength: members.length,
+        todayAbsent: today.absent,
+        todayHalfDay: today.halfDay,
+        monthAbsent: groupRecords.filter(isAbsentRecord).length,
+        monthHalfDay: groupRecords.filter(isHalfDayRecord).length,
+      };
+    }).filter((item) => item.strength > 0 || item.monthAbsent > 0 || item.todayAbsent > 0);
+
+    const dailyTrend = dayKeys.map((dateKey) => {
+      const staffDay = summarizeRecords(staffRecords, dateKey);
+      const studentDay = summarizeRecords(studentRecords, dateKey);
+      return {
+        date: dateKey,
+        weekday: new Date(`${dateKey}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short' }),
+        isSunday: isSundayKey(dateKey),
+        staffAbsent: staffDay.absent,
+        staffHalfDay: staffDay.halfDay,
+        studentAbsent: studentDay.absent,
+        studentHalfDay: studentDay.halfDay,
+      };
+    });
+
+    return res.json({
+      success: true,
+      data: {
+        month,
+        date: viewDate,
+        workingDays: elapsedDays.length,
+        staff: {
+          strength: staffStrength,
+          todayPresent: Math.max(staffStrength - staffToday.absent - staffToday.halfDay, 0),
+          todayAbsent: staffToday.absent,
+          todayHalfDay: staffToday.halfDay,
+          monthAbsent: staffMonthAbsent,
+          monthHalfDay: staffMonthHalfDay,
+          attendancePercent: rate(staffMonthAbsent, staffMonthHalfDay, staffStrength),
+        },
+        students: {
+          strength: studentStrength,
+          todayPresent: Math.max(studentStrength - studentToday.absent - studentToday.halfDay, 0),
+          todayAbsent: studentToday.absent,
+          todayHalfDay: studentToday.halfDay,
+          monthAbsent: studentMonthAbsent,
+          monthHalfDay: studentMonthHalfDay,
+          attendancePercent: rate(studentMonthAbsent, studentMonthHalfDay, studentStrength),
+        },
+        classMatrix,
+        sections: allSections,
+        staffMatrix,
+        dailyTrend,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: 'Failed to load attendance dashboard', error: error.message });
   }
 };
 
@@ -262,4 +606,5 @@ module.exports = {
   saveStaffAttendance,
   getStudentAttendance,
   saveStudentAttendance,
+  getDashboard,
 };

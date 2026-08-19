@@ -16,6 +16,7 @@ export const STUDENT_CLASS_OPTIONS = [
 export type StudentClassOption = (typeof STUDENT_CLASS_OPTIONS)[number]
 
 const SENIOR_SECONDARY_SECTION_ORDER = ['science', 'commerce', 'humanities'] as const
+const JUNIOR_SECTION_ORDER = ['rose', 'lily', 'lotus', 'tulip'] as const
 
 export const isSeniorSecondaryClass = (className: string) => {
   const key = String(className || '')
@@ -25,16 +26,29 @@ export const isSeniorSecondaryClass = (className: string) => {
   return /^(11th|12th|11|12|xi|xii|class11|class12)$/.test(key)
 }
 
-export const sortSectionNames = (left: string, right: string, className = '') => {
-  if (isSeniorSecondaryClass(className)) {
-    const rank = (name: string) => {
-      const index = SENIOR_SECONDARY_SECTION_ORDER.indexOf(
-        String(name || '').trim().toLowerCase() as (typeof SENIOR_SECONDARY_SECTION_ORDER)[number]
-      )
-      return index === -1 ? 1000 : index
-    }
-    const diff = rank(left) - rank(right)
-    if (diff !== 0) return diff
+export const sortClassNames = (left: string, right: string) => {
+  const rank = (name: string) => {
+    const index = STUDENT_CLASS_OPTIONS.findIndex(
+      (item) => item.toLowerCase() === String(name || '').trim().toLowerCase()
+    )
+    return index === -1 ? 1000 : index
   }
+  const diff = rank(left) - rank(right)
+  if (diff !== 0) return diff
+  return String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: 'base' })
+}
+
+export const sortSectionNames = (left: string, right: string, className = '') => {
+  const ordered = isSeniorSecondaryClass(className)
+    ? SENIOR_SECONDARY_SECTION_ORDER
+    : JUNIOR_SECTION_ORDER
+  const rank = (name: string) => {
+    const index = ordered.indexOf(
+      String(name || '').trim().toLowerCase() as (typeof ordered)[number]
+    )
+    return index === -1 ? 1000 : index
+  }
+  const diff = rank(left) - rank(right)
+  if (diff !== 0) return diff
   return String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: 'base' })
 }

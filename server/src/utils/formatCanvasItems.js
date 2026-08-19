@@ -81,7 +81,7 @@ const mapCanvasItemsForTemplate = (items = []) =>
       item.type === 'rect'
         ? `background:${item.fill || '#e2e8f0'};border:${item.strokeWidth || 1}px solid ${item.stroke || '#000'};width:100%;height:100%;`
         : `background:${item.stroke || item.fill || '#111'};width:100%;height:100%;`,
-  });
+  }));
 
 const CANVAS_OVERLAY_CSS = `
     .canvas-item {

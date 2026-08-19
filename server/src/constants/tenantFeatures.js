@@ -53,6 +53,24 @@ const TENANT_MODULE_CATALOG = Object.freeze({
     description: 'Daily attendance workflows for staff and students.',
     dependencies: ['core'],
   },
+  trnst: {
+    key: 'trnst',
+    label: 'TRNST — School Transport',
+    description: 'School transport operations: vehicle records, route planning, and stop timings.',
+    dependencies: ['core'],
+  },
+  acdmc: {
+    key: 'acdmc',
+    label: 'ACDMC — Academics',
+    description: 'Academic planning and tracking: lesson plans, homework, assignments, quizzes, and curriculum books.',
+    dependencies: ['core'],
+  },
+  actvt: {
+    key: 'actvt',
+    label: 'ACTVT — Activities',
+    description: 'Co-curricular and cultural activities: clubs, houses, tours, sports, and school functions.',
+    dependencies: ['core'],
+  },
 });
 
 const TENANT_MODULE_KEYS = Object.freeze(Object.keys(TENANT_MODULE_CATALOG));

@@ -8,12 +8,19 @@ const {
   saveStaffAttendance,
   getStudentAttendance,
   saveStudentAttendance,
+  getDashboard,
 } = require('../controllers/attndController');
-const { requireTenantFeature } = require('../middleware/tenantFeatureAccess');
+const { requireTenantFeature, requireAnyTenantFeature } = require('../middleware/tenantFeatureAccess');
 
 const router = express.Router();
 
 router.use(protect);
+
+router.get(
+  '/dashboard',
+  requireAnyTenantFeature('attnd_staff_attendance', 'attnd_student_attendance'),
+  getDashboard
+);
 
 router.get('/staff-directory', requireTenantFeature('attnd_staff_attendance'), getStaffDirectory);
 router.get('/student-directory', requireTenantFeature('attnd_student_attendance'), getStudentDirectory);

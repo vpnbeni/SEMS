@@ -1,5 +1,6 @@
 const asyncHandler = require('../middleware/asyncHandler');
 const { getRequestContext } = require('../tenancy/requestContext');
+const { syncClass12Alumni } = require('../services/almniSyncService');
 
 /**
  * Helper: resolve the AcademicSession model from request context.
@@ -36,6 +37,7 @@ const getSessions = asyncHandler(async (req, res) => {
   // Auto-ensure the current session exists
   const label = currentSessionLabel();
   await AcademicSession.ensureSession(label, req.user?._id);
+  await syncClass12Alumni(req, label);
 
   const sessions = await AcademicSession.find({ status: 'active' })
     .sort({ startYear: -1 })
@@ -108,6 +110,7 @@ const createSession = asyncHandler(async (req, res) => {
   }
 
   const session = await AcademicSession.ensureSession(label, req.user?._id);
+  await syncClass12Alumni(req, label);
 
   return res.status(201).json({
     success: true,

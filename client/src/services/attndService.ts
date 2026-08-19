@@ -1,12 +1,13 @@
 import api from './api'
 
-export type AttendanceStatus = 'P' | 'A'
+export type AttendanceStatus = 'P' | 'A' | 'HD'
 
 export type StaffDirectoryItem = {
   _id: string
   name: string
   employeeId?: string
   designation?: string
+  dutyType?: string
   isActive?: boolean
 }
 
@@ -27,11 +28,59 @@ export type StaffAttendanceRecord = {
 export type StudentAttendanceRecord = {
   studentId: string
   attendanceDate: string
+  status?: AttendanceStatus
+  category?: 'academic' | 'non-academic'
 }
 
 export type StudentClassOption = {
   className: string
   sections: string[]
+}
+
+export type AttndDashboardGroupStats = {
+  strength: number
+  todayPresent: number
+  todayAbsent: number
+  todayHalfDay: number
+  monthAbsent: number
+  monthHalfDay: number
+  attendancePercent: number
+}
+
+export type AttndClassMatrixCell = {
+  section: string
+  strength: number
+  todayAbsent: number
+  todayHalfDay: number
+  monthAbsent: number
+  monthHalfDay: number
+}
+
+export type AttndDashboardData = {
+  month: string
+  date: string
+  workingDays: number
+  staff: AttndDashboardGroupStats
+  students: AttndDashboardGroupStats
+  classMatrix: Array<{ className: string; sections: AttndClassMatrixCell[] }>
+  sections: string[]
+  staffMatrix: Array<{
+    group: string
+    strength: number
+    todayAbsent: number
+    todayHalfDay: number
+    monthAbsent: number
+    monthHalfDay: number
+  }>
+  dailyTrend: Array<{
+    date: string
+    weekday: string
+    isSunday: boolean
+    staffAbsent: number
+    staffHalfDay: number
+    studentAbsent: number
+    studentHalfDay: number
+  }>
 }
 
 const getStaffDirectory = async (): Promise<StaffDirectoryItem[]> => {
@@ -44,38 +93,92 @@ const getStudentFilters = async (): Promise<StudentClassOption[]> => {
   return Array.isArray(response?.data?.data?.classOptions) ? response.data.data.classOptions : []
 }
 
-const getStudentDirectory = async (className: string, section: string): Promise<StudentDirectoryItem[]> => {
-  const response = await api.get('/attnd/student-directory', { params: { className, section } })
+const getStudentDirectory = async (className?: string, section?: string): Promise<StudentDirectoryItem[]> => {
+  const response = await api.get('/attnd/student-directory', {
+    params: {
+      ...(className ? { className } : {}),
+      ...(section ? { section } : {}),
+    },
+  })
   return Array.isArray(response?.data?.data) ? response.data.data : []
 }
 
 const getStaffAttendance = async (
-  month: string
+  options: { month?: string; date?: string }
 ): Promise<Array<{ staffId: string; attendanceDate: string; status: AttendanceStatus; remarks?: string }>> => {
-  const response = await api.get('/attnd/staff', { params: { month } })
+  const response = await api.get('/attnd/staff', { params: options })
   return Array.isArray(response?.data?.data) ? response.data.data : []
 }
 
-const saveStaffAttendance = async (month: string, absences: StaffAttendanceRecord[]) => {
-  return api.put('/attnd/staff', { month, absences })
+const saveStaffAttendance = async (payload: {
+  month?: string
+  date?: string
+  staffIds: string[]
+  absences: StaffAttendanceRecord[]
+}) => {
+  return api.put('/attnd/staff', payload)
 }
 
 const getStudentAttendance = async (
-  month: string,
   className: string,
-  section: string
-): Promise<Array<{ studentId: string; attendanceDate: string; status: AttendanceStatus; remarks?: string }>> => {
-  const response = await api.get('/attnd/students', { params: { month, className, section } })
-  return Array.isArray(response?.data?.data) ? response.data.data : []
+  section: string,
+  options: { date?: string; month?: string }
+): Promise<{
+  records: Array<{ studentId: string; attendanceDate: string; status: AttendanceStatus; remarks?: string; className?: string; section?: string }>
+  daySettings: Array<{ attendanceDate: string; category?: 'academic' | 'non-academic'; className?: string; section?: string }>
+}> => {
+  const response = await api.get('/attnd/students', {
+    params: { className, section, date: options.date, month: options.month },
+  })
+  const payload = response?.data?.data
+  if (Array.isArray(payload)) {
+    return { records: payload, daySettings: [] }
+  }
+  return {
+    records: Array.isArray(payload?.records) ? payload.records : [],
+    daySettings: Array.isArray(payload?.daySettings) ? payload.daySettings : [],
+  }
 }
 
 const saveStudentAttendance = async (
-  month: string,
   className: string,
   section: string,
-  absences: StudentAttendanceRecord[]
+  payload: {
+    date?: string
+    month?: string
+    records?: Array<{ studentId: string; status?: AttendanceStatus }>
+    absences?: StudentAttendanceRecord[]
+    daySettings?: Array<{ attendanceDate: string; category: 'academic' | 'non-academic' }>
+  }
 ) => {
-  return api.put('/attnd/students', { month, className, section, absences })
+  return api.put('/attnd/students', { className, section, ...payload })
+}
+
+const getStudentAttendanceByDate = async (date: string) => {
+  const response = await api.get('/attnd/students', { params: { date } })
+  const payload = response?.data?.data
+  if (Array.isArray(payload)) {
+    return { records: payload, daySettings: [] as Array<{ attendanceDate: string; category?: 'academic' | 'non-academic'; className?: string; section?: string }> }
+  }
+  return {
+    records: Array.isArray(payload?.records) ? payload.records : [],
+    daySettings: Array.isArray(payload?.daySettings) ? payload.daySettings : [],
+  }
+}
+
+const saveStudentAttendanceByDate = async (
+  date: string,
+  payload: {
+    absences: Array<{ studentId: string; className: string; section: string; attendanceDate?: string }>
+    daySettings: Array<{ attendanceDate: string; className: string; section: string; category: 'academic' | 'non-academic' }>
+  }
+) => {
+  return api.put('/attnd/students', { date, ...payload })
+}
+
+const getDashboard = async (month: string, date?: string): Promise<AttndDashboardData> => {
+  const response = await api.get('/attnd/dashboard', { params: { month, date } })
+  return response?.data?.data as AttndDashboardData
 }
 
 const attndService = {
@@ -86,6 +189,9 @@ const attndService = {
   saveStaffAttendance,
   getStudentAttendance,
   saveStudentAttendance,
+  getStudentAttendanceByDate,
+  saveStudentAttendanceByDate,
+  getDashboard,
 }
 
 export default attndService
