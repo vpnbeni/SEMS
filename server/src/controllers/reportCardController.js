@@ -322,31 +322,8 @@ const parseDesign = (source = {}) => {
     return Number.isFinite(num) && num >= 8 ? num : fallback;
   };
 
-  const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
-  const canvasItems = (Array.isArray(source.canvasItems) ? source.canvasItems : [])
-    .slice(0, 40)
-    .map((item, index) => {
-      const type = item?.type === 'image' ? 'image' : 'text';
-      const align = ['left', 'center', 'right'].includes(item?.align) ? item.align : 'left';
-      return {
-        id: String(item?.id || `canvas_${index}`),
-        type,
-        x: clamp(item?.x, 0, 95),
-        y: clamp(item?.y, 0, 95),
-        width: clamp(item?.width || 20, 4, 100),
-        height: clamp(item?.height || 8, 3, 100),
-        zIndex: Number(item?.zIndex) || index + 1,
-        text: String(item?.text || ''),
-        imageUrl: String(item?.imageUrl || ''),
-        fontFamily: parseFontFamily(item?.fontFamily),
-        fontSize: Number(item?.fontSize) > 0 ? Number(item.fontSize) : 16,
-        bold: toBoolean(item?.bold, false),
-        italic: toBoolean(item?.italic, false),
-        underline: toBoolean(item?.underline, false),
-        color: String(item?.color || '#000000'),
-        align,
-      };
-    });
+  const { parseCanvasItems } = require('../utils/formatCanvasItems');
+  const canvasItems = parseCanvasItems(source.canvasItems);
 
   return {
     schoolName: textOrDefault(source.schoolName, DEFAULT_REPORT_CARD_DESIGN.schoolName),
@@ -459,6 +436,8 @@ const buildTemplateData = (tenant, exam, studentCards, academicYear, schoolProfi
     canvasItems: (header.canvasItems || []).map((item) => ({
       ...item,
       isImage: item.type === 'image' && Boolean(item.imageUrl),
+      isRect: item.type === 'rect',
+      isLine: item.type === 'line',
       boxStyle: `left:${item.x}%;top:${item.y}%;width:${item.width}%;height:${item.height}%;z-index:${item.zIndex || 1}`,
       textStyle: [
         `font-family:${fontFamilyCss(item.fontFamily)}`,
@@ -469,6 +448,10 @@ const buildTemplateData = (tenant, exam, studentCards, academicYear, schoolProfi
         `color:${item.color || '#000'}`,
         `text-align:${item.align || 'left'}`,
       ].join(';'),
+      shapeStyle:
+        item.type === 'rect'
+          ? `background:${item.fill || '#e2e8f0'};border:${item.strokeWidth || 1}px solid ${item.stroke || '#000'};width:100%;height:100%;`
+          : `background:${item.stroke || item.fill || '#111'};width:100%;height:100%;`,
     })),
   };
 };

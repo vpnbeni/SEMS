@@ -1,6 +1,9 @@
 import api from './api'
+import { mergeCanvasItems, type FormatCanvasItem } from '@/components/format-editor'
 
 export type AdmitCardDesign = {
+  formatId?: 'admit-card'
+  templateId?: string
   title: string
   pageSize: 'A4' | 'legal'
   orientation: 'landscape' | 'portrait'
@@ -50,9 +53,12 @@ export type AdmitCardDesign = {
     examInchargeSignaturePublicId: string
     principalSignaturePublicId: string
   }
+  canvasItems: FormatCanvasItem[]
 }
 
 export const DEFAULT_ADMIT_CARD_DESIGN: AdmitCardDesign = {
+  formatId: 'admit-card',
+  templateId: 'portrait-default',
   title: 'ADMIT CARD FOR {exam}',
   pageSize: 'A4',
   orientation: 'portrait',
@@ -111,6 +117,7 @@ export const DEFAULT_ADMIT_CARD_DESIGN: AdmitCardDesign = {
     examInchargeSignaturePublicId: '',
     principalSignaturePublicId: '',
   },
+  canvasItems: [],
 }
 
 const triggerDownload = (blob: Blob, filename: string) => {
@@ -124,31 +131,39 @@ const triggerDownload = (blob: Blob, filename: string) => {
   URL.revokeObjectURL(url)
 }
 
+export const mergeAdmitCardDesign = (data: Partial<AdmitCardDesign> = {}): AdmitCardDesign => ({
+  ...DEFAULT_ADMIT_CARD_DESIGN,
+  ...data,
+  formatId: 'admit-card',
+  templateId: data.templateId || DEFAULT_ADMIT_CARD_DESIGN.templateId,
+  instructions: String(data.instructions || DEFAULT_ADMIT_CARD_DESIGN.instructions),
+  fields: { ...DEFAULT_ADMIT_CARD_DESIGN.fields, ...(data.fields || {}) },
+  signatures: {
+    ...DEFAULT_ADMIT_CARD_DESIGN.signatures,
+    ...(data.signatures || {}),
+    examIncharge: data.signatures?.examIncharge ?? (data.signatures as { classTeacher?: boolean } | undefined)?.classTeacher ?? DEFAULT_ADMIT_CARD_DESIGN.signatures.examIncharge,
+  },
+  canvasItems: mergeCanvasItems(data.canvasItems),
+})
+
 const getDesign = async (): Promise<AdmitCardDesign> => {
   const response = await api.get('/admit-cards/design')
-  const data = response?.data?.data || {}
-  return {
-    ...DEFAULT_ADMIT_CARD_DESIGN,
-    ...data,
-    instructions: String(data.instructions || DEFAULT_ADMIT_CARD_DESIGN.instructions),
-    fields: { ...DEFAULT_ADMIT_CARD_DESIGN.fields, ...(data.fields || {}) },
-    signatures: {
-      ...DEFAULT_ADMIT_CARD_DESIGN.signatures,
-      ...(data.signatures || {}),
-      examIncharge: data.signatures?.examIncharge ?? data.signatures?.classTeacher ?? DEFAULT_ADMIT_CARD_DESIGN.signatures.examIncharge,
-    },
-  }
+  return mergeAdmitCardDesign(response?.data?.data || {})
 }
 
 const saveDesign = async (design: AdmitCardDesign): Promise<AdmitCardDesign> => {
   const response = await api.put('/admit-cards/design', { design }, { _silent: true } as any)
-  const data = response?.data?.data || design
-  return {
-    ...DEFAULT_ADMIT_CARD_DESIGN,
-    ...data,
-    fields: { ...DEFAULT_ADMIT_CARD_DESIGN.fields, ...(data.fields || {}) },
-    signatures: { ...DEFAULT_ADMIT_CARD_DESIGN.signatures, ...(data.signatures || {}) },
-  }
+  return mergeAdmitCardDesign(response?.data?.data || design)
+}
+
+const uploadCanvasImage = async (file: File): Promise<{ url: string }> => {
+  const formData = new FormData()
+  formData.append('image', file)
+  const response = await api.post('/admit-cards/design/image', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    _silent: true,
+  } as any)
+  return { url: String(response?.data?.data?.url || '') }
 }
 
 const uploadSignature = async (role: 'principal' | 'examIncharge', file: File): Promise<AdmitCardDesign> => {
@@ -159,12 +174,7 @@ const uploadSignature = async (role: 'principal' | 'examIncharge', file: File): 
     _silent: true,
   } as any)
   const data = response?.data?.data || {}
-  return {
-    ...DEFAULT_ADMIT_CARD_DESIGN,
-    ...data,
-    fields: { ...DEFAULT_ADMIT_CARD_DESIGN.fields, ...(data.fields || {}) },
-    signatures: { ...DEFAULT_ADMIT_CARD_DESIGN.signatures, ...(data.signatures || {}) },
-  }
+  return mergeAdmitCardDesign(data)
 }
 
 const downloadAdmitCards = async (
@@ -196,6 +206,6 @@ const downloadAdmitCards = async (
   triggerDownload(blob, filename)
 }
 
-const exmclAdmitCardService = { getDesign, saveDesign, uploadSignature, downloadAdmitCards }
+const exmclAdmitCardService = { getDesign, saveDesign, uploadSignature, uploadCanvasImage, downloadAdmitCards }
 
 export default exmclAdmitCardService

@@ -5,9 +5,11 @@ const {
   getAwardListDesign,
   saveAwardListDesign,
 } = require('../controllers/awardListController');
+const { uploadFormatCanvasImage } = require('../controllers/formatCanvasController');
 
 router.get('/design', getAwardListDesign);
 router.put('/design', saveAwardListDesign);
+router.post('/design/image', uploadFormatCanvasImage);
 router.get('/', generateAwardList);
 router.post('/', generateAwardList);
 

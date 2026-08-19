@@ -235,7 +235,7 @@ const AnswerSheets: React.FC = () => {
         { responseType: 'blob' }
       )
       const blob = response.data
-      const contentType = response.headers['content-type'] || ''
+      const contentType = String(response.headers['content-type'] || '')
 
       if (typeof blob === 'object' && blob !== null && contentType.toLowerCase().includes('application/pdf')) {
         const objectUrl = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob]))

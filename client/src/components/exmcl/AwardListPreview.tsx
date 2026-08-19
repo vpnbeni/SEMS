@@ -108,7 +108,7 @@ export const AwardListPreview = ({
             </tr>
           </thead>
           <tbody>
-            {students.map((student, index) => (
+{(students.length > 0 ? students : Array.from({ length: 4 }, (): AwardListPreviewStudent => ({}))).map((student, index) => (
               <tr key={`${student.rollNumber || 'row'}-${index}`}>
                 {design.columns.srNo ? <td className="border border-slate-300 px-1 py-1.5">{index + 1}</td> : null}
                 {design.columns.rollNumber ? <td className="border border-slate-300 px-1 py-1.5">{student.rollNumber || ''}</td> : null}

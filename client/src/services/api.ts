@@ -350,8 +350,8 @@ export const downloadFile = async (
     }
 
     // Get filename from response headers or use provided filename
-    const contentDisposition = response.headers['content-disposition']
-    const contentType = response.headers['content-type']
+    const contentDisposition = String(response.headers['content-disposition'] || '')
+    const contentType = String(response.headers['content-type'] || '')
     let downloadFilename = filename
 
     if (contentDisposition) {
