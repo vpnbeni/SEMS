@@ -50,6 +50,9 @@ const {
   ActivityTour,
   ActivitySportsMeet,
   ActivityFunction,
+  ActivityEvent,
+  ActivityPoints,
+  ActivityCertificate,
 } = require('../models/ActivityRecords');
 
 const tenantModelExports = {
@@ -106,6 +109,9 @@ const tenantModelExports = {
   ActivityTour,
   ActivitySportsMeet,
   ActivityFunction,
+  ActivityEvent,
+  ActivityPoints,
+  ActivityCertificate,
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

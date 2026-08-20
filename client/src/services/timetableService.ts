@@ -168,8 +168,13 @@ const timetableService = {
     return normalizeStatePayload(response.data?.data)
   },
 
-  async saveState(state: TimetableStatePayload): Promise<TimetableStatePayload> {
-    const response = await api.put('/timetable/state', state)
+  async saveState(
+    state: TimetableStatePayload,
+    options?: { silent?: boolean }
+  ): Promise<TimetableStatePayload> {
+    const response = await api.put('/timetable/state', state, {
+      _silent: options?.silent !== false,
+    } as any)
     return normalizeStatePayload(response.data?.data)
   },
 

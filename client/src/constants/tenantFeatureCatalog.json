@@ -126,7 +126,7 @@
   {
     "key": "actvt_activities",
     "label": "ACTVT - Activities",
-    "path": "/actvt/clubs",
+    "path": "/actvt/houses",
     "group": "Activities Hub",
     "module": "actvt",
     "prefixes": ["/actvt"],

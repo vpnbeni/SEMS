@@ -5,7 +5,7 @@ import { Download, Filter, LayoutGrid, RefreshCw, Search, Trash2, Upload, UserPl
 import type { AppDispatch, RootState } from '../redux/store'
 import {
   createStudent,
-  deleteStudent,
+  bulkDeleteStudents,
   fetchStudentStats,
   fetchStudents,
   getNextRollNumber,
@@ -14,10 +14,18 @@ import {
 import api from '../services/api'
 import studentService from '../services/studentService'
 import timetableService from '../services/timetableService'
+import { makeRecordService } from '../services/recordService'
 import { STUDENT_CLASS_OPTIONS, sortSectionNames } from '../constants/studentClasses'
+import {
+  getSectionDisplayName,
+  normalizeAllowedSections,
+  normalizeSectionKey,
+  resolveSectionAgainstAllowed,
+} from '../constants/sectionMetadata'
 
 const STUDENTS_PAGE_SIZE = 250
 const BULK_DELETE_TOAST_ID = 'stdnt-bulk-delete'
+const BULK_DELETE_BATCH_SIZE = 50
 
 type StudentFormState = {
   rollNumber: string
@@ -25,11 +33,16 @@ type StudentFormState = {
   gender: 'Boy' | 'Girl' | 'Other' | 'Unspecified'
   email: string
   phone: string
+  penNumber: string
   class: string
   section: string
   fatherName: string
   motherName: string
   guardianPhone: string
+  house: string
+  houseId: string
+  busNo: string
+  bloodGroup: string
   address: {
     street: string
     city: string
@@ -48,6 +61,8 @@ type StudentFormState = {
 
 const CATEGORY_OPTIONS = ['General', 'OBC', 'SC', 'ST', 'EWS'] as const
 const GENDER_OPTIONS = ['Boy', 'Girl', 'Other', 'Unspecified'] as const
+const BLOOD_GROUP_OPTIONS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] as const
+const actvtHousesService = makeRecordService('/actvt/houses')
 
 type ClassSectionOption = {
   className: string
@@ -60,11 +75,16 @@ const createInitialFormState = (): StudentFormState => ({
   gender: 'Unspecified',
   email: '',
   phone: '',
+  penNumber: '',
   class: '',
   section: '',
   fatherName: '',
   motherName: '',
   guardianPhone: '',
+  house: '',
+  houseId: '',
+  busNo: '',
+  bloodGroup: '',
   address: {
     street: '',
     city: '',
@@ -107,11 +127,16 @@ const mapStudentToFormState = (student: any): StudentFormState => ({
     : 'Unspecified') as StudentFormState['gender'],
   email: String(student?.email || ''),
   phone: String(student?.phone || ''),
+  penNumber: String(student?.penNumber || ''),
   class: String(student?.class || ''),
   section: String(student?.section || ''),
   fatherName: String(student?.fatherName || ''),
   motherName: String(student?.motherName || ''),
   guardianPhone: String(student?.guardianPhone || ''),
+  house: String(student?.house || ''),
+  houseId: String(student?.houseId?._id || student?.houseId || ''),
+  busNo: String(student?.busNo || ''),
+  bloodGroup: String(student?.medicalInfo?.bloodGroup || ''),
   address: {
     street: String(student?.address?.street || ''),
     city: String(student?.address?.city || ''),
@@ -138,50 +163,6 @@ const sortClassNames = (left: string, right: string) => {
   return left.localeCompare(right)
 }
 
-const mergeClassSectionOptions = (
-  sources: Array<ClassSectionOption[] | undefined>
-): ClassSectionOption[] => {
-  const merged = new Map<string, Set<string>>()
-
-  sources.forEach((source) => {
-    (source || []).forEach((option) => {
-      const className = String(option.className || '').trim()
-      if (!className) return
-      if (!merged.has(className)) merged.set(className, new Set())
-      option.sections.forEach((section) => {
-        const normalized = String(section || '').trim()
-        if (normalized) merged.get(className)!.add(normalized)
-      })
-    })
-  })
-
-  return Array.from(merged.entries())
-    .map(([className, sectionSet]) => ({
-      className,
-      sections: Array.from(sectionSet).sort((a, b) => sortSectionNames(a, b, className)),
-    }))
-    .sort((a, b) => sortClassNames(a.className, b.className))
-}
-
-const buildClassSectionOptionsFromStats = (stats: RootState['students']['stats']): ClassSectionOption[] => {
-  const byClass = new Map<string, Set<string>>()
-
-  ;(stats?.byClassSection || []).forEach((entry) => {
-    const className = String(entry?._id?.class || '').trim()
-    const section = String(entry?._id?.section || '').trim()
-    if (!className) return
-    if (!byClass.has(className)) byClass.set(className, new Set())
-    if (section) byClass.get(className)!.add(section)
-  })
-
-  return Array.from(byClass.entries())
-    .map(([className, sectionSet]) => ({
-      className,
-      sections: Array.from(sectionSet).sort((a, b) => sortSectionNames(a, b, className)),
-    }))
-    .sort((a, b) => sortClassNames(a.className, b.className))
-}
-
 const buildClassSectionOptions = (state: Awaited<ReturnType<typeof timetableService.getState>>): ClassSectionOption[] => {
   const matrixClasses = Array.isArray(state?.matrixClasses) ? state.matrixClasses : []
   const matrixSections = Array.isArray(state?.matrixSections) ? state.matrixSections : []
@@ -203,37 +184,20 @@ const buildClassSectionOptions = (state: Awaited<ReturnType<typeof timetableServ
       const className = String(item.name || '').trim()
       if (!classId || !className) return null
 
-      const sections = Object.entries(matrixSelection[classId] || {})
-        .filter(([, checked]) => Boolean(checked))
-        .map(([sectionId]) => sectionNameById.get(sectionId) || '')
-        .map((name) => name.trim())
-        .filter(Boolean)
-        .sort((a, b) => sortSectionNames(a, b, className))
+      const sections = normalizeAllowedSections(
+        Object.entries(matrixSelection[classId] || {})
+          .filter(([, checked]) => Boolean(checked))
+          .map(([sectionId]) => sectionNameById.get(sectionId) || '')
+          .map((name) => name.trim())
+          .filter(Boolean)
+      ).sort((a, b) => sortSectionNames(a, b, className))
 
       if (sections.length === 0) return null
       return { className, sections }
     })
     .filter(Boolean) as ClassSectionOption[]
 
-  if (fromMatrix.length > 0) {
-    return fromMatrix.sort((a, b) => sortClassNames(a.className, b.className))
-  }
-
-  const fallbackMap = new Map<string, Set<string>>()
-  ;(state?.classes || []).forEach((item) => {
-    const className = String(item.className || '').trim()
-    const section = String(item.section || '').trim().toUpperCase()
-    if (!className || !section) return
-    if (!fallbackMap.has(className)) fallbackMap.set(className, new Set())
-    fallbackMap.get(className)!.add(section)
-  })
-
-  return Array.from(fallbackMap.entries())
-    .map(([className, sectionSet]) => ({
-      className,
-      sections: Array.from(sectionSet).sort((a, b) => sortSectionNames(a, b, className)),
-    }))
-    .sort((a, b) => sortClassNames(a.className, b.className))
+  return fromMatrix.sort((a, b) => sortClassNames(a.className, b.className))
 }
 
 const Students: React.FC = () => {
@@ -260,6 +224,7 @@ const Students: React.FC = () => {
   const [tableSortDirection, setTableSortDirection] = useState<'asc' | 'desc'>('asc')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [timetableClassSectionOptions, setTimetableClassSectionOptions] = useState<ClassSectionOption[]>([])
+  const [activityHouses, setActivityHouses] = useState<Array<{ _id: string; name: string; color?: string }>>([])
   const [editingSectionStudentId, setEditingSectionStudentId] = useState<string | null>(null)
   const [sectionUpdateLoadingById, setSectionUpdateLoadingById] = useState<Record<string, boolean>>({})
   const [sectionOverrideByStudentId, setSectionOverrideByStudentId] = useState<Record<string, string>>({})
@@ -268,6 +233,7 @@ const Students: React.FC = () => {
 
   const addFormRef = useRef<HTMLDivElement | null>(null)
   const photoInputRef = useRef<HTMLInputElement | null>(null)
+  const bulkDeleteCancelRef = useRef(false)
   const deferredSearch = useDeferredValue(searchTerm)
 
   useEffect(() => {
@@ -293,9 +259,10 @@ const Students: React.FC = () => {
         setFormData((prev) => {
           const existingClass = nextOptions.find((option) => option.className === prev.class)
           if (existingClass) {
-            const nextSection = existingClass.sections.includes(prev.section)
-              ? prev.section
-              : (existingClass.sections[0] || '')
+            const matchedSection = existingClass.sections.find(
+              (section) => normalizeSectionKey(section) === normalizeSectionKey(prev.section)
+            )
+            const nextSection = matchedSection || existingClass.sections[0] || ''
             return {
               ...prev,
               section: nextSection,
@@ -320,6 +287,56 @@ const Students: React.FC = () => {
       isMounted = false
     }
   }, [])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadActivityHouses = async () => {
+      try {
+        const houses = await actvtHousesService.list()
+        if (!isMounted) return
+        setActivityHouses(
+          (houses || [])
+            .map((house) => ({
+              _id: String(house._id || ''),
+              name: String(house.name || '').trim(),
+              color: house.color ? String(house.color) : undefined,
+            }))
+            .filter((house) => house._id && house.name)
+            .sort((left, right) => left.name.localeCompare(right.name))
+        )
+      } catch {
+        if (!isMounted) return
+        setActivityHouses([])
+      }
+    }
+
+    loadActivityHouses()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activityHouses.length === 0) return
+
+    setFormData((prev) => {
+      if (prev.houseId) {
+        const selected = activityHouses.find((house) => house._id === prev.houseId)
+        if (!selected) return prev
+        if (selected.name === prev.house) return prev
+        return { ...prev, house: selected.name }
+      }
+
+      if (!prev.house) return prev
+      const matched = activityHouses.find(
+        (house) => house.name.toLowerCase() === prev.house.trim().toLowerCase()
+      )
+      if (!matched) return prev
+      return { ...prev, houseId: matched._id, house: matched.name }
+    })
+  }, [activityHouses])
 
   useEffect(() => {
     dispatch(
@@ -366,11 +383,8 @@ const Students: React.FC = () => {
   }, [pageMessage])
 
   const classSectionOptions = useMemo(
-    () => mergeClassSectionOptions([
-      timetableClassSectionOptions,
-      buildClassSectionOptionsFromStats(stats),
-    ]),
-    [stats, timetableClassSectionOptions]
+    () => timetableClassSectionOptions,
+    [timetableClassSectionOptions]
   )
 
   const totalClasses = useMemo(
@@ -501,7 +515,11 @@ const Students: React.FC = () => {
       setFormData((prev) => ({
         ...prev,
         class: value,
-        section: matchedClass?.sections.includes(prev.section) ? prev.section : (matchedClass?.sections[0] || ''),
+        section: matchedClass?.sections.includes(prev.section)
+          ? prev.section
+          : matchedClass?.sections.find(
+              (section) => normalizeSectionKey(section) === normalizeSectionKey(prev.section)
+            ) || matchedClass?.sections[0] || '',
       }))
       setFormErrors((prev) => ({ ...prev, class: '', section: '' }))
       return
@@ -532,6 +550,15 @@ const Students: React.FC = () => {
     if (!/^\d{6}$/.test(formData.address.pincode.trim())) nextErrors['address.pincode'] = 'Enter a valid 6-digit pincode.'
     if (formData.aadharNumber.trim() && !/^\d{12}$/.test(formData.aadharNumber.trim())) {
       nextErrors.aadharNumber = 'Enter a valid 12-digit Aadhar number.'
+    }
+    if (!formData.class.trim()) nextErrors.class = 'Class is required.'
+    if (!formData.section.trim()) nextErrors.section = 'Section is required.'
+    const allowedSections = classSectionOptions.find((option) => option.className === formData.class)?.sections || []
+    if (allowedSections.length > 0) {
+      const resolvedSection = resolveSectionAgainstAllowed(formData.section, allowedSections)
+      if (resolvedSection.error) nextErrors.section = resolvedSection.error
+    } else if (formData.class.trim()) {
+      nextErrors.section = 'Configure sections for this class in Class Section Matrix.'
     }
 
     setFormErrors(nextErrors)
@@ -626,9 +653,13 @@ const Students: React.FC = () => {
         name: formData.name.trim(),
         fatherName: formData.fatherName.trim(),
         motherName: formData.motherName.trim(),
-        guardianPhone: formData.guardianPhone.trim(),
+        guardianPhone: formData.guardianPhone.trim() || formData.phone.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),
+        penNumber: formData.penNumber.trim(),
+        house: formData.house.trim(),
+        houseId: formData.houseId.trim() || null,
+        busNo: formData.busNo.trim(),
         aadharNumber: formData.aadharNumber.trim(),
         religion: formData.religion.trim(),
         nationality: formData.nationality.trim() || 'Indian',
@@ -639,7 +670,14 @@ const Students: React.FC = () => {
           state: formData.address.state.trim(),
           pincode: formData.address.pincode.trim(),
         },
+        medicalInfo: formData.bloodGroup
+          ? { bloodGroup: formData.bloodGroup }
+          : undefined,
       } as any
+      delete payload.bloodGroup
+      if (!payload.medicalInfo) {
+        delete payload.medicalInfo
+      }
 
       let targetStudentId = editingStudentId || ''
       if (editingStudentId) {
@@ -801,25 +839,59 @@ const Students: React.FC = () => {
   const handleBulkDelete = async () => {
     if (selectedIds.length === 0 || isBulkDeleting) return
 
-    const total = selectedIds.length
+    const idsToDelete = [...selectedIds]
+    const total = idsToDelete.length
+    bulkDeleteCancelRef.current = false
     setIsBulkDeleting(true)
     let deletedCount = 0
     let failedCount = 0
+    let cancelled = false
+    let nextIndex = 0
 
-    const renderProgressToast = (done: number, failed: number, complete = false) => {
+    const renderProgressToast = (
+      done: number,
+      failed: number,
+      options: { complete?: boolean; cancelling?: boolean } = {}
+    ) => {
+      const { complete = false, cancelling = false } = options
       const processed = done + failed
       const percent = total === 0 ? 0 : Math.round((processed / total) * 100)
+      const stoppedEarly = cancelling || (complete && bulkDeleteCancelRef.current)
 
       toast.custom(
         () => (
           <div className="flex min-w-[280px] flex-col gap-2 rounded-xl bg-slate-800 px-4 py-3 text-white shadow-lg">
             <div className="flex items-center justify-between gap-3 text-sm font-medium">
-              <span>{done} of {total} deleted</span>
-              {failed > 0 ? <span className="text-rose-300">{failed} failed</span> : null}
+              <span>
+                {cancelling && !complete
+                  ? `Stopping… ${done} of ${total} deleted`
+                  : `${done} of ${total} deleted`}
+              </span>
+              <div className="flex items-center gap-2">
+                {failed > 0 ? <span className="text-rose-300">{failed} failed</span> : null}
+                {!complete && !cancelling ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      bulkDeleteCancelRef.current = true
+                      renderProgressToast(done, failed, { cancelling: true })
+                    }}
+                    className="rounded-md px-2 py-0.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                ) : null}
+              </div>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-slate-600">
               <div
-                className={`h-full rounded-full transition-all ${failed > 0 && complete ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                className={`h-full rounded-full transition-all ${
+                  stoppedEarly && complete
+                    ? 'bg-amber-400'
+                    : failed > 0 && complete
+                      ? 'bg-amber-400'
+                      : 'bg-emerald-400'
+                }`}
                 style={{ width: `${percent}%` }}
               />
             </div>
@@ -834,20 +906,61 @@ const Students: React.FC = () => {
 
     renderProgressToast(0, 0)
 
-    for (const id of selectedIds) {
-      try {
-        await dispatch(deleteStudent({ id, silent: true })).unwrap()
-        deletedCount += 1
-      } catch (_error) {
-        failedCount += 1
+    while (nextIndex < idsToDelete.length) {
+      if (bulkDeleteCancelRef.current) {
+        cancelled = true
+        setSelectedIds(idsToDelete.slice(nextIndex))
+        break
       }
-      renderProgressToast(deletedCount, failedCount)
+
+      const batch = idsToDelete.slice(nextIndex, nextIndex + BULK_DELETE_BATCH_SIZE)
+      try {
+        const result = await dispatch(bulkDeleteStudents(batch)).unwrap()
+        const batchDeleted = Array.isArray(result.deletedIds) ? result.deletedIds.length : 0
+        const batchMissing = Array.isArray(result.notFoundIds) ? result.notFoundIds.length : 0
+        deletedCount += batchDeleted
+        failedCount += batchMissing
+        // If API returned fewer results than requested, count remainder as failed.
+        const accounted = batchDeleted + batchMissing
+        if (accounted < batch.length) {
+          failedCount += batch.length - accounted
+        }
+      } catch (_error) {
+        failedCount += batch.length
+      }
+
+      nextIndex += batch.length
+      const stopping = bulkDeleteCancelRef.current
+      renderProgressToast(deletedCount, failedCount, { cancelling: stopping })
+
+      if (stopping) {
+        cancelled = true
+        setSelectedIds(idsToDelete.slice(nextIndex))
+        break
+      }
     }
 
-    renderProgressToast(deletedCount, failedCount, true)
+    cancelled = cancelled || bulkDeleteCancelRef.current
+    renderProgressToast(deletedCount, failedCount, { complete: true, cancelling: cancelled })
     setIsBulkDeleting(false)
-    setSelectedIds([])
+
+    if (!cancelled) {
+      setSelectedIds([])
+    }
+
     refreshStudentData()
+
+    if (cancelled) {
+      const remainingCount = total - deletedCount - failedCount
+      setPageMessage({
+        tone: deletedCount > 0 ? 'success' : 'error',
+        text: deletedCount > 0
+          ? `Deletion stopped. ${deletedCount} student record${deletedCount === 1 ? '' : 's'} deleted${remainingCount > 0 ? `; ${remainingCount} remaining.` : '.'}`
+          : 'Deletion cancelled before any records were removed.',
+      })
+      return
+    }
+
     setPageMessage({
       tone: deletedCount > 0 ? 'success' : 'error',
       text: deletedCount > 0
@@ -879,7 +992,7 @@ const Students: React.FC = () => {
     try {
       await api.put(`/students/${studentId}`, { class: className, section: normalizedSection })
       setSectionOverrideByStudentId((prev) => ({ ...prev, [studentId]: normalizedSection }))
-      setPageMessage({ tone: 'success', text: `Section updated to ${normalizedSection}.` })
+      setPageMessage({ tone: 'success', text: `Section updated to ${getSectionDisplayName(normalizedSection)}.` })
       dispatch(
         fetchStudents({
           page,
@@ -1092,7 +1205,7 @@ const Students: React.FC = () => {
                   <option value="">All Sections</option>
                   {filterSectionOptions.map((option) => (
                     <option key={option} value={option}>
-                      {option}
+                      {getSectionDisplayName(option)}
                     </option>
                 ))}
               </select>
@@ -1303,7 +1416,7 @@ const Students: React.FC = () => {
                   ) : (
                     sectionOptionsForSelectedClass.map((option) => (
                       <option key={option} value={option}>
-                        {option}
+                        {getSectionDisplayName(option)}
                       </option>
                     ))
                   )}
@@ -1375,6 +1488,16 @@ const Students: React.FC = () => {
               </div>
 
               <div>
+                <label className="block text-sm font-semibold text-slate-700">PEN No.</label>
+                <input
+                  name="penNumber"
+                  value={formData.penNumber}
+                  onChange={handleFieldChange}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                />
+              </div>
+
+              <div>
                 <label className="block text-sm font-semibold text-slate-700">Father Name</label>
                 <input
                   name="fatherName"
@@ -1394,6 +1517,72 @@ const Students: React.FC = () => {
                   className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('motherName')}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700">House (ACTVT)</label>
+                <select
+                  name="houseId"
+                  value={formData.houseId}
+                  onChange={(event) => {
+                    const nextHouseId = event.target.value
+                    const selectedHouse = activityHouses.find((house) => house._id === nextHouseId)
+                    setFormData((prev) => ({
+                      ...prev,
+                      houseId: nextHouseId,
+                      house: selectedHouse?.name || '',
+                    }))
+                    setFormErrors((prev) => {
+                      if (!prev.house && !prev.houseId) return prev
+                      const next = { ...prev }
+                      delete next.house
+                      delete next.houseId
+                      return next
+                    })
+                  }}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                >
+                  <option value="">No house</option>
+                  {activityHouses.map((house) => (
+                    <option key={house._id} value={house._id}>
+                      {house.name}{house.color ? ` (${house.color})` : ''}
+                    </option>
+                  ))}
+                </select>
+                {activityHouses.length === 0 ? (
+                  <p className="mt-1 text-xs text-slate-500">
+                    Add houses in ACTVT → Houses for inter-house competitions.
+                  </p>
+                ) : null}
+                {renderFieldError('house')}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700">Bus No</label>
+                <input
+                  name="busNo"
+                  value={formData.busNo}
+                  onChange={handleFieldChange}
+                  placeholder="e.g. 12"
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700">Blood Group</label>
+                <select
+                  name="bloodGroup"
+                  value={formData.bloodGroup}
+                  onChange={handleFieldChange}
+                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                >
+                  <option value="">Select</option>
+                  {BLOOD_GROUP_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -1612,7 +1801,7 @@ const Students: React.FC = () => {
                           return (
                             <div className="flex flex-wrap gap-1">
                               {availableSections.map((sectionName) => {
-                                const isCurrent = sectionName === String(displaySection || '')
+                                const isCurrent = normalizeSectionKey(sectionName) === normalizeSectionKey(String(displaySection || ''))
                                 return (
                                   <button
                                     key={sectionName}
@@ -1624,10 +1813,10 @@ const Students: React.FC = () => {
                                         ? 'border-blue-300 bg-blue-600 text-white'
                                         : 'border-blue-200 bg-white text-blue-800 hover:border-blue-300 hover:bg-blue-50'
                                     } disabled:cursor-not-allowed disabled:opacity-60`}
-                                    title={`Set section ${sectionName} for ${student.name}`}
-                                    aria-label={`Set section ${sectionName} for ${student.name}`}
+                                    title={`Set section ${getSectionDisplayName(sectionName)} for ${student.name}`}
+                                    aria-label={`Set section ${getSectionDisplayName(sectionName)} for ${student.name}`}
                                   >
-                                    {sectionName}
+                                    {getSectionDisplayName(sectionName)}
                                   </button>
                                 )
                               })}
@@ -1643,7 +1832,7 @@ const Students: React.FC = () => {
                           title={`Change section for ${student.name}`}
                           aria-label={`Change section for ${student.name}`}
                         >
-                          {sectionUpdateLoadingById[student._id] ? 'Saving...' : (displaySection || '-')}
+                          {sectionUpdateLoadingById[student._id] ? 'Saving...' : (getSectionDisplayName(String(displaySection || '')) || '-')}
                         </button>
                       )}
                     </td>

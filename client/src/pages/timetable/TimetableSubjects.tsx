@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import toast from 'react-hot-toast'
 import { useTimetable, type TimetableSubject } from '@/contexts/TimetableContext'
 
 const SUBJECT_TYPES = ['Language', 'Skill', 'Core', 'Elective', 'Co-Curricular', 'Other']
@@ -121,6 +122,7 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
   })
   const [selectedCommonPeriodSections, setSelectedCommonPeriodSections] = useState<string[]>([])
   const [isCommonPeriodSectionsOpen, setIsCommonPeriodSectionsOpen] = useState(false)
+  const matrixTableRef = useRef<HTMLTableElement | null>(null)
   type CommonPeriodRow = {
     id: string
     className: string
@@ -240,13 +242,35 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
   }, [classes])
 
   useEffect(() => {
+    if (hasPendingMatrixChanges) return
+
     const nextDraft: Record<string, string[]> = {}
     classes.forEach((item) => {
       nextDraft[item.id] = [...item.subjects]
     })
     setClassSubjectDraft(nextDraft)
-    setHasPendingMatrixChanges(false)
-  }, [classes])
+  }, [classes, hasPendingMatrixChanges])
+
+  useEffect(() => {
+    const table = matrixTableRef.current
+    if (!table) return
+
+    const syncStickyOffsets = () => {
+      const nameCell = table.querySelector('.ts-sticky-col-3') as HTMLElement | null
+      const typeCell = table.querySelector('.ts-sticky-col-4') as HTMLElement | null
+      if (!nameCell || !typeCell) return
+
+      const left4 = 78 + nameCell.offsetWidth
+      const left5 = left4 + typeCell.offsetWidth
+      table.style.setProperty('--ts-sticky-left-4', `${left4}px`)
+      table.style.setProperty('--ts-sticky-left-5', `${left5}px`)
+    }
+
+    syncStickyOffsets()
+    const observer = new ResizeObserver(syncStickyOffsets)
+    observer.observe(table)
+    return () => observer.disconnect()
+  }, [subjects, isAddingNew, editingId])
 
   const matrixColumns = useMemo<SubjectMatrixColumn[]>(() => {
     const groupedColumns = new Map<string, SubjectMatrixColumn>()
@@ -383,11 +407,14 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
       }
     })
 
-    if (Object.keys(updates).length > 0) {
-      applyClassSubjectAssignments(updates)
+    if (Object.keys(updates).length === 0) {
+      setHasPendingMatrixChanges(false)
+      return
     }
 
+    applyClassSubjectAssignments(updates)
     setHasPendingMatrixChanges(false)
+    toast.success('Subject matrix saved.')
   }
 
   const getPairValidationError = (
@@ -874,7 +901,8 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
           border-spacing: 0;
         }
         .ts-subject-matrix-table {
-          min-width: max-content;
+          width: max-content;
+          table-layout: auto;
         }
         .ts-table thead th {
           padding: 14px 20px;
@@ -890,8 +918,11 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
         }
         .ts-th-matrix {
           text-align: center !important;
-          min-width: 88px;
-          padding: 12px 10px !important;
+          width: 1%;
+          min-width: 0;
+          padding: 8px 6px !important;
+          font-size: 0.68rem;
+          letter-spacing: 0.03em;
         }
         .dark .ts-table thead th {
           background: #1e293b;
@@ -914,7 +945,13 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
         }
         .ts-td-matrix {
           text-align: center;
-          padding: 12px 10px !important;
+          width: 1%;
+          min-width: 0;
+          padding: 8px 6px !important;
+        }
+        .ts-td-matrix .ts-checkbox {
+          width: 16px;
+          height: 16px;
         }
         .ts-matrix-note {
           font-size: 0.75rem;
@@ -927,12 +964,15 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
         }
         .ts-table thead th:first-child,
         .ts-table tbody td:first-child {
-          width: 48px;
-          padding-left: 20px;
-          padding-right: 8px;
+          width: 36px;
+          padding-left: 10px;
+          padding-right: 6px;
         }
         .ts-subject-matrix-table .ts-sticky-col {
           position: sticky;
+          width: 1%;
+          padding-left: 8px !important;
+          padding-right: 8px !important;
         }
         .ts-subject-matrix-table thead .ts-sticky-col {
           z-index: 8;
@@ -972,30 +1012,39 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
         }
         .ts-subject-matrix-table .ts-sticky-col-1 {
           left: 0;
-          width: 48px;
-          min-width: 48px;
-          max-width: 48px;
+          width: 36px;
+          min-width: 36px;
+          max-width: 36px;
+          padding-left: 10px !important;
+          padding-right: 6px !important;
+          text-align: center;
         }
         .ts-subject-matrix-table .ts-sticky-col-2 {
-          left: 48px;
-          width: 64px;
-          min-width: 64px;
-          max-width: 64px;
+          left: 36px;
+          width: 42px;
+          min-width: 42px;
+          max-width: 42px;
+          padding-left: 4px !important;
+          padding-right: 4px !important;
+          text-align: center;
         }
         .ts-subject-matrix-table .ts-sticky-col-3 {
-          left: 112px;
-          min-width: 150px;
-          max-width: 150px;
+          left: 78px;
+          width: auto;
+          min-width: 0;
+          max-width: none;
         }
         .ts-subject-matrix-table .ts-sticky-col-4 {
-          left: 262px;
-          min-width: 110px;
-          max-width: 110px;
+          left: var(--ts-sticky-left-4, 170px);
+          width: auto;
+          min-width: 0;
+          max-width: none;
         }
         .ts-subject-matrix-table .ts-sticky-col-5 {
-          left: 372px;
-          min-width: 105px;
-          max-width: 105px;
+          left: var(--ts-sticky-left-5, 250px);
+          width: auto;
+          min-width: 0;
+          max-width: none;
         }
         .ts-subject-matrix-table .ts-sticky-divider {
           box-shadow: 2px 0 0 #e2e8f0, 6px 0 10px -8px rgba(15, 23, 42, 0.35);
@@ -1009,7 +1058,6 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
           font-weight: 600;
           color: #94a3b8;
           font-size: 0.82rem;
-          min-width: 32px;
           display: inline-block;
         }
 
@@ -1026,23 +1074,24 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
           display: inline-flex;
           align-items: center;
           gap: 4px;
-          padding: 4px 12px;
+          padding: 3px 8px;
           border-radius: 20px;
-          font-size: 0.75rem;
+          font-size: 0.72rem;
           font-weight: 600;
           letter-spacing: 0.01em;
         }
 
         /* ───────── Action links ───────── */
         .ts-action-link {
-          font-size: 0.82rem;
+          font-size: 0.78rem;
           font-weight: 600;
-          padding: 4px 12px;
+          padding: 2px 6px;
           border-radius: 6px;
           border: none;
           background: none;
           cursor: pointer;
           transition: all 0.15s ease;
+          white-space: nowrap;
         }
         .ts-action-edit { color: #6366f1; }
         .ts-action-edit:hover { background: #eef2ff; color: #4f46e5; }
@@ -1215,7 +1264,7 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
               <svg fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
               </svg>
-              Save Matrix
+              Save Matrix{hasPendingMatrixChanges ? ' changes' : ''}
             </button>
           </div>
         </div>
@@ -1225,7 +1274,7 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
           Subject Selection Matrix: classes up to 10 are grouped class-wise, while classes 11 and 12 are shown class-section wise. Use Save Matrix to persist checkbox changes.
         </div>
         <div className="ts-table-wrap ts-matrix-vert-scroll">
-          <table className="ts-table ts-subject-matrix-table">
+          <table className="ts-table ts-subject-matrix-table" ref={matrixTableRef}>
             <thead>
               <tr>
                 <th className="ts-sticky-col ts-sticky-col-1">

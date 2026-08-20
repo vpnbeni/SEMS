@@ -353,9 +353,29 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
       }
       case 'actvt': {
         const subPage = segments[1] || ''
+        const houseId = segments[2] || ''
+        if (subPage === 'houses' && houseId) {
+          return {
+            pageTitle: 'House details',
+            pageSubtitle: 'Students, teachers, council, and house statistics',
+            showBackButton: false,
+            backTo: null,
+          }
+        }
+        if (subPage === 'clubs' && houseId) {
+          return {
+            pageTitle: 'Club details',
+            pageSubtitle: 'Incharge, members, meeting day, and club activities',
+            showBackButton: false,
+            backTo: null,
+          }
+        }
         const titleMap: Record<string, { title: string; subtitle: string }> = {
-          clubs: { title: 'Clubs', subtitle: 'Create clubs and organise club activities' },
-          houses: { title: 'Houses', subtitle: 'School houses, students, and house activities' },
+          clubs: { title: 'Clubs', subtitle: 'Club name, logo, tagline, motto, and colour — then edit the full profile' },
+          houses: { title: 'Houses', subtitle: 'House name, logo, tagline, motto, and colour for inter-house competitions' },
+          calendar: { title: 'Activity Calendar', subtitle: 'Plan school, house, and club activities across months' },
+          ranking: { title: 'House Ranking', subtitle: 'Track house activity points and live standings' },
+          certificates: { title: 'Certificates', subtitle: 'Generate and print certificates for house activity participants' },
           tours: { title: 'Tours & Trips', subtitle: 'Educational tours, trips, and student feedback' },
           sports: { title: 'Sports', subtitle: 'Inter-house Annual Sports Meet' },
           functions: { title: 'Functions', subtitle: 'Plan and record school functions' },

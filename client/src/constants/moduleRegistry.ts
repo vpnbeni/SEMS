@@ -58,7 +58,7 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     id: 'actvt',
     abbreviation: 'ACTVT',
     title: 'Activities',
-    defaultRoute: '/actvt/clubs',
+    defaultRoute: '/actvt/houses',
     icon: actvtIcon,
   },
   {

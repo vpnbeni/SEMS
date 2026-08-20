@@ -100,7 +100,12 @@ import AcdmcAssignment from './pages/acdmc/AcdmcAssignment'
 import AcdmcQuiz from './pages/acdmc/AcdmcQuiz'
 import AcdmcCurriculum from './pages/acdmc/AcdmcCurriculum'
 import ActvtClubs from './pages/actvt/ActvtClubs'
+import ActvtClubDetail from './pages/actvt/ActvtClubDetail'
 import ActvtHouses from './pages/actvt/ActvtHouses'
+import ActvtHouseDetail from './pages/actvt/ActvtHouseDetail'
+import ActvtCalendar from './pages/actvt/ActvtCalendar'
+import ActvtHouseRanking from './pages/actvt/ActvtHouseRanking'
+import ActvtCertificates from './pages/actvt/ActvtCertificates'
 import ActvtTours from './pages/actvt/ActvtTours'
 import ActvtSports from './pages/actvt/ActvtSports'
 import ActvtFunctions from './pages/actvt/ActvtFunctions'
@@ -330,12 +335,17 @@ function App() {
               <Route path="acdmc/quiz" element={<AcdmcQuiz />} />
               <Route path="acdmc/curriculum" element={<AcdmcCurriculum />} />
               <Route path="acdmc" element={<Navigate to="/acdmc/lesson-plan" replace />} />
-              <Route path="actvt/clubs" element={<ActvtClubs />} />
               <Route path="actvt/houses" element={<ActvtHouses />} />
+              <Route path="actvt/houses/:id" element={<ActvtHouseDetail />} />
+              <Route path="actvt/clubs" element={<ActvtClubs />} />
+              <Route path="actvt/clubs/:id" element={<ActvtClubDetail />} />
+              <Route path="actvt/calendar" element={<ActvtCalendar />} />
+              <Route path="actvt/ranking" element={<ActvtHouseRanking />} />
+              <Route path="actvt/certificates" element={<ActvtCertificates />} />
               <Route path="actvt/tours" element={<ActvtTours />} />
               <Route path="actvt/sports" element={<ActvtSports />} />
               <Route path="actvt/functions" element={<ActvtFunctions />} />
-              <Route path="actvt" element={<Navigate to="/actvt/clubs" replace />} />
+              <Route path="actvt" element={<Navigate to="/actvt/houses" replace />} />
               <Route path="centre-details" element={<CentreDetails />} />
               <Route
                 path="exam-functionaries"

@@ -48,6 +48,32 @@ const baseStudentSchema = {
     .messages({
       'string.max': 'PEN number cannot exceed 50 characters'
     }),
+
+  house: Joi.string()
+    .trim()
+    .max(50)
+    .optional()
+    .allow('')
+    .messages({
+      'string.max': 'House cannot exceed 50 characters'
+    }),
+
+  houseId: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .optional()
+    .allow(null, '')
+    .messages({
+      'string.pattern.base': 'Invalid house ID format',
+    }),
+
+  busNo: Joi.string()
+    .trim()
+    .max(30)
+    .optional()
+    .allow('')
+    .messages({
+      'string.max': 'Bus number cannot exceed 30 characters'
+    }),
   
   class: Joi.string()
     .trim()
@@ -349,6 +375,25 @@ const bulkUploadSchema = Joi.object({
     })
 });
 
+const bulkDeleteSchema = Joi.object({
+  ids: Joi.array()
+    .items(
+      Joi.string()
+        .pattern(/^[0-9a-fA-F]{24}$/)
+        .messages({
+          'string.pattern.base': 'Invalid student ID format',
+        })
+    )
+    .min(1)
+    .max(250)
+    .required()
+    .messages({
+      'array.min': 'At least one student id is required',
+      'array.max': 'Cannot delete more than 250 students at once',
+      'any.required': 'Student ids are required',
+    }),
+});
+
 // Document upload schema
 const documentUploadSchema = Joi.object({
   type: Joi.string()
@@ -389,6 +434,7 @@ module.exports = {
   assignSubjectsSchema,
   studentQuerySchema,
   bulkUploadSchema,
+  bulkDeleteSchema,
   documentUploadSchema,
   nextRollNumberSchema
 };

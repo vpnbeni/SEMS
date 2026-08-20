@@ -43,6 +43,21 @@ const studentSchema = new mongoose.Schema({
     trim: true,
     maxlength: [50, 'PEN number cannot be more than 50 characters']
   },
+  house: {
+    type: String,
+    trim: true,
+    maxlength: [50, 'House cannot be more than 50 characters']
+  },
+  houseId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'ActivityHouse',
+    default: null
+  },
+  busNo: {
+    type: String,
+    trim: true,
+    maxlength: [30, 'Bus number cannot be more than 30 characters']
+  },
   class: {
     type: String,
     required: [true, 'Class is required'],

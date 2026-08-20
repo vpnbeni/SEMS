@@ -113,6 +113,9 @@ const MODULE_MODEL_KEYS = Object.freeze({
     'ActivityTour',
     'ActivitySportsMeet',
     'ActivityFunction',
+    'ActivityEvent',
+    'ActivityPoints',
+    'ActivityCertificate',
   ]),
 });
 

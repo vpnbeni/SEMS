@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import toast from 'react-hot-toast'
 import { useTimetable, type TimetableClass } from '@/contexts/TimetableContext'
-import { STUDENT_CLASS_OPTIONS } from '@/constants/studentClasses'
 
 const FLOOR_OPTIONS = ['Ground Floor', 'First Floor', 'Second Floor', 'Third Floor']
 
@@ -54,6 +54,8 @@ interface MatrixSectionColumn {
 let matrixSeq = 0
 const genMatrixId = (prefix: string) => `${prefix}-${++matrixSeq}-${Date.now()}`
 const comboKey = (className: string, section: string) => `${className.trim().toLowerCase()}::${section.trim().toLowerCase()}`
+const inputSizeFor = (value: string, fallback: string, min: number) =>
+  Math.max(min, (value.trim() ? value : fallback).length)
 
 const TimetableClasses: React.FC = () => {
   const {
@@ -64,9 +66,9 @@ const TimetableClasses: React.FC = () => {
     deleteClasses,
     clearClasses,
     subjects: allSubjects,
-    matrixClasses,
-    matrixSections,
-    matrixSelection,
+    matrixClasses: savedMatrixClasses,
+    matrixSections: savedMatrixSections,
+    matrixSelection: savedMatrixSelection,
     setMatrixState,
     teachers,
   } = useTimetable()
@@ -94,8 +96,14 @@ const TimetableClasses: React.FC = () => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editingData, setEditingData] = useState({ ...EMPTY_FORM })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [selectedMatrixClassIds, setSelectedMatrixClassIds] = useState<Set<string>>(new Set())
+  const [matrixClasses, setMatrixClasses] = useState<MatrixClassRow[]>([])
+  const [matrixSections, setMatrixSections] = useState<MatrixSectionColumn[]>([])
+  const [matrixSelection, setMatrixSelection] = useState<Record<string, Record<string, boolean>>>({})
   const [matrixClassDrafts, setMatrixClassDrafts] = useState<Record<string, string>>({})
   const [matrixSectionDrafts, setMatrixSectionDrafts] = useState<Record<string, string>>({})
+  const [matrixDirty, setMatrixDirty] = useState(false)
+  const didHydrateLocalMatrixRef = useRef(false)
 
   // Incharge dropdown is sourced from Timetable > Teachers module.
   const teacherOptions = useMemo(() => {
@@ -216,11 +224,13 @@ const TimetableClasses: React.FC = () => {
             return acc
           }, {})
         })
+        setMatrixSelection(nextMatrixSelection)
         setMatrixState({
           matrixClasses,
           matrixSections,
           matrixSelection: nextMatrixSelection,
         })
+        setMatrixDirty(false)
       }
     } catch (error) {
       console.error('Failed to sync matrix state during class deletion:', error)
@@ -234,15 +244,23 @@ const TimetableClasses: React.FC = () => {
   const someOnPageSelected = classes.some((c) => selectedIds.has(c.id))
 
   useEffect(() => {
-    setMatrixClassDrafts(
-      Object.fromEntries(matrixClasses.map((item) => [item.id, item.name]))
-    )
+    setMatrixClassDrafts((prev) => {
+      const next: Record<string, string> = {}
+      matrixClasses.forEach((item) => {
+        next[item.id] = prev[item.id] ?? item.name
+      })
+      return next
+    })
   }, [matrixClasses])
 
   useEffect(() => {
-    setMatrixSectionDrafts(
-      Object.fromEntries(matrixSections.map((item) => [item.id, item.name]))
-    )
+    setMatrixSectionDrafts((prev) => {
+      const next: Record<string, string> = {}
+      matrixSections.forEach((item) => {
+        next[item.id] = prev[item.id] ?? item.name
+      })
+      return next
+    })
   }, [matrixSections])
 
   // ── Floor badge class ──
@@ -261,13 +279,23 @@ const TimetableClasses: React.FC = () => {
   const uniqueClasses = new Set(classes.map((c) => c.className)).size
 
   const hasPersistedMatrix =
-    matrixClasses.length > 0 ||
-    matrixSections.length > 0 ||
-    Object.keys(matrixSelection).length > 0
+    savedMatrixClasses.length > 0 ||
+    savedMatrixSections.length > 0 ||
+    Object.keys(savedMatrixSelection).length > 0
 
-  // One-time bootstrap for tenants that already had lower-table class/section data.
   useEffect(() => {
-    if (hasPersistedMatrix || classes.length === 0) return
+    if (!isHydrated || didHydrateLocalMatrixRef.current) return
+    didHydrateLocalMatrixRef.current = true
+
+    if (hasPersistedMatrix) {
+      setMatrixClasses(savedMatrixClasses)
+      setMatrixSections(savedMatrixSections)
+      setMatrixSelection(savedMatrixSelection)
+      setMatrixDirty(false)
+      return
+    }
+
+    if (classes.length === 0) return
 
     const classNames = Array.from(
       new Set(
@@ -299,52 +327,92 @@ const TimetableClasses: React.FC = () => {
       nextSelection[classId][sectionId] = true
     })
 
-    setMatrixState({
-      matrixClasses: nextMatrixClasses,
-      matrixSections: nextMatrixSections,
-      matrixSelection: nextSelection,
-    })
-  }, [hasPersistedMatrix, classes, setMatrixState])
+    setMatrixClasses(nextMatrixClasses)
+    setMatrixSections(nextMatrixSections)
+    setMatrixSelection(nextSelection)
+    setMatrixDirty(true)
+  }, [isHydrated, hasPersistedMatrix, savedMatrixClasses, savedMatrixSections, savedMatrixSelection, classes])
 
   useEffect(() => {
-    if (!isHydrated) return
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!matrixDirty) return
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [matrixDirty])
 
-    const existingByName = new Map(
-      matrixClasses.map((item) => [item.name.trim().toLowerCase(), item])
+  const allMatrixClassesSelected =
+    matrixClasses.length > 0 && matrixClasses.every((item) => selectedMatrixClassIds.has(item.id))
+  const someMatrixClassesSelected = matrixClasses.some((item) => selectedMatrixClassIds.has(item.id))
+
+  const toggleMatrixClassSelection = (classId: string) => {
+    setSelectedMatrixClassIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(classId)) next.delete(classId)
+      else next.add(classId)
+      return next
+    })
+  }
+
+  const toggleAllMatrixClasses = () => {
+    if (allMatrixClassesSelected) {
+      setSelectedMatrixClassIds(new Set())
+      return
+    }
+    setSelectedMatrixClassIds(new Set(matrixClasses.map((item) => item.id)))
+  }
+
+  const handleDeleteSelectedMatrixClasses = () => {
+    if (selectedMatrixClassIds.size === 0) return
+
+    const selectedRows = matrixClasses.filter((item) => selectedMatrixClassIds.has(item.id))
+    if (selectedRows.length === 0) return
+
+    const confirmMessage = `Delete ${selectedRows.length} selected class${selectedRows.length === 1 ? '' : 'es'} from the matrix? Related class-section rows will also be removed.`
+    if (!window.confirm(confirmMessage)) return
+
+    const deletedNameKeys = new Set(
+      selectedRows
+        .map((item) => {
+          const draftedName = matrixClassDrafts[item.id]
+          const name = (typeof draftedName === 'string' && draftedName.trim() ? draftedName : item.name).trim()
+          return name.toLowerCase()
+        })
+        .filter(Boolean)
     )
-    const missingStandardClasses = STUDENT_CLASS_OPTIONS.filter(
-      (className) => !existingByName.has(className.toLowerCase())
-    )
-    if (missingStandardClasses.length === 0) return
 
-    const extraClasses = matrixClasses.filter(
-      (item) => !STUDENT_CLASS_OPTIONS.some(
-        (className) => className.toLowerCase() === item.name.trim().toLowerCase()
-      )
-    )
-
-    const nextMatrixClasses = [
-      ...STUDENT_CLASS_OPTIONS.map((className) => (
-        existingByName.get(className.toLowerCase()) || { id: genMatrixId('tmc'), name: className }
-      )),
-      ...extraClasses,
-    ]
-
-    const nextMatrixSelection: Record<string, Record<string, boolean>> = { ...matrixSelection }
-    nextMatrixClasses.forEach((classItem) => {
-      if (nextMatrixSelection[classItem.id]) return
-      nextMatrixSelection[classItem.id] = matrixSections.reduce<Record<string, boolean>>((acc, sectionItem) => {
-        acc[sectionItem.id] = false
-        return acc
-      }, {})
+    const nextMatrixClasses = matrixClasses.filter((item) => !selectedMatrixClassIds.has(item.id))
+    const nextMatrixSelection = { ...matrixSelection }
+    selectedMatrixClassIds.forEach((classId) => {
+      delete nextMatrixSelection[classId]
     })
 
+    setMatrixClasses(nextMatrixClasses)
+    setMatrixSelection(nextMatrixSelection)
     setMatrixState({
       matrixClasses: nextMatrixClasses,
       matrixSections,
       matrixSelection: nextMatrixSelection,
     })
-  }, [isHydrated, matrixClasses, matrixSections, matrixSelection, setMatrixState])
+    setMatrixDirty(false)
+    setSelectedMatrixClassIds(new Set())
+    setMatrixClassDrafts((prev) => {
+      const next = { ...prev }
+      selectedRows.forEach((item) => {
+        delete next[item.id]
+      })
+      return next
+    })
+
+    const comboIdsToDelete = classes
+      .filter((item) => deletedNameKeys.has(item.className.trim().toLowerCase()))
+      .map((item) => item.id)
+    if (comboIdsToDelete.length > 0) {
+      deleteClasses(comboIdsToDelete)
+    }
+  }
 
   const handleAddMatrixClass = () => {
     const classId = genMatrixId('tmc')
@@ -357,11 +425,9 @@ const TimetableClasses: React.FC = () => {
       }, {}),
     }
 
-    setMatrixState({
-      matrixClasses: nextMatrixClasses,
-      matrixSections,
-      matrixSelection: nextMatrixSelection,
-    })
+    setMatrixClasses(nextMatrixClasses)
+    setMatrixSelection(nextMatrixSelection)
+    setMatrixDirty(true)
   }
 
   const handleAddMatrixSection = () => {
@@ -373,29 +439,21 @@ const TimetableClasses: React.FC = () => {
       nextMatrixSelection[item.id] = { ...(nextMatrixSelection[item.id] || {}), [sectionId]: false }
     })
 
-    setMatrixState({
-      matrixClasses,
-      matrixSections: nextMatrixSections,
-      matrixSelection: nextMatrixSelection,
-    })
+    setMatrixSections(nextMatrixSections)
+    setMatrixSelection(nextMatrixSelection)
+    setMatrixDirty(true)
   }
 
   const handleMatrixClassNameChange = (classId: string, name: string) => {
     const nextMatrixClasses = matrixClasses.map((item) => (item.id === classId ? { ...item, name } : item))
-    setMatrixState({
-      matrixClasses: nextMatrixClasses,
-      matrixSections,
-      matrixSelection,
-    })
+    setMatrixClasses(nextMatrixClasses)
+    setMatrixDirty(true)
   }
 
   const handleMatrixSectionNameChange = (sectionId: string, name: string) => {
     const nextMatrixSections = matrixSections.map((item) => (item.id === sectionId ? { ...item, name } : item))
-    setMatrixState({
-      matrixClasses,
-      matrixSections: nextMatrixSections,
-      matrixSelection,
-    })
+    setMatrixSections(nextMatrixSections)
+    setMatrixDirty(true)
   }
 
   const commitMatrixClassName = (classId: string) => {
@@ -420,52 +478,47 @@ const TimetableClasses: React.FC = () => {
         [sectionId]: !matrixSelection[classId]?.[sectionId],
       },
     }
-    setMatrixState({
-      matrixClasses,
-      matrixSections,
-      matrixSelection: nextMatrixSelection,
-    })
+    setMatrixSelection(nextMatrixSelection)
+    setMatrixDirty(true)
   }
 
   const handleSaveMatrixToLowerTable = () => {
-    const classNames = matrixClasses.map((item) => item.name.trim())
-    const sectionNames = matrixSections.map((item) => item.name.trim())
+    const normalizedMatrixClasses = matrixClasses.map((item) => ({
+      ...item,
+      name: (matrixClassDrafts[item.id] ?? item.name).trim(),
+    }))
+    const normalizedMatrixSections = matrixSections.map((item) => ({
+      ...item,
+      name: (matrixSectionDrafts[item.id] ?? item.name).trim(),
+    }))
 
-    if (classNames.some((name) => !name)) {
+    if (normalizedMatrixClasses.some((item) => !item.name)) {
       window.alert('Please enter a valid class name for each class row.')
       return
     }
-    if (sectionNames.some((name) => !name)) {
+    if (normalizedMatrixSections.some((item) => !item.name)) {
       window.alert('Please enter a valid section name for each section column.')
       return
     }
 
-    const classNameSet = new Set(classNames.map((name) => name.toLowerCase()))
-    if (classNameSet.size !== classNames.length) {
+    const classNameSet = new Set(normalizedMatrixClasses.map((item) => item.name.toLowerCase()))
+    if (classNameSet.size !== normalizedMatrixClasses.length) {
       window.alert('Duplicate class names are not allowed in the matrix.')
       return
     }
 
-    const sectionNameSet = new Set(sectionNames.map((name) => name.toLowerCase()))
-    if (sectionNameSet.size !== sectionNames.length) {
+    const sectionNameSet = new Set(normalizedMatrixSections.map((item) => item.name.toLowerCase()))
+    if (sectionNameSet.size !== normalizedMatrixSections.length) {
       window.alert('Duplicate section names are not allowed in the matrix.')
       return
     }
 
-    const normalizedMatrixClasses = matrixClasses.map((item) => ({ ...item, name: item.name.trim() }))
-    const normalizedMatrixSections = matrixSections.map((item) => ({ ...item, name: item.name.trim() }))
     const normalizedMatrixSelection: Record<string, Record<string, boolean>> = {}
     normalizedMatrixClasses.forEach((classItem) => {
       normalizedMatrixSelection[classItem.id] = normalizedMatrixSections.reduce<Record<string, boolean>>((acc, sectionItem) => {
         acc[sectionItem.id] = Boolean(matrixSelection[classItem.id]?.[sectionItem.id])
         return acc
       }, {})
-    })
-
-    setMatrixState({
-      matrixClasses: normalizedMatrixClasses,
-      matrixSections: normalizedMatrixSections,
-      matrixSelection: normalizedMatrixSelection,
     })
 
     const desiredCombos: Array<{ className: string, section: string }> = []
@@ -481,7 +534,6 @@ const TimetableClasses: React.FC = () => {
     })
 
     const desiredKeys = new Set(desiredCombos.map((item) => comboKey(item.className, item.section)))
-
     const existingByKey = new Map<string, TimetableClass>()
     classes.forEach((item) => existingByKey.set(comboKey(item.className, item.section), item))
 
@@ -495,6 +547,18 @@ const TimetableClasses: React.FC = () => {
       )
       if (!confirmed) return
     }
+
+    setMatrixClasses(normalizedMatrixClasses)
+    setMatrixSections(normalizedMatrixSections)
+    setMatrixSelection(normalizedMatrixSelection)
+    setMatrixClassDrafts(Object.fromEntries(normalizedMatrixClasses.map((item) => [item.id, item.name])))
+    setMatrixSectionDrafts(Object.fromEntries(normalizedMatrixSections.map((item) => [item.id, item.name])))
+    setMatrixState({
+      matrixClasses: normalizedMatrixClasses,
+      matrixSections: normalizedMatrixSections,
+      matrixSelection: normalizedMatrixSelection,
+    })
+    setMatrixDirty(false)
 
     const combosToAdd = desiredCombos.filter((item) => !existingByKey.has(comboKey(item.className, item.section)))
 
@@ -515,6 +579,7 @@ const TimetableClasses: React.FC = () => {
       })
     })
 
+    toast.success('Classes and sections saved.')
   }
 
   // ── Subject multi-select helpers ──
@@ -1048,18 +1113,42 @@ const TimetableClasses: React.FC = () => {
           font-size: 0.76rem;
           border-radius: 8px;
         }
+        .tc-summary-card .tc-table-wrap {
+          width: max-content;
+          max-width: 100%;
+        }
+        .tc-summary-table {
+          width: max-content;
+          table-layout: auto;
+        }
         .tc-summary-table thead th {
           background: #f1f5f9;
+          width: 1%;
+          padding-left: 10px;
+          padding-right: 10px;
         }
         .dark .tc-summary-table thead th {
           background: #1f2c3f;
         }
+        .tc-summary-table tbody td {
+          width: 1%;
+          padding-left: 10px;
+          padding-right: 10px;
+        }
+        .tc-summary-table thead th:first-child,
+        .tc-summary-table tbody td:first-child {
+          width: 36px;
+          padding-left: 12px;
+          padding-right: 6px;
+        }
         .tc-matrix-class-cell {
-          min-width: 130px;
+          min-width: 0;
         }
         .tc-matrix-class-input,
         .tc-matrix-section-input {
-          width: 100%;
+          width: auto;
+          min-width: 3.5rem;
+          field-sizing: content;
           padding: 6px 10px;
           border: 1.5px solid #dbe4f0;
           border-radius: 8px;
@@ -1088,6 +1177,10 @@ const TimetableClasses: React.FC = () => {
           height: 16px;
           accent-color: #4f46e5;
         }
+        .tc-matrix-select-col {
+          width: 36px;
+          text-align: center;
+        }
         .tc-summary-empty {
           padding: 14px 18px;
           color: #94a3b8;
@@ -1095,24 +1188,28 @@ const TimetableClasses: React.FC = () => {
         }
       `}</style>
 
-      <div className="mb-6">
-        <p className="text-sm text-secondary-500 dark:text-secondary-400">
-          Manage classes and sections for timetable scheduling
-        </p>
-      </div>
-
       <div className="tc-card tc-summary-card">
         <div className="tc-summary-header">
           <h4>Class Section Matrix</h4>
           <div className="tc-summary-actions">
+            <button
+              onClick={handleDeleteSelectedMatrixClasses}
+              disabled={selectedMatrixClassIds.size === 0}
+              className="tc-btn tc-btn-danger tc-summary-btn"
+            >
+              Delete Selected{selectedMatrixClassIds.size > 0 ? ` (${selectedMatrixClassIds.size})` : ''}
+            </button>
             <button onClick={handleAddMatrixClass} className="tc-btn tc-btn-primary tc-summary-btn">
               Add Class
             </button>
             <button onClick={handleAddMatrixSection} className="tc-btn tc-btn-primary tc-summary-btn">
               Add Section
             </button>
-            <button onClick={handleSaveMatrixToLowerTable} className="tc-btn tc-btn-primary tc-summary-btn">
-              Save
+            <button
+              onClick={handleSaveMatrixToLowerTable}
+              className="tc-btn tc-btn-primary tc-summary-btn"
+            >
+              {matrixDirty ? 'Save changes' : 'Save'}
             </button>
           </div>
         </div>
@@ -1120,6 +1217,20 @@ const TimetableClasses: React.FC = () => {
           <table className="tc-table tc-summary-table">
             <thead>
               <tr>
+                <th className="tc-matrix-select-col">
+                  <label className="tc-checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={allMatrixClassesSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = someMatrixClassesSelected && !allMatrixClassesSelected
+                      }}
+                      onChange={toggleAllMatrixClasses}
+                      className="tc-matrix-checkbox"
+                      aria-label="Select all classes"
+                    />
+                  </label>
+                </th>
                 <th>Sr No</th>
                 <th>Class</th>
                 {matrixSections.length > 0 ? (
@@ -1129,9 +1240,11 @@ const TimetableClasses: React.FC = () => {
                         type="text"
                         value={matrixSectionDrafts[section.id] ?? section.name}
                         placeholder={`Section ${index + 1}`}
-                        onChange={(e) =>
+                        size={inputSizeFor(matrixSectionDrafts[section.id] ?? section.name, `Section ${index + 1}`, 6)}
+                        onChange={(e) => {
                           setMatrixSectionDrafts((prev) => ({ ...prev, [section.id]: e.target.value }))
-                        }
+                          setMatrixDirty(true)
+                        }}
                         onBlur={() => commitMatrixSectionName(section.id)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
@@ -1152,15 +1265,28 @@ const TimetableClasses: React.FC = () => {
               {matrixClasses.length > 0 ? (
                 matrixClasses.map((row, index) => (
                   <tr key={row.id}>
+                    <td className="tc-matrix-select-col">
+                      <label className="tc-checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={selectedMatrixClassIds.has(row.id)}
+                          onChange={() => toggleMatrixClassSelection(row.id)}
+                          className="tc-matrix-checkbox"
+                          aria-label={`Select ${matrixClassDrafts[row.id] || row.name || `class ${index + 1}`}`}
+                        />
+                      </label>
+                    </td>
                     <td><span className="tc-sr">{index + 1}</span></td>
                     <td className="tc-matrix-class-cell">
                       <input
                         type="text"
                         value={matrixClassDrafts[row.id] ?? row.name}
                         placeholder={`Class ${index + 1}`}
-                        onChange={(e) =>
+                        size={inputSizeFor(matrixClassDrafts[row.id] ?? row.name, `Class ${index + 1}`, 4)}
+                        onChange={(e) => {
                           setMatrixClassDrafts((prev) => ({ ...prev, [row.id]: e.target.value }))
-                        }
+                          setMatrixDirty(true)
+                        }}
                         onBlur={() => commitMatrixClassName(row.id)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
@@ -1193,7 +1319,7 @@ const TimetableClasses: React.FC = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={Math.max(2 + matrixSections.length, 3)}>
+                  <td colSpan={Math.max(3 + matrixSections.length, 4)}>
                     <div className="tc-summary-empty">Add classes and sections, tick checkboxes, then click Save.</div>
                   </td>
                 </tr>
