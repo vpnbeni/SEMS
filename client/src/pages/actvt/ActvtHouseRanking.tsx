@@ -154,25 +154,25 @@ const ActvtHouseRanking: React.FC = () => {
           {!loading && standings.length === 0 ? (
             <p className="text-sm text-slate-500">No house points yet. Record an activity below to begin the leaderboard.</p>
           ) : (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="flex flex-nowrap gap-3 overflow-x-auto">
               {standings.map((house) => (
-                <div key={house.houseId} className="rounded-2xl border border-slate-100 p-4 shadow-sm">
+                <div key={house.houseId} className="min-w-[160px] flex-1 rounded-2xl border border-slate-100 p-3 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                       <span
-                        className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white"
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
                         style={{ backgroundColor: house.houseColor || '#4f46e5' }}
                       >
                         {house.rank}
                       </span>
-                      <div>
-                        <p className="font-semibold text-slate-900">{house.houseName}</p>
-                        <p className="text-[11px] text-slate-500">{house.entries} activit{house.entries === 1 ? 'y' : 'ies'}</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">{house.houseName}</p>
+                        <p className="text-[10px] text-slate-500">{house.entries} activit{house.entries === 1 ? 'y' : 'ies'}</p>
                       </div>
                     </div>
-                    <p className="text-xl font-bold text-slate-900">{house.totalPoints}</p>
+                    <p className="shrink-0 text-lg font-bold text-slate-900">{house.totalPoints}</p>
                   </div>
-                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
                     <div
                       className="h-full rounded-full"
                       style={{

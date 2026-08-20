@@ -132,6 +132,25 @@ const normalizeHeaderLabel = (value) => (
     .trim()
 );
 
+/** Compare house labels ignoring case and optional trailing "House" (e.g. PLUTO ≡ Pluto House). */
+const normalizeHouseMatchKey = (value) => (
+  normalizeHeaderLabel(value)
+    .replace(/\bHOUSES?\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+);
+
+/** Store people/place names as Title Case: "JOHN DOE" → "John Doe". */
+const toTitleCaseName = (value) => {
+  const text = normalizeString(value).replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .split(' ')
+    .map((word) => (word ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : ''))
+    .join(' ');
+};
+
 const normalizeBloodGroupValue = (value) => {
   const raw = normalizeString(value).toUpperCase().replace(/\s+/g, '');
   if (!raw) return '';
@@ -403,8 +422,22 @@ const resolveHouseAgainstCatalog = (houses = [], { house, houseId } = {}) => {
       };
     }
   } else if (houseNameInput) {
-    const key = normalizeHeaderLabel(houseNameInput);
-    matched = houses.find((item) => normalizeHeaderLabel(item.name) === key) || null;
+    const key = normalizeHouseMatchKey(houseNameInput);
+    matched = houses.find((item) => normalizeHouseMatchKey(item.name) === key) || null;
+
+    // Fallback: allow short forms / partials when unique (e.g. "Sun" → "Sun House")
+    if (!matched && key.length >= 2) {
+      const partialMatches = houses.filter((item) => {
+        const catalogKey = normalizeHouseMatchKey(item.name);
+        return catalogKey === key
+          || catalogKey.startsWith(key)
+          || key.startsWith(catalogKey);
+      });
+      if (partialMatches.length === 1) {
+        matched = partialMatches[0];
+      }
+    }
+
     if (!matched) {
       const available = houses.map((item) => item.name).join(', ');
       return {
@@ -745,7 +778,7 @@ const createStudent = asyncHandler(async (req, res) => {
   // Create student
   const student = await Student.create({
     rollNumber,
-    name,
+    name: toTitleCaseName(name) || name,
     email: normalizedEmail,
     phone: optionalText(phone),
     penNumber: optionalText(penNumber),
@@ -756,16 +789,16 @@ const createStudent = asyncHandler(async (req, res) => {
     section: resolvedSection.section,
     gender: normalizeGenderValue(gender),
     subjects: subjects || [],
-    fatherName,
-    motherName,
+    fatherName: toTitleCaseName(fatherName) || fatherName,
+    motherName: toTitleCaseName(motherName) || motherName,
     guardianPhone,
     address,
     dateOfBirth,
     admissionDate,
     aadharNumber: optionalText(aadharNumber),
     category,
-    religion: optionalText(religion),
-    nationality: optionalText(nationality) || 'Indian',
+    religion: toTitleCaseName(religion) || optionalText(religion),
+    nationality: toTitleCaseName(nationality) || optionalText(nationality) || 'Indian',
     previousSchool,
     medicalInfo,
     notes: optionalText(notes)
@@ -870,8 +903,21 @@ const updateStudent = asyncHandler(async (req, res) => {
   if ('phone' in updateData) updateData.phone = optionalText(updateData.phone);
   if ('penNumber' in updateData) updateData.penNumber = optionalText(updateData.penNumber);
   if ('aadharNumber' in updateData) updateData.aadharNumber = optionalText(updateData.aadharNumber);
-  if ('religion' in updateData) updateData.religion = optionalText(updateData.religion);
-  if ('nationality' in updateData) updateData.nationality = optionalText(updateData.nationality) || 'Indian';
+  if ('name' in updateData) updateData.name = toTitleCaseName(updateData.name) || updateData.name;
+  if ('fatherName' in updateData) {
+    updateData.fatherName = toTitleCaseName(updateData.fatherName) || updateData.fatherName;
+  }
+  if ('motherName' in updateData) {
+    updateData.motherName = toTitleCaseName(updateData.motherName) || updateData.motherName;
+  }
+  if ('religion' in updateData) {
+    updateData.religion = toTitleCaseName(updateData.religion) || optionalText(updateData.religion);
+  }
+  if ('nationality' in updateData) {
+    updateData.nationality = toTitleCaseName(updateData.nationality)
+      || optionalText(updateData.nationality)
+      || 'Indian';
+  }
   if ('notes' in updateData) updateData.notes = optionalText(updateData.notes);
   if ('gender' in updateData) updateData.gender = normalizeGenderValue(updateData.gender);
   delete updateData.classRollNo;
@@ -1562,12 +1608,12 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
 
     const normalizedRow = {
       rollNumber: normalizeString(rowData.rollNumber).replace(/\s+/g, '').toUpperCase(),
-      name: normalizeString(rowData.name),
+      name: toTitleCaseName(rowData.name),
       gender: normalizeGenderValue(rowData.gender),
       class: normalizeClassValue(rowData.class),
       section: normalizeSectionValue(rowData.section),
-      fatherName: normalizeString(rowData.fatherName),
-      motherName: normalizeString(rowData.motherName),
+      fatherName: toTitleCaseName(rowData.fatherName),
+      motherName: toTitleCaseName(rowData.motherName),
       guardianPhone: mobileNumber || '',
       dateOfBirth: normalizeDateValue(rowData.dateOfBirth),
       admissionDate: normalizeDateValue(rowData.admissionDate),
@@ -1579,8 +1625,8 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       houseId: resolvedImportHouse.houseId,
       busNo: optionalText(rowData.busNo),
       aadharNumber: optionalText(normalizeString(rowData.aadharNumber).replace(/\D/g, '')),
-      religion: optionalText(rowData.religion),
-      nationality: optionalText(rowData.nationality) || 'Indian',
+      religion: toTitleCaseName(rowData.religion) || optionalText(rowData.religion),
+      nationality: toTitleCaseName(rowData.nationality) || optionalText(rowData.nationality) || 'Indian',
       notes: optionalText(rowData.notes),
       address: {
         street: parsedAddress.street,

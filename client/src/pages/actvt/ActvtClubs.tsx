@@ -191,22 +191,22 @@ const ActvtClubs: React.FC = () => {
   return (
     <div className="p-6">
       <div className="mx-auto max-w-[1400px] space-y-6">
-        <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-            <div className="min-w-[88px] shrink-0">
-              <p className="mb-1 text-xs font-semibold text-slate-500">Add club</p>
+        <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="w-[92px] shrink-0">
+              <p className="mb-1 text-[11px] font-semibold text-slate-500">Add club</p>
               <button
                 type="button"
                 onClick={() => logoInputRef.current?.click()}
-                className="flex h-10 w-full items-center justify-center gap-2 overflow-hidden rounded-xl border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                className="flex h-9 w-full items-center justify-center gap-1.5 overflow-hidden rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
                 title="Upload and crop logo"
               >
                 {logoPreview ? (
-                  <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-lg bg-white ring-1 ring-slate-200">
+                  <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md bg-white ring-1 ring-slate-200">
                     <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain" />
                   </span>
                 ) : (
-                  <ImagePlus className="h-4 w-4" />
+                  <ImagePlus className="h-3.5 w-3.5" />
                 )}
                 <span className="truncate">Logo</span>
               </button>
@@ -219,7 +219,7 @@ const ActvtClubs: React.FC = () => {
               />
             </div>
 
-            <label className="min-w-0 flex-1 text-xs">
+            <label className="min-w-[160px] flex-1 text-[11px]">
               <span className="mb-1 block font-medium text-slate-500">Club Name</span>
               <input
                 required
@@ -230,14 +230,14 @@ const ActvtClubs: React.FC = () => {
               />
             </label>
 
-            <label className="w-full shrink-0 text-xs sm:w-[148px]">
+            <label className="w-[148px] shrink-0 text-[11px]">
               <span className="mb-1 block font-medium text-slate-500">Colour</span>
               <div className="flex items-center gap-1.5">
                 <input
                   type="color"
                   value={isLikelyColor(form.color) ? form.color : '#4f46e5'}
                   onChange={(event) => setForm({ ...form, color: event.target.value })}
-                  className="h-10 w-10 cursor-pointer rounded-lg border border-slate-200 bg-white p-1"
+                  className="h-9 w-9 cursor-pointer rounded-lg border border-slate-200 bg-white p-1"
                   aria-label="Pick club colour"
                 />
                 <input
@@ -249,19 +249,14 @@ const ActvtClubs: React.FC = () => {
               </div>
             </label>
 
-            <div className="flex shrink-0 gap-2">
-              <button
-                type="submit"
-                disabled={saving}
-                className="h-10 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-              >
-                {saving ? 'Saving...' : 'Add'}
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={saving}
+              className="h-9 shrink-0 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+            >
+              {saving ? 'Saving...' : 'Add'}
+            </button>
           </div>
-          <p className="mt-2 text-[11px] text-slate-400">
-            Use Edit on a club card to update logo, tagline, motto, and other details.
-          </p>
         </form>
 
         <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -393,7 +388,7 @@ const ActvtClubs: React.FC = () => {
 }
 
 const inputClassCompact =
-  'h-10 w-full rounded-xl border border-slate-200 px-3 text-sm text-slate-800 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100'
+  'h-9 w-full rounded-lg border border-slate-200 px-3 text-sm text-slate-900 outline-none focus:border-indigo-400'
 
 const PROFILE_TONES = ['#4f46e5', '#0f766e', '#b45309', '#be123c', '#0369a1', '#7c3aed']
 

@@ -3,14 +3,7 @@ import { useDispatch, useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { Download, Filter, LayoutGrid, RefreshCw, Search, Trash2, Upload, UserPlus, Users } from 'lucide-react'
 import type { AppDispatch, RootState } from '../redux/store'
-import {
-  createStudent,
-  bulkDeleteStudents,
-  fetchStudentStats,
-  fetchStudents,
-  getNextRollNumber,
-  updateStudent,
-} from '../redux/slices/studentSlice'
+import { createStudent, bulkDeleteStudents, fetchStudentStats, fetchStudents, updateStudent } from '../redux/slices/studentSlice'
 import api from '../services/api'
 import studentService from '../services/studentService'
 import timetableService from '../services/timetableService'
@@ -22,6 +15,7 @@ import {
   normalizeSectionKey,
   resolveSectionAgainstAllowed,
 } from '../constants/sectionMetadata'
+import { getHouseHeadingTextColor, normalizeHouseColorKey } from '../constants/houseColorMetadata'
 
 const STUDENTS_PAGE_SIZE = 250
 const BULK_DELETE_TOAST_ID = 'stdnt-bulk-delete'
@@ -29,6 +23,7 @@ const BULK_DELETE_BATCH_SIZE = 50
 
 type StudentFormState = {
   rollNumber: string
+  classRollNo: string
   name: string
   gender: 'Boy' | 'Girl' | 'Other' | 'Unspecified'
   email: string
@@ -71,6 +66,7 @@ type ClassSectionOption = {
 
 const createInitialFormState = (): StudentFormState => ({
   rollNumber: '',
+  classRollNo: '',
   name: '',
   gender: 'Unspecified',
   email: '',
@@ -119,8 +115,83 @@ const formatGender = (value?: string) => {
   return value || 'Unspecified'
 }
 
+const formatStudentAddress = (address?: { street?: string; city?: string; state?: string; pincode?: string } | null) => {
+  if (!address) return '-'
+  const parts = [address.street, address.city, address.state, address.pincode]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean)
+  return parts.length ? parts.join(', ') : '-'
+}
+
+const getStudentBloodGroup = (student: { medicalInfo?: { bloodGroup?: string } } | null | undefined) => (
+  String(student?.medicalInfo?.bloodGroup || '').trim() || '-'
+)
+
+const BloodGroupDrop: React.FC<{ value?: string }> = ({ value }) => {
+  const label = String(value || '').trim()
+  if (!label || label === '-') {
+    return <span className="text-slate-400">-</span>
+  }
+
+  return (
+    <span
+      className="relative inline-flex h-6 w-[18px] shrink-0 items-center justify-center"
+      title={`Blood group ${label}`}
+      aria-label={`Blood group ${label}`}
+    >
+      <svg viewBox="0 0 24 32" className="absolute inset-0 h-full w-full" aria-hidden>
+        <path
+          d="M12 1.5C12 1.5 3.5 13.2 3.5 20.2a8.5 8.5 0 0017 0C20.5 13.2 12 1.5 12 1.5z"
+          fill="#e11d48"
+        />
+      </svg>
+      <span className={`relative z-[1] mt-1 font-bold leading-none text-white ${label.length > 2 ? 'text-[7px]' : 'text-[8px]'}`}>
+        {label}
+      </span>
+    </span>
+  )
+}
+
+const normalizeHouseLookupKey = (value = '') => (
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\bhouses?\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+)
+
+const getHouseShortName = (value = '') => {
+  const text = String(value || '').trim()
+  if (!text) return '-'
+  const withoutHouse = text.replace(/\s+houses?$/i, '').trim()
+  const firstWord = (withoutHouse || text).split(/\s+/)[0] || text
+  return firstWord
+}
+
+type ActivityHouseOption = { _id: string; name: string; color?: string }
+
+const resolveStudentHouse = (
+  student: { house?: string; houseId?: string | { _id?: string } | null },
+  houses: ActivityHouseOption[]
+) => {
+  const houseId = typeof student.houseId === 'object' && student.houseId
+    ? String(student.houseId._id || '')
+    : String(student.houseId || '')
+  if (houseId) {
+    const byId = houses.find((house) => house._id === houseId)
+    if (byId) return byId
+  }
+  const key = normalizeHouseLookupKey(student.house || '')
+  if (!key) return null
+  return houses.find((house) => normalizeHouseLookupKey(house.name) === key) || null
+}
+
 const mapStudentToFormState = (student: any): StudentFormState => ({
   rollNumber: String(student?.rollNumber || ''),
+  classRollNo: student?.classRollNo == null || student?.classRollNo === ''
+    ? ''
+    : String(student.classRollNo),
   name: String(student?.name || ''),
   gender: (['Boy', 'Girl', 'Other', 'Unspecified'].includes(String(student?.gender || ''))
     ? String(student?.gender || 'Unspecified')
@@ -212,7 +283,6 @@ const Students: React.FC = () => {
   const [sectionFilter, setSectionFilter] = useState('')
   const [page, setPage] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isGeneratingRollNumber, setIsGeneratingRollNumber] = useState(false)
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [isTemplateDownloading, setIsTemplateDownloading] = useState(false)
   const [isTemplateUploading, setIsTemplateUploading] = useState(false)
@@ -220,7 +290,25 @@ const Students: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [tableSortField, setTableSortField] = useState<'rollNumber' | 'classRollNo' | 'name' | 'class' | 'section' | 'fatherName' | 'dateOfBirth' | 'gender' | 'category' | 'phone' | 'penNumber' | null>(null)
+  const [tableSortField, setTableSortField] = useState<
+    | 'rollNumber'
+    | 'classRollNo'
+    | 'name'
+    | 'class'
+    | 'section'
+    | 'fatherName'
+    | 'motherName'
+    | 'dateOfBirth'
+    | 'gender'
+    | 'house'
+    | 'busNo'
+    | 'bloodGroup'
+    | 'category'
+    | 'phone'
+    | 'penNumber'
+    | 'address'
+    | null
+  >(null)
   const [tableSortDirection, setTableSortDirection] = useState<'asc' | 'desc'>('asc')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [timetableClassSectionOptions, setTimetableClassSectionOptions] = useState<ClassSectionOption[]>([])
@@ -467,6 +555,12 @@ const Students: React.FC = () => {
       if (tableSortField === 'classRollNo') {
         return Number(student.classRollNo) || 0
       }
+      if (tableSortField === 'bloodGroup') {
+        return String(student?.medicalInfo?.bloodGroup || '').toLowerCase()
+      }
+      if (tableSortField === 'address') {
+        return formatStudentAddress(student?.address).toLowerCase()
+      }
       return String(student?.[tableSortField] ?? '').toLowerCase()
     }
 
@@ -535,7 +629,7 @@ const Students: React.FC = () => {
   const validateForm = () => {
     const nextErrors: Record<string, string> = {}
 
-    if (!formData.rollNumber.trim()) nextErrors.rollNumber = 'Roll number is required.'
+    if (!formData.rollNumber.trim()) nextErrors.rollNumber = 'Admission number is required.'
     if (!formData.name.trim()) nextErrors.name = 'Student name is required.'
     if (!formData.fatherName.trim()) nextErrors.fatherName = 'Father name is required.'
     if (!formData.motherName.trim()) nextErrors.motherName = 'Mother name is required.'
@@ -615,30 +709,6 @@ const Students: React.FC = () => {
     )
   }
 
-  const handleGenerateRollNumber = async () => {
-    if (!formData.class || !formData.section) return
-
-    setIsGeneratingRollNumber(true)
-    try {
-      const response = await dispatch(
-        getNextRollNumber({ className: formData.class, section: formData.section })
-      ).unwrap()
-
-      setFormData((prev) => ({
-        ...prev,
-        rollNumber: response.data.rollNumber,
-      }))
-      setFormErrors((prev) => ({ ...prev, rollNumber: '' }))
-    } catch (error) {
-      setPageMessage({
-        tone: 'error',
-        text: typeof error === 'string' ? error : 'Unable to generate a roll number right now.',
-      })
-    } finally {
-      setIsGeneratingRollNumber(false)
-    }
-  }
-
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setPageMessage(null)
@@ -675,6 +745,7 @@ const Students: React.FC = () => {
           : undefined,
       } as any
       delete payload.bloodGroup
+      delete payload.classRollNo
       if (!payload.medicalInfo) {
         delete payload.medicalInfo
       }
@@ -1109,20 +1180,18 @@ const Students: React.FC = () => {
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-2.5">
-          <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-            <div className="w-full max-w-sm">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search students..."
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
-                />
-              </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative w-full max-w-[220px] shrink-0 sm:w-[220px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search students..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+              />
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
               <input
                 type="file"
                 accept=".csv,.xlsx"
@@ -1229,45 +1298,45 @@ const Students: React.FC = () => {
 
       {(showAddForm || isEditModalOpen) ? (
         <div
-          className={isEditModalOpen ? 'fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4' : ''}
+          className={isEditModalOpen ? 'fixed inset-0 z-50 overflow-y-auto bg-black/40 p-3' : ''}
           onClick={() => {
             if (isEditModalOpen) resetForm({ keepMessage: true })
           }}
         >
           <section
             ref={addFormRef}
-            className={`rounded-[30px] border border-slate-200 bg-white shadow-sm ${isEditModalOpen ? 'mx-auto mt-6 max-w-6xl' : ''}`}
+            className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${isEditModalOpen ? 'mx-auto mt-3 max-w-4xl' : ''}`}
             onClick={(event) => event.stopPropagation()}
           >
-          <div className="border-b border-slate-200 px-6 py-5">
+          <div className="border-b border-slate-200 px-4 py-2.5">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold tracking-tight text-slate-900">{editingStudentId ? 'Edit Student Record' : 'Add Student Record'}</h2>
+              <h2 className="text-base font-semibold tracking-tight text-slate-900">{editingStudentId ? 'Edit Student Record' : 'Add Student Record'}</h2>
               {isEditModalOpen ? (
                 <button
                   type="button"
                   onClick={() => resetForm({ keepMessage: true })}
-                  className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                  className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
                 >
                   Close
                 </button>
               ) : null}
             </div>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-0.5 text-xs text-slate-500">
               Capture student details manually, or use the template import for bulk onboarding.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6 px-6 py-6">
-            <div className="rounded-[26px] border border-slate-200 bg-slate-50/70 p-5">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <form onSubmit={handleSubmit} className="space-y-3 px-4 py-3">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Photograph</h3>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Upload a student photo to save with the record. JPEG, PNG, GIF, or WebP up to 5MB.
+                  <h3 className="text-xs font-semibold text-slate-900">Photograph</h3>
+                  <p className="text-[11px] text-slate-500">
+                    JPEG, PNG, GIF, or WebP up to 5MB.
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2">
                   <input
                     ref={photoInputRef}
                     type="file"
@@ -1278,16 +1347,16 @@ const Students: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => photoInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
                   >
-                    <Upload className="h-4 w-4" />
-                    {selectedPhoto ? 'Change Photograph' : 'Upload Photograph'}
+                    <Upload className="h-3.5 w-3.5" />
+                    {selectedPhoto ? 'Change Photo' : 'Upload Photo'}
                   </button>
                   {selectedPhoto ? (
                     <button
                       type="button"
                       onClick={clearSelectedPhoto}
-                      className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
                     >
                       Remove
                     </button>
@@ -1296,8 +1365,8 @@ const Students: React.FC = () => {
               </div>
 
               {selectedPhoto ? (
-                <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <div className="mt-2 flex items-center gap-3">
+                  <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
                     {selectedPhotoPreview ? (
                       <img
                         src={selectedPhotoPreview}
@@ -1305,73 +1374,73 @@ const Students: React.FC = () => {
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <span className="text-xs font-medium text-slate-400">Preview</span>
+                      <span className="text-[10px] font-medium text-slate-400">Preview</span>
                     )}
                   </div>
-                  <div className="text-sm text-slate-500">
-                    <p className="font-medium text-slate-700">{selectedPhoto.name}</p>
-                    <p className="mt-1">{Math.max(1, Math.round(selectedPhoto.size / 1024))} KB</p>
+                  <div className="min-w-0 text-xs text-slate-500">
+                    <p className="truncate font-medium text-slate-700">{selectedPhoto.name}</p>
+                    <p className="mt-0.5">{Math.max(1, Math.round(selectedPhoto.size / 1024))} KB</p>
                   </div>
                 </div>
               ) : null}
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              <div className="xl:col-span-2">
-                <label className="block text-sm font-semibold text-slate-700">Roll Number</label>
-                <div className="mt-2 flex gap-2">
-                  <input
-                    name="rollNumber"
-                    value={formData.rollNumber}
-                    onChange={handleFieldChange}
-                    placeholder="10THA001"
-                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleGenerateRollNumber}
-                    disabled={isGeneratingRollNumber}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <RefreshCw className={`h-4 w-4 ${isGeneratingRollNumber ? 'animate-spin' : ''}`} />
-                    Suggest
-                  </button>
-                </div>
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700">Admission No.</label>
+                <input
+                  name="rollNumber"
+                  value={formData.rollNumber}
+                  onChange={handleFieldChange}
+                  placeholder="e.g. 4959"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                />
                 {renderFieldError('rollNumber')}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Status</label>
-                <label className="mt-2 flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <label className="block text-xs font-semibold text-slate-700">Roll No</label>
+                <input
+                  value={formData.classRollNo || (editingStudentId ? '—' : 'Auto-assigned')}
+                  readOnly
+                  disabled
+                  title="Assigned automatically by class and section (alphabetical)"
+                  className="mt-1 w-full cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-sm font-semibold text-slate-700 outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700">Status</label>
+                <label className="mt-1 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700">
                   <input
                     type="checkbox"
                     name="isActive"
                     checked={formData.isActive}
                     onChange={handleFieldChange}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
-                  Keep this student active
+                  Active
                 </label>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Student Name</label>
+                <label className="block text-xs font-semibold text-slate-700">Student Name</label>
                 <input
                   name="name"
                   value={formData.name}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('name')}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Gender</label>
+                <label className="block text-xs font-semibold text-slate-700">Gender</label>
                 <select
                   name="gender"
                   value={formData.gender}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 >
                   {GENDER_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -1382,13 +1451,13 @@ const Students: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Class</label>
+                <label className="block text-xs font-semibold text-slate-700">Class</label>
                 <select
                   name="class"
                   value={formData.class}
                   onChange={handleFieldChange}
                   disabled={classOptions.length === 0}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 >
                   {classOptions.length === 0 ? (
                     <option value="">No classes configured</option>
@@ -1403,13 +1472,13 @@ const Students: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Section</label>
+                <label className="block text-xs font-semibold text-slate-700">Section</label>
                 <select
                   name="section"
                   value={formData.section}
                   onChange={handleFieldChange}
                   disabled={sectionOptionsForSelectedClass.length === 0}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 >
                   {sectionOptionsForSelectedClass.length === 0 ? (
                     <option value="">No sections available</option>
@@ -1424,36 +1493,36 @@ const Students: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Date of Birth</label>
+                <label className="block text-xs font-semibold text-slate-700">Date of Birth</label>
                 <input
                   type="date"
                   name="dateOfBirth"
                   value={formData.dateOfBirth}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('dateOfBirth')}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Admission Date</label>
+                <label className="block text-xs font-semibold text-slate-700">Admission Date</label>
                 <input
                   type="date"
                   name="admissionDate"
                   value={formData.admissionDate}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('admissionDate')}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Category</label>
+                <label className="block text-xs font-semibold text-slate-700">Category</label>
                 <select
                   name="category"
                   value={formData.category}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 >
                   {CATEGORY_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -1464,91 +1533,159 @@ const Students: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Email</label>
+                <label className="block text-xs font-semibold text-slate-700">Email</label>
                 <input
                   type="email"
                   name="email"
                   value={formData.email}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Student Phone</label>
+                <label className="block text-xs font-semibold text-slate-700">Student Phone</label>
                 <input
                   name="phone"
                   value={formData.phone}
                   onChange={handleFieldChange}
                   inputMode="numeric"
                   maxLength={10}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('phone')}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">PEN No.</label>
+                <label className="block text-xs font-semibold text-slate-700">PEN No.</label>
                 <input
                   name="penNumber"
                   value={formData.penNumber}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Father Name</label>
+                <label className="block text-xs font-semibold text-slate-700">Father Name</label>
                 <input
                   name="fatherName"
                   value={formData.fatherName}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('fatherName')}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Mother Name</label>
+                <label className="block text-xs font-semibold text-slate-700">Mother Name</label>
                 <input
                   name="motherName"
                   value={formData.motherName}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('motherName')}
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700">House (ACTVT)</label>
-                <select
-                  name="houseId"
-                  value={formData.houseId}
-                  onChange={(event) => {
-                    const nextHouseId = event.target.value
-                    const selectedHouse = activityHouses.find((house) => house._id === nextHouseId)
-                    setFormData((prev) => ({
-                      ...prev,
-                      houseId: nextHouseId,
-                      house: selectedHouse?.name || '',
-                    }))
-                    setFormErrors((prev) => {
-                      if (!prev.house && !prev.houseId) return prev
-                      const next = { ...prev }
-                      delete next.house
-                      delete next.houseId
-                      return next
-                    })
-                  }}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
-                >
-                  <option value="">No house</option>
-                  {activityHouses.map((house) => (
-                    <option key={house._id} value={house._id}>
-                      {house.name}{house.color ? ` (${house.color})` : ''}
-                    </option>
-                  ))}
-                </select>
+              <div className="relative">
+                <label className="block text-xs font-semibold text-slate-700">House (ACTVT)</label>
+                <details className="group relative mt-1">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition hover:border-slate-300 [&::-webkit-details-marker]:hidden">
+                    {(() => {
+                      const selectedHouse = activityHouses.find((house) => house._id === formData.houseId)
+                      if (!selectedHouse) {
+                        return <span className="text-slate-500">No house</span>
+                      }
+                      const tone = normalizeHouseColorKey(selectedHouse.color || '')
+                      const label = getHouseShortName(selectedHouse.name)
+                      if (!tone) {
+                        return (
+                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                            {label}
+                          </span>
+                        )
+                      }
+                      return (
+                        <span
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                          style={{ backgroundColor: tone, color: getHouseHeadingTextColor(tone) }}
+                        >
+                          {label}
+                        </span>
+                      )
+                    })()}
+                    <span className="text-[10px] text-slate-400 group-open:rotate-180">▼</span>
+                  </summary>
+
+                  <div className="absolute left-0 right-0 z-30 mt-1 max-h-48 overflow-auto rounded-lg border border-slate-200 bg-white p-1.5 shadow-lg">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        const details = (event.currentTarget.closest('details') as HTMLDetailsElement | null)
+                        setFormData((prev) => ({ ...prev, houseId: '', house: '' }))
+                        setFormErrors((prev) => {
+                          if (!prev.house && !prev.houseId) return prev
+                          const next = { ...prev }
+                          delete next.house
+                          delete next.houseId
+                          return next
+                        })
+                        if (details) details.open = false
+                      }}
+                      className={`flex w-full items-center rounded-md px-2 py-1.5 text-left text-xs font-medium transition hover:bg-slate-50 ${
+                        !formData.houseId ? 'bg-slate-100 text-slate-900' : 'text-slate-600'
+                      }`}
+                    >
+                      No house
+                    </button>
+                    {activityHouses.map((house) => {
+                      const tone = normalizeHouseColorKey(house.color || '')
+                      const label = getHouseShortName(house.name)
+                      const isSelected = formData.houseId === house._id
+                      return (
+                        <button
+                          key={house._id}
+                          type="button"
+                          onClick={(event) => {
+                            const details = (event.currentTarget.closest('details') as HTMLDetailsElement | null)
+                            setFormData((prev) => ({
+                              ...prev,
+                              houseId: house._id,
+                              house: house.name,
+                            }))
+                            setFormErrors((prev) => {
+                              if (!prev.house && !prev.houseId) return prev
+                              const next = { ...prev }
+                              delete next.house
+                              delete next.houseId
+                              return next
+                            })
+                            if (details) details.open = false
+                          }}
+                          className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition hover:bg-slate-50 ${
+                            isSelected ? 'bg-slate-100' : ''
+                          }`}
+                        >
+                          {tone ? (
+                            <span
+                              className="inline-flex min-w-[4.5rem] items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                              style={{ backgroundColor: tone, color: getHouseHeadingTextColor(tone) }}
+                              title={house.name}
+                            >
+                              {label}
+                            </span>
+                          ) : (
+                            <span className="inline-flex min-w-[4.5rem] items-center justify-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                              {label}
+                            </span>
+                          )}
+                          <span className="truncate text-[11px] text-slate-500">{house.name}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </details>
                 {activityHouses.length === 0 ? (
                   <p className="mt-1 text-xs text-slate-500">
                     Add houses in ACTVT → Houses for inter-house competitions.
@@ -1558,23 +1695,23 @@ const Students: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Bus No</label>
+                <label className="block text-xs font-semibold text-slate-700">Bus No</label>
                 <input
                   name="busNo"
                   value={formData.busNo}
                   onChange={handleFieldChange}
                   placeholder="e.g. 12"
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Blood Group</label>
+                <label className="block text-xs font-semibold text-slate-700">Blood Group</label>
                 <select
                   name="bloodGroup"
                   value={formData.bloodGroup}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 >
                   <option value="">Select</option>
                   {BLOOD_GROUP_OPTIONS.map((option) => (
@@ -1586,126 +1723,126 @@ const Students: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Guardian Phone</label>
+                <label className="block text-xs font-semibold text-slate-700">Guardian Phone</label>
                 <input
                   name="guardianPhone"
                   value={formData.guardianPhone}
                   onChange={handleFieldChange}
                   inputMode="numeric"
                   maxLength={10}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('guardianPhone')}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Religion</label>
+                <label className="block text-xs font-semibold text-slate-700">Religion</label>
                 <input
                   name="religion"
                   value={formData.religion}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Nationality</label>
+                <label className="block text-xs font-semibold text-slate-700">Nationality</label>
                 <input
                   name="nationality"
                   value={formData.nationality}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Aadhar Number</label>
+                <label className="block text-xs font-semibold text-slate-700">Aadhar Number</label>
                 <input
                   name="aadharNumber"
                   value={formData.aadharNumber}
                   onChange={handleFieldChange}
                   inputMode="numeric"
                   maxLength={12}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('aadharNumber')}
               </div>
 
-              <div className="md:col-span-2 xl:col-span-3">
-                <label className="block text-sm font-semibold text-slate-700">Street Address</label>
+              <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4">
+                <label className="block text-xs font-semibold text-slate-700">Street Address</label>
                 <input
                   name="address.street"
                   value={formData.address.street}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('address.street')}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">City</label>
+                <label className="block text-xs font-semibold text-slate-700">City</label>
                 <input
                   name="address.city"
                   value={formData.address.city}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('address.city')}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">State</label>
+                <label className="block text-xs font-semibold text-slate-700">State</label>
                 <input
                   name="address.state"
                   value={formData.address.state}
                   onChange={handleFieldChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('address.state')}
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700">Pincode</label>
+                <label className="block text-xs font-semibold text-slate-700">Pincode</label>
                 <input
                   name="address.pincode"
                   value={formData.address.pincode}
                   onChange={handleFieldChange}
                   inputMode="numeric"
                   maxLength={6}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                 />
                 {renderFieldError('address.pincode')}
               </div>
 
-              <div className="md:col-span-2 xl:col-span-3">
-                <label className="block text-sm font-semibold text-slate-700">Notes</label>
+              <div className="sm:col-span-2 lg:col-span-3 xl:col-span-4">
+                <label className="block text-xs font-semibold text-slate-700">Notes</label>
                 <textarea
                   name="notes"
                   value={formData.notes}
                   onChange={handleFieldChange}
-                  rows={4}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+                  rows={2}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
                   placeholder="Optional notes about the student record."
                 />
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4">
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-200 pt-2.5">
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                <UserPlus className="h-4 w-4" />
-                {isSubmitting ? (editingStudentId ? 'Updating Student...' : 'Saving Student...') : (editingStudentId ? 'Update Student' : 'Save Student')}
+                <UserPlus className="h-3.5 w-3.5" />
+                {isSubmitting ? (editingStudentId ? 'Updating...' : 'Saving...') : (editingStudentId ? 'Update Student' : 'Save Student')}
               </button>
 
               <button
                 type="button"
                 onClick={() => resetForm()}
-                className="rounded-2xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                className="rounded-lg border border-slate-200 px-3.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
               >
-                Reset Form
+                Reset
               </button>
             </div>
           </form>
@@ -1713,40 +1850,45 @@ const Students: React.FC = () => {
         </div>
       ) : null}
 
-      <section className="rounded-[30px] border border-slate-200 bg-white shadow-sm">
-        <div className="overflow-x-auto overflow-y-auto max-h-[960px]">
-          <table className="min-w-full divide-y divide-slate-200">
-            <thead className="bg-slate-50">
-              <tr className="text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                <th className="px-4 py-3">
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="max-h-[min(720px,calc(100vh-260px))] overflow-auto">
+          <table className="w-max border-separate border-spacing-0 text-xs leading-snug">
+            <thead>
+              <tr className="text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                <th className="sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-2 py-2">
                   <input
                     type="checkbox"
                     checked={allVisibleSelected}
                     onChange={handleToggleSelectAll}
                     aria-label="Select all visible students"
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
                 </th>
                 {[
-                  { label: 'Admission No', field: 'rollNumber' as const },
-                  { label: 'Roll No', field: 'classRollNo' as const },
-                  { label: 'Student Name', field: 'name' as const },
+                  { label: 'Adm No.', field: 'rollNumber' as const },
+                  { label: 'Roll', field: 'classRollNo' as const },
+                  { label: 'Name', field: 'name' as const },
                   { label: 'Class', field: 'class' as const },
-                  { label: 'Section', field: 'section' as const },
-                  { label: 'Father Name', field: 'fatherName' as const },
-                  { label: 'Date Of Birth', field: 'dateOfBirth' as const },
+                  { label: 'Sec', field: 'section' as const },
+                  { label: 'Father', field: 'fatherName' as const },
+                  { label: 'Mother', field: 'motherName' as const },
+                  { label: 'DOB', field: 'dateOfBirth' as const },
                   { label: 'Gender', field: 'gender' as const },
-                  { label: 'Category', field: 'category' as const },
-                  { label: 'Mobile Number', field: 'phone' as const },
-                  { label: 'PEN Number', field: 'penNumber' as const },
+                  { label: 'House', field: 'house' as const },
+                  { label: 'Bus', field: 'busNo' as const },
+                  { label: 'Blood', field: 'bloodGroup' as const },
+                  { label: 'Cat', field: 'category' as const },
+                  { label: 'Mobile', field: 'phone' as const },
+                  { label: 'PEN', field: 'penNumber' as const },
+                  { label: 'Address', field: 'address' as const },
                 ].map(({ label, field }) => (
                   <th
                     key={field}
-                    className="cursor-pointer px-4 py-3 select-none hover:text-slate-700"
+                    className="sticky top-0 z-20 cursor-pointer whitespace-nowrap border-b border-slate-200 bg-slate-50 px-2 py-2 select-none hover:text-slate-700"
                     onClick={() => handleSort(field)}
                     title={`Sort by ${label}`}
                   >
-                    <span className="inline-flex items-center gap-1">
+                    <span className="inline-flex items-center gap-0.5">
                       {label}
                       {tableSortField === field ? (tableSortDirection === 'asc' ? '▲' : '▼') : ''}
                     </span>
@@ -1754,16 +1896,16 @@ const Students: React.FC = () => {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 bg-white text-sm text-slate-700">
+            <tbody className="bg-white text-xs text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={17} className="px-1.5 py-8 text-center text-slate-500">
                     Loading student records...
                   </td>
                 </tr>
               ) : students.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center text-slate-500">
+                  <td colSpan={17} className="px-1.5 py-8 text-center text-slate-500">
                     No students found for the current filters.
                   </td>
                 </tr>
@@ -1776,30 +1918,29 @@ const Students: React.FC = () => {
                   >
                     {(() => {
                       const displaySection = sectionOverrideByStudentId[student._id] ?? student.section
+                      const cell = 'whitespace-nowrap border-b border-slate-100 px-2 py-1.5 align-middle'
                       return (
                         <>
-                    <td className="px-4 py-4 align-top" onClick={(event) => event.stopPropagation()}>
+                    <td className={cell} onClick={(event) => event.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(student._id)}
                         onChange={() => handleToggleSelect(student._id)}
                         aria-label={`Select ${student.name}`}
-                        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                       />
                     </td>
-                    <td className="px-4 py-4 align-top font-semibold text-slate-900">{student.rollNumber}</td>
-                    <td className="px-4 py-4 align-top">{student.classRollNo || '-'}</td>
-                    <td className="px-4 py-4 align-top">
-                      <div className="font-semibold text-slate-900">{student.name}</div>
-                    </td>
-                    <td className="px-4 py-4 align-top">{student.class}</td>
-                    <td className="px-4 py-4 align-top" onClick={(event) => event.stopPropagation()}>
+                    <td className={`${cell} font-semibold text-slate-900`}>{student.rollNumber}</td>
+                    <td className={cell}>{student.classRollNo || '-'}</td>
+                    <td className={`${cell} font-semibold text-slate-900`}>{student.name}</td>
+                    <td className={cell}>{student.class}</td>
+                    <td className={cell} onClick={(event) => event.stopPropagation()}>
                       {editingSectionStudentId === student._id ? (
                         (() => {
                           const availableSections = getSectionsForClass(String(student.class || ''))
 
                           return (
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-nowrap gap-0.5">
                               {availableSections.map((sectionName) => {
                                 const isCurrent = normalizeSectionKey(sectionName) === normalizeSectionKey(String(displaySection || ''))
                                 return (
@@ -1808,7 +1949,7 @@ const Students: React.FC = () => {
                                     type="button"
                                     onClick={() => handleSectionChange(student._id, String(student.class || ''), sectionName)}
                                     disabled={Boolean(sectionUpdateLoadingById[student._id])}
-                                    className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                                    className={`inline-flex items-center rounded-full border px-1.5 py-0 text-[10px] font-semibold transition ${
                                       isCurrent
                                         ? 'border-blue-300 bg-blue-600 text-white'
                                         : 'border-blue-200 bg-white text-blue-800 hover:border-blue-300 hover:bg-blue-50'
@@ -1828,7 +1969,7 @@ const Students: React.FC = () => {
                           type="button"
                           onClick={() => setEditingSectionStudentId(student._id)}
                           disabled={Boolean(sectionUpdateLoadingById[student._id])}
-                          className="inline-flex items-center rounded-full border border-blue-200 bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800 transition hover:border-blue-300 hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex items-center rounded-full border border-blue-200 bg-blue-100 px-1.5 py-0 text-[10px] font-semibold text-blue-800 transition hover:border-blue-300 hover:bg-blue-200 disabled:cursor-not-allowed disabled:opacity-60"
                           title={`Change section for ${student.name}`}
                           aria-label={`Change section for ${student.name}`}
                         >
@@ -1836,12 +1977,49 @@ const Students: React.FC = () => {
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-4 align-top">{student.fatherName || '-'}</td>
-                    <td className="px-4 py-4 align-top">{formatDate(student.dateOfBirth)}</td>
-                    <td className="px-4 py-4 align-top">{formatGender(student.gender)}</td>
-                    <td className="px-4 py-4 align-top">{student.category || '-'}</td>
-                    <td className="px-4 py-4 align-top">{student.phone || '-'}</td>
-                    <td className="px-4 py-4 align-top">{student.penNumber || '-'}</td>
+                    <td className={cell}>{student.fatherName || '-'}</td>
+                    <td className={cell}>{student.motherName || '-'}</td>
+                    <td className={cell}>{formatDate(student.dateOfBirth)}</td>
+                    <td className={cell}>{formatGender(student.gender)}</td>
+                    <td className={cell}>
+                      {(() => {
+                        const houseRecord = resolveStudentHouse(student, activityHouses)
+                        const houseLabel = getHouseShortName(houseRecord?.name || student.house || '')
+                        if (houseLabel === '-') return '-'
+                        const tone = normalizeHouseColorKey(houseRecord?.color || '') || ''
+                        if (!tone) {
+                          return (
+                            <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-1.5 py-0 text-[10px] font-semibold text-slate-700">
+                              {houseLabel}
+                            </span>
+                          )
+                        }
+                        return (
+                          <span
+                            className="inline-flex items-center rounded-full px-1.5 py-0 text-[10px] font-semibold"
+                            style={{
+                              backgroundColor: tone,
+                              color: getHouseHeadingTextColor(tone),
+                            }}
+                            title={houseRecord?.name || student.house}
+                          >
+                            {houseLabel}
+                          </span>
+                        )
+                      })()}
+                    </td>
+                    <td className={cell}>{student.busNo || '-'}</td>
+                    <td className={cell}>
+                      <BloodGroupDrop value={getStudentBloodGroup(student)} />
+                    </td>
+                    <td className={cell}>{student.category || '-'}</td>
+                    <td className={cell}>{student.phone || '-'}</td>
+                    <td className={cell}>{student.penNumber || '-'}</td>
+                    <td className="max-w-[140px] border-b border-slate-100 px-2 py-1.5 align-middle">
+                      <span className="line-clamp-1 whitespace-normal" title={formatStudentAddress(student.address)}>
+                        {formatStudentAddress(student.address)}
+                      </span>
+                    </td>
                         </>
                       )
                     })()}
@@ -1852,7 +2030,7 @@ const Students: React.FC = () => {
           </table>
         </div>
 
-        <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 text-sm text-slate-500">
+        <div className="flex items-center justify-between border-t border-slate-200 px-4 py-2.5 text-xs text-slate-500">
           <span>
             Page {pagination.currentPage} of {pagination.totalPages} · {pagination.totalItems} students
           </span>

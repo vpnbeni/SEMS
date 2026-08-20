@@ -97,6 +97,15 @@
     "fallbackPriority": 35
   },
   {
+    "key": "mdcl_clinic",
+    "label": "MDCL - Medical Clinic",
+    "path": "/mdcl/cases",
+    "group": "Medical Hub",
+    "module": "mdcl",
+    "prefixes": ["/mdcl"],
+    "fallbackPriority": 36
+  },
+  {
     "key": "timetable_bell_timings",
     "label": "Time Table - Bell Timings",
     "path": "/time-table/bell-timings",

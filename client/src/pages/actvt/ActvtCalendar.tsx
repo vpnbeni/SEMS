@@ -214,8 +214,8 @@ const ActvtCalendar: React.FC = () => {
 
   return (
     <div className="p-6">
-      <div className="mx-auto grid max-w-[1400px] gap-6 xl:grid-cols-[1.35fr_1fr]">
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="mx-auto grid max-w-[1400px] gap-6 lg:grid-cols-[2fr_1fr] lg:items-start">
+        <section className="min-w-0 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <CalendarDays className="h-5 w-5 text-indigo-600" />
@@ -248,7 +248,7 @@ const ActvtCalendar: React.FC = () => {
 
           <div className="grid grid-cols-7 gap-1">
             {calendarCells.map((cell, index) => {
-              if (!cell.day) return <div key={`empty-${index}`} className="min-h-[78px] rounded-xl bg-slate-50/50" />
+              if (!cell.day) return <div key={`empty-${index}`} className="min-h-[68px] rounded-xl bg-slate-50/50" />
               const dayEvents = eventsByDate.get(cell.dateKey) || []
               const selected = cell.dateKey === selectedDate
               const dayTextColor = getCalendarDateTextColor(cell.dateKey, index % 7)
@@ -257,7 +257,7 @@ const ActvtCalendar: React.FC = () => {
                   key={cell.dateKey}
                   type="button"
                   onClick={() => handleDayClick(cell.dateKey)}
-                  className={`min-h-[78px] rounded-xl border p-2 text-left transition ${
+                  className={`min-h-[68px] rounded-xl border p-2 text-left transition ${
                     selected
                       ? 'border-indigo-400 bg-indigo-50 shadow-sm'
                       : 'border-slate-100 bg-white hover:border-slate-200 hover:bg-slate-50'
@@ -280,7 +280,7 @@ const ActvtCalendar: React.FC = () => {
           </div>
         </section>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6 lg:sticky lg:top-4">
           <form onSubmit={handleSave} className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-2">
               <Plus className="h-4 w-4 text-indigo-600" />

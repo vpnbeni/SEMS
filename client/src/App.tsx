@@ -109,6 +109,8 @@ import ActvtCertificates from './pages/actvt/ActvtCertificates'
 import ActvtTours from './pages/actvt/ActvtTours'
 import ActvtSports from './pages/actvt/ActvtSports'
 import ActvtFunctions from './pages/actvt/ActvtFunctions'
+import MdclCases from './pages/mdcl/MdclCases'
+import MdclSupplies from './pages/mdcl/MdclSupplies'
 import { OnboardingPage, ValidationReportPage } from './pages/Onboarding'
 import { getPublicBrandVariant } from './utils/publicBranding'
 
@@ -346,6 +348,9 @@ function App() {
               <Route path="actvt/sports" element={<ActvtSports />} />
               <Route path="actvt/functions" element={<ActvtFunctions />} />
               <Route path="actvt" element={<Navigate to="/actvt/houses" replace />} />
+              <Route path="mdcl/cases" element={<MdclCases />} />
+              <Route path="mdcl/supplies" element={<MdclSupplies />} />
+              <Route path="mdcl" element={<Navigate to="/mdcl/cases" replace />} />
               <Route path="centre-details" element={<CentreDetails />} />
               <Route
                 path="exam-functionaries"

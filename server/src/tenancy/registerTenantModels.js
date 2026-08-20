@@ -54,6 +54,10 @@ const {
   ActivityPoints,
   ActivityCertificate,
 } = require('../models/ActivityRecords');
+const {
+  MedicalCase,
+  MedicalSupply,
+} = require('../models/MedicalRecords');
 
 const tenantModelExports = {
   User,
@@ -112,6 +116,8 @@ const tenantModelExports = {
   ActivityEvent,
   ActivityPoints,
   ActivityCertificate,
+  MedicalCase,
+  MedicalSupply,
 };
 
 const registerModelOnConnection = (modelExport, connection) => {

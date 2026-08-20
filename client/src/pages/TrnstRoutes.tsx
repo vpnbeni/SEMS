@@ -115,7 +115,9 @@ const TrnstRoutes: React.FC = () => {
               <select value={form.vehicleId} onChange={(event) => setForm({ ...form, vehicleId: event.target.value })} className={inputClass}>
                 <option value="">Unassigned</option>
                 {vehicles.map((vehicle) => (
-                  <option key={vehicle._id} value={vehicle._id}>{vehicle.registrationNumber} · {vehicle.vehicleType}</option>
+                  <option key={vehicle._id} value={vehicle._id}>
+                    Bus {vehicle.busNo || '—'} · {vehicle.registrationNumber} · {vehicle.vehicleType}
+                  </option>
                 ))}
               </select>
             </label>
@@ -169,7 +171,9 @@ const TrnstRoutes: React.FC = () => {
                     <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">{route.code} · {route.shift}</p>
                     <h3 className="text-lg font-semibold text-slate-900">{route.name}</h3>
                     <p className="text-sm text-slate-500">{route.startPoint || 'Start'} → {route.endPoint || 'End'} · {route.distanceKm || 0} km</p>
-                    <p className="text-sm text-slate-500">Vehicle: {vehicle?.registrationNumber || 'Unassigned'}</p>
+                    <p className="text-sm text-slate-500">
+                      Vehicle: {vehicle?.busNo ? `Bus ${vehicle.busNo}` : vehicle?.registrationNumber || 'Unassigned'}
+                    </p>
                   </div>
                   <div className="flex gap-2">
                     <button type="button" onClick={() => handleEdit(route)} className="text-xs font-semibold text-indigo-600">Edit</button>

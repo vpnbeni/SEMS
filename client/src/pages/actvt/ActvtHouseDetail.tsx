@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
+  ArrowLeft,
   Crown,
   Flag,
   Pencil,
@@ -11,9 +12,12 @@ import {
   Users,
 } from 'lucide-react'
 import api from '@/services/api'
+import { ImageCropModal } from '@/components/common/ImageCropModal'
 import { HouseEditModal } from '@/components/actvt/HouseEditModal'
+import { HouseFlagFly } from '@/components/actvt/HouseFlagFly'
 import {
   getHouseHeadingTextColor,
+  usesDarkHouseHeading,
 } from '@/constants/houseColorMetadata'
 
 type HouseTeacher = {
@@ -97,7 +101,9 @@ const ActvtHouseDetail: React.FC = () => {
   })
   const [uploadingFlag, setUploadingFlag] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [flagCropSource, setFlagCropSource] = useState('')
   const flagInputRef = useRef<HTMLInputElement | null>(null)
+  const flagCropSourceRef = useRef('')
 
   const load = async () => {
     if (!id) return
@@ -117,9 +123,20 @@ const ActvtHouseDetail: React.FC = () => {
     void load()
   }, [id])
 
+  useEffect(() => {
+    flagCropSourceRef.current = flagCropSource
+  }, [flagCropSource])
+
+  useEffect(() => () => {
+    if (flagCropSourceRef.current.startsWith('blob:')) {
+      URL.revokeObjectURL(flagCropSourceRef.current)
+    }
+  }, [])
+
   const house = data?.house
   const tone = isLikelyColor(house?.color || '') ? house!.color! : '#4f46e5'
   const headingText = getHouseHeadingTextColor(tone)
+  const darkHeading = usesDarkHouseHeading(tone)
 
   const filteredStudents = useMemo(() => {
     const students = data?.students || []
@@ -178,14 +195,33 @@ const ActvtHouseDetail: React.FC = () => {
     setTeacherForm({ name: '', role: 'House Teacher', phone: '', email: '' })
   }
 
-  const handleFlagUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const clearFlagCropSource = () => {
+    if (flagCropSource.startsWith('blob:')) URL.revokeObjectURL(flagCropSource)
+    setFlagCropSource('')
+  }
+
+  const handleFlagSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    if (!file || !id || !house) return
+    if (!file) return
     if (!file.type.startsWith('image/')) {
       toast.error('Please choose an image file for the house flag.')
       event.target.value = ''
       return
     }
+    clearFlagCropSource()
+    setFlagCropSource(URL.createObjectURL(file))
+    event.target.value = ''
+  }
+
+  const handleFlagCropCancel = () => {
+    clearFlagCropSource()
+    if (flagInputRef.current) flagInputRef.current.value = ''
+  }
+
+  const handleFlagCropped = async (file: File, previewUrl: string) => {
+    if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl)
+    clearFlagCropSource()
+    if (!id || !house) return
 
     setUploadingFlag(true)
     try {
@@ -206,7 +242,7 @@ const ActvtHouseDetail: React.FC = () => {
       toast.error(String(error?.response?.data?.message || error?.message || 'Failed to upload house flag.'))
     } finally {
       setUploadingFlag(false)
-      event.target.value = ''
+      if (flagInputRef.current) flagInputRef.current.value = ''
     }
   }
 
@@ -266,25 +302,34 @@ const ActvtHouseDetail: React.FC = () => {
       <div className="mx-auto max-w-[1400px] space-y-6">
         <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
           <div
-            className="relative min-h-[220px] overflow-hidden px-6 pb-8 pt-5"
+            className="relative min-h-[220px] overflow-hidden px-6 py-4"
             style={{ background: `linear-gradient(135deg, ${tone}, ${tone}b8)` }}
           >
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.28),transparent_55%)]" />
 
-            <div className="relative z-[1] mb-6 flex items-start justify-end">
-              <button
-                type="button"
-                onClick={() => setEditOpen(true)}
-                className="inline-flex items-center gap-1 rounded-full bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Edit profile
-              </button>
-            </div>
+            <input
+              ref={flagInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFlagSelected}
+            />
 
-            <div className="relative z-[1] grid items-center gap-6 lg:grid-cols-[180px_1fr_180px]">
-              <div className="justify-self-start">
-                <div className="flex h-36 w-36 items-center justify-center rounded-[28px] border-4 border-white bg-white p-2 shadow-xl">
+            <div className="relative z-[1] grid items-stretch gap-6 lg:grid-cols-[180px_1fr_auto]">
+              <div className="flex min-h-[168px] flex-col justify-self-start">
+                <Link
+                  to="/actvt/houses"
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold backdrop-blur ${
+                    darkHeading
+                      ? 'bg-black/10 text-black hover:bg-black/15'
+                      : 'bg-white/20 text-white hover:bg-white/30'
+                  }`}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  All Houses
+                </Link>
+
+                <div className="mt-auto mb-auto flex h-36 w-36 items-center justify-center rounded-[28px] border-4 border-white bg-white p-2 shadow-xl">
                   {house.logo ? (
                     <img src={house.logo} alt={house.name} className="h-full w-full rounded-2xl object-contain" />
                   ) : (
@@ -301,41 +346,63 @@ const ActvtHouseDetail: React.FC = () => {
                 </div>
               </div>
 
-              <div className="text-center" style={{ color: headingText }}>
+              <div className="flex flex-col items-center justify-center self-center text-center" style={{ color: headingText }}>
                 <h1 className="text-3xl font-bold">{house.name}</h1>
                 <p className="mt-2 text-sm font-semibold opacity-90">{house.tagline || 'No tagline yet'}</p>
                 <p className="mt-1 text-sm italic opacity-80">{house.motto ? `“${house.motto}”` : 'No motto yet'}</p>
+
+                <div className="mt-4 inline-flex overflow-hidden rounded-2xl bg-white/95 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => setEditOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit house
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => flagInputRef.current?.click()}
+                    disabled={uploadingFlag}
+                    className="inline-flex items-center justify-center gap-1.5 border-l border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+                    title="Upload house flag"
+                  >
+                    <Flag className="h-3.5 w-3.5" />
+                    {uploadingFlag
+                      ? house.flag
+                        ? 'Changing...'
+                        : 'Uploading...'
+                      : house.flag
+                        ? 'Change flag'
+                        : 'Upload flag'}
+                  </button>
+                </div>
               </div>
 
-              <div className="justify-self-end">
-                <input
-                  ref={flagInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleFlagUpload}
-                />
-                <button
-                  type="button"
-                  onClick={() => flagInputRef.current?.click()}
-                  disabled={uploadingFlag}
-                  className="group flex w-[150px] flex-col overflow-hidden rounded-2xl border-2 border-white/80 bg-white/95 shadow-lg transition hover:scale-[1.02] disabled:opacity-60"
-                  title="Upload house flag"
-                >
-                  <div className="flex h-[96px] items-center justify-center bg-slate-50">
-                    {house.flag ? (
-                      <img src={house.flag} alt={`${house.name} flag`} className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex flex-col items-center gap-1 text-slate-400">
-                        <Flag className="h-6 w-6" />
-                        <span className="text-[10px] font-semibold uppercase tracking-wide">House flag</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="border-t border-slate-100 px-2 py-1.5 text-center text-[10px] font-semibold text-slate-600 group-hover:bg-slate-50">
-                    {uploadingFlag ? 'Uploading...' : house.flag ? 'Change flag' : 'Upload flag'}
-                  </div>
-                </button>
+              <div className="flex items-start justify-self-end pr-2 mr-6 sm:mr-10">
+                {house.flag ? (
+                  <HouseFlagFly
+                    key={house.flag}
+                    src={house.flag}
+                    alt={`${house.name} flag`}
+                    height={72}
+                    poleHeight={188}
+                    hoist
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => flagInputRef.current?.click()}
+                    disabled={uploadingFlag}
+                    className="flex h-[188px] w-[130px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-white/70 bg-white/20 text-white/90 disabled:opacity-60"
+                    title="Upload house flag"
+                  >
+                    <Flag className="h-5 w-5" />
+                    <span className="text-[10px] font-semibold uppercase tracking-wide">
+                      {uploadingFlag ? 'Uploading...' : 'Add house flag'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -574,6 +641,19 @@ const ActvtHouseDetail: React.FC = () => {
         onClose={() => setEditOpen(false)}
         onSaved={() => {
           void load()
+        }}
+      />
+
+      <ImageCropModal
+        open={Boolean(flagCropSource)}
+        imageSrc={flagCropSource}
+        title="Crop house flag"
+        hint="Drag to reposition. In Free mode, drag one edge or corner to resize that side only."
+        aspect={3 / 2}
+        fileNamePrefix="house-flag"
+        onCancel={handleFlagCropCancel}
+        onCropped={(file, previewUrl) => {
+          void handleFlagCropped(file, previewUrl)
         }}
       />
     </div>

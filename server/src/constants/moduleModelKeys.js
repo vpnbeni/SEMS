@@ -117,6 +117,10 @@ const MODULE_MODEL_KEYS = Object.freeze({
     'ActivityPoints',
     'ActivityCertificate',
   ]),
+  mdcl: Object.freeze([
+    'MedicalCase',
+    'MedicalSupply',
+  ]),
 });
 
 /**
@@ -132,6 +136,7 @@ const MODULE_FEATURE_KEYS = Object.freeze({
   trnst: Object.freeze(getModuleFeatureKeys('trnst')),
   acdmc: Object.freeze(getModuleFeatureKeys('acdmc')),
   actvt: Object.freeze(getModuleFeatureKeys('actvt')),
+  mdcl: Object.freeze(getModuleFeatureKeys('mdcl')),
 });
 
 /**
@@ -190,6 +195,10 @@ const getActiveModelKeys = (featureToggles) => {
 
   if (isModuleActive('actvt', featureToggles)) {
     keys.push(...MODULE_MODEL_KEYS.actvt);
+  }
+
+  if (isModuleActive('mdcl', featureToggles)) {
+    keys.push(...MODULE_MODEL_KEYS.mdcl);
   }
 
   return keys;

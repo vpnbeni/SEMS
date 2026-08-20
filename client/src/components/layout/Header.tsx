@@ -358,8 +358,8 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
           return {
             pageTitle: 'House details',
             pageSubtitle: 'Students, teachers, council, and house statistics',
-            showBackButton: false,
-            backTo: null,
+            showBackButton: true,
+            backTo: '/actvt/houses',
           }
         }
         if (subPage === 'clubs' && houseId) {
@@ -381,6 +381,21 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
           functions: { title: 'Functions', subtitle: 'Plan and record school functions' },
         }
         const info = titleMap[subPage] || { title: 'ACTVT', subtitle: 'Co-curricular and cultural activities' }
+        return { pageTitle: info.title, pageSubtitle: info.subtitle, showBackButton: false, backTo: null }
+      }
+      case 'mdcl': {
+        const subPage = segments[1] || ''
+        const titleMap: Record<string, { title: string; subtitle: string }> = {
+          cases: {
+            title: 'Medical Cases',
+            subtitle: 'Minor treatments, first aid, prescriptions, and supplies used',
+          },
+          supplies: {
+            title: 'Medical Supplies',
+            subtitle: 'Clinic stock, reorder levels, and expiry tracking',
+          },
+        }
+        const info = titleMap[subPage] || { title: 'MDCL', subtitle: 'School medical clinic log book and supplies' }
         return { pageTitle: info.title, pageSubtitle: info.subtitle, showBackButton: false, backTo: null }
       }
       case 'trnst': {
