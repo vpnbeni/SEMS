@@ -316,6 +316,7 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
           'exam-functionaries': { title: 'Exam Functionaries', subtitle: 'Manage examination functionaries and assignments' },
           'duties': { title: 'Duties', subtitle: 'Assign exam functionaries to rooms for each exam day' },
           'candidate-details': { title: 'Candidate Details', subtitle: 'Manage examination candidates and PDF imports' },
+          'cbse-registration': { title: 'CBSE Registration', subtitle: 'Class subjects plus per-student additional subject (double-click)' },
           'subjects': { title: 'Subjects', subtitle: 'Manage subjects taught in the classes.' },
           'examrooms': { title: 'Exam Room/Hall', subtitle: 'Assign rooms and halls for examinations' },
           'answersheets': { title: 'Answer Sheets', subtitle: 'Track and manage answer sheet dispatches' },

@@ -6,7 +6,10 @@ const path = require('path');
 const ExamDefinition = require('../models/ExamDefinition');
 const ExamResult = require('../models/ExamResult');
 const Student = require('../models/Student');
+const CbseClassSubjectMatrix = require('../models/CbseClassSubjectMatrix');
+const CbseRegistration = require('../models/CbseRegistration');
 const { uploadToCloudinary } = require('../config/cloudinary');
+const { computePercentageWithAdditionalSubject } = require('../utils/cbsePercentage');
 
 const GRADE_SCALE = [
   { min: 91, grade: 'A1' },
@@ -41,6 +44,85 @@ const slugToTitle = (slug) =>
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase());
 
+const normalizeSubjectKey = (name) =>
+  String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-');
+
+const normalizeSectionKey = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ');
+
+const resolveSubjectRolesFromCbseMatrix = async (req, className, section) => {
+  try {
+    const ClassSubjectModel = req.models?.CbseClassSubjectMatrix || CbseClassSubjectMatrix;
+    const doc = await ClassSubjectModel.findOne({}).lean();
+    if (!doc) return null;
+
+    const columns = Array.isArray(doc.columns) ? doc.columns : [];
+    const rows = Array.isArray(doc.rows) ? doc.rows : [];
+    const classKey = String(className || '').trim().toLowerCase();
+    const sectionKey = normalizeSectionKey(section);
+    const isSenior = /^(11th|12th|11|12)$/.test(classKey.replace(/\s+/g, ''));
+
+    const matched = rows.find((row) => {
+      if (String(row.className || '').trim().toLowerCase() !== classKey) return false;
+      if (isSenior) return normalizeSectionKey(row.section) === sectionKey;
+      return true;
+    });
+    if (!matched) return null;
+
+    const roles = {};
+    const subjects = Array.isArray(matched.subjects) ? matched.subjects : [];
+    if (subjects.length > 0) {
+      subjects.forEach((slot) => {
+        const subjectKey = normalizeSubjectKey(slot?.key || slot?.name);
+        if (!subjectKey) return;
+        roles[subjectKey] = 'main';
+      });
+    } else {
+      const slots =
+        matched.slots instanceof Map
+          ? Object.fromEntries(matched.slots.entries())
+          : matched.slots && typeof matched.slots === 'object'
+            ? matched.slots
+            : {};
+      columns.forEach((col) => {
+        if (String(col.role || '') === 'additional') return;
+        const slot = slots[col.key];
+        const subjectKey = normalizeSubjectKey(slot?.key || slot?.name);
+        if (!subjectKey) return;
+        roles[subjectKey] = 'main';
+      });
+    }
+    return Object.keys(roles).length > 0 ? roles : null;
+  } catch {
+    return null;
+  }
+};
+
+const resolveAdditionalByStudent = async (req, className, section) => {
+  try {
+    const CbseRegistrationModel = req.models?.CbseRegistration || CbseRegistration;
+    const doc = await CbseRegistrationModel.findOne({ class: className, section }).lean();
+    const map = {};
+    const rows = Array.isArray(doc?.selections) ? doc.selections : [];
+    rows.forEach((row) => {
+      const id = String(row.studentId || '');
+      const key = normalizeSubjectKey(row.additionalSubjectKey);
+      if (!id || !key) return;
+      map[id] = key;
+    });
+    return map;
+  } catch {
+    return {};
+  }
+};
+
 const formatAcademicYear = (session) => {
   const value = String(session || '').replace('_', '-').trim();
   const match = value.match(/^(\d{4})-(\d{2,4})$/);
@@ -64,28 +146,57 @@ const getCbseLogoDataUri = () => {
   return cachedCbseLogoDataUri;
 };
 
-const buildStudentCard = (student, exam, resultDoc) => {
+const buildStudentCard = (student, exam, resultDoc, subjectRoles = null, additionalSubjectKey = '') => {
   const marksMap = resultDoc?.marks instanceof Map
     ? Object.fromEntries(resultDoc.marks)
     : (resultDoc?.marks || {});
 
   const subjectEntries = Object.entries(marksMap);
   const perSubjectMax = exam.maximumMarks || 0;
+  const additionalKey = normalizeSubjectKey(additionalSubjectKey);
 
   const subjects = subjectEntries.map(([subjectId, obtained]) => {
     const obtainedNum = typeof obtained === 'number' ? obtained : Number(obtained) || 0;
+    const normalizedId = normalizeSubjectKey(subjectId);
+    let role = 'main';
+    if (additionalKey && (normalizedId === additionalKey || subjectId === additionalSubjectKey)) {
+      role = 'additional';
+    } else if (subjectRoles && typeof subjectRoles === 'object') {
+      role = subjectRoles[subjectId] || subjectRoles[normalizedId] || 'main';
+      if (role === 'additional' && !additionalKey) role = 'main';
+    }
     return {
       name: slugToTitle(subjectId),
+      subjectKey: subjectId,
+      role,
       maxMarks: perSubjectMax,
       marksObtained: obtainedNum,
       grade: perSubjectMax > 0 ? getGrade(obtainedNum, perSubjectMax) : '',
     };
   });
 
-  const grandObtained = subjects.reduce((sum, s) => sum + s.marksObtained, 0);
-  const grandMax = subjects.length * perSubjectMax;
+  const mainSubjects = subjects
+    .filter((s) => s.role !== 'additional')
+    .map((s) => ({ key: s.subjectKey, marks: s.marksObtained }));
+  const additional = subjects.find((s) => s.role === 'additional');
+  const scored = computePercentageWithAdditionalSubject(
+    mainSubjects.length > 0 ? mainSubjects : subjects.map((s) => ({ key: s.subjectKey, marks: s.marksObtained })),
+    additional ? { key: additional.subjectKey, marks: additional.marksObtained } : null,
+    perSubjectMax
+  );
 
-  const percentage = grandMax > 0 ? ((grandObtained / grandMax) * 100).toFixed(2) : '0.00';
+  const grandObtained = scored.total != null
+    ? scored.total
+    : subjects.reduce((sum, s) => sum + s.marksObtained, 0);
+  const grandMax = scored.maxTotal > 0
+    ? scored.maxTotal
+    : subjects.length * perSubjectMax;
+
+  const percentage = scored.percentage != null
+    ? scored.percentage.toFixed(2)
+    : grandMax > 0
+      ? ((grandObtained / grandMax) * 100).toFixed(2)
+      : '0.00';
   const overallGrade = grandMax > 0 ? getGrade(grandObtained, grandMax) : '';
 
   return {
@@ -432,6 +543,7 @@ const buildTemplateData = (tenant, exam, studentCards, academicYear, schoolProfi
     labels: header.labels,
     columnWidths: header.columnWidths,
     pageSizeCss,
+    isLandscape: header.orientation === 'landscape',
     styleCss,
     canvasItems: (header.canvasItems || []).map((item) => ({
       ...item,
@@ -545,7 +657,17 @@ exports.generateSingle = asyncHandler(async (req, res) => {
   }
 
   const academicYear = formatAcademicYear(req.academicSession);
-  const card = buildStudentCard(student, exam, resultDoc);
+  const [subjectRoles, additionalByStudent] = await Promise.all([
+    resolveSubjectRolesFromCbseMatrix(req, student.class, student.section),
+    resolveAdditionalByStudent(req, student.class, student.section),
+  ]);
+  const card = buildStudentCard(
+    student,
+    exam,
+    resultDoc,
+    subjectRoles,
+    additionalByStudent[String(student._id)] || ''
+  );
   const design = parseDesign(schoolProfile?.reportCardDesign || {});
   const templateData = buildTemplateData(req.tenant, exam, [card], academicYear, schoolProfile, design);
 
@@ -559,11 +681,15 @@ exports.generateSingle = asyncHandler(async (req, res) => {
   return res.status(HTTP_STATUS.OK).send(pdfBuffer);
 });
 
-// GET /report-card/bulk?examId=&class=&section=
+// GET /report-card/bulk?examId=&class=&section=&studentIds=
 exports.generateBulk = asyncHandler(async (req, res) => {
   const { examId } = req.query;
   const className = req.query.class;
   const section = req.query.section;
+  const studentIds = String(req.query.studentIds || '')
+    .split(',')
+    .map((id) => String(id || '').trim())
+    .filter(Boolean);
 
   if (!examId || !className || !section) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json({
@@ -577,11 +703,18 @@ exports.generateBulk = asyncHandler(async (req, res) => {
   const ExamResultModel = req.models?.ExamResult || ExamResult;
   const SchoolProfileModel = req.models?.SchoolProfile || SchoolProfile;
 
+  const studentFilter = {
+    class: className,
+    section,
+    isActive: true,
+    ...(studentIds.length > 0 ? { _id: { $in: studentIds } } : {}),
+  };
+
   const [exam, students, results, schoolProfile] = await Promise.all([
     ExamDefinitionModel.findById(examId).lean(),
-    StudentModel.find({ class: className, section, isActive: true })
-      .select('rollNumber name class section fatherName motherName gender')
-      .sort({ rollNumber: 1 })
+    StudentModel.find(studentFilter)
+      .select('rollNumber classRollNo name class section fatherName motherName gender')
+      .sort({ classRollNo: 1, name: 1, rollNumber: 1 })
       .lean(),
     ExamResultModel.find({ examId, class: className, section }).lean(),
     SchoolProfileModel.findOne({}).lean(),
@@ -594,7 +727,9 @@ exports.generateBulk = asyncHandler(async (req, res) => {
   if (!students.length) {
     return res.status(HTTP_STATUS.NOT_FOUND).json({
       success: false,
-      message: 'No students found for this class and section.',
+      message: studentIds.length > 0
+        ? 'No selected students found for this class and section.'
+        : 'No students found for this class and section.',
     });
   }
 
@@ -604,13 +739,27 @@ exports.generateBulk = asyncHandler(async (req, res) => {
   }
 
   const academicYear = formatAcademicYear(req.academicSession);
-  const cards = students.map((s) => buildStudentCard(s, exam, resultsByStudentId[String(s._id)]));
+  const [subjectRoles, additionalByStudent] = await Promise.all([
+    resolveSubjectRolesFromCbseMatrix(req, className, section),
+    resolveAdditionalByStudent(req, className, section),
+  ]);
+  const cards = students.map((s) =>
+    buildStudentCard(
+      s,
+      exam,
+      resultsByStudentId[String(s._id)],
+      subjectRoles,
+      additionalByStudent[String(s._id)] || ''
+    )
+  );
   const design = parseDesign(schoolProfile?.reportCardDesign || {});
   const templateData = buildTemplateData(req.tenant, exam, cards, academicYear, schoolProfile, design);
 
   const pdfBuffer = await pdfGenerator.generatePDF('report-card', templateData);
 
-  const filename = `report-cards_${String(exam.code || examId)}_${className}-${section}.pdf`;
+  const filename = studentIds.length > 0
+    ? `report-cards_${String(exam.code || examId)}_${className}-${section}_selected.pdf`
+    : `report-cards_${String(exam.code || examId)}_${className}-${section}.pdf`;
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   return res.status(HTTP_STATUS.OK).send(pdfBuffer);

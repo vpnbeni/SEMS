@@ -86,6 +86,7 @@ import ExmclMarksDistribution from './pages/ExmclMarksDistribution'
 import ExmclExams from './pages/ExmclExams'
 import ExmclDatesheets from './pages/ExmclDatesheets'
 import ExmclSubjects from './pages/ExmclSubjects'
+import ExmclCbseRegistration from './pages/ExmclCbseRegistration'
 import AttndStaffAttendance from './pages/AttndStaffAttendance'
 import AttndStudentAttendance from './pages/AttndStudentAttendance'
 import Attndboard from './pages/Attndboard'
@@ -379,6 +380,7 @@ function App() {
               <Route path="exmcl/candidate-details" element={<Candidates />} />
               <Route path="exmcl/candidate-details/:id" element={<CandidateDetail />} />
               <Route path="exmcl/candidates/*" element={<Navigate to="/exmcl/candidate-details" replace />} />
+              <Route path="exmcl/cbse-registration" element={<ExmclCbseRegistration />} />
               <Route path="exmcl/seatingplan" element={<SeatingPlan />} />
               <Route path="exmcl/subjects" element={<ExmclSubjects />} />
               <Route path="exmcl/datesheets" element={<ExmclDatesheets />} />

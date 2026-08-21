@@ -8,7 +8,7 @@ import api from '../services/api'
 import studentService from '../services/studentService'
 import timetableService from '../services/timetableService'
 import { makeRecordService } from '../services/recordService'
-import { STUDENT_CLASS_OPTIONS, sortSectionNames } from '../constants/studentClasses'
+import { sortSectionNames } from '../constants/studentClasses'
 import {
   getSectionDisplayName,
   normalizeAllowedSections,
@@ -513,13 +513,10 @@ const Students: React.FC = () => {
     () => (stats?.byGender || []).find((entry) => entry._id === 'Girl')?.count ?? 0,
     [stats]
   )
-  const classOptions = useMemo(() => {
-    const names = new Set<string>([
-      ...STUDENT_CLASS_OPTIONS,
-      ...classSectionOptions.map((option) => option.className),
-    ])
-    return Array.from(names).filter(Boolean).sort(sortClassNames)
-  }, [classSectionOptions])
+  const classOptions = useMemo(
+    () => classSectionOptions.map((option) => option.className).filter(Boolean),
+    [classSectionOptions]
+  )
   const sectionOptionsForSelectedClass = useMemo(
     () => classSectionOptions.find((option) => option.className === formData.class)?.sections || [],
     [classSectionOptions, formData.class]
@@ -541,6 +538,12 @@ const Students: React.FC = () => {
     if (filterSectionOptions.includes(sectionFilter)) return
     setSectionFilter('')
   }, [filterSectionOptions, sectionFilter])
+
+  useEffect(() => {
+    if (!classFilter) return
+    if (classOptions.includes(classFilter)) return
+    setClassFilter('')
+  }, [classFilter, classOptions])
 
   const selectedCount = selectedIds.length
   const sortedStudents = useMemo(() => {
@@ -854,14 +857,13 @@ const Students: React.FC = () => {
       const response = await studentService.uploadImportTemplate(selectedFile)
       const result = response?.data ?? {}
       const createdCount = result.created ?? 0
-      const updatedCount = result.updated ?? 0
       const skippedCount = result.skipped ?? 0
       const errors = Array.isArray(result.errors) ? result.errors : []
       const warnings = Array.isArray(result.warnings) ? result.warnings : []
       const errorPreview = errors.slice(0, 2).map((entry: any) => `Row ${entry?.row}: ${entry?.message}`).join(' | ')
       setPageMessage({
-        tone: errors.length > 0 && createdCount === 0 && updatedCount === 0 ? 'error' : 'success',
-        text: `Import completed. Created: ${createdCount}, Updated: ${updatedCount}, Skipped: ${skippedCount}, Errors: ${errors.length}, Warnings: ${warnings.length}.${errorPreview ? ` ${errorPreview}` : ''}`,
+        tone: errors.length > 0 && createdCount === 0 ? 'error' : 'success',
+        text: `Import completed. Created: ${createdCount}, Skipped (already exist): ${skippedCount}, Errors: ${errors.length}, Warnings: ${warnings.length}.${errorPreview ? ` ${errorPreview}` : ''}`,
       })
       refreshStudentData(1)
       setPage(1)
@@ -1065,16 +1067,7 @@ const Students: React.FC = () => {
       await api.put(`/students/${studentId}`, { class: className, section: normalizedSection })
       setSectionOverrideByStudentId((prev) => ({ ...prev, [studentId]: normalizedSection }))
       setPageMessage({ tone: 'success', text: `Section updated to ${getSectionDisplayName(normalizedSection)}.` })
-      dispatch(
-        fetchStudents({
-          page,
-          limit: STUDENTS_PAGE_SIZE,
-          sort: '-createdAt',
-          ...(deferredSearch.trim() ? { search: deferredSearch.trim() } : {}),
-          ...(classFilter ? { class: classFilter } : {}),
-          ...(sectionFilter ? { section: sectionFilter } : {}),
-        })
-      )
+      refreshStudentData(page)
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
@@ -1204,7 +1197,7 @@ const Students: React.FC = () => {
               />
 
               <p className="hidden max-w-[240px] text-[10px] leading-snug text-slate-500 lg:block">
-                Partial sheets OK with Admission No. Re-uploads overwrite provided fields; blank cells are left as-is.
+                Use the downloaded template. Existing Admission Nos are skipped; only new students are added.
               </p>
 
               <button
@@ -1221,7 +1214,7 @@ const Students: React.FC = () => {
                 onClick={() => document.getElementById('student-template-upload-input')?.click()}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loading || isTemplateDownloading || isTemplateUploading}
-                title="Upload template — merges by Admission No.; non-empty cells overwrite; blank cells keep existing values"
+                title="Upload template — existing Admission Nos are skipped; only new students are added"
               >
                 <Upload className="h-3.5 w-3.5" />
                 {isTemplateUploading ? 'Uploading...' : 'Upload'}

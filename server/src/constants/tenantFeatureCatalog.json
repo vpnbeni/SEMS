@@ -486,6 +486,14 @@
     "prefixes": ["/exmcl/candidate-details", "/exmcl/candidates"]
   },
   {
+    "key": "exmcl_cbse_registration",
+    "label": "ExmCl - CBSE Registration",
+    "path": "/exmcl/cbse-registration",
+    "group": "ExmCl",
+    "module": "exmcl",
+    "prefixes": ["/exmcl/cbse-registration"]
+  },
+  {
     "key": "billing",
     "label": "Billing",
     "path": "/billing",

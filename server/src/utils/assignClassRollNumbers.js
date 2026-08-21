@@ -119,9 +119,11 @@ const backfillClassRollNumbersIfNeeded = async (SchoolProfileModel, StudentModel
   const ProfileModel = SchoolProfileModel || SchoolProfile;
   const existing = await ProfileModel.findOne({}).select('metadata.studentRollNumberAssignment').lean();
   const storedSortBy = existing?.metadata?.studentRollNumberAssignment?.sortBy;
-  const ruleChanged = storedSortBy !== STUDENT_ROLL_NUMBER_RULE.sortBy;
+  const ruleChanged = !storedSortBy || storedSortBy !== STUDENT_ROLL_NUMBER_RULE.sortBy;
 
-  await ensureStudentRollNumberRule(ProfileModel);
+  if (ruleChanged) {
+    await ensureStudentRollNumberRule(ProfileModel);
+  }
 
   const missingCount = await StudentModel.countDocuments({
     isActive: true,

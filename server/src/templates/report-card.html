@@ -33,8 +33,68 @@
       overflow: hidden;
     }
 
+    .card.card-landscape {
+      min-height: 180mm;
+    }
+
     .card:last-child {
       page-break-after: auto;
+    }
+
+    .body-split {
+      display: block;
+    }
+
+    .card-landscape .body-split {
+      display: grid;
+      grid-template-columns: 1fr 1.15fr;
+      gap: 10px;
+      margin-top: 8px;
+      align-items: stretch;
+      flex: 1;
+    }
+
+    .card-landscape .exam-title-only {
+      border: 2px solid #000;
+      margin-top: 8px;
+    }
+
+    .card-landscape .exam-title-only .exam-title {
+      border-bottom: none;
+    }
+
+    .card-landscape .body-left,
+    .card-landscape .body-right {
+      border: 2px solid #000;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card-landscape .body-left .student-details {
+      padding: 0;
+    }
+
+    .card-landscape .section-heading {
+      margin-top: 0;
+    }
+
+    .card-landscape .card-bottom {
+      margin-top: auto;
+      padding-top: 10px;
+    }
+
+    .card-portrait .exam-title-only {
+      display: none;
+    }
+
+    .card-landscape .exam-title-box .exam-title {
+      display: none;
+    }
+
+    .card-landscape .exam-title-box {
+      border: none;
+      margin-top: 0;
     }
 
     .school-header {
@@ -268,26 +328,22 @@
 <body>
 
 {{#each students}}
-<div class="card">
+<div class="card {{#if ../isLandscape}}card-landscape{{else}}card-portrait{{/if}}">
 
-  <!-- School Header -->
   {{#if ../showHeader}}
   <div class="school-header">
     <div class="school-head-top">
       <div class="school-logo-slot">
         {{#if ../schoolLogoUrl}}<img src="{{../schoolLogoUrl}}" alt="School Logo" />{{/if}}
       </div>
-
       <div class="school-title-wrap">
         <div class="school-name" style="{{{../styleCss.schoolName}}}">{{../schoolName}}</div>
         {{#if ../schoolTagline}}<div class="school-tagline" style="{{{../styleCss.tagline}}}">{{../schoolTagline}}</div>{{/if}}
       </div>
-
       <div class="cbse-logo-slot">
         {{#if ../cbseLogoDataUri}}<img src="{{../cbseLogoDataUri}}" alt="CBSE Emblem" />{{/if}}
       </div>
     </div>
-
     <table class="school-meta-table" style="{{{../styleCss.meta}}}">
       <tr>
         <td class="meta-left">{{#if ../showSchoolCode}}<strong>School Code:</strong> {{../schoolCode}}{{/if}}</td>
@@ -303,133 +359,112 @@
   </div>
   {{/if}}
 
-  <!-- Exam Title + Student Details Box -->
-  <div class="exam-title-box">
+  {{#if ../isLandscape}}
+  <div class="exam-title-only">
     <div class="exam-title" style="{{{../styleCss.examTitle}}}">{{../examTitle}}</div>
-    <div class="student-details" style="{{{../styleCss.studentFields}}}">
-      <div class="student-details-heading" style="{{{../styleCss.sectionHeading}}}">{{../labels.studentDetails}}</div>
-      <div class="student-details-grid">
-        <div class="student-details-col">
-          <div class="student-field">
-            <label>Name:</label>
-            <span class="underline-fill">{{name}}</span>
-          </div>
-          <div class="student-field">
-            <label>Mother Name:</label>
-            <span class="underline-fill">{{motherName}}</span>
-          </div>
-          <div class="student-field">
-            <label>Gender:</label>
-            <span class="underline-fill">{{gender}}</span>
-          </div>
-        </div>
-        <div class="student-details-col">
-          <div class="student-field">
-            <label>Adm. No:</label>
-            <span class="underline-fill">{{admNo}}</span>
-          </div>
-          <div class="student-field">
-            <label>Class &amp; Section:</label>
-            <span class="underline-fill">{{classSection}}</span>
-          </div>
-          <div class="student-field">
-            <label>Father Name:</label>
-            <span class="underline-fill">{{fatherName}}</span>
+  </div>
+  {{/if}}
+
+  <div class="body-split">
+    <div class="{{#if ../isLandscape}}body-left{{/if}}">
+      <div class="exam-title-box">
+        {{#unless ../isLandscape}}
+        <div class="exam-title" style="{{{../styleCss.examTitle}}}">{{../examTitle}}</div>
+        {{/unless}}
+        <div class="student-details" style="{{{../styleCss.studentFields}}}">
+          <div class="student-details-heading" style="{{{../styleCss.sectionHeading}}}">{{../labels.studentDetails}}</div>
+          <div class="student-details-grid">
+            <div class="student-details-col">
+              <div class="student-field"><label>Name:</label><span class="underline-fill">{{name}}</span></div>
+              <div class="student-field"><label>Mother Name:</label><span class="underline-fill">{{motherName}}</span></div>
+              <div class="student-field"><label>Gender:</label><span class="underline-fill">{{gender}}</span></div>
+            </div>
+            <div class="student-details-col">
+              <div class="student-field"><label>Adm. No:</label><span class="underline-fill">{{admNo}}</span></div>
+              <div class="student-field"><label>Class &amp; Section:</label><span class="underline-fill">{{classSection}}</span></div>
+              <div class="student-field"><label>Father Name:</label><span class="underline-fill">{{fatherName}}</span></div>
+            </div>
           </div>
         </div>
       </div>
+
+      {{#if ../isLandscape}}
+      <div class="card-bottom">
+        <div class="footer-fields" style="{{{../styleCss.footer}}}">
+          {{#if ../showAttendance}}<div class="footer-field"><label>{{../labels.attendance}}</label><span class="underline-fill"></span></div>{{/if}}
+          {{#if ../showRemarks}}<div class="footer-field"><label>{{../labels.remarks}}</label><span class="underline-fill"></span></div>{{/if}}
+          {{#if ../showDate}}<div class="footer-field"><label>{{../labels.date}}</label><span class="underline-fill" style="max-width: 100pt;"></span></div>{{/if}}
+        </div>
+        <div class="signature-area" style="{{{../styleCss.signatures}}}">
+          {{#if ../showClassTeacherSign}}<div class="signature-block"><div class="signature-line"></div>{{../labels.classTeacherSign}}</div>{{else}}<div class="signature-block"></div>{{/if}}
+          {{#if ../showPrincipalSign}}<div class="signature-block"><div class="signature-line"></div>{{../labels.principalSign}}</div>{{/if}}
+        </div>
+      </div>
+      {{/if}}
+    </div>
+
+    <div class="{{#if ../isLandscape}}body-right{{/if}}">
+      <div class="section-heading" style="{{{../styleCss.sectionHeading}}}">{{../labels.scholasticArea}}</div>
+      <table class="marks-table">
+        <colgroup>
+          <col style="width: {{../columnWidths.subjects}}%" />
+          <col style="width: {{../columnWidths.maxMarks}}%" />
+          <col style="width: {{../columnWidths.marksObtained}}%" />
+          <col style="width: {{../columnWidths.grade}}%" />
+        </colgroup>
+        <thead>
+          <tr style="{{{../styleCss.tableHeader}}}">
+            <th>{{../labels.subjects}}</th>
+            <th>{{../labels.maxMarks}}</th>
+            <th>{{../labels.marksObtained}}</th>
+            <th>{{../labels.grade}}</th>
+          </tr>
+        </thead>
+        <tbody style="{{{../styleCss.tableBody}}}">
+          {{#each subjects}}
+          <tr>
+            <td class="subject-name">{{name}}</td>
+            <td>{{maxMarks}}</td>
+            <td>{{marksObtained}}</td>
+            <td>{{grade}}</td>
+          </tr>
+          {{/each}}
+          <tr class="grand-total">
+            <td class="subject-name">{{../labels.grandTotal}}</td>
+            <td>{{grandMax}}</td>
+            <td>{{grandObtained}}</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+      <table class="summary-table">
+        <colgroup>
+          <col style="width: {{../columnWidths.subjects}}%" />
+          <col style="width: {{../columnWidths.maxMarks}}%" />
+          <col style="width: {{../columnWidths.marksObtained}}%" />
+          <col style="width: {{../columnWidths.grade}}%" />
+        </colgroup>
+        <tr>
+          <td class="label-cell" style="{{{../styleCss.tableHeader}}}">{{../labels.percentage}}</td>
+          <td class="value-cell" style="{{{../styleCss.tableBody}}}">{{percentage}}%</td>
+          <td class="label-cell" style="{{{../styleCss.tableHeader}}}">{{../labels.overallGrade}}</td>
+          <td class="value-cell" style="{{{../styleCss.tableBody}}}">{{overallGrade}}</td>
+        </tr>
+      </table>
     </div>
   </div>
 
-  <!-- Scholastic Area -->
-  <div class="section-heading" style="{{{../styleCss.sectionHeading}}}">{{../labels.scholasticArea}}</div>
-
-  <table class="marks-table">
-    <colgroup>
-      <col style="width: {{../columnWidths.subjects}}%" />
-      <col style="width: {{../columnWidths.maxMarks}}%" />
-      <col style="width: {{../columnWidths.marksObtained}}%" />
-      <col style="width: {{../columnWidths.grade}}%" />
-    </colgroup>
-    <thead>
-      <tr style="{{{../styleCss.tableHeader}}}">
-        <th>{{../labels.subjects}}</th>
-        <th>{{../labels.maxMarks}}</th>
-        <th>{{../labels.marksObtained}}</th>
-        <th>{{../labels.grade}}</th>
-      </tr>
-    </thead>
-    <tbody style="{{{../styleCss.tableBody}}}">
-      {{#each subjects}}
-      <tr>
-        <td class="subject-name">{{name}}</td>
-        <td>{{maxMarks}}</td>
-        <td>{{marksObtained}}</td>
-        <td>{{grade}}</td>
-      </tr>
-      {{/each}}
-      <tr class="grand-total">
-        <td class="subject-name">{{../labels.grandTotal}}</td>
-        <td>{{grandMax}}</td>
-        <td>{{grandObtained}}</td>
-        <td></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <table class="summary-table">
-    <colgroup>
-      <col style="width: {{../columnWidths.subjects}}%" />
-      <col style="width: {{../columnWidths.maxMarks}}%" />
-      <col style="width: {{../columnWidths.marksObtained}}%" />
-      <col style="width: {{../columnWidths.grade}}%" />
-    </colgroup>
-    <tr>
-      <td class="label-cell" style="{{{../styleCss.tableHeader}}}">{{../labels.percentage}}</td>
-      <td class="value-cell" style="{{{../styleCss.tableBody}}}">{{percentage}}%</td>
-      <td class="label-cell" style="{{{../styleCss.tableHeader}}}">{{../labels.overallGrade}}</td>
-      <td class="value-cell" style="{{{../styleCss.tableBody}}}">{{overallGrade}}</td>
-    </tr>
-  </table>
-
-  <!-- Footer fields -->
+  {{#unless ../isLandscape}}
   <div class="footer-fields" style="{{{../styleCss.footer}}}">
-    {{#if ../showAttendance}}
-    <div class="footer-field">
-      <label>{{../labels.attendance}}</label>
-      <span class="underline-fill"></span>
-    </div>
-    {{/if}}
-    {{#if ../showRemarks}}
-    <div class="footer-field">
-      <label>{{../labels.remarks}}</label>
-      <span class="underline-fill"></span>
-    </div>
-    {{/if}}
-    {{#if ../showDate}}
-    <div class="footer-field">
-      <label>{{../labels.date}}</label>
-      <span class="underline-fill" style="max-width: 100pt;"></span>
-    </div>
-    {{/if}}
+    {{#if ../showAttendance}}<div class="footer-field"><label>{{../labels.attendance}}</label><span class="underline-fill"></span></div>{{/if}}
+    {{#if ../showRemarks}}<div class="footer-field"><label>{{../labels.remarks}}</label><span class="underline-fill"></span></div>{{/if}}
+    {{#if ../showDate}}<div class="footer-field"><label>{{../labels.date}}</label><span class="underline-fill" style="max-width: 100pt;"></span></div>{{/if}}
   </div>
-
   <div class="signature-area" style="{{{../styleCss.signatures}}}">
-    {{#if ../showClassTeacherSign}}
-    <div class="signature-block">
-      <div class="signature-line"></div>
-      {{../labels.classTeacherSign}}
-    </div>
-    {{else}}
-    <div class="signature-block"></div>
-    {{/if}}
-    {{#if ../showPrincipalSign}}
-    <div class="signature-block">
-      <div class="signature-line"></div>
-      {{../labels.principalSign}}
-    </div>
-    {{/if}}
+    {{#if ../showClassTeacherSign}}<div class="signature-block"><div class="signature-line"></div>{{../labels.classTeacherSign}}</div>{{else}}<div class="signature-block"></div>{{/if}}
+    {{#if ../showPrincipalSign}}<div class="signature-block"><div class="signature-line"></div>{{../labels.principalSign}}</div>{{/if}}
   </div>
+  {{/unless}}
 
   {{#each ../canvasItems}}
   <div class="canvas-item" style="{{{boxStyle}}}">
@@ -444,7 +479,6 @@
     {{/if}}
   </div>
   {{/each}}
-
 </div>
 {{/each}}
 

@@ -32,6 +32,7 @@ const reportCardRoutes = require('../../routes/reportCardRoutes');
 const awardListRoutes = require('../../routes/awardListRoutes');
 const admitCardRoutes = require('../../routes/admitCardRoutes');
 const schoolProfileRoutes = require('../../routes/schoolProfileRoutes');
+const cbseRegistrationRoutes = require('../../routes/cbseRegistrationRoutes');
 
 const mountRoutes = (router) => {
   router.use('/students', requireTenantFeature('candidates'), studentRoutes);
@@ -55,6 +56,7 @@ const mountRoutes = (router) => {
   router.use('/report-card', requireTenantFeature('exmcl_exams'), reportCardRoutes);
   router.use('/award-list', requireTenantFeature('exmcl_award_list'), awardListRoutes);
   router.use('/admit-cards', requireTenantFeature('exmcl_admit_cards'), admitCardRoutes);
+  router.use('/cbse-registration', requireTenantFeature('exmcl_cbse_registration'), cbseRegistrationRoutes);
   router.use('/school-profile', schoolProfileRoutes);
 };
 

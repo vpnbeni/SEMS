@@ -75,6 +75,8 @@ const MODULE_MODEL_KEYS = Object.freeze({
     'ExamCircular',
     'ExamDefinition',
     'ExamResult',
+    'CbseRegistration',
+    'CbseClassSubjectMatrix',
   ]),
   attnd: Object.freeze([
     'Teacher',

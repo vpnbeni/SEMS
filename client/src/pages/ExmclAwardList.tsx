@@ -61,7 +61,7 @@ const ExmclAwardList: React.FC = () => {
       try {
         const [examList, statsRes, savedDesign, profile] = await Promise.all([
           exmclExamService.getAll(),
-          api.get('/students/stats'),
+          api.get('/students/stats', { params: { lite: true } }),
           exmclAwardListService.getDesign(),
           schoolProfileService.getProfile().catch(() => null),
         ])

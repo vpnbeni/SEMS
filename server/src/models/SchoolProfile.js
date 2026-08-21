@@ -25,6 +25,20 @@ const schoolProfileSchema = new mongoose.Schema({
           'Roll numbers are assigned automatically to students of each section of each class by sorting them in alphabetical order of name. If two students have the same name, they are ordered alphabetically by father name. If a student changes section, roll numbers in both the previous and new sections are reassigned.',
       },
     },
+    parentNameHonorifics: {
+      fatherPrefix: { type: String, default: 'Mr.' },
+      motherPrefix: { type: String, default: 'Mrs.' },
+      stripExisting: { type: Boolean, default: true },
+      applyOnTemplateImport: { type: Boolean, default: true },
+      backfillVersion: { type: Number, default: 0 },
+      backfilledAt: { type: Date, default: null },
+      backfilledCount: { type: Number, default: 0 },
+      description: {
+        type: String,
+        default:
+          'Parent names use Mr. (father) or Mrs. (mother): capital M, lowercase r/rs, period, then a space, then the name in Title Case. Existing titles are normalized even when glued to the name (mr.aj → Mr. Aj).',
+      },
+    },
   },
 }, { timestamps: true });
 

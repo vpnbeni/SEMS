@@ -1,18 +1,45 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Download, Eye } from 'lucide-react'
+import { Document, Page, pdfjs } from 'react-pdf'
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { useNavigate } from 'react-router-dom'
 import exmclExamService, { type ExmclExamDefinition } from '@/services/exmclExamService'
 import exmclReportCardService from '@/services/exmclReportCardService'
 import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { sortSectionNames } from '@/constants/studentClasses'
+import { resolveApiBaseUrl } from '@/utils/tenantRuntime'
+
+pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 type StudentRow = {
   _id: string
   rollNumber: string
+  classRollNo?: number | null
   name: string
   class: string
   section: string
+  fatherName?: string
+  motherName?: string
+  profileImage?: string | null
+}
+
+const SERVER_URL = resolveApiBaseUrl().replace('/api', '')
+
+const getProfileImageUrl = (profileImage?: string | null) => {
+  if (!profileImage) return null
+  if (profileImage.startsWith('http')) return profileImage
+  return `${SERVER_URL}${profileImage}`
+}
+
+const getInitials = (name: string) => {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase()
 }
 
 type ClassSectionEntry = {
@@ -48,6 +75,11 @@ const ExmclReportCard: React.FC = () => {
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set())
   const [previewingIds, setPreviewingIds] = useState<Set<string>>(new Set())
   const [bulkDownloading, setBulkDownloading] = useState(false)
+  const [previewStudent, setPreviewStudent] = useState<StudentRow | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewPageCount, setPreviewPageCount] = useState(0)
+  const [previewRenderError, setPreviewRenderError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -57,7 +89,7 @@ const ExmclReportCard: React.FC = () => {
       try {
         const [examList, statsRes] = await Promise.all([
           exmclExamService.getAll(),
-          api.get('/students/stats'),
+          api.get('/students/stats', { params: { lite: true } }),
         ])
         if (cancelled) return
         const byClassSection = Array.isArray(statsRes?.data?.data?.byClassSection)
@@ -142,6 +174,7 @@ const ExmclReportCard: React.FC = () => {
           section: selectedSection,
           isActive: true,
           sort: 'classRollNo',
+          lite: true,
         },
       })
       .then((response) => {
@@ -164,13 +197,38 @@ const ExmclReportCard: React.FC = () => {
   }, [selectedClass, selectedSection])
 
   const filteredStudents = useMemo(() => {
-    return [...students].sort((a, b) =>
-      String(a.rollNumber).localeCompare(String(b.rollNumber), undefined, { numeric: true })
-    )
+    return [...students].sort((a, b) => {
+      const left = Number(a.classRollNo)
+      const right = Number(b.classRollNo)
+      const leftValid = Number.isFinite(left) && left > 0
+      const rightValid = Number.isFinite(right) && right > 0
+      if (leftValid && rightValid && left !== right) return left - right
+      if (leftValid && !rightValid) return -1
+      if (!leftValid && rightValid) return 1
+      return String(a.name || '').localeCompare(String(b.name || ''), undefined, {
+        sensitivity: 'base',
+        numeric: true,
+      })
+    })
   }, [students])
 
-  // Reset selection when filters change
-  useEffect(() => { setSelectedIds(new Set()) }, [selectedExamId, selectedClass, selectedSection])
+  // Reset selection/preview when filters change
+  useEffect(() => {
+    setSelectedIds(new Set())
+    setPreviewStudent(null)
+    setPreviewPageCount(0)
+    setPreviewRenderError(null)
+    setPreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+  }, [selectedExamId, selectedClass, selectedSection])
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl)
+    }
+  }, [previewUrl])
 
   const allSelected = filteredStudents.length > 0 && selectedIds.size === filteredStudents.length
   const someSelected = selectedIds.size > 0
@@ -206,11 +264,28 @@ const ExmclReportCard: React.FC = () => {
   const handlePreviewSingle = useCallback(async (student: StudentRow) => {
     if (!selectedExamId) return
     setPreviewingIds((prev) => new Set([...prev, student._id]))
+    setPreviewLoading(true)
+    setPreviewStudent(student)
+    setPreviewPageCount(0)
+    setPreviewRenderError(null)
     try {
-      await exmclReportCardService.previewSingle(selectedExamId, student._id)
+      const blob = await exmclReportCardService.fetchSinglePdfBlob(selectedExamId, student._id)
+      const url = URL.createObjectURL(blob)
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return url
+      })
     } catch (error: any) {
+      setPreviewStudent(null)
+      setPreviewPageCount(0)
+      setPreviewRenderError(null)
+      setPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
       toast.error(String(error?.response?.data?.message || error?.message || 'Failed to preview report card.'))
     } finally {
+      setPreviewLoading(false)
       setPreviewingIds((prev) => {
         const next = new Set(prev)
         next.delete(student._id)
@@ -220,16 +295,21 @@ const ExmclReportCard: React.FC = () => {
   }, [selectedExamId])
 
   const handleDownloadBulk = useCallback(async () => {
-    if (!selectedExamId || !selectedClass || !selectedSection) return
+    if (!selectedExamId || !selectedClass || !selectedSection || selectedIds.size === 0) return
     setBulkDownloading(true)
     try {
-      await exmclReportCardService.downloadBulk(selectedExamId, selectedClass, selectedSection)
+      await exmclReportCardService.downloadBulk(
+        selectedExamId,
+        selectedClass,
+        selectedSection,
+        Array.from(selectedIds)
+      )
     } catch (error: any) {
       toast.error(String(error?.response?.data?.message || error?.message || 'Failed to generate bulk report cards.'))
     } finally {
       setBulkDownloading(false)
     }
-  }, [selectedExamId, selectedClass, selectedSection])
+  }, [selectedExamId, selectedClass, selectedSection, selectedIds])
 
   const canDownloadBulk = Boolean(selectedExamId && selectedClass && selectedSection && someSelected)
   const filtersComplete = Boolean(selectedExamId && selectedClass && selectedSection)
@@ -297,7 +377,7 @@ const ExmclReportCard: React.FC = () => {
             <button
               onClick={handleDownloadBulk}
               disabled={!canDownloadBulk || bulkDownloading}
-              title={!canDownloadBulk ? 'Select students to download' : `Download ${selectedIds.size} report card(s)`}
+              title={!canDownloadBulk ? 'Select students to download' : `Download ${selectedIds.size} selected report card(s)`}
               className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 transition-colors"
             >
               {bulkDownloading ? (
@@ -311,7 +391,7 @@ const ExmclReportCard: React.FC = () => {
               ) : (
                 <>
                   <Download size={14} />
-                  Download {someSelected ? `(${selectedIds.size})` : 'All'}
+                  Download{someSelected ? ` (${selectedIds.size})` : ' Selected'}
                 </>
               )}
             </button>
@@ -335,10 +415,10 @@ const ExmclReportCard: React.FC = () => {
               No students found for this class-section.
             </div>
           ) : (
-            <table className="w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <table className="w-max divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="sticky top-0 z-10 bg-gray-50/95 backdrop-blur dark:bg-gray-900/95">
                 <tr>
-                  <th className="w-10 px-4 py-3">
+                  <th className="whitespace-nowrap px-2 py-2">
                     <input
                       type="checkbox"
                       aria-label="Select all students"
@@ -347,19 +427,25 @@ const ExmclReportCard: React.FC = () => {
                       className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th className="whitespace-nowrap px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     Adm. No
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th className="whitespace-nowrap px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Photo
+                  </th>
+                  <th className="whitespace-nowrap px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Roll No
+                  </th>
+                  <th className="whitespace-nowrap px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     Student Name
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Class
+                  <th className="whitespace-nowrap px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Father Name
                   </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Section
+                  <th className="whitespace-nowrap px-2 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Mother Name
                   </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th className="whitespace-nowrap px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     Report Card
                   </th>
                 </tr>
@@ -369,12 +455,13 @@ const ExmclReportCard: React.FC = () => {
                   const isChecked = selectedIds.has(student._id)
                   const isDownloading = downloadingIds.has(student._id)
                   const isPreviewing = previewingIds.has(student._id)
+                  const photoUrl = getProfileImageUrl(student.profileImage)
                   return (
                     <tr
                       key={student._id}
                       className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${isChecked ? 'bg-indigo-50/40 dark:bg-indigo-900/10' : ''}`}
                     >
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-2 py-1.5">
                         <input
                           type="checkbox"
                           aria-label={`Select ${student.name}`}
@@ -383,19 +470,38 @@ const ExmclReportCard: React.FC = () => {
                           className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                         />
                       </td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
+                      <td className="whitespace-nowrap px-2 py-1.5 text-sm font-medium text-gray-900 dark:text-white">
                         {student.rollNumber}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-900 dark:text-white">
+                      <td className="whitespace-nowrap px-2 py-1.5">
+                        {photoUrl ? (
+                          <img
+                            src={photoUrl}
+                            alt=""
+                            className="h-8 w-8 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-600"
+                          />
+                        ) : (
+                          <span
+                            aria-hidden
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                          >
+                            {getInitials(student.name)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-sm text-gray-900 dark:text-white">
+                        {student.classRollNo != null ? student.classRollNo : '—'}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-sm text-gray-900 dark:text-white">
                         {student.name}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                        {student.class}
+                      <td className="whitespace-nowrap px-2 py-1.5 text-sm text-gray-600 dark:text-gray-300">
+                        {student.fatherName || '—'}
                       </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">
-                        {student.section}
+                      <td className="whitespace-nowrap px-2 py-1.5 text-sm text-gray-600 dark:text-gray-300">
+                        {student.motherName || '—'}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="whitespace-nowrap px-2 py-1.5 text-right">
                         <div className="inline-flex items-center gap-2">
                           <button
                             onClick={() => handlePreviewSingle(student)}
@@ -462,6 +568,88 @@ const ExmclReportCard: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Inline preview panel */}
+      {filtersComplete ? (
+        <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-2.5 dark:border-gray-700">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Report card preview</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {previewStudent
+                  ? `${previewStudent.name} · Adm. ${previewStudent.rollNumber}${
+                      previewStudent.classRollNo != null ? ` · Roll ${previewStudent.classRollNo}` : ''
+                    }`
+                  : 'Click Preview on a student row to show the PDF here.'}
+              </p>
+            </div>
+            {previewUrl ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPreviewStudent(null)
+                  setPreviewPageCount(0)
+                  setPreviewRenderError(null)
+                  setPreviewUrl((prev) => {
+                    if (prev) URL.revokeObjectURL(prev)
+                    return null
+                  })
+                }}
+                className="rounded-lg border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+
+          <div className="max-h-[75vh] overflow-auto bg-slate-100/80 p-3 dark:bg-gray-900/40">
+            {previewLoading ? (
+              <div className="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                Generating preview…
+              </div>
+            ) : previewUrl ? (
+              previewRenderError ? (
+                <div className="flex h-48 items-center justify-center px-4 text-center text-sm text-red-600 dark:text-red-400">
+                  {previewRenderError}
+                </div>
+              ) : (
+                <Document
+                  file={previewUrl}
+                  loading={
+                    <div className="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                      Rendering preview…
+                    </div>
+                  }
+                  onLoadSuccess={({ numPages }) => {
+                    setPreviewPageCount(numPages)
+                    setPreviewRenderError(null)
+                  }}
+                  onLoadError={(error) => {
+                    const message = (error as Error)?.message || 'Unknown PDF render error'
+                    setPreviewRenderError(`Failed to render preview (${message}).`)
+                  }}
+                  className="flex flex-col items-center gap-4"
+                >
+                  {Array.from({ length: previewPageCount }).map((_, index) => (
+                    <Page
+                      key={`report-card-preview-page-${index + 1}`}
+                      pageNumber={index + 1}
+                      width={Math.min(920, typeof window !== 'undefined' ? window.innerWidth - 96 : 920)}
+                      renderTextLayer={false}
+                      renderAnnotationLayer={false}
+                      className="overflow-hidden rounded-md bg-white shadow-sm"
+                    />
+                  ))}
+                </Document>
+              )
+            ) : (
+              <div className="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                No preview yet.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

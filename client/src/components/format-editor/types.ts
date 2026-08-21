@@ -86,6 +86,13 @@ export type FormatDefinition = {
 
 export const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 28, 32, 36]
 
+/** ISO / US paper sizes in millimetres (portrait). */
+export const PAGE_SIZE_MM: Record<FormatPageSize, { width: number; height: number }> = {
+  A4: { width: 210, height: 297 },
+  letter: { width: 215.9, height: 279.4 }, // 8.5 × 11 in
+  legal: { width: 215.9, height: 355.6 }, // 8.5 × 14 in
+}
+
 export const PAGE_ASPECT: Record<FormatPageSize, Record<FormatOrientation, string>> = {
   A4: { portrait: '210 / 297', landscape: '297 / 210' },
   legal: { portrait: '8.5 / 14', landscape: '14 / 8.5' },
@@ -96,6 +103,20 @@ export const PAGE_LABEL: Record<FormatPageSize, string> = {
   A4: 'A4',
   legal: 'Legal',
   letter: 'Letter',
+}
+
+/** Pixel frame for the live preview, matching real paper proportions. */
+export const getPageCanvasSize = (
+  pageSize: FormatPageSize,
+  orientation: FormatOrientation,
+  maxWidthPx = 680
+): { width: number; height: number; widthMm: number; heightMm: number } => {
+  const base = PAGE_SIZE_MM[pageSize] || PAGE_SIZE_MM.A4
+  const widthMm = orientation === 'landscape' ? base.height : base.width
+  const heightMm = orientation === 'landscape' ? base.width : base.height
+  const width = Math.round(maxWidthPx)
+  const height = Math.round((heightMm / widthMm) * width)
+  return { width, height, widthMm, heightMm }
 }
 
 export const createCanvasId = () => `c_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`

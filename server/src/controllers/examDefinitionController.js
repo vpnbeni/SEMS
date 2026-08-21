@@ -8,6 +8,7 @@ const normalizeDuration = (value) => String(value || '').trim();
 const listExamDefinitions = asyncHandler(async (req, res) => {
   const ExamDefinitionModel = req.models?.ExamDefinition || ExamDefinition;
   const rows = await ExamDefinitionModel.find({ isActive: true })
+    .select('_id name code displayOrder duration maximumMarks subjectKeys createdAt updatedAt')
     .sort({ displayOrder: 1, createdAt: 1 })
     .lean();
 
