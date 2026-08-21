@@ -190,7 +190,7 @@ const StudentDetail: React.FC = () => {
               </p>
               <p className="text-sm text-secondary-500 dark:text-secondary-400">
                 Admission No.: {student.rollNumber}
-                {student.classRollNo != null && student.classRollNo !== ''
+                {typeof student.classRollNo === 'number'
                   ? ` · Roll No: ${student.classRollNo}`
                   : ''}
               </p>
@@ -385,7 +385,7 @@ const StudentDetail: React.FC = () => {
                 <div>
                   <p className="text-xs text-secondary-500 dark:text-secondary-400">Roll No</p>
                   <p className="text-secondary-900 dark:text-white">
-                    {student.classRollNo != null && student.classRollNo !== '' ? student.classRollNo : '—'}
+                    {typeof student.classRollNo === 'number' ? student.classRollNo : '—'}
                   </p>
                 </div>
               </div>

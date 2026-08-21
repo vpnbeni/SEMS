@@ -275,18 +275,56 @@ const getOrdinalSuffix = (value) => {
   return 'th';
 };
 
+const ROMAN_CLASS_TO_NUMBER = {
+  i: 1,
+  ii: 2,
+  iii: 3,
+  iv: 4,
+  v: 5,
+  vi: 6,
+  vii: 7,
+  viii: 8,
+  ix: 9,
+  x: 10,
+  xi: 11,
+  xii: 12,
+};
+
 const normalizeClassValue = (value) => {
   const raw = normalizeString(value);
   if (!raw) return '';
 
-  const normalized = raw.toLowerCase().replace(/\s+/g, ' ');
-  if (normalized === '10' || normalized === '10th' || normalized === 'x' || normalized === 'class 10') return '10th';
-  if (normalized === '12' || normalized === '12th' || normalized === 'xii' || normalized === 'class 12') return '12th';
+  // Strip common prefixes/punctuation: "Class IV", "Cls-10", "Std. VII"
+  const normalized = raw
+    .toLowerCase()
+    .replace(/[._\-_/\\]+/g, ' ')
+    .replace(/\b(?:class|cls|std|standard|grade)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  const numericMatch = normalized.match(/^(?:class\s+)?(\d+)(?:st|nd|rd|th)?$/i);
+  if (!normalized) return '';
+
+  const romanMatch = normalized.match(/^(i{1,3}|iv|vi{0,3}|ix|xi{0,2}|x)$/i);
+  if (romanMatch) {
+    const classNumber = ROMAN_CLASS_TO_NUMBER[romanMatch[1].toLowerCase()];
+    if (classNumber) {
+      return `${classNumber}${getOrdinalSuffix(classNumber)}`;
+    }
+  }
+
+  const numericMatch = normalized.match(/^(\d+)(?:st|nd|rd|th)?$/i);
   if (numericMatch) {
     const classNumber = Number.parseInt(numericMatch[1], 10);
-    if (Number.isFinite(classNumber) && classNumber > 0) {
+    if (Number.isFinite(classNumber) && classNumber > 0 && classNumber <= 12) {
+      return `${classNumber}${getOrdinalSuffix(classNumber)}`;
+    }
+  }
+
+  // Already canonical like "4th" / "10th"
+  const ordinalMatch = normalized.match(/^(\d+)(st|nd|rd|th)$/i);
+  if (ordinalMatch) {
+    const classNumber = Number.parseInt(ordinalMatch[1], 10);
+    if (Number.isFinite(classNumber) && classNumber > 0 && classNumber <= 12) {
       return `${classNumber}${getOrdinalSuffix(classNumber)}`;
     }
   }
@@ -571,6 +609,32 @@ const buildGeneratedImportRollNumber = (rowNumber) => {
   const timestampPart = Date.now().toString(36).toUpperCase();
   const randomPart = Math.random().toString(36).slice(2, 6).toUpperCase();
   return `IMP${timestampPart}${rowNumber}${randomPart}`;
+};
+
+const isBlankImportText = (value) => normalizeString(value) === '';
+
+const resolveImportSectionForClass = (className, sectionValue, classSectionLookup, fallbackNotes) => {
+  const allowedSections = classSectionLookup.get(className) || [];
+  const resolvedImportSection = resolveSectionAgainstAllowed(sectionValue, allowedSections);
+
+  if (allowedSections.length > 0) {
+    if (!normalizeSectionKey(sectionValue)) {
+      if (fallbackNotes) fallbackNotes.push('section');
+      return { section: allowedSections[0] };
+    }
+    if (resolvedImportSection.error) {
+      return { error: resolvedImportSection.error };
+    }
+    return { section: resolvedImportSection.section };
+  }
+
+  if (!normalizeSectionKey(sectionValue)) {
+    return {
+      error: `Section is required. Configure sections in Class Section Matrix for class "${className}".`,
+    };
+  }
+
+  return { section: getCanonicalSectionName(sectionValue) };
 };
 
 const getAllowedLabelsForColumn = (column) => [column.label, ...(column.aliases || [])];
@@ -1474,9 +1538,6 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
 
   const expectedHeaders = STUDENT_TEMPLATE_COLUMNS.map((column) => column.label);
   const headerToKey = buildTemplateHeaderLookup();
-  const requiredTemplateKeys = STUDENT_TEMPLATE_COLUMNS
-    .filter((column) => column.required)
-    .map((column) => column.key);
 
   let receivedHeaders = [];
   let dataRows = [];
@@ -1528,18 +1589,28 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
 
   const mappedHeaderKeys = receivedHeaders.map((header) => headerToKey.get(normalizeHeaderLabel(header)) || null);
   const presentKeys = new Set(mappedHeaderKeys.filter(Boolean));
-  const missingRequiredHeaders = requiredTemplateKeys.filter((key) => !presentKeys.has(key));
 
-  if (missingRequiredHeaders.length > 0 || presentKeys.size === 0) {
+  // Partial templates are allowed — only Admission No. is required to link/create rows.
+  if (!presentKeys.has('rollNumber')) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json({
       success: false,
-      message: 'Template headers do not match. Please use the downloaded template without changing required headers.',
+      message: 'Template must include an Admission No. column so rows can be linked to students.',
       data: {
         expectedHeaders,
         receivedHeaders,
-        missingRequiredHeaders: missingRequiredHeaders.map((key) => (
-          STUDENT_TEMPLATE_COLUMNS.find((column) => column.key === key)?.label || key
-        )),
+        missingRequiredHeaders: ['Admission No.'],
+      }
+    });
+  }
+
+  if (presentKeys.size === 0) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      message: 'No recognized template headers found. Please use the downloaded template headers.',
+      data: {
+        expectedHeaders,
+        receivedHeaders,
+        missingRequiredHeaders: ['Admission No.'],
       }
     });
   }
@@ -1553,7 +1624,6 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
   };
 
   const generatedRollNumbersInRequest = new Set();
-  const importTasks = [];
   const importGroups = [];
   const requestAcademicSession = normalizeString(req.academicSession);
   let classSectionLookup = new Map();
@@ -1568,19 +1638,15 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
   }
 
   const activityHouses = await listActiveActivityHouses(req);
+  const isProvided = (rowData, key) => presentKeys.has(key) && !isBlankImportText(rowData[key]);
 
-  const existingStudents = await StudentModel.find({})
-    .select('rollNumber')
-    .lean();
-  const existingRollNumbers = new Set(
-    existingStudents
-      .map((student) => String(student.rollNumber || '').trim().toUpperCase())
-      .filter(Boolean)
-  );
+  // Pass 1: parse rows in memory (last row wins for the same Admission No. in this file).
+  const pendingByRoll = new Map(); // rollNumber -> { kind, rowNumber, doc|patch, previousClass?, previousSection?, fallbackNotes }
+  const fileRollNumbers = [];
 
   for (const { rowNumber, valueAt } of dataRows) {
     const rowData = {};
-    receivedHeaders.forEach((header, cellIndex) => {
+    receivedHeaders.forEach((_header, cellIndex) => {
       const key = mappedHeaderKeys[cellIndex];
       if (!key || key === 'serialNo') return;
       rowData[key] = valueAt(cellIndex);
@@ -1591,23 +1657,247 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       continue;
     }
 
-    const parsedAddress = parseAddressText(rowData.addressText);
-    const mobileNumber = optionalText(normalizeString(rowData.phone).replace(/\D/g, ''));
-    const bloodGroup = normalizeBloodGroupValue(rowData.bloodGroup);
-    const resolvedImportHouse = resolveHouseAgainstCatalog(activityHouses, {
-      house: rowData.house,
-    });
+    const fallbackNotes = [];
+    let rollNumber = normalizeString(rowData.rollNumber).replace(/\s+/g, '').toUpperCase();
+    let rollNumberAutoFilled = false;
 
-    if (resolvedImportHouse.error) {
-      results.errors.push({
-        row: rowNumber,
-        message: resolvedImportHouse.error,
+    if (!rollNumber) {
+      rollNumber = buildGeneratedImportRollNumber(rowNumber);
+      while (generatedRollNumbersInRequest.has(rollNumber)) {
+        rollNumber = buildGeneratedImportRollNumber(rowNumber);
+      }
+      rollNumberAutoFilled = true;
+      fallbackNotes.push('roll number');
+    }
+    if (rollNumber.length > 20) {
+      rollNumber = rollNumber.slice(0, 20);
+      fallbackNotes.push('roll number length');
+    }
+    generatedRollNumbersInRequest.add(rollNumber);
+    if (!rollNumberAutoFilled) {
+      fileRollNumbers.push(rollNumber);
+    }
+
+    if (isProvided(rowData, 'house')) {
+      const resolvedImportHouse = resolveHouseAgainstCatalog(activityHouses, {
+        house: rowData.house,
       });
+      if (resolvedImportHouse.error) {
+        results.errors.push({ row: rowNumber, message: resolvedImportHouse.error });
+        continue;
+      }
+      rowData.__resolvedHouse = resolvedImportHouse;
+    }
+
+    pendingByRoll.set(rollNumber, {
+      rowNumber,
+      rollNumber,
+      rollNumberAutoFilled,
+      rowData,
+      fallbackNotes,
+    });
+  }
+
+  // Load only students referenced by this file (not the full collection).
+  const uniqueFileRolls = [...new Set(fileRollNumbers)];
+  const existingStudents = uniqueFileRolls.length > 0
+    ? await StudentModel.find({ rollNumber: { $in: uniqueFileRolls } })
+      .select('_id rollNumber name gender class section fatherName motherName guardianPhone dateOfBirth admissionDate category email phone penNumber house houseId busNo aadharNumber religion nationality notes address medicalInfo')
+      .lean()
+    : [];
+  const existingByRoll = new Map(
+    existingStudents.map((student) => [String(student.rollNumber || '').trim().toUpperCase(), student])
+  );
+
+  const createDocs = [];
+  const bulkUpdates = [];
+
+  for (const pending of pendingByRoll.values()) {
+    const {
+      rowNumber,
+      rollNumber,
+      rollNumberAutoFilled,
+      rowData,
+      fallbackNotes,
+    } = pending;
+
+    const existingStudent = rollNumberAutoFilled ? null : existingByRoll.get(rollNumber) || null;
+
+    if (existingStudent) {
+      const patch = {};
+      const previousClass = existingStudent.class;
+      const previousSection = existingStudent.section;
+
+      // Later non-empty values always overwrite (empty cells never clear existing data).
+      const setText = (field, nextValue, maxLen) => {
+        if (isBlankImportText(nextValue)) return;
+        let value = String(nextValue);
+        if (maxLen && value.length > maxLen) {
+          value = value.slice(0, maxLen);
+          fallbackNotes.push(`${field} length`);
+        }
+        patch[field] = value;
+      };
+
+      if (isProvided(rowData, 'name')) setText('name', toTitleCaseName(rowData.name), 100);
+      if (isProvided(rowData, 'fatherName')) setText('fatherName', toTitleCaseName(rowData.fatherName), 100);
+      if (isProvided(rowData, 'motherName')) setText('motherName', toTitleCaseName(rowData.motherName), 100);
+      if (isProvided(rowData, 'gender')) {
+        const gender = normalizeGenderValue(rowData.gender);
+        patch.gender = STUDENT_GENDERS.includes(gender) ? gender : 'Unspecified';
+      }
+      if (isProvided(rowData, 'category')) {
+        const category = normalizeCategoryValue(rowData.category);
+        patch.category = ['General', 'OBC', 'SC', 'ST', 'EWS'].includes(category) ? category : 'General';
+      }
+      if (isProvided(rowData, 'dateOfBirth')) {
+        const dob = normalizeDateValue(rowData.dateOfBirth);
+        if (isValidDateString(dob)) patch.dateOfBirth = dob;
+        else fallbackNotes.push('invalid date of birth');
+      }
+      if (isProvided(rowData, 'admissionDate')) {
+        const admissionDate = normalizeDateValue(rowData.admissionDate);
+        if (isValidDateString(admissionDate)) patch.admissionDate = admissionDate;
+        else fallbackNotes.push('invalid admission date');
+      }
+      if (isProvided(rowData, 'phone')) {
+        const mobileNumber = optionalText(normalizeString(rowData.phone).replace(/\D/g, ''));
+        if (mobileNumber && /^[6-9]\d{9}$/.test(mobileNumber)) {
+          patch.phone = mobileNumber;
+          patch.guardianPhone = mobileNumber;
+        } else {
+          fallbackNotes.push('invalid phone');
+        }
+      }
+      if (isProvided(rowData, 'penNumber')) setText('penNumber', optionalText(rowData.penNumber), 50);
+      if (isProvided(rowData, 'busNo')) setText('busNo', optionalText(rowData.busNo), 30);
+      if (isProvided(rowData, 'religion')) {
+        setText('religion', toTitleCaseName(rowData.religion) || optionalText(rowData.religion), 30);
+      }
+      if (isProvided(rowData, 'nationality')) {
+        setText('nationality', toTitleCaseName(rowData.nationality) || optionalText(rowData.nationality), 30);
+      }
+      if (isProvided(rowData, 'notes')) setText('notes', optionalText(rowData.notes), 1000);
+      if (isProvided(rowData, 'email')) {
+        const email = optionalText(normalizeString(rowData.email).toLowerCase());
+        if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) patch.email = email;
+        else fallbackNotes.push('invalid email');
+      }
+      if (isProvided(rowData, 'aadharNumber')) {
+        const aadhar = optionalText(normalizeString(rowData.aadharNumber).replace(/\D/g, ''));
+        if (aadhar && /^\d{12}$/.test(aadhar)) patch.aadharNumber = aadhar;
+        else fallbackNotes.push('invalid aadhar');
+      }
+      if (isProvided(rowData, 'bloodGroup')) {
+        const bloodGroup = normalizeBloodGroupValue(rowData.bloodGroup);
+        if (bloodGroup) {
+          patch.medicalInfo = {
+            ...(existingStudent.medicalInfo || {}),
+            bloodGroup,
+          };
+        } else {
+          fallbackNotes.push('invalid blood group');
+        }
+      }
+      if (rowData.__resolvedHouse) {
+        patch.house = rowData.__resolvedHouse.house;
+        patch.houseId = rowData.__resolvedHouse.houseId;
+      }
+      if (isProvided(rowData, 'addressText')) {
+        const parsedAddress = parseAddressText(rowData.addressText);
+        const nextAddress = { ...(existingStudent.address || {}) };
+        let addressChanged = false;
+        ['street', 'city', 'state', 'pincode'].forEach((part) => {
+          if (!isBlankImportText(parsedAddress[part])) {
+            nextAddress[part] = parsedAddress[part];
+            addressChanged = true;
+          }
+        });
+        if (addressChanged) patch.address = nextAddress;
+      }
+
+      let nextClass = previousClass;
+      let nextSection = previousSection;
+      let placementChanged = false;
+
+      if (isProvided(rowData, 'class')) {
+        nextClass = normalizeClassValue(rowData.class);
+        if (nextClass.length > 50) {
+          nextClass = nextClass.slice(0, 50);
+          fallbackNotes.push('class length');
+        }
+        if (nextClass !== previousClass) {
+          patch.class = nextClass;
+          placementChanged = true;
+        }
+      }
+
+      if (isProvided(rowData, 'section') || (isProvided(rowData, 'class') && placementChanged)) {
+        const sectionInput = isProvided(rowData, 'section')
+          ? normalizeSectionValue(rowData.section)
+          : previousSection;
+        const resolved = resolveImportSectionForClass(
+          nextClass,
+          sectionInput,
+          classSectionLookup,
+          isProvided(rowData, 'section') ? null : fallbackNotes
+        );
+        if (resolved.error) {
+          results.errors.push({ row: rowNumber, message: resolved.error });
+          continue;
+        }
+        nextSection = resolved.section;
+        if (nextSection !== previousSection) {
+          patch.section = nextSection;
+          placementChanged = true;
+        } else if (isProvided(rowData, 'section')) {
+          patch.section = nextSection;
+        }
+      }
+
+      if (Object.keys(patch).length === 0) {
+        results.skipped += 1;
+        continue;
+      }
+
+      bulkUpdates.push({
+        updateOne: {
+          filter: { _id: existingStudent._id },
+          update: { $set: patch },
+        },
+      });
+      results.updated += 1;
+
+      if (placementChanged) {
+        importGroups.push(
+          { className: previousClass, section: previousSection },
+          { className: patch.class || previousClass, section: patch.section || previousSection }
+        );
+      }
+
+      if (fallbackNotes.length > 0) {
+        results.warnings.push({
+          row: rowNumber,
+          message: `Normalized: ${fallbackNotes.join(', ')}`,
+        });
+      }
       continue;
     }
 
+    // ---------- Create path ----------
+    const parsedAddress = presentKeys.has('addressText')
+      ? parseAddressText(rowData.addressText)
+      : { street: '', city: '', state: '', pincode: '' };
+    const mobileNumber = isProvided(rowData, 'phone')
+      ? optionalText(normalizeString(rowData.phone).replace(/\D/g, ''))
+      : undefined;
+    const bloodGroup = isProvided(rowData, 'bloodGroup')
+      ? normalizeBloodGroupValue(rowData.bloodGroup)
+      : '';
+    const resolvedHouse = rowData.__resolvedHouse || { house: '', houseId: null };
+
     const normalizedRow = {
-      rollNumber: normalizeString(rowData.rollNumber).replace(/\s+/g, '').toUpperCase(),
+      rollNumber,
       name: toTitleCaseName(rowData.name),
       gender: normalizeGenderValue(rowData.gender),
       class: normalizeClassValue(rowData.class),
@@ -1621,8 +1911,8 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       email: optionalText(normalizeString(rowData.email).toLowerCase()),
       phone: mobileNumber,
       penNumber: optionalText(rowData.penNumber),
-      house: resolvedImportHouse.house,
-      houseId: resolvedImportHouse.houseId,
+      house: resolvedHouse.house || '',
+      houseId: resolvedHouse.houseId || null,
       busNo: optionalText(rowData.busNo),
       aadharNumber: optionalText(normalizeString(rowData.aadharNumber).replace(/\D/g, '')),
       religion: toTitleCaseName(rowData.religion) || optionalText(rowData.religion),
@@ -1640,32 +1930,6 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       academicSession: requestAcademicSession || undefined,
     };
 
-    // Allow blank cells in import by applying minimal defaults for required fields.
-    const fallbackNotes = [];
-    let rollNumberAutoFilled = false;
-    if (!normalizedRow.rollNumber) {
-      normalizedRow.rollNumber = buildGeneratedImportRollNumber(rowNumber);
-      while (
-        existingRollNumbers.has(normalizedRow.rollNumber) ||
-        generatedRollNumbersInRequest.has(normalizedRow.rollNumber)
-      ) {
-        normalizedRow.rollNumber = buildGeneratedImportRollNumber(rowNumber);
-      }
-      rollNumberAutoFilled = true;
-      fallbackNotes.push('roll number');
-    }
-    if (normalizedRow.rollNumber.length > 20) {
-      normalizedRow.rollNumber = normalizedRow.rollNumber.slice(0, 20);
-      fallbackNotes.push('roll number length');
-    }
-    if (!rollNumberAutoFilled && (
-      existingRollNumbers.has(normalizedRow.rollNumber) ||
-      generatedRollNumbersInRequest.has(normalizedRow.rollNumber)
-    )) {
-      results.skipped += 1;
-      continue;
-    }
-    generatedRollNumbersInRequest.add(normalizedRow.rollNumber);
     if (!normalizedRow.name) {
       normalizedRow.name = `Student ${normalizedRow.rollNumber}`;
       fallbackNotes.push('name');
@@ -1677,35 +1941,23 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     if (!normalizedRow.class) {
       results.errors.push({
         row: rowNumber,
-        message: 'Class is required.'
+        message: 'Class is required when creating a new student.',
       });
       continue;
     }
-    const allowedSections = classSectionLookup.get(normalizedRow.class) || [];
-    const resolvedImportSection = resolveSectionAgainstAllowed(normalizedRow.section, allowedSections);
 
-    if (allowedSections.length > 0) {
-      if (!normalizeSectionKey(normalizedRow.section)) {
-        normalizedRow.section = allowedSections[0];
-        fallbackNotes.push('section');
-      } else if (resolvedImportSection.error) {
-        results.errors.push({
-          row: rowNumber,
-          message: resolvedImportSection.error,
-        });
-        continue;
-      } else {
-        normalizedRow.section = resolvedImportSection.section;
-      }
-    } else if (!normalizeSectionKey(normalizedRow.section)) {
-      results.errors.push({
-        row: rowNumber,
-        message: `Section is required. Configure sections in Class Section Matrix for class "${normalizedRow.class}".`,
-      });
+    const resolvedCreateSection = resolveImportSectionForClass(
+      normalizedRow.class,
+      normalizedRow.section,
+      classSectionLookup,
+      fallbackNotes
+    );
+    if (resolvedCreateSection.error) {
+      results.errors.push({ row: rowNumber, message: resolvedCreateSection.error });
       continue;
-    } else {
-      normalizedRow.section = getCanonicalSectionName(normalizedRow.section);
     }
+    normalizedRow.section = resolvedCreateSection.section;
+
     if (!normalizedRow.fatherName) {
       normalizedRow.fatherName = 'Unknown';
       fallbackNotes.push('father name');
@@ -1742,28 +1994,14 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       normalizedRow.category = 'General';
       fallbackNotes.push('invalid category');
     }
-    if (!normalizedRow.address.street) {
-      normalizedRow.address.street = 'Not Provided';
-      fallbackNotes.push('street');
-    }
-    if (!normalizedRow.address.city) {
-      normalizedRow.address.city = 'Not Provided';
-      fallbackNotes.push('city');
-    }
-    if (!normalizedRow.address.state) {
-      normalizedRow.address.state = 'Not Provided';
-      fallbackNotes.push('state');
-    }
-    if (!normalizedRow.address.pincode) {
-      normalizedRow.address.pincode = '000000';
-      fallbackNotes.push('pincode');
-    }
-
+    if (!normalizedRow.address.street) normalizedRow.address.street = 'Not Provided';
+    if (!normalizedRow.address.city) normalizedRow.address.city = 'Not Provided';
+    if (!normalizedRow.address.state) normalizedRow.address.state = 'Not Provided';
+    if (!normalizedRow.address.pincode) normalizedRow.address.pincode = '000000';
     if (normalizedRow.class.length > 50) {
       normalizedRow.class = normalizedRow.class.slice(0, 50);
       fallbackNotes.push('class length');
     }
-
     if (!STUDENT_GENDERS.includes(normalizedRow.gender)) {
       normalizedRow.gender = 'Unspecified';
       fallbackNotes.push('invalid gender');
@@ -1798,76 +2036,93 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     }
     if (normalizedRow.penNumber && normalizedRow.penNumber.length > 50) {
       normalizedRow.penNumber = normalizedRow.penNumber.slice(0, 50);
-      fallbackNotes.push('pen number length');
     }
     if (normalizedRow.house && normalizedRow.house.length > 50) {
       normalizedRow.house = normalizedRow.house.slice(0, 50);
-      fallbackNotes.push('house length');
     }
     if (normalizedRow.busNo && normalizedRow.busNo.length > 30) {
-      // house length already handled above if needed
       normalizedRow.busNo = normalizedRow.busNo.slice(0, 30);
-      fallbackNotes.push('bus number length');
     }
-    if (rowData.bloodGroup && !normalizedRow.medicalInfo?.bloodGroup) {
+    if (isProvided(rowData, 'bloodGroup') && !normalizedRow.medicalInfo?.bloodGroup) {
       fallbackNotes.push('invalid blood group');
       delete normalizedRow.medicalInfo;
     }
     if (normalizedRow.religion && normalizedRow.religion.length > 30) {
       normalizedRow.religion = normalizedRow.religion.slice(0, 30);
-      fallbackNotes.push('religion length');
     }
     if (normalizedRow.nationality && normalizedRow.nationality.length > 30) {
       normalizedRow.nationality = normalizedRow.nationality.slice(0, 30);
-      fallbackNotes.push('nationality length');
     }
     if (normalizedRow.notes && normalizedRow.notes.length > 1000) {
       normalizedRow.notes = normalizedRow.notes.slice(0, 1000);
-      fallbackNotes.push('notes length');
     }
     if (normalizedRow.address.street.length > 200) {
       normalizedRow.address.street = normalizedRow.address.street.slice(0, 200);
-      fallbackNotes.push('street length');
     }
     if (normalizedRow.address.city.length > 50) {
       normalizedRow.address.city = normalizedRow.address.city.slice(0, 50);
-      fallbackNotes.push('city length');
     }
     if (normalizedRow.address.state.length > 50) {
       normalizedRow.address.state = normalizedRow.address.state.slice(0, 50);
-      fallbackNotes.push('state length');
     }
+
+    createDocs.push(normalizedRow);
+    importGroups.push({ className: normalizedRow.class, section: normalizedRow.section });
 
     if (fallbackNotes.length > 0) {
       results.warnings.push({
         row: rowNumber,
-        message: `Auto-filled/normalized: ${fallbackNotes.join(', ')}`
+        message: `Auto-filled/normalized: ${fallbackNotes.join(', ')}`,
       });
     }
-
-    importTasks.push(
-      (async () => {
-        try {
-          await StudentModel.create(normalizedRow);
-          results.created += 1;
-          importGroups.push({ className: normalizedRow.class, section: normalizedRow.section });
-        } catch (error) {
-          if (error?.code === 11000) {
-            results.skipped += 1;
-            return;
-          }
-
-          results.errors.push({
-            row: rowNumber,
-            message: error.message || 'Failed to import student from this row.'
-          });
-        }
-      })()
-    );
   }
 
-  if (importTasks.length > 0) {
-    await Promise.allSettled(importTasks);
+  // Pass 2: batched DB writes (much faster than per-row await).
+  if (bulkUpdates.length > 0) {
+    try {
+      await StudentModel.bulkWrite(bulkUpdates, { ordered: false });
+    } catch (error) {
+      results.errors.push({
+        row: null,
+        message: error.message || 'Bulk update failed for some rows.',
+      });
+    }
+  }
+
+  if (createDocs.length > 0) {
+    const INSERT_CHUNK = 200;
+    for (let index = 0; index < createDocs.length; index += INSERT_CHUNK) {
+      const chunk = createDocs.slice(index, index + INSERT_CHUNK);
+      try {
+        const inserted = await StudentModel.insertMany(chunk, { ordered: false });
+        results.created += inserted.length;
+      } catch (error) {
+        const insertedCount = Array.isArray(error?.insertedDocs) ? error.insertedDocs.length : 0;
+        results.created += insertedCount;
+        if (error?.writeErrors?.length) {
+          error.writeErrors.forEach((writeError) => {
+            if (writeError.code === 11000) {
+              results.skipped += 1;
+              return;
+            }
+            results.errors.push({
+              row: null,
+              message: writeError.errmsg || writeError.message || 'Failed to create a student row.',
+            });
+          });
+        } else if (error?.code === 11000) {
+          results.skipped += 1;
+        } else {
+          results.errors.push({
+            row: null,
+            message: error.message || 'Failed to create students from template.',
+          });
+        }
+      }
+    }
+  }
+
+  if (importGroups.length > 0) {
     await reassignClassSections(StudentModel, importGroups);
   }
 
