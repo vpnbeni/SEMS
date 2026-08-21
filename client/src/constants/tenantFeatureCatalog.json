@@ -126,11 +126,20 @@
   {
     "key": "actvt_activities",
     "label": "ACTVT - Activities",
-    "path": "/actvt/clubs",
+    "path": "/actvt/houses",
     "group": "Activities Hub",
     "module": "actvt",
     "prefixes": ["/actvt"],
     "fallbackPriority": 35
+  },
+  {
+    "key": "mdcl_clinic",
+    "label": "MDCL - Medical Clinic",
+    "path": "/mdcl/cases",
+    "group": "Medical Hub",
+    "module": "mdcl",
+    "prefixes": ["/mdcl"],
+    "fallbackPriority": 36
   },
   {
     "key": "timetable_bell_timings",

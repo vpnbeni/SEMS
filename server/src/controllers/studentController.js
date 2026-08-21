@@ -13,20 +13,191 @@ const {
   reassignClassSections,
   backfillClassRollNumbersIfNeeded,
 } = require('../utils/assignClassRollNumbers');
+const {
+  normalizeSectionKey,
+  getSectionDisplayName,
+  getCanonicalSectionName,
+  resolveSectionAgainstAllowed,
+  normalizeAllowedSections,
+  SECTION_CATALOG,
+} = require('../utils/sectionMetadata');
 
 const STUDENT_TEMPLATE_COLUMNS = [
-  { key: 'rollNumber', label: 'ADMISSION NO', required: true, aliases: ['ROLL NUMBER'] },
-  { key: 'name', label: 'STUDENT NAME', required: true },
-  // Keep SECTION right next to CLASS for import template usability.
-  { key: 'class', label: 'CLASS', required: true },
-  { key: 'section', label: 'SECTION', required: true },
-  { key: 'fatherName', label: 'FATHER NAME', required: true },
-  { key: 'dateOfBirth', label: 'DATE OF BIRTH', required: true },
-  { key: 'gender', label: 'GENDER', required: true },
-  { key: 'category', label: 'CATEGORY', required: true },
-  { key: 'phone', label: 'MOBILE NUMBER', required: false, aliases: ['STUDENT PHONE'] },
-  { key: 'penNumber', label: 'PEN NUMBER', required: false },
+  {
+    key: 'serialNo',
+    label: 'Sr. No.',
+    required: false,
+    ignored: true,
+    aliases: ['SR NO', 'SR. NO', 'S NO', 'SERIAL NO', 'SERIAL NUMBER'],
+  },
+  {
+    key: 'rollNumber',
+    label: 'Admission No.',
+    required: true,
+    aliases: ['ADMISSION NO', 'ADMISSION NUMBER', 'ROLL NUMBER', 'ROLL NO', 'ROLL NO.'],
+  },
+  {
+    key: 'name',
+    label: 'Student Name',
+    required: true,
+    aliases: ['STUDENT NAME', 'NAME'],
+  },
+  {
+    key: 'class',
+    label: 'Class',
+    required: true,
+    aliases: ['CLASS', 'CLASS NAME'],
+  },
+  {
+    key: 'section',
+    label: 'Section',
+    required: true,
+    aliases: ['SECTION', 'SEC'],
+  },
+  {
+    key: 'fatherName',
+    label: 'Father Name',
+    required: true,
+    aliases: ['FATHER NAME', "FATHER'S NAME"],
+  },
+  {
+    key: 'motherName',
+    label: 'Mother Name',
+    required: false,
+    aliases: ['MOTHER NAME', "MOTHER'S NAME"],
+  },
+  {
+    key: 'dateOfBirth',
+    label: 'DOB',
+    required: true,
+    aliases: ['DOB', 'DATE OF BIRTH', 'D.O.B', 'D.O.B.'],
+  },
+  {
+    key: 'gender',
+    label: 'Gender',
+    required: true,
+    aliases: ['GENDER', 'SEX'],
+  },
+  {
+    key: 'house',
+    label: 'House',
+    required: false,
+    aliases: ['HOUSE', 'HOUSE NAME'],
+  },
+  {
+    key: 'busNo',
+    label: 'Bus No',
+    required: false,
+    aliases: ['BUS NO', 'BUS NO.', 'BUS NUMBER', 'BUS'],
+  },
+  {
+    key: 'bloodGroup',
+    label: 'Blood Group',
+    required: false,
+    aliases: ['BLOOD GROUP', 'BLOODGROUP', 'B.G.', 'BG'],
+  },
+  {
+    key: 'category',
+    label: 'Category',
+    required: true,
+    aliases: ['CATEGORY', 'CASTE CATEGORY'],
+  },
+  {
+    key: 'phone',
+    label: 'Mobile Number',
+    required: false,
+    aliases: ['MOBILE NUMBER', 'MOBILE NO', 'MOBILE NO.', 'PHONE', 'STUDENT PHONE', 'GUARDIAN PHONE'],
+  },
+  {
+    key: 'penNumber',
+    label: 'PEN No.',
+    required: false,
+    aliases: ['PEN NO', 'PEN NO.', 'PEN NUMBER', 'PEN'],
+  },
+  {
+    key: 'addressText',
+    label: 'Address',
+    required: false,
+    aliases: ['ADDRESS', 'FULL ADDRESS', 'STREET', 'STREET ADDRESS'],
+  },
 ];
+
+const BLOOD_GROUP_VALUES = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+const normalizeHeaderLabel = (value) => (
+  normalizeString(value)
+    .toUpperCase()
+    .replace(/[._]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+);
+
+/** Compare house labels ignoring case and optional trailing "House" (e.g. PLUTO ≡ Pluto House). */
+const normalizeHouseMatchKey = (value) => (
+  normalizeHeaderLabel(value)
+    .replace(/\bHOUSES?\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+);
+
+/** Store people/place names as Title Case: "JOHN DOE" → "John Doe". */
+const toTitleCaseName = (value) => {
+  const text = normalizeString(value).replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .split(' ')
+    .map((word) => (word ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : ''))
+    .join(' ');
+};
+
+const normalizeBloodGroupValue = (value) => {
+  const raw = normalizeString(value).toUpperCase().replace(/\s+/g, '');
+  if (!raw) return '';
+  const match = BLOOD_GROUP_VALUES.find((item) => item === raw);
+  if (match) return match;
+  // Accept forms like "A POSITIVE" / "AB NEG"
+  const letterMatch = raw.match(/^(A|B|AB|O)(POS|POSITIVE|\+|NEG|NEGATIVE|-)?$/);
+  if (!letterMatch) return '';
+  const sign = ['NEG', 'NEGATIVE', '-'].includes(letterMatch[2] || '') ? '-' : '+';
+  const candidate = `${letterMatch[1]}${sign}`;
+  return BLOOD_GROUP_VALUES.includes(candidate) ? candidate : '';
+};
+
+const parseAddressText = (value) => {
+  const addressText = normalizeString(value).replace(/\s+/g, ' ');
+  if (!addressText) {
+    return {
+      street: '',
+      city: '',
+      state: '',
+      pincode: '',
+    };
+  }
+
+  const pincodeMatch = addressText.match(/\b(\d{6})\b/);
+  const pincode = pincodeMatch ? pincodeMatch[1] : '';
+  const withoutPincode = pincode
+    ? addressText.replace(pincodeMatch[0], ' ').replace(/\s+/g, ' ').trim()
+    : addressText;
+  const parts = withoutPincode.split(',').map((part) => part.trim()).filter(Boolean);
+
+  if (parts.length >= 3) {
+    return {
+      street: parts.slice(0, -2).join(', ').slice(0, 200),
+      city: parts[parts.length - 2].slice(0, 50),
+      state: parts[parts.length - 1].slice(0, 50),
+      pincode,
+    };
+  }
+
+  return {
+    street: addressText.slice(0, 200),
+    city: '',
+    state: '',
+    pincode,
+  };
+};
 
 const normalizeString = (value) => {
   if (value === null || value === undefined) return '';
@@ -104,18 +275,56 @@ const getOrdinalSuffix = (value) => {
   return 'th';
 };
 
+const ROMAN_CLASS_TO_NUMBER = {
+  i: 1,
+  ii: 2,
+  iii: 3,
+  iv: 4,
+  v: 5,
+  vi: 6,
+  vii: 7,
+  viii: 8,
+  ix: 9,
+  x: 10,
+  xi: 11,
+  xii: 12,
+};
+
 const normalizeClassValue = (value) => {
   const raw = normalizeString(value);
   if (!raw) return '';
 
-  const normalized = raw.toLowerCase().replace(/\s+/g, ' ');
-  if (normalized === '10' || normalized === '10th' || normalized === 'x' || normalized === 'class 10') return '10th';
-  if (normalized === '12' || normalized === '12th' || normalized === 'xii' || normalized === 'class 12') return '12th';
+  // Strip common prefixes/punctuation: "Class IV", "Cls-10", "Std. VII"
+  const normalized = raw
+    .toLowerCase()
+    .replace(/[._\-_/\\]+/g, ' ')
+    .replace(/\b(?:class|cls|std|standard|grade)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  const numericMatch = normalized.match(/^(?:class\s+)?(\d+)(?:st|nd|rd|th)?$/i);
+  if (!normalized) return '';
+
+  const romanMatch = normalized.match(/^(i{1,3}|iv|vi{0,3}|ix|xi{0,2}|x)$/i);
+  if (romanMatch) {
+    const classNumber = ROMAN_CLASS_TO_NUMBER[romanMatch[1].toLowerCase()];
+    if (classNumber) {
+      return `${classNumber}${getOrdinalSuffix(classNumber)}`;
+    }
+  }
+
+  const numericMatch = normalized.match(/^(\d+)(?:st|nd|rd|th)?$/i);
   if (numericMatch) {
     const classNumber = Number.parseInt(numericMatch[1], 10);
-    if (Number.isFinite(classNumber) && classNumber > 0) {
+    if (Number.isFinite(classNumber) && classNumber > 0 && classNumber <= 12) {
+      return `${classNumber}${getOrdinalSuffix(classNumber)}`;
+    }
+  }
+
+  // Already canonical like "4th" / "10th"
+  const ordinalMatch = normalized.match(/^(\d+)(st|nd|rd|th)$/i);
+  if (ordinalMatch) {
+    const classNumber = Number.parseInt(ordinalMatch[1], 10);
+    if (Number.isFinite(classNumber) && classNumber > 0 && classNumber <= 12) {
       return `${classNumber}${getOrdinalSuffix(classNumber)}`;
     }
   }
@@ -147,7 +356,6 @@ const normalizeCategoryValue = (value) => {
 
 const normalizeSectionValue = (value) => normalizeString(value).replace(/\s+/g, ' ');
 const escapeRegexValue = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const normalizeSectionKey = (value) => normalizeSectionValue(value).toLowerCase();
 
 const buildClassSectionMatrixLookup = (stateDoc) => {
   const matrixClasses = Array.isArray(stateDoc?.matrixClasses) ? stateDoc.matrixClasses : [];
@@ -163,7 +371,7 @@ const buildClassSectionMatrixLookup = (stateDoc) => {
   const sectionsByClass = new Map();
   matrixClasses.forEach((item) => {
     const classId = String(item?.id || '').trim();
-    const className = normalizeString(item?.name);
+    const className = normalizeClassValue(item?.name);
     if (!classId || !className) return;
 
     const selectedSectionMap = matrixSelection[classId] || {};
@@ -173,7 +381,7 @@ const buildClassSectionMatrixLookup = (stateDoc) => {
       .map((name) => normalizeSectionValue(name))
       .filter(Boolean);
 
-    sectionsByClass.set(className, sectionNames);
+    sectionsByClass.set(className, normalizeAllowedSections(sectionNames));
   });
 
   return sectionsByClass;
@@ -183,7 +391,8 @@ const getClassSectionLookupFromRequest = async (req) => {
   const TimetableStateModel = req.models?.TimetableState;
   if (!TimetableStateModel) return new Map();
 
-  const latestTimetableState = await TimetableStateModel.findOne({})
+  const filter = req.academicSession ? { academicSession: req.academicSession } : { academicSession: null };
+  const latestTimetableState = await TimetableStateModel.findOne(filter)
     .sort({ updatedAt: -1 })
     .select('matrixClasses matrixSections matrixSelection')
     .lean();
@@ -192,24 +401,123 @@ const getClassSectionLookupFromRequest = async (req) => {
 };
 
 const resolveSectionAgainstMatrix = ({ className, section, classSectionLookup }) => {
-  const normalizedClass = normalizeString(className);
-  const normalizedSection = normalizeSectionValue(section);
+  const normalizedClass = normalizeClassValue(className);
   const allowedSections = classSectionLookup.get(normalizedClass) || [];
 
   if (allowedSections.length === 0) {
-    return { section: normalizedSection, error: null };
+    const fallback = getCanonicalSectionName(normalizeSectionValue(section));
+    if (!fallback) {
+      return {
+        section: '',
+        error: `Configure sections for class "${normalizedClass}" in Class Section Matrix before adding students.`,
+      };
+    }
+    return { section: fallback, error: null };
   }
 
-  const sectionByKey = new Map(allowedSections.map((item) => [normalizeSectionKey(item), item]));
-  const matched = sectionByKey.get(normalizeSectionKey(normalizedSection));
-  if (!matched) {
+  return resolveSectionAgainstAllowed(section, allowedSections);
+};
+
+const listActiveActivityHouses = async (req) => {
+  const ActivityHouseModel = req.models?.ActivityHouse;
+  if (!ActivityHouseModel) return [];
+
+  return ActivityHouseModel.find({ isActive: { $ne: false } })
+    .select('_id name color incharge logo tagline motto')
+    .sort({ name: 1 })
+    .lean();
+};
+
+const resolveStudentHouseAssignment = async (req, { house, houseId } = {}) => {
+  const houses = await listActiveActivityHouses(req);
+  return resolveHouseAgainstCatalog(houses, { house, houseId });
+};
+
+const resolveHouseAgainstCatalog = (houses = [], { house, houseId } = {}) => {
+  const houseNameInput = optionalText(house);
+  const houseIdInput = optionalText(houseId);
+
+  if (!houseNameInput && !houseIdInput) {
+    return { house: undefined, houseId: null, error: null };
+  }
+
+  if (!Array.isArray(houses) || houses.length === 0) {
     return {
-      section: normalizedSection,
-      error: `Section "${normalizedSection}" is not configured for class "${normalizedClass}" in Class Section Matrix.`
+      house: undefined,
+      houseId: null,
+      error: 'No houses found in ACTVT. Add houses under ACTVT → Houses before assigning a student house.',
     };
   }
 
-  return { section: matched, error: null };
+  let matched = null;
+  if (houseIdInput) {
+    matched = houses.find((item) => String(item._id) === String(houseIdInput)) || null;
+    if (!matched) {
+      return {
+        house: undefined,
+        houseId: null,
+        error: 'Selected house is not available in ACTVT Houses.',
+      };
+    }
+  } else if (houseNameInput) {
+    const key = normalizeHouseMatchKey(houseNameInput);
+    matched = houses.find((item) => normalizeHouseMatchKey(item.name) === key) || null;
+
+    // Fallback: allow short forms / partials when unique (e.g. "Sun" → "Sun House")
+    if (!matched && key.length >= 2) {
+      const partialMatches = houses.filter((item) => {
+        const catalogKey = normalizeHouseMatchKey(item.name);
+        return catalogKey === key
+          || catalogKey.startsWith(key)
+          || key.startsWith(catalogKey);
+      });
+      if (partialMatches.length === 1) {
+        matched = partialMatches[0];
+      }
+    }
+
+    if (!matched) {
+      const available = houses.map((item) => item.name).join(', ');
+      return {
+        house: undefined,
+        houseId: null,
+        error: `House "${houseNameInput}" is not configured in ACTVT Houses. Available: ${available}`,
+      };
+    }
+  }
+
+  return {
+    house: matched.name,
+    houseId: matched._id,
+    error: null,
+  };
+};
+
+const buildTemplateReferenceRows = (classSectionLookup) => {
+  const rows = [];
+  Array.from(classSectionLookup.entries())
+    .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))
+    .forEach(([className, sections]) => {
+      sections.forEach((sectionName) => {
+        rows.push([className, getSectionDisplayName(sectionName)]);
+      });
+    });
+  return rows;
+};
+
+const pickTemplateSampleRow = (classSectionLookup) => {
+  const firstEntry = Array.from(classSectionLookup.entries())
+    .sort(([left], [right]) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }))[0];
+
+  if (!firstEntry) {
+    return { className: '10th', sectionName: 'Rose' };
+  }
+
+  const [className, sections] = firstEntry;
+  return {
+    className,
+    sectionName: sections[0] || 'Rose',
+  };
 };
 
 const syncLinkedStudentRecords = async (req, previousStudent, updatedStudent) => {
@@ -303,7 +611,58 @@ const buildGeneratedImportRollNumber = (rowNumber) => {
   return `IMP${timestampPart}${rowNumber}${randomPart}`;
 };
 
+const isBlankImportText = (value) => normalizeString(value) === '';
+
+const resolveImportSectionForClass = (className, sectionValue, classSectionLookup, fallbackNotes) => {
+  const allowedSections = classSectionLookup.get(className) || [];
+  const resolvedImportSection = resolveSectionAgainstAllowed(sectionValue, allowedSections);
+
+  if (allowedSections.length > 0) {
+    if (!normalizeSectionKey(sectionValue)) {
+      if (fallbackNotes) fallbackNotes.push('section');
+      return { section: allowedSections[0] };
+    }
+    if (resolvedImportSection.error) {
+      return { error: resolvedImportSection.error };
+    }
+    return { section: resolvedImportSection.section };
+  }
+
+  if (!normalizeSectionKey(sectionValue)) {
+    return {
+      error: `Section is required. Configure sections in Class Section Matrix for class "${className}".`,
+    };
+  }
+
+  return { section: getCanonicalSectionName(sectionValue) };
+};
+
 const getAllowedLabelsForColumn = (column) => [column.label, ...(column.aliases || [])];
+
+const buildTemplateHeaderLookup = () => {
+  const lookup = new Map();
+  STUDENT_TEMPLATE_COLUMNS.forEach((column) => {
+    getAllowedLabelsForColumn(column).forEach((label) => {
+      const key = normalizeHeaderLabel(label);
+      if (!key || lookup.has(key)) return;
+      lookup.set(key, column.key);
+    });
+  });
+  return lookup;
+};
+
+const readWorksheetHeaderCells = (worksheet) => {
+  const headerRow = worksheet.getRow(1);
+  const headers = [];
+  const maxColumns = Math.max(headerRow.cellCount || 0, STUDENT_TEMPLATE_COLUMNS.length);
+  for (let index = 1; index <= maxColumns; index += 1) {
+    headers.push(normalizeString(headerRow.getCell(index).value));
+  }
+  while (headers.length > 0 && !headers[headers.length - 1]) {
+    headers.pop();
+  }
+  return headers;
+};
 
 // @desc    Get all students
 // @route   GET /api/students
@@ -410,6 +769,8 @@ const createStudent = asyncHandler(async (req, res) => {
     email,
     phone,
     penNumber,
+    house,
+    busNo,
     class: className,
     section,
     gender,
@@ -426,18 +787,27 @@ const createStudent = asyncHandler(async (req, res) => {
     nationality,
     previousSchool,
     medicalInfo,
-    notes
+    notes,
+    houseId,
   } = req.body;
   const normalizedEmail = optionalText(email)?.toLowerCase();
+  const normalizedClass = normalizeClassValue(className);
   const classSectionLookup = await getClassSectionLookupFromRequest(req);
   const resolvedSection = resolveSectionAgainstMatrix({
-    className,
+    className: normalizedClass,
     section,
     classSectionLookup
   });
   if (resolvedSection.error) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json(
       generateResponse(false, resolvedSection.error)
+    );
+  }
+
+  const resolvedHouse = await resolveStudentHouseAssignment(req, { house, houseId });
+  if (resolvedHouse.error) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, resolvedHouse.error)
     );
   }
 
@@ -472,24 +842,27 @@ const createStudent = asyncHandler(async (req, res) => {
   // Create student
   const student = await Student.create({
     rollNumber,
-    name,
+    name: toTitleCaseName(name) || name,
     email: normalizedEmail,
     phone: optionalText(phone),
     penNumber: optionalText(penNumber),
-    class: className,
+    house: resolvedHouse.house,
+    houseId: resolvedHouse.houseId,
+    busNo: optionalText(busNo),
+    class: normalizedClass,
     section: resolvedSection.section,
     gender: normalizeGenderValue(gender),
     subjects: subjects || [],
-    fatherName,
-    motherName,
+    fatherName: toTitleCaseName(fatherName) || fatherName,
+    motherName: toTitleCaseName(motherName) || motherName,
     guardianPhone,
     address,
     dateOfBirth,
     admissionDate,
     aadharNumber: optionalText(aadharNumber),
     category,
-    religion: optionalText(religion),
-    nationality: optionalText(nationality) || 'Indian',
+    religion: toTitleCaseName(religion) || optionalText(religion),
+    nationality: toTitleCaseName(nationality) || optionalText(nationality) || 'Indian',
     previousSchool,
     medicalInfo,
     notes: optionalText(notes)
@@ -562,7 +935,7 @@ const updateStudent = asyncHandler(async (req, res) => {
 
   // Normalize and validate section text against class-section matrix if configured.
   if (updateData.section) {
-    const classNameForValidation = normalizeString(updateData.class || existingStudent.class);
+    const classNameForValidation = normalizeClassValue(updateData.class || existingStudent.class);
     const resolvedSection = resolveSectionAgainstMatrix({
       className: classNameForValidation,
       section: updateData.section,
@@ -576,12 +949,39 @@ const updateStudent = asyncHandler(async (req, res) => {
     updateData.section = resolvedSection.section;
   }
 
+  if ('house' in updateData || 'houseId' in updateData) {
+    const resolvedHouse = await resolveStudentHouseAssignment(req, {
+      house: updateData.house,
+      houseId: updateData.houseId,
+    });
+    if (resolvedHouse.error) {
+      return res.status(HTTP_STATUS.BAD_REQUEST).json(
+        generateResponse(false, resolvedHouse.error)
+      );
+    }
+    updateData.house = resolvedHouse.house;
+    updateData.houseId = resolvedHouse.houseId;
+  }
+
   if ('email' in updateData) updateData.email = normalizedUpdateEmail;
   if ('phone' in updateData) updateData.phone = optionalText(updateData.phone);
   if ('penNumber' in updateData) updateData.penNumber = optionalText(updateData.penNumber);
   if ('aadharNumber' in updateData) updateData.aadharNumber = optionalText(updateData.aadharNumber);
-  if ('religion' in updateData) updateData.religion = optionalText(updateData.religion);
-  if ('nationality' in updateData) updateData.nationality = optionalText(updateData.nationality) || 'Indian';
+  if ('name' in updateData) updateData.name = toTitleCaseName(updateData.name) || updateData.name;
+  if ('fatherName' in updateData) {
+    updateData.fatherName = toTitleCaseName(updateData.fatherName) || updateData.fatherName;
+  }
+  if ('motherName' in updateData) {
+    updateData.motherName = toTitleCaseName(updateData.motherName) || updateData.motherName;
+  }
+  if ('religion' in updateData) {
+    updateData.religion = toTitleCaseName(updateData.religion) || optionalText(updateData.religion);
+  }
+  if ('nationality' in updateData) {
+    updateData.nationality = toTitleCaseName(updateData.nationality)
+      || optionalText(updateData.nationality)
+      || 'Indian';
+  }
   if ('notes' in updateData) updateData.notes = optionalText(updateData.notes);
   if ('gender' in updateData) updateData.gender = normalizeGenderValue(updateData.gender);
   delete updateData.classRollNo;
@@ -614,11 +1014,47 @@ const updateStudent = asyncHandler(async (req, res) => {
   );
 });
 
+const collectCloudinaryCleanupTasks = (students = []) => {
+  const tasks = [];
+
+  students.forEach((student) => {
+    if (Array.isArray(student.documents)) {
+      student.documents.forEach((doc) => {
+        if (!doc?.cloudinaryPublicId) return;
+        tasks.push(
+          deleteRawFromCloudinary(doc.cloudinaryPublicId).catch((error) => {
+            console.error(`Failed to delete document from Cloudinary: ${doc.cloudinaryPublicId}`, error);
+          })
+        );
+      });
+    }
+
+    if (student.profileImage) {
+      const publicId = extractPublicId(student.profileImage);
+      if (!publicId) return;
+      tasks.push(
+        deleteFromCloudinary(publicId).catch((error) => {
+          console.error(`Failed to delete profile image from Cloudinary: ${publicId}`, error);
+        })
+      );
+    }
+  });
+
+  return tasks;
+};
+
+const cleanupStudentCloudinaryAssets = async (students = []) => {
+  const tasks = collectCloudinaryCleanupTasks(students);
+  if (tasks.length === 0) return;
+  await Promise.allSettled(tasks);
+};
+
 // @desc    Delete student
 // @route   DELETE /api/students/:id
 // @access  Private
 const deleteStudent = asyncHandler(async (req, res) => {
-  const student = await Student.findById(req.params.id);
+  const StudentModel = req.models?.Student || Student;
+  const student = await StudentModel.findById(req.params.id);
 
   if (!student) {
     return res.status(HTTP_STATUS.NOT_FOUND).json(
@@ -626,39 +1062,75 @@ const deleteStudent = asyncHandler(async (req, res) => {
     );
   }
 
-  // Delete associated documents from Cloudinary if any
-  if (student.documents && student.documents.length > 0) {
-    for (const doc of student.documents) {
-      if (doc.cloudinaryPublicId) {
-        try {
-          await deleteRawFromCloudinary(doc.cloudinaryPublicId);
-        } catch (error) {
-          console.error(`Failed to delete document from Cloudinary: ${doc.cloudinaryPublicId}`, error);
-        }
-      }
-    }
-  }
-
-  // Delete profile image from Cloudinary if exists
-  if (student.profileImage) {
-    const publicId = extractPublicId(student.profileImage);
-    if (publicId) {
-      try {
-        await deleteFromCloudinary(publicId);
-        console.log(`Deleted profile image from Cloudinary: ${publicId}`);
-      } catch (error) {
-        console.error(`Failed to delete profile image from Cloudinary: ${publicId}`, error);
-      }
-    }
-  }
-
   const className = student.class;
   const section = student.section;
+  const cloudinarySnapshot = {
+    documents: student.documents,
+    profileImage: student.profileImage,
+  };
+
   await student.deleteOne();
-  await reassignClassSections(req.models?.Student || Student, [{ className, section }]);
+  // Cloudinary cleanup is best-effort and should not block the delete response.
+  cleanupStudentCloudinaryAssets([cloudinarySnapshot]).catch((error) => {
+    console.error('Background Cloudinary cleanup failed after student delete:', error);
+  });
+  await reassignClassSections(StudentModel, [{ className, section }]);
 
   res.status(HTTP_STATUS.OK).json(
     generateResponse(true, SUCCESS_MESSAGES.DELETED)
+  );
+});
+
+// @desc    Bulk delete students
+// @route   POST /api/students/bulk-delete
+// @access  Private
+const bulkDeleteStudents = asyncHandler(async (req, res) => {
+  const StudentModel = req.models?.Student || Student;
+  const requestedIds = Array.from(
+    new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map((id) => String(id || '').trim()).filter(Boolean))
+  );
+
+  if (requestedIds.length === 0) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json(
+      generateResponse(false, 'At least one student id is required')
+    );
+  }
+
+  const students = await StudentModel.find({ _id: { $in: requestedIds } })
+    .select('_id class section documents profileImage')
+    .lean();
+
+  const deletedIds = students.map((student) => String(student._id));
+  const deletedIdSet = new Set(deletedIds);
+  const notFoundIds = requestedIds.filter((id) => !deletedIdSet.has(id));
+
+  if (deletedIds.length === 0) {
+    return res.status(HTTP_STATUS.NOT_FOUND).json(
+      generateResponse(false, 'No matching students found to delete', {
+        deletedIds: [],
+        notFoundIds,
+        deletedCount: 0,
+      })
+    );
+  }
+
+  await StudentModel.deleteMany({ _id: { $in: deletedIds } });
+
+  cleanupStudentCloudinaryAssets(students).catch((error) => {
+    console.error('Background Cloudinary cleanup failed after bulk student delete:', error);
+  });
+
+  await reassignClassSections(
+    StudentModel,
+    students.map((student) => ({ className: student.class, section: student.section }))
+  );
+
+  res.status(HTTP_STATUS.OK).json(
+    generateResponse(true, `${deletedIds.length} student record${deletedIds.length === 1 ? '' : 's'} deleted`, {
+      deletedIds,
+      notFoundIds,
+      deletedCount: deletedIds.length,
+    })
   );
 });
 
@@ -956,6 +1428,10 @@ const bulkCreateStudents = asyncHandler(async (req, res) => {
 const downloadStudentImportTemplate = asyncHandler(async (req, res) => {
   const headers = STUDENT_TEMPLATE_COLUMNS.map((column) => column.label);
   const format = String(req.query.format || 'xlsx').toLowerCase();
+  const classSectionLookup = await getClassSectionLookupFromRequest(req);
+  const sample = pickTemplateSampleRow(classSectionLookup);
+  const activityHouses = await listActiveActivityHouses(req);
+  const sampleHouseName = activityHouses[0]?.name || '';
 
   if (format === 'csv') {
     const csvContent = `${headers.map((header) => escapeCsvCell(header)).join(',')}\n`;
@@ -975,18 +1451,55 @@ const downloadStudentImportTemplate = asyncHandler(async (req, res) => {
   }));
 
   const sampleRow = [
+    '1',
     '3361',
     'Aarav Sharma',
-    '10th',
-    'A',
+    sample.className,
+    getSectionDisplayName(sample.sectionName),
     'Rajesh Sharma',
+    'Sunita Sharma',
     '2010-04-15',
     'Boy',
+    sampleHouseName,
+    '12',
+    'B+',
     'General',
     '9123456789',
     '123456789012',
+    '12 MG Road, Delhi, Delhi 110001',
   ];
   worksheet.addRow(sampleRow);
+
+  const sectionsSheet = workbook.addWorksheet('Class Sections');
+  sectionsSheet.addRow(['CLASS', 'SECTION']);
+  sectionsSheet.getRow(1).font = { bold: true };
+  const referenceRows = buildTemplateReferenceRows(classSectionLookup);
+  if (referenceRows.length > 0) {
+    referenceRows.forEach((row) => sectionsSheet.addRow(row));
+  } else {
+    sectionsSheet.addRow(['Configure classes and sections in Class Section Matrix first', '']);
+  }
+  sectionsSheet.columns = [{ width: 16 }, { width: 22 }];
+
+  const housesSheet = workbook.addWorksheet('Houses (ACTVT)');
+  housesSheet.addRow(['HOUSE', 'TAGLINE', 'MOTTO', 'COLOUR']);
+  housesSheet.getRow(1).font = { bold: true };
+  if (activityHouses.length > 0) {
+    activityHouses.forEach((house) => {
+      housesSheet.addRow([house.name, house.tagline || '', house.motto || '', house.color || '']);
+    });
+  } else {
+    housesSheet.addRow(['Add houses in ACTVT → Houses first', '', '', '']);
+  }
+  housesSheet.columns = [{ width: 22 }, { width: 28 }, { width: 28 }, { width: 16 }];
+
+  const abbrevSheet = workbook.addWorksheet('Section Abbreviations');
+  abbrevSheet.addRow(['DISPLAY NAME', 'ACCEPTED VALUES']);
+  abbrevSheet.getRow(1).font = { bold: true };
+  SECTION_CATALOG.forEach((entry) => {
+    abbrevSheet.addRow([entry.displayName, entry.abbreviations.join(', ')]);
+  });
+  abbrevSheet.columns = [{ width: 18 }, { width: 48 }];
 
   const buffer = await workbook.xlsx.writeBuffer();
   const fileName = `students_template_${new Date().toISOString().split('T')[0]}.xlsx`;
@@ -1024,11 +1537,7 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     : file.data;
 
   const expectedHeaders = STUDENT_TEMPLATE_COLUMNS.map((column) => column.label);
-  const headerToKey = new Map(
-    STUDENT_TEMPLATE_COLUMNS.flatMap((column) =>
-      getAllowedLabelsForColumn(column).map((label) => [label, column.key])
-    )
-  );
+  const headerToKey = buildTemplateHeaderLookup();
 
   let receivedHeaders = [];
   let dataRows = [];
@@ -1041,7 +1550,10 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
           generateResponse(false, 'CSV file is empty.')
         );
       }
-      receivedHeaders = STUDENT_TEMPLATE_COLUMNS.map((_, index) => normalizeString(rows[0]?.[index]));
+      receivedHeaders = (rows[0] || []).map((cell) => normalizeString(cell));
+      while (receivedHeaders.length > 0 && !receivedHeaders[receivedHeaders.length - 1]) {
+        receivedHeaders.pop();
+      }
       dataRows = rows.slice(1).map((cells, index) => ({
         rowNumber: index + 2,
         valueAt: (cellIndex) => cells[cellIndex] || ''
@@ -1063,8 +1575,7 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
         );
       }
 
-      const headerRow = worksheet.getRow(1);
-      receivedHeaders = STUDENT_TEMPLATE_COLUMNS.map((_, index) => normalizeString(headerRow.getCell(index + 1).value));
+      receivedHeaders = readWorksheetHeaderCells(worksheet);
       dataRows = Array.from({ length: Math.max(0, worksheet.rowCount - 1) }, (_, index) => ({
         rowNumber: index + 2,
         valueAt: (cellIndex) => worksheet.getRow(index + 2).getCell(cellIndex + 1).value
@@ -1076,18 +1587,30 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     }
   }
 
-  const headersAreValid = expectedHeaders.length === receivedHeaders.length
-    && STUDENT_TEMPLATE_COLUMNS.every((column, index) =>
-      getAllowedLabelsForColumn(column).includes(receivedHeaders[index])
-    );
+  const mappedHeaderKeys = receivedHeaders.map((header) => headerToKey.get(normalizeHeaderLabel(header)) || null);
+  const presentKeys = new Set(mappedHeaderKeys.filter(Boolean));
 
-  if (!headersAreValid) {
+  // Partial templates are allowed — only Admission No. is required to link/create rows.
+  if (!presentKeys.has('rollNumber')) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json({
       success: false,
-      message: 'Template headers do not match. Please use the downloaded template without changing headers.',
+      message: 'Template must include an Admission No. column so rows can be linked to students.',
       data: {
         expectedHeaders,
-        receivedHeaders
+        receivedHeaders,
+        missingRequiredHeaders: ['Admission No.'],
+      }
+    });
+  }
+
+  if (presentKeys.size === 0) {
+    return res.status(HTTP_STATUS.BAD_REQUEST).json({
+      success: false,
+      message: 'No recognized template headers found. Please use the downloaded template headers.',
+      data: {
+        expectedHeaders,
+        receivedHeaders,
+        missingRequiredHeaders: ['Admission No.'],
       }
     });
   }
@@ -1101,32 +1624,31 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
   };
 
   const generatedRollNumbersInRequest = new Set();
-  const importTasks = [];
   const importGroups = [];
   const requestAcademicSession = normalizeString(req.academicSession);
   let classSectionLookup = new Map();
 
   if (TimetableStateModel) {
-    const latestTimetableState = await TimetableStateModel.findOne({})
+    const filter = requestAcademicSession ? { academicSession: requestAcademicSession } : { academicSession: null };
+    const latestTimetableState = await TimetableStateModel.findOne(filter)
       .sort({ updatedAt: -1 })
       .select('matrixClasses matrixSections matrixSelection')
       .lean();
     classSectionLookup = buildClassSectionMatrixLookup(latestTimetableState);
   }
 
-  const existingStudents = await StudentModel.find({})
-    .select('rollNumber')
-    .lean();
-  const existingRollNumbers = new Set(
-    existingStudents
-      .map((student) => String(student.rollNumber || '').trim().toUpperCase())
-      .filter(Boolean)
-  );
+  const activityHouses = await listActiveActivityHouses(req);
+  const isProvided = (rowData, key) => presentKeys.has(key) && !isBlankImportText(rowData[key]);
+
+  // Pass 1: parse rows in memory (last row wins for the same Admission No. in this file).
+  const pendingByRoll = new Map(); // rollNumber -> { kind, rowNumber, doc|patch, previousClass?, previousSection?, fallbackNotes }
+  const fileRollNumbers = [];
 
   for (const { rowNumber, valueAt } of dataRows) {
     const rowData = {};
-    receivedHeaders.forEach((header, cellIndex) => {
-      const key = headerToKey.get(header);
+    receivedHeaders.forEach((_header, cellIndex) => {
+      const key = mappedHeaderKeys[cellIndex];
+      if (!key || key === 'serialNo') return;
       rowData[key] = valueAt(cellIndex);
     });
 
@@ -1135,62 +1657,279 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       continue;
     }
 
+    const fallbackNotes = [];
+    let rollNumber = normalizeString(rowData.rollNumber).replace(/\s+/g, '').toUpperCase();
+    let rollNumberAutoFilled = false;
+
+    if (!rollNumber) {
+      rollNumber = buildGeneratedImportRollNumber(rowNumber);
+      while (generatedRollNumbersInRequest.has(rollNumber)) {
+        rollNumber = buildGeneratedImportRollNumber(rowNumber);
+      }
+      rollNumberAutoFilled = true;
+      fallbackNotes.push('roll number');
+    }
+    if (rollNumber.length > 20) {
+      rollNumber = rollNumber.slice(0, 20);
+      fallbackNotes.push('roll number length');
+    }
+    generatedRollNumbersInRequest.add(rollNumber);
+    if (!rollNumberAutoFilled) {
+      fileRollNumbers.push(rollNumber);
+    }
+
+    if (isProvided(rowData, 'house')) {
+      const resolvedImportHouse = resolveHouseAgainstCatalog(activityHouses, {
+        house: rowData.house,
+      });
+      if (resolvedImportHouse.error) {
+        results.errors.push({ row: rowNumber, message: resolvedImportHouse.error });
+        continue;
+      }
+      rowData.__resolvedHouse = resolvedImportHouse;
+    }
+
+    pendingByRoll.set(rollNumber, {
+      rowNumber,
+      rollNumber,
+      rollNumberAutoFilled,
+      rowData,
+      fallbackNotes,
+    });
+  }
+
+  // Load only students referenced by this file (not the full collection).
+  const uniqueFileRolls = [...new Set(fileRollNumbers)];
+  const existingStudents = uniqueFileRolls.length > 0
+    ? await StudentModel.find({ rollNumber: { $in: uniqueFileRolls } })
+      .select('_id rollNumber name gender class section fatherName motherName guardianPhone dateOfBirth admissionDate category email phone penNumber house houseId busNo aadharNumber religion nationality notes address medicalInfo')
+      .lean()
+    : [];
+  const existingByRoll = new Map(
+    existingStudents.map((student) => [String(student.rollNumber || '').trim().toUpperCase(), student])
+  );
+
+  const createDocs = [];
+  const bulkUpdates = [];
+
+  for (const pending of pendingByRoll.values()) {
+    const {
+      rowNumber,
+      rollNumber,
+      rollNumberAutoFilled,
+      rowData,
+      fallbackNotes,
+    } = pending;
+
+    const existingStudent = rollNumberAutoFilled ? null : existingByRoll.get(rollNumber) || null;
+
+    if (existingStudent) {
+      const patch = {};
+      const previousClass = existingStudent.class;
+      const previousSection = existingStudent.section;
+
+      // Later non-empty values always overwrite (empty cells never clear existing data).
+      const setText = (field, nextValue, maxLen) => {
+        if (isBlankImportText(nextValue)) return;
+        let value = String(nextValue);
+        if (maxLen && value.length > maxLen) {
+          value = value.slice(0, maxLen);
+          fallbackNotes.push(`${field} length`);
+        }
+        patch[field] = value;
+      };
+
+      if (isProvided(rowData, 'name')) setText('name', toTitleCaseName(rowData.name), 100);
+      if (isProvided(rowData, 'fatherName')) setText('fatherName', toTitleCaseName(rowData.fatherName), 100);
+      if (isProvided(rowData, 'motherName')) setText('motherName', toTitleCaseName(rowData.motherName), 100);
+      if (isProvided(rowData, 'gender')) {
+        const gender = normalizeGenderValue(rowData.gender);
+        patch.gender = STUDENT_GENDERS.includes(gender) ? gender : 'Unspecified';
+      }
+      if (isProvided(rowData, 'category')) {
+        const category = normalizeCategoryValue(rowData.category);
+        patch.category = ['General', 'OBC', 'SC', 'ST', 'EWS'].includes(category) ? category : 'General';
+      }
+      if (isProvided(rowData, 'dateOfBirth')) {
+        const dob = normalizeDateValue(rowData.dateOfBirth);
+        if (isValidDateString(dob)) patch.dateOfBirth = dob;
+        else fallbackNotes.push('invalid date of birth');
+      }
+      if (isProvided(rowData, 'admissionDate')) {
+        const admissionDate = normalizeDateValue(rowData.admissionDate);
+        if (isValidDateString(admissionDate)) patch.admissionDate = admissionDate;
+        else fallbackNotes.push('invalid admission date');
+      }
+      if (isProvided(rowData, 'phone')) {
+        const mobileNumber = optionalText(normalizeString(rowData.phone).replace(/\D/g, ''));
+        if (mobileNumber && /^[6-9]\d{9}$/.test(mobileNumber)) {
+          patch.phone = mobileNumber;
+          patch.guardianPhone = mobileNumber;
+        } else {
+          fallbackNotes.push('invalid phone');
+        }
+      }
+      if (isProvided(rowData, 'penNumber')) setText('penNumber', optionalText(rowData.penNumber), 50);
+      if (isProvided(rowData, 'busNo')) setText('busNo', optionalText(rowData.busNo), 30);
+      if (isProvided(rowData, 'religion')) {
+        setText('religion', toTitleCaseName(rowData.religion) || optionalText(rowData.religion), 30);
+      }
+      if (isProvided(rowData, 'nationality')) {
+        setText('nationality', toTitleCaseName(rowData.nationality) || optionalText(rowData.nationality), 30);
+      }
+      if (isProvided(rowData, 'notes')) setText('notes', optionalText(rowData.notes), 1000);
+      if (isProvided(rowData, 'email')) {
+        const email = optionalText(normalizeString(rowData.email).toLowerCase());
+        if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) patch.email = email;
+        else fallbackNotes.push('invalid email');
+      }
+      if (isProvided(rowData, 'aadharNumber')) {
+        const aadhar = optionalText(normalizeString(rowData.aadharNumber).replace(/\D/g, ''));
+        if (aadhar && /^\d{12}$/.test(aadhar)) patch.aadharNumber = aadhar;
+        else fallbackNotes.push('invalid aadhar');
+      }
+      if (isProvided(rowData, 'bloodGroup')) {
+        const bloodGroup = normalizeBloodGroupValue(rowData.bloodGroup);
+        if (bloodGroup) {
+          patch.medicalInfo = {
+            ...(existingStudent.medicalInfo || {}),
+            bloodGroup,
+          };
+        } else {
+          fallbackNotes.push('invalid blood group');
+        }
+      }
+      if (rowData.__resolvedHouse) {
+        patch.house = rowData.__resolvedHouse.house;
+        patch.houseId = rowData.__resolvedHouse.houseId;
+      }
+      if (isProvided(rowData, 'addressText')) {
+        const parsedAddress = parseAddressText(rowData.addressText);
+        const nextAddress = { ...(existingStudent.address || {}) };
+        let addressChanged = false;
+        ['street', 'city', 'state', 'pincode'].forEach((part) => {
+          if (!isBlankImportText(parsedAddress[part])) {
+            nextAddress[part] = parsedAddress[part];
+            addressChanged = true;
+          }
+        });
+        if (addressChanged) patch.address = nextAddress;
+      }
+
+      let nextClass = previousClass;
+      let nextSection = previousSection;
+      let placementChanged = false;
+
+      if (isProvided(rowData, 'class')) {
+        nextClass = normalizeClassValue(rowData.class);
+        if (nextClass.length > 50) {
+          nextClass = nextClass.slice(0, 50);
+          fallbackNotes.push('class length');
+        }
+        if (nextClass !== previousClass) {
+          patch.class = nextClass;
+          placementChanged = true;
+        }
+      }
+
+      if (isProvided(rowData, 'section') || (isProvided(rowData, 'class') && placementChanged)) {
+        const sectionInput = isProvided(rowData, 'section')
+          ? normalizeSectionValue(rowData.section)
+          : previousSection;
+        const resolved = resolveImportSectionForClass(
+          nextClass,
+          sectionInput,
+          classSectionLookup,
+          isProvided(rowData, 'section') ? null : fallbackNotes
+        );
+        if (resolved.error) {
+          results.errors.push({ row: rowNumber, message: resolved.error });
+          continue;
+        }
+        nextSection = resolved.section;
+        if (nextSection !== previousSection) {
+          patch.section = nextSection;
+          placementChanged = true;
+        } else if (isProvided(rowData, 'section')) {
+          patch.section = nextSection;
+        }
+      }
+
+      if (Object.keys(patch).length === 0) {
+        results.skipped += 1;
+        continue;
+      }
+
+      bulkUpdates.push({
+        updateOne: {
+          filter: { _id: existingStudent._id },
+          update: { $set: patch },
+        },
+      });
+      results.updated += 1;
+
+      if (placementChanged) {
+        importGroups.push(
+          { className: previousClass, section: previousSection },
+          { className: patch.class || previousClass, section: patch.section || previousSection }
+        );
+      }
+
+      if (fallbackNotes.length > 0) {
+        results.warnings.push({
+          row: rowNumber,
+          message: `Normalized: ${fallbackNotes.join(', ')}`,
+        });
+      }
+      continue;
+    }
+
+    // ---------- Create path ----------
+    const parsedAddress = presentKeys.has('addressText')
+      ? parseAddressText(rowData.addressText)
+      : { street: '', city: '', state: '', pincode: '' };
+    const mobileNumber = isProvided(rowData, 'phone')
+      ? optionalText(normalizeString(rowData.phone).replace(/\D/g, ''))
+      : undefined;
+    const bloodGroup = isProvided(rowData, 'bloodGroup')
+      ? normalizeBloodGroupValue(rowData.bloodGroup)
+      : '';
+    const resolvedHouse = rowData.__resolvedHouse || { house: '', houseId: null };
+
     const normalizedRow = {
-      rollNumber: normalizeString(rowData.rollNumber).replace(/\s+/g, '').toUpperCase(),
-      name: normalizeString(rowData.name),
+      rollNumber,
+      name: toTitleCaseName(rowData.name),
       gender: normalizeGenderValue(rowData.gender),
       class: normalizeClassValue(rowData.class),
       section: normalizeSectionValue(rowData.section),
-      fatherName: normalizeString(rowData.fatherName),
-      motherName: normalizeString(rowData.motherName),
-      guardianPhone: normalizeString(rowData.guardianPhone).replace(/\D/g, ''),
+      fatherName: toTitleCaseName(rowData.fatherName),
+      motherName: toTitleCaseName(rowData.motherName),
+      guardianPhone: mobileNumber || '',
       dateOfBirth: normalizeDateValue(rowData.dateOfBirth),
       admissionDate: normalizeDateValue(rowData.admissionDate),
       category: normalizeCategoryValue(rowData.category),
       email: optionalText(normalizeString(rowData.email).toLowerCase()),
-      phone: optionalText(normalizeString(rowData.phone).replace(/\D/g, '')),
+      phone: mobileNumber,
       penNumber: optionalText(rowData.penNumber),
+      house: resolvedHouse.house || '',
+      houseId: resolvedHouse.houseId || null,
+      busNo: optionalText(rowData.busNo),
       aadharNumber: optionalText(normalizeString(rowData.aadharNumber).replace(/\D/g, '')),
-      religion: optionalText(rowData.religion),
-      nationality: optionalText(rowData.nationality) || 'Indian',
+      religion: toTitleCaseName(rowData.religion) || optionalText(rowData.religion),
+      nationality: toTitleCaseName(rowData.nationality) || optionalText(rowData.nationality) || 'Indian',
       notes: optionalText(rowData.notes),
       address: {
-        street: normalizeString(rowData.street),
-        city: normalizeString(rowData.city),
-        state: normalizeString(rowData.state),
-        pincode: normalizeString(rowData.pincode).replace(/\D/g, ''),
+        street: parsedAddress.street,
+        city: parsedAddress.city,
+        state: parsedAddress.state,
+        pincode: parsedAddress.pincode,
       },
+      medicalInfo: bloodGroup ? { bloodGroup } : undefined,
       subjects: [],
       isActive: true,
       academicSession: requestAcademicSession || undefined,
     };
 
-    // Allow blank cells in import by applying minimal defaults for required fields.
-    const fallbackNotes = [];
-    let rollNumberAutoFilled = false;
-    if (!normalizedRow.rollNumber) {
-      normalizedRow.rollNumber = buildGeneratedImportRollNumber(rowNumber);
-      while (
-        existingRollNumbers.has(normalizedRow.rollNumber) ||
-        generatedRollNumbersInRequest.has(normalizedRow.rollNumber)
-      ) {
-        normalizedRow.rollNumber = buildGeneratedImportRollNumber(rowNumber);
-      }
-      rollNumberAutoFilled = true;
-      fallbackNotes.push('roll number');
-    }
-    if (normalizedRow.rollNumber.length > 20) {
-      normalizedRow.rollNumber = normalizedRow.rollNumber.slice(0, 20);
-      fallbackNotes.push('roll number length');
-    }
-    if (!rollNumberAutoFilled && (
-      existingRollNumbers.has(normalizedRow.rollNumber) ||
-      generatedRollNumbersInRequest.has(normalizedRow.rollNumber)
-    )) {
-      results.skipped += 1;
-      continue;
-    }
-    generatedRollNumbersInRequest.add(normalizedRow.rollNumber);
     if (!normalizedRow.name) {
       normalizedRow.name = `Student ${normalizedRow.rollNumber}`;
       fallbackNotes.push('name');
@@ -1202,39 +1941,23 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     if (!normalizedRow.class) {
       results.errors.push({
         row: rowNumber,
-        message: 'Class is required.'
+        message: 'Class is required when creating a new student.',
       });
       continue;
     }
-    const allowedSections = classSectionLookup.get(normalizedRow.class) || [];
-    const allowedSectionByKey = new Map(
-      allowedSections.map((sectionName) => [normalizeSectionKey(sectionName), sectionName])
-    );
-    const normalizedSectionInput = normalizeSectionKey(normalizedRow.section);
-    const matchedSectionFromMatrix = allowedSectionByKey.get(normalizedSectionInput);
 
-    if (allowedSections.length > 0) {
-      if (!normalizedSectionInput) {
-        normalizedRow.section = allowedSections[0];
-        fallbackNotes.push('section');
-      } else if (matchedSectionFromMatrix) {
-        normalizedRow.section = matchedSectionFromMatrix;
-      } else {
-        results.errors.push({
-          row: rowNumber,
-          message: `Section "${normalizedRow.section}" is not configured for class "${normalizedRow.class}" in Class Section Matrix.`
-        });
-        continue;
-      }
-    } else if (!normalizedSectionInput) {
-      results.errors.push({
-        row: rowNumber,
-        message: `Section is required. Configure sections in Class Section Matrix for class "${normalizedRow.class}".`
-      });
+    const resolvedCreateSection = resolveImportSectionForClass(
+      normalizedRow.class,
+      normalizedRow.section,
+      classSectionLookup,
+      fallbackNotes
+    );
+    if (resolvedCreateSection.error) {
+      results.errors.push({ row: rowNumber, message: resolvedCreateSection.error });
       continue;
-    } else {
-      normalizedRow.section = normalizeSectionValue(normalizedRow.section);
     }
+    normalizedRow.section = resolvedCreateSection.section;
+
     if (!normalizedRow.fatherName) {
       normalizedRow.fatherName = 'Unknown';
       fallbackNotes.push('father name');
@@ -1271,28 +1994,14 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       normalizedRow.category = 'General';
       fallbackNotes.push('invalid category');
     }
-    if (!normalizedRow.address.street) {
-      normalizedRow.address.street = 'Not Provided';
-      fallbackNotes.push('street');
-    }
-    if (!normalizedRow.address.city) {
-      normalizedRow.address.city = 'Not Provided';
-      fallbackNotes.push('city');
-    }
-    if (!normalizedRow.address.state) {
-      normalizedRow.address.state = 'Not Provided';
-      fallbackNotes.push('state');
-    }
-    if (!normalizedRow.address.pincode) {
-      normalizedRow.address.pincode = '000000';
-      fallbackNotes.push('pincode');
-    }
-
+    if (!normalizedRow.address.street) normalizedRow.address.street = 'Not Provided';
+    if (!normalizedRow.address.city) normalizedRow.address.city = 'Not Provided';
+    if (!normalizedRow.address.state) normalizedRow.address.state = 'Not Provided';
+    if (!normalizedRow.address.pincode) normalizedRow.address.pincode = '000000';
     if (normalizedRow.class.length > 50) {
       normalizedRow.class = normalizedRow.class.slice(0, 50);
       fallbackNotes.push('class length');
     }
-
     if (!STUDENT_GENDERS.includes(normalizedRow.gender)) {
       normalizedRow.gender = 'Unspecified';
       fallbackNotes.push('invalid gender');
@@ -1327,63 +2036,93 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     }
     if (normalizedRow.penNumber && normalizedRow.penNumber.length > 50) {
       normalizedRow.penNumber = normalizedRow.penNumber.slice(0, 50);
-      fallbackNotes.push('pen number length');
+    }
+    if (normalizedRow.house && normalizedRow.house.length > 50) {
+      normalizedRow.house = normalizedRow.house.slice(0, 50);
+    }
+    if (normalizedRow.busNo && normalizedRow.busNo.length > 30) {
+      normalizedRow.busNo = normalizedRow.busNo.slice(0, 30);
+    }
+    if (isProvided(rowData, 'bloodGroup') && !normalizedRow.medicalInfo?.bloodGroup) {
+      fallbackNotes.push('invalid blood group');
+      delete normalizedRow.medicalInfo;
     }
     if (normalizedRow.religion && normalizedRow.religion.length > 30) {
       normalizedRow.religion = normalizedRow.religion.slice(0, 30);
-      fallbackNotes.push('religion length');
     }
     if (normalizedRow.nationality && normalizedRow.nationality.length > 30) {
       normalizedRow.nationality = normalizedRow.nationality.slice(0, 30);
-      fallbackNotes.push('nationality length');
     }
     if (normalizedRow.notes && normalizedRow.notes.length > 1000) {
       normalizedRow.notes = normalizedRow.notes.slice(0, 1000);
-      fallbackNotes.push('notes length');
     }
     if (normalizedRow.address.street.length > 200) {
       normalizedRow.address.street = normalizedRow.address.street.slice(0, 200);
-      fallbackNotes.push('street length');
     }
     if (normalizedRow.address.city.length > 50) {
       normalizedRow.address.city = normalizedRow.address.city.slice(0, 50);
-      fallbackNotes.push('city length');
     }
     if (normalizedRow.address.state.length > 50) {
       normalizedRow.address.state = normalizedRow.address.state.slice(0, 50);
-      fallbackNotes.push('state length');
     }
+
+    createDocs.push(normalizedRow);
+    importGroups.push({ className: normalizedRow.class, section: normalizedRow.section });
 
     if (fallbackNotes.length > 0) {
       results.warnings.push({
         row: rowNumber,
-        message: `Auto-filled/normalized: ${fallbackNotes.join(', ')}`
+        message: `Auto-filled/normalized: ${fallbackNotes.join(', ')}`,
       });
     }
-
-    importTasks.push(
-      (async () => {
-        try {
-          await StudentModel.create(normalizedRow);
-          results.created += 1;
-          importGroups.push({ className: normalizedRow.class, section: normalizedRow.section });
-        } catch (error) {
-          if (error?.code === 11000) {
-            results.skipped += 1;
-            return;
-          }
-
-          results.errors.push({
-            row: rowNumber,
-            message: error.message || 'Failed to import student from this row.'
-          });
-        }
-      })()
-    );
   }
 
-  if (importTasks.length > 0) {
-    await Promise.allSettled(importTasks);
+  // Pass 2: batched DB writes (much faster than per-row await).
+  if (bulkUpdates.length > 0) {
+    try {
+      await StudentModel.bulkWrite(bulkUpdates, { ordered: false });
+    } catch (error) {
+      results.errors.push({
+        row: null,
+        message: error.message || 'Bulk update failed for some rows.',
+      });
+    }
+  }
+
+  if (createDocs.length > 0) {
+    const INSERT_CHUNK = 200;
+    for (let index = 0; index < createDocs.length; index += INSERT_CHUNK) {
+      const chunk = createDocs.slice(index, index + INSERT_CHUNK);
+      try {
+        const inserted = await StudentModel.insertMany(chunk, { ordered: false });
+        results.created += inserted.length;
+      } catch (error) {
+        const insertedCount = Array.isArray(error?.insertedDocs) ? error.insertedDocs.length : 0;
+        results.created += insertedCount;
+        if (error?.writeErrors?.length) {
+          error.writeErrors.forEach((writeError) => {
+            if (writeError.code === 11000) {
+              results.skipped += 1;
+              return;
+            }
+            results.errors.push({
+              row: null,
+              message: writeError.errmsg || writeError.message || 'Failed to create a student row.',
+            });
+          });
+        } else if (error?.code === 11000) {
+          results.skipped += 1;
+        } else {
+          results.errors.push({
+            row: null,
+            message: error.message || 'Failed to create students from template.',
+          });
+        }
+      }
+    }
+  }
+
+  if (importGroups.length > 0) {
     await reassignClassSections(StudentModel, importGroups);
   }
 
@@ -1574,6 +2313,7 @@ module.exports = {
   createStudent,
   updateStudent,
   deleteStudent,
+  bulkDeleteStudents,
   getStudentsByClass,
   getStudentsByClassSection,
   getStudentsBySubject,

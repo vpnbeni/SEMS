@@ -2,6 +2,12 @@ const mongoose = require('mongoose');
 const createContextModelProxy = require('../tenancy/createContextModelProxy');
 
 const transportVehicleSchema = new mongoose.Schema({
+  busNo: {
+    type: String,
+    required: [true, 'Bus number is required'],
+    trim: true,
+    maxlength: 20,
+  },
   registrationNumber: {
     type: String,
     required: [true, 'Registration number is required'],
@@ -18,6 +24,11 @@ const transportVehicleSchema = new mongoose.Schema({
   model: { type: String, trim: true, default: '' },
   color: { type: String, trim: true, default: '' },
   capacity: { type: Number, min: 1, default: 40 },
+  driverId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Teacher',
+    default: null,
+  },
   driverName: { type: String, trim: true, default: '' },
   driverPhone: { type: String, trim: true, default: '' },
   conductorName: { type: String, trim: true, default: '' },
@@ -33,6 +44,7 @@ const transportVehicleSchema = new mongoose.Schema({
   isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 
+transportVehicleSchema.index({ busNo: 1 }, { unique: true });
 transportVehicleSchema.index({ registrationNumber: 1 }, { unique: true });
 transportVehicleSchema.index({ status: 1, isActive: 1 });
 

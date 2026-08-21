@@ -1,3 +1,5 @@
+import { getCanonicalSectionName, normalizeSectionKey } from './sectionMetadata'
+
 export const STUDENT_CLASS_OPTIONS = [
   '1st',
   '2nd',
@@ -43,7 +45,8 @@ export const sortSectionNames = (left: string, right: string, className = '') =>
     ? SENIOR_SECONDARY_SECTION_ORDER
     : JUNIOR_SECTION_ORDER
   const rank = (name: string) => {
-    const index = ordered.indexOf(String(name || '').trim().toLowerCase())
+    const canonical = normalizeSectionKey(getCanonicalSectionName(name))
+    const index = ordered.indexOf(canonical as (typeof ordered)[number])
     return index === -1 ? 1000 : index
   }
   const diff = rank(left) - rank(right)

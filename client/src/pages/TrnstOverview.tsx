@@ -59,8 +59,12 @@ const TrnstOverview: React.FC = () => {
                 {(data?.vehicles || []).slice(0, 5).map((vehicle) => (
                   <div key={vehicle._id} className="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3">
                     <div>
-                      <p className="font-semibold text-slate-900">{vehicle.registrationNumber}</p>
-                      <p className="text-xs text-slate-500">{vehicle.vehicleType} · {vehicle.capacity} seats · {vehicle.driverName || 'No driver assigned'}</p>
+                      <p className="font-semibold text-slate-900">
+                        Bus {vehicle.busNo || '—'}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {vehicle.registrationNumber} · {vehicle.vehicleType} · {vehicle.capacity} seats · {vehicle.driverName || 'No driver assigned'}
+                      </p>
                     </div>
                     <StatusPill status={vehicle.status} />
                   </div>

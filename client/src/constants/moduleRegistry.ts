@@ -7,8 +7,9 @@ import attndIcon from '../assets/ATTND.png'
 import trnstIcon from '../assets/TRNST.png'
 import acdmcIcon from '../assets/ACDMC.png'
 import actvtIcon from '../assets/ACTVT.png'
+import mdclIcon from '../assets/MDCL.png'
 
-export type ModuleId = 'cntr' | 'exmcl' | 'timetable' | 'stdnt' | 'staaf' | 'attnd' | 'trnst' | 'acdmc' | 'actvt'
+export type ModuleId = 'cntr' | 'exmcl' | 'timetable' | 'stdnt' | 'staaf' | 'attnd' | 'trnst' | 'acdmc' | 'actvt' | 'mdcl'
 
 export type ModuleDefinition = {
   id: ModuleId
@@ -58,8 +59,15 @@ export const MODULE_REGISTRY: ModuleDefinition[] = [
     id: 'actvt',
     abbreviation: 'ACTVT',
     title: 'Activities',
-    defaultRoute: '/actvt/clubs',
+    defaultRoute: '/actvt/houses',
     icon: actvtIcon,
+  },
+  {
+    id: 'mdcl',
+    abbreviation: 'MDCL',
+    title: 'Medical Clinic',
+    defaultRoute: '/mdcl/cases',
+    icon: mdclIcon,
   },
   {
     id: 'trnst',

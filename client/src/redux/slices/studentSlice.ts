@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit'
 import api from '../../services/api'
+import studentService from '../../services/studentService'
 
 // Types
 export interface Student {
@@ -11,6 +12,9 @@ export interface Student {
   email?: string
   phone?: string
   penNumber?: string
+  house?: string
+  houseId?: string | null
+  busNo?: string
   class: string
   section: string
   subjects: Array<{
@@ -207,6 +211,23 @@ export const deleteStudent = createAsyncThunk(
       return id
     } catch (error: any) {
       return rejectWithValue(error.response?.data?.message || 'Failed to delete student')
+    }
+  }
+)
+
+export const bulkDeleteStudents = createAsyncThunk(
+  'students/bulkDeleteStudents',
+  async (ids: string[], { rejectWithValue }) => {
+    try {
+      const response = await studentService.bulkDeleteStudents(ids)
+      return {
+        deletedIds: (response?.data?.deletedIds || []) as string[],
+        notFoundIds: (response?.data?.notFoundIds || []) as string[],
+        deletedCount: Number(response?.data?.deletedCount || 0),
+        message: response?.message as string | undefined,
+      }
+    } catch (error: any) {
+      return rejectWithValue(error.response?.data?.message || 'Failed to delete selected students')
     }
   }
 )
@@ -440,6 +461,20 @@ const studentSlice = createSlice({
       })
       .addCase(deleteStudent.rejected, (state, action) => {
         state.loading = false
+        state.error = action.payload as string
+      })
+
+    builder
+      .addCase(bulkDeleteStudents.fulfilled, (state, action) => {
+        const deletedIdSet = new Set(action.payload.deletedIds || [])
+        if (deletedIdSet.size === 0) return
+        state.students = state.students.filter((student) => !deletedIdSet.has(student._id))
+        if (state.currentStudent && deletedIdSet.has(state.currentStudent._id)) {
+          state.currentStudent = null
+          state.modals.delete = false
+        }
+      })
+      .addCase(bulkDeleteStudents.rejected, (state, action) => {
         state.error = action.payload as string
       })
 

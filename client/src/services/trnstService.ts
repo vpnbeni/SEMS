@@ -6,12 +6,14 @@ export type RouteShift = 'morning' | 'afternoon' | 'both'
 
 export type TransportVehicle = {
   _id: string
+  busNo: string
   registrationNumber: string
   vehicleType: VehicleType
   make?: string
   model?: string
   color?: string
   capacity?: number
+  driverId?: string | null
   driverName?: string
   driverPhone?: string
   conductorName?: string

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
@@ -37,9 +37,17 @@ type SidebarProps = {
   isCollapsed: boolean
   expandedWidth: number
   collapsedWidth: number
+  fitToContent?: boolean
+  onContentWidthChange?: (width: number) => void
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsedWidth }) => {
+const Sidebar: React.FC<SidebarProps> = ({
+  isCollapsed,
+  expandedWidth,
+  collapsedWidth,
+  fitToContent = false,
+  onContentWidthChange,
+}) => {
   const dispatch = useDispatch<AppDispatch>()
   const queryClient = useQueryClient()
   const currentUser = useSelector(selectUser)
@@ -47,6 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
   const navigate = useNavigate()
   const { currentSession, clearSession } = useAcademicSession()
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
   // Tracks expand/collapse state for group headers + nested sub-groups.
   // "Ungroup all" -> we expand everything based on accessible navigation.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
@@ -538,6 +547,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
       badge: null,
     },
     {
+      name: 'Houses',
+      href: '/actvt/houses',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
       name: 'Clubs',
       href: '/actvt/clubs',
       module: 'actvt',
@@ -549,12 +569,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
       badge: null,
     },
     {
-      name: 'Houses',
-      href: '/actvt/houses',
+      name: 'Activity Calendar',
+      href: '/actvt/calendar',
       module: 'actvt',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
       badge: null,
@@ -591,6 +611,50 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
       module: 'actvt',
       icon: (
         <PartyPopper className="w-5 h-5 transition-colors duration-200" />
+      ),
+      badge: null,
+    },
+    {
+      name: 'House Ranking',
+      href: '/actvt/ranking',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 21h8M12 17v4M7 4h10v4a5 5 0 01-10 0V4zM5 8H3v2a3 3 0 003 3h1M19 8h2v2a3 3 0 01-3 3h-1" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Certificates',
+      href: '/actvt/certificates',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7 4h10a2 2 0 012 2v9a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2zm5 13v4l-2-1-2 1v-4" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Medical Cases',
+      href: '/mdcl/cases',
+      module: 'mdcl',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9h6m-3-3v6" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
+      name: 'Medical Supplies',
+      href: '/mdcl/supplies',
+      module: 'mdcl',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
       ),
       badge: null,
     },
@@ -1059,13 +1123,69 @@ const Sidebar: React.FC<SidebarProps> = ({ isCollapsed, expandedWidth, collapsed
   const canAccessHelpSupport = isPathAllowed('/help-support')
   const currentSidebarWidth = isCollapsed ? collapsedWidth : expandedWidth
 
+  useLayoutEffect(() => {
+    if (!fitToContent || isCollapsed || !onContentWidthChange) return
+    const root = rootRef.current
+    if (!root) return
+
+    const sections = Array.from(
+      root.querySelectorAll<HTMLElement>('nav, [data-sidebar-fit]')
+    )
+    if (sections.length === 0) return
+
+    const truncated = Array.from(
+      root.querySelectorAll<HTMLElement>('nav .truncate, [data-sidebar-fit] .truncate')
+    )
+    truncated.forEach((el) => {
+      el.dataset.prevOverflow = el.style.overflow
+      el.dataset.prevTextOverflow = el.style.textOverflow
+      el.dataset.prevWhiteSpace = el.style.whiteSpace
+      el.style.overflow = 'visible'
+      el.style.textOverflow = 'clip'
+      el.style.whiteSpace = 'nowrap'
+    })
+
+    let measured = 0
+    sections.forEach((section) => {
+      const previousWidth = section.style.width
+      const previousMaxWidth = section.style.maxWidth
+      section.style.width = 'max-content'
+      section.style.maxWidth = 'none'
+      measured = Math.max(measured, Math.ceil(section.getBoundingClientRect().width))
+      section.style.width = previousWidth
+      section.style.maxWidth = previousMaxWidth
+    })
+
+    truncated.forEach((el) => {
+      el.style.overflow = el.dataset.prevOverflow || ''
+      el.style.textOverflow = el.dataset.prevTextOverflow || ''
+      el.style.whiteSpace = el.dataset.prevWhiteSpace || ''
+      delete el.dataset.prevOverflow
+      delete el.dataset.prevTextOverflow
+      delete el.dataset.prevWhiteSpace
+    })
+
+    // Include sidebar border so content does not sit flush against the resize edge.
+    if (measured > 0) {
+      onContentWidthChange(measured + 2)
+    }
+  }, [
+    fitToContent,
+    isCollapsed,
+    onContentWidthChange,
+    filteredNavigation,
+    activeModule,
+    openGroups,
+  ])
+
   return (
     <div
+      ref={rootRef}
       className="bg-white dark:bg-secondary-900 border-r border-secondary-200 dark:border-secondary-700 h-[100vh] min-h-[100vh] transition-all duration-300 flex flex-col overflow-visible relative z-50"
       style={{ width: currentSidebarWidth }}
     >
       {/* Module Switcher Header */}
-      <div className={`flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'px-2 py-4' : 'px-4 py-4'} relative z-10`}>
+      <div className={`flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'px-2 py-4' : 'px-4 py-4'} relative z-10`} data-sidebar-fit>
         <div className="relative">
           <button
             onClick={() => hasMultipleModules && setModuleSwitcherOpen(!moduleSwitcherOpen)}

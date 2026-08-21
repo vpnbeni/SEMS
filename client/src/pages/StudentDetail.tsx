@@ -189,7 +189,10 @@ const StudentDetail: React.FC = () => {
                 Class {student.class} - Section {student.section}
               </p>
               <p className="text-sm text-secondary-500 dark:text-secondary-400">
-                Roll Number: {student.rollNumber}
+                Admission No.: {student.rollNumber}
+                {typeof student.classRollNo === 'number'
+                  ? ` · Roll No: ${student.classRollNo}`
+                  : ''}
               </p>
             </div>
           </div>
@@ -361,8 +364,29 @@ const StudentDetail: React.FC = () => {
                   />
                 </svg>
                 <div>
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Roll Number</p>
-                  <p className="text-secondary-900 dark:text-white">{student.rollNumber}</p>
+                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Admission No.</p>
+                  <p className="text-secondary-900 dark:text-white">{student.rollNumber || '-'}</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <svg
+                  className="w-5 h-5 text-secondary-400 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"
+                  />
+                </svg>
+                <div>
+                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Roll No</p>
+                  <p className="text-secondary-900 dark:text-white">
+                    {typeof student.classRollNo === 'number' ? student.classRollNo : '—'}
+                  </p>
                 </div>
               </div>
               {student.admissionDate && (

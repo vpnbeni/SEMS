@@ -71,6 +71,12 @@ const TENANT_MODULE_CATALOG = Object.freeze({
     description: 'Co-curricular and cultural activities: clubs, houses, tours, sports, and school functions.',
     dependencies: ['core'],
   },
+  mdcl: {
+    key: 'mdcl',
+    label: 'MDCL — Medical Clinic',
+    description: 'School medical clinic: minor treatment log book, prescriptions, first aid, and medical supplies.',
+    dependencies: ['core'],
+  },
 });
 
 const TENANT_MODULE_KEYS = Object.freeze(Object.keys(TENANT_MODULE_CATALOG));

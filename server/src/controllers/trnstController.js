@@ -6,15 +6,47 @@ const parseDate = (value) => {
   return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const vehiclePayload = (body = {}) => ({
+const resolveDriverFromStaff = async (req, driverId) => {
+  const id = normalizeString(driverId);
+  if (!id) {
+    return { driverId: null, driverName: '', driverPhone: '' };
+  }
+
+  const Teacher = req.models?.Teacher;
+  if (!Teacher) {
+    return { driverId: null, driverName: '', driverPhone: '' };
+  }
+
+  const staff = await Teacher.findOne({
+    _id: id,
+    isActive: { $ne: false },
+    dutyType: { $regex: /^driver$/i },
+  })
+    .select('_id name phone mobileNo')
+    .lean();
+
+  if (!staff) {
+    return { error: 'Selected driver was not found in STAAF drivers.' };
+  }
+
+  return {
+    driverId: staff._id,
+    driverName: normalizeString(staff.name),
+    driverPhone: normalizeString(staff.mobileNo || staff.phone),
+  };
+};
+
+const vehiclePayload = (body = {}, driverFields = {}) => ({
+  busNo: normalizeString(body.busNo),
   registrationNumber: normalizeString(body.registrationNumber).toUpperCase(),
   vehicleType: ['Bus', 'Mini Bus', 'Van', 'Winger', 'Other'].includes(body.vehicleType) ? body.vehicleType : 'Bus',
   make: normalizeString(body.make),
   model: normalizeString(body.model),
   color: normalizeString(body.color),
   capacity: Number(body.capacity) > 0 ? Number(body.capacity) : 40,
-  driverName: normalizeString(body.driverName),
-  driverPhone: normalizeString(body.driverPhone),
+  driverId: driverFields.driverId ?? null,
+  driverName: normalizeString(driverFields.driverName ?? body.driverName),
+  driverPhone: normalizeString(driverFields.driverPhone ?? body.driverPhone),
   conductorName: normalizeString(body.conductorName),
   conductorPhone: normalizeString(body.conductorPhone),
   insuranceExpiry: parseDate(body.insuranceExpiry),
@@ -56,8 +88,8 @@ const getOverview = async (req, res) => {
     }
 
     const [vehicles, routes, selfStudents] = await Promise.all([
-      Vehicle.find({ isActive: { $ne: false } }).sort({ registrationNumber: 1 }).lean(),
-      Route.find({ isActive: { $ne: false } }).populate('vehicleId', 'registrationNumber vehicleType driverName').sort({ code: 1 }).lean(),
+      Vehicle.find({ isActive: { $ne: false } }).sort({ busNo: 1, registrationNumber: 1 }).lean(),
+      Route.find({ isActive: { $ne: false } }).populate('vehicleId', 'busNo registrationNumber vehicleType driverName').sort({ code: 1 }).lean(),
       SelfStudent ? SelfStudent.find({ isActive: { $ne: false } }).sort({ className: 1, section: 1, name: 1 }).lean() : [],
     ]);
 
@@ -86,7 +118,7 @@ const getOverview = async (req, res) => {
 const listVehicles = async (req, res) => {
   try {
     const Vehicle = req.models?.TransportVehicle;
-    const vehicles = await Vehicle.find({ isActive: { $ne: false } }).sort({ registrationNumber: 1 }).lean();
+    const vehicles = await Vehicle.find({ isActive: { $ne: false } }).sort({ busNo: 1, registrationNumber: 1 }).lean();
     return res.json({ success: true, data: vehicles });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Failed to load vehicles.', error: error.message });
@@ -95,7 +127,14 @@ const listVehicles = async (req, res) => {
 
 const createVehicle = async (req, res) => {
   try {
-    const payload = vehiclePayload(req.body);
+    const driver = await resolveDriverFromStaff(req, req.body?.driverId);
+    if (driver.error) {
+      return res.status(400).json({ success: false, message: driver.error });
+    }
+    const payload = vehiclePayload(req.body, driver);
+    if (!payload.busNo) {
+      return res.status(400).json({ success: false, message: 'Bus number is required.' });
+    }
     if (!payload.registrationNumber) {
       return res.status(400).json({ success: false, message: 'Registration number is required.' });
     }
@@ -103,7 +142,8 @@ const createVehicle = async (req, res) => {
     return res.status(201).json({ success: true, data: vehicle, message: 'Vehicle added.' });
   } catch (error) {
     if (error.code === 11000) {
-      return res.status(400).json({ success: false, message: 'A vehicle with this registration number already exists.' });
+      const field = error.keyPattern?.busNo ? 'bus number' : 'registration number';
+      return res.status(400).json({ success: false, message: `A vehicle with this ${field} already exists.` });
     }
     return res.status(500).json({ success: false, message: 'Failed to add vehicle.', error: error.message });
   }
@@ -111,11 +151,25 @@ const createVehicle = async (req, res) => {
 
 const updateVehicle = async (req, res) => {
   try {
-    const payload = vehiclePayload(req.body);
+    const driver = await resolveDriverFromStaff(req, req.body?.driverId);
+    if (driver.error) {
+      return res.status(400).json({ success: false, message: driver.error });
+    }
+    const payload = vehiclePayload(req.body, driver);
+    if (!payload.busNo) {
+      return res.status(400).json({ success: false, message: 'Bus number is required.' });
+    }
+    if (!payload.registrationNumber) {
+      return res.status(400).json({ success: false, message: 'Registration number is required.' });
+    }
     const vehicle = await req.models.TransportVehicle.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
     if (!vehicle) return res.status(404).json({ success: false, message: 'Vehicle not found.' });
     return res.json({ success: true, data: vehicle, message: 'Vehicle updated.' });
   } catch (error) {
+    if (error.code === 11000) {
+      const field = error.keyPattern?.busNo ? 'bus number' : 'registration number';
+      return res.status(400).json({ success: false, message: `A vehicle with this ${field} already exists.` });
+    }
     return res.status(500).json({ success: false, message: 'Failed to update vehicle.', error: error.message });
   }
 };
@@ -134,7 +188,7 @@ const deleteVehicle = async (req, res) => {
 const listRoutes = async (req, res) => {
   try {
     const routes = await req.models.TransportRoute.find({ isActive: { $ne: false } })
-      .populate('vehicleId', 'registrationNumber vehicleType driverName capacity')
+      .populate('vehicleId', 'busNo registrationNumber vehicleType driverName capacity')
       .sort({ code: 1 })
       .lean();
     return res.json({ success: true, data: routes });

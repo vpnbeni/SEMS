@@ -6,6 +6,7 @@ const {
   createStudent,
   updateStudent,
   deleteStudent,
+  bulkDeleteStudents,
   getStudentsByClass,
   getStudentsByClassSection,
   getStudentsBySubject,
@@ -29,6 +30,7 @@ const {
   assignSubjectsSchema,
   studentQuerySchema,
   bulkUploadSchema,
+  bulkDeleteSchema,
   documentUploadSchema,
   nextRollNumberSchema
 } = require('../validations/studentValidation');
@@ -85,6 +87,7 @@ router.get('/next-roll-number',
 
 // Bulk operations
 router.post('/bulk', validateJoi(bulkUploadSchema), bulkCreateStudents);
+router.post('/bulk-delete', validateJoi(bulkDeleteSchema), bulkDeleteStudents);
 router.get('/import-template', downloadStudentImportTemplate);
 router.post('/import-template/upload', uploadStudentsFromTemplate);
 

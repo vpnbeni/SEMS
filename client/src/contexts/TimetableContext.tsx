@@ -401,7 +401,7 @@ export const TimetableProvider: React.FC<{ children: ReactNode }> = ({ children 
     if (serialized === lastSyncedStateRef.current) return
 
     try {
-      await timetableService.saveState(snapshot)
+      await timetableService.saveState(snapshot, { silent: true })
       lastSyncedStateRef.current = serialized
     } catch {
       // API interceptor already surfaces user-visible errors.

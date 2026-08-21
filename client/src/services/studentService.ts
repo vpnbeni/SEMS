@@ -20,9 +20,22 @@ const uploadImportTemplate = async (file: File) => {
   return response.data
 }
 
+const bulkDeleteStudents = async (ids: string[]) => {
+  const response = await api.post(
+    '/students/bulk-delete',
+    { ids },
+    {
+      timeout: 120000,
+      _silent: true,
+    } as any
+  )
+  return response.data
+}
+
 const studentService = {
   downloadImportTemplate,
   uploadImportTemplate,
+  bulkDeleteStudents,
 }
 
 export default studentService
