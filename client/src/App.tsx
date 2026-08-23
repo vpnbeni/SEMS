@@ -19,6 +19,7 @@ import TmtblLanding from './pages/TmtblLanding'
 import StdntLanding from './pages/StdntLanding'
 import StudentInfo from './pages/StudentInfo'
 import Students from './pages/Students'
+import StudentProfile from './pages/StudentProfile'
 import StaafStaffMembers from './pages/StaafStaffMembers'
 import StaafOverview from './pages/StaafOverview'
 import StaafStaffGroup from './pages/StaafStaffGroup'
@@ -310,8 +311,12 @@ function App() {
               <Route path="stdnt/stdntboard" element={<StudentInfo />} />
               <Route path="stdnt/student-info" element={<Navigate to="/stdnt/stdntboard" replace />} />
               <Route path="stdnt/students" element={<Students />} />
+              <Route path="stdnt/students/:id" element={<StudentProfile />} />
               <Route path="stdnt/classes" element={<TimetableClasses />} />
-              <Route path="stdnt/subjects" element={<TimetableSubjects />} />
+              <Route
+                path="stdnt/subjects"
+                element={<TimetableSubjects showParallelSubjectPairs={false} showCommonPeriod={false} />}
+              />
               <Route path="stdnt/alumni" element={<AlmniDirectory />} />
               <Route path="stdnt" element={<Navigate to="/stdnt/stdntboard" replace />} />
               <Route path="staaf/overview" element={<StaafOverview />} />

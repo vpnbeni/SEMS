@@ -1114,16 +1114,15 @@ const TimetableClasses: React.FC = () => {
           border-radius: 8px;
         }
         .tc-summary-card .tc-table-wrap {
-          width: max-content;
-          max-width: 100%;
+          width: 100%;
         }
         .tc-summary-table {
-          width: max-content;
-          table-layout: auto;
+          width: 100%;
+          table-layout: fixed;
         }
         .tc-summary-table thead th {
           background: #f1f5f9;
-          width: 1%;
+          width: auto;
           padding-left: 10px;
           padding-right: 10px;
         }
@@ -1131,7 +1130,7 @@ const TimetableClasses: React.FC = () => {
           background: #1f2c3f;
         }
         .tc-summary-table tbody td {
-          width: 1%;
+          width: auto;
           padding-left: 10px;
           padding-right: 10px;
         }

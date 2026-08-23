@@ -822,7 +822,8 @@ const getStudents = asyncHandler(async (req, res) => {
 // @route   GET /api/students/:id
 // @access  Private
 const getStudent = asyncHandler(async (req, res) => {
-  const student = await Student.findById(req.params.id)
+  const StudentModel = req.models?.Student || Student;
+  const student = await StudentModel.findById(req.params.id)
     .populate('subjects', 'name code type description');
 
   if (!student) {
@@ -2113,7 +2114,9 @@ const uploadProfileImage = asyncHandler(async (req, res) => {
     );
   }
 
-  const student = await Student.findById(id);
+  // Use the request-scoped model so uploads are saved to the active school's database.
+  const StudentModel = req.models?.Student || Student;
+  const student = await StudentModel.findById(id);
   if (!student) {
     return res.status(HTTP_STATUS.NOT_FOUND).json(
       generateResponse(false, ERROR_MESSAGES.NOT_FOUND)
