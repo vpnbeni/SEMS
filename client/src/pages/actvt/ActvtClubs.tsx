@@ -191,18 +191,32 @@ const ActvtClubs: React.FC = () => {
   return (
     <div className="p-6">
       <div className="mx-auto max-w-[1400px] space-y-6">
-        <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="w-[92px] shrink-0">
-              <p className="mb-1 text-[11px] font-semibold text-slate-500">Add club</p>
+        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <form
+            onSubmit={handleSave}
+            className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-2"
+          >
+            <h3 className="shrink-0 text-lg font-semibold text-slate-900">{clubCountLabel}</h3>
+
+            <div className="relative shrink-0">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search clubs"
+                className="h-9 w-[160px] rounded-lg border border-slate-200 py-1.5 pl-8 pr-2.5 text-sm outline-none focus:border-indigo-400 sm:w-[180px]"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
               <button
                 type="button"
                 onClick={() => logoInputRef.current?.click()}
-                className="flex h-9 w-full items-center justify-center gap-1.5 overflow-hidden rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                className="flex h-9 shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
                 title="Upload and crop logo"
               >
                 {logoPreview ? (
-                  <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md bg-white ring-1 ring-slate-200">
+                  <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-md bg-white ring-1 ring-slate-200">
                     <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain" />
                   </span>
                 ) : (
@@ -217,22 +231,16 @@ const ActvtClubs: React.FC = () => {
                 onChange={handleLogoSelected}
                 className="hidden"
               />
-            </div>
 
-            <label className="min-w-[160px] flex-1 text-[11px]">
-              <span className="mb-1 block font-medium text-slate-500">Club Name</span>
               <input
                 required
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
-                placeholder="e.g. Drama Club"
-                className={inputClassCompact}
+                placeholder="Club name"
+                className={`${inputClassCompact} min-w-[120px] max-w-[180px] flex-1`}
               />
-            </label>
 
-            <label className="w-[148px] shrink-0 text-[11px]">
-              <span className="mb-1 block font-medium text-slate-500">Colour</span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex shrink-0 items-center gap-1.5">
                 <input
                   type="color"
                   value={isLikelyColor(form.color) ? form.color : '#4f46e5'}
@@ -244,34 +252,19 @@ const ActvtClubs: React.FC = () => {
                   value={form.color}
                   onChange={(event) => setForm({ ...form, color: event.target.value })}
                   placeholder="#4f46e5"
-                  className={inputClassCompact}
+                  className={`${inputClassCompact} w-[88px]`}
                 />
               </div>
-            </label>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="h-9 shrink-0 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-            >
-              {saving ? 'Saving...' : 'Add'}
-            </button>
-          </div>
-        </form>
-
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-slate-900">{clubCountLabel}</h3>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search clubs"
-                className="w-[220px] rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm"
-              />
+              <button
+                type="submit"
+                disabled={saving}
+                className="h-9 shrink-0 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {saving ? 'Saving...' : 'Add'}
+              </button>
             </div>
-          </div>
+          </form>
 
           {loading ? <p className="text-sm text-slate-500">Loading clubs...</p> : null}
 

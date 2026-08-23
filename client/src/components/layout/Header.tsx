@@ -364,6 +364,14 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
             backTo: '/actvt/houses',
           }
         }
+        if (subPage === 'students' && houseId) {
+          return {
+            pageTitle: 'Student activity profile',
+            pageSubtitle: 'Participation, certificates, wall of fame, and engagement scores',
+            showBackButton: true,
+            backTo: '/actvt/houses',
+          }
+        }
         if (subPage === 'clubs' && houseId) {
           return {
             pageTitle: 'Club details',
@@ -373,13 +381,18 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
           }
         }
         const titleMap: Record<string, { title: string; subtitle: string }> = {
+          board: { title: 'Activity Board', subtitle: 'Plan, record, score, and judge house and school activities' },
+          calendar: { title: 'Activity Board', subtitle: 'Plan, record, score, and judge house and school activities' },
           clubs: { title: 'Clubs', subtitle: 'Club name, logo, tagline, motto, and colour — then edit the full profile' },
           houses: { title: 'Houses', subtitle: 'House name, logo, tagline, motto, and colour for inter-house competitions' },
-          calendar: { title: 'Activity Calendar', subtitle: 'Plan school, house, and club activities across months' },
+          'student-council': {
+            title: 'Student Council',
+            subtitle: 'Create school and house councils, open posts, and select members',
+          },
           ranking: { title: 'House Ranking', subtitle: 'Track house activity points and live standings' },
           certificates: { title: 'Certificates', subtitle: 'Generate and print certificates for house activity participants' },
           tours: { title: 'Tours & Trips', subtitle: 'Educational tours, trips, and student feedback' },
-          sports: { title: 'Sports', subtitle: 'Inter-house Annual Sports Meet' },
+          sports: { title: 'Sports', subtitle: 'School sports facilities and sports activities' },
           functions: { title: 'Functions', subtitle: 'Plan and record school functions' },
         }
         const info = titleMap[subPage] || { title: 'ACTVT', subtitle: 'Co-curricular and cultural activities' }

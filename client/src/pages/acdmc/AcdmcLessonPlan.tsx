@@ -6,8 +6,6 @@ const service = makeRecordService('/acdmc/lesson-plans')
 
 const AcdmcLessonPlan: React.FC = () => (
   <RecordManager
-    title="Lesson Plan"
-    subtitle="Prepare, edit, and manage class lesson plans."
     fields={[
       { key: 'title', label: 'Title', required: true },
       { key: 'teacherName', label: 'Teacher' },

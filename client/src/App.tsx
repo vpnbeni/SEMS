@@ -104,7 +104,9 @@ import ActvtClubs from './pages/actvt/ActvtClubs'
 import ActvtClubDetail from './pages/actvt/ActvtClubDetail'
 import ActvtHouses from './pages/actvt/ActvtHouses'
 import ActvtHouseDetail from './pages/actvt/ActvtHouseDetail'
-import ActvtCalendar from './pages/actvt/ActvtCalendar'
+import ActvtStudentCouncil from './pages/actvt/ActvtStudentCouncil'
+import ActvtStudentProfile from './pages/actvt/ActvtStudentProfile'
+import ActvtBoard from './pages/actvt/ActvtBoard'
 import ActvtHouseRanking from './pages/actvt/ActvtHouseRanking'
 import ActvtCertificates from './pages/actvt/ActvtCertificates'
 import ActvtTours from './pages/actvt/ActvtTours'
@@ -340,9 +342,12 @@ function App() {
               <Route path="acdmc" element={<Navigate to="/acdmc/lesson-plan" replace />} />
               <Route path="actvt/houses" element={<ActvtHouses />} />
               <Route path="actvt/houses/:id" element={<ActvtHouseDetail />} />
+              <Route path="actvt/student-council" element={<ActvtStudentCouncil />} />
+              <Route path="actvt/students/:id" element={<ActvtStudentProfile />} />
               <Route path="actvt/clubs" element={<ActvtClubs />} />
               <Route path="actvt/clubs/:id" element={<ActvtClubDetail />} />
-              <Route path="actvt/calendar" element={<ActvtCalendar />} />
+              <Route path="actvt/board" element={<ActvtBoard />} />
+              <Route path="actvt/calendar" element={<ActvtBoard />} />
               <Route path="actvt/ranking" element={<ActvtHouseRanking />} />
               <Route path="actvt/certificates" element={<ActvtCertificates />} />
               <Route path="actvt/tours" element={<ActvtTours />} />

@@ -6,8 +6,6 @@ const service = makeRecordService('/actvt/functions')
 
 const ActvtFunctions: React.FC = () => (
   <RecordManager
-    title="Functions"
-    subtitle="Plan, organise, and record school functions."
     fields={[
       { key: 'title', label: 'Function title', required: true },
       { key: 'functionType', label: 'Type', type: 'select', options: ['Annual Day', 'Independence Day', 'Republic Day', 'Farewell', 'Investiture', 'Festival', 'Other'] },

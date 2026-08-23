@@ -703,9 +703,13 @@ const LITE_STUDENT_FIELDS = [
   'name',
   'class',
   'section',
+  'gender',
   'fatherName',
   'motherName',
   'profileImage',
+  'house',
+  'houseId',
+  'phone',
 ].join(' ');
 
 const getStudents = asyncHandler(async (req, res) => {
