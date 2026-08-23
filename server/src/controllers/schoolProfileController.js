@@ -30,6 +30,13 @@ const buildProfileResponse = (tenant, profile) => ({
   metadata: {
     studentRollNumberAssignment: profile?.metadata?.studentRollNumberAssignment || null,
     parentNameHonorifics: profile?.metadata?.parentNameHonorifics || null,
+    uiContrast: profile?.metadata?.uiContrast || {
+      enabled: true,
+      darkBackgroundUsesLightText: true,
+      lightBackgroundUsesDarkText: true,
+      description:
+        'Always use light (white) font colour on dark backgrounds and dark font colour on light backgrounds so text stays readable.',
+    },
   },
 });
 

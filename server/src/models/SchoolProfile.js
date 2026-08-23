@@ -39,6 +39,16 @@ const schoolProfileSchema = new mongoose.Schema({
           'Parent names use Mr. (father) or Mrs. (mother): capital M, lowercase r/rs, period, then a space, then the name in Title Case. Existing titles are normalized even when glued to the name (mr.aj → Mr. Aj).',
       },
     },
+    uiContrast: {
+      enabled: { type: Boolean, default: true },
+      darkBackgroundUsesLightText: { type: Boolean, default: true },
+      lightBackgroundUsesDarkText: { type: Boolean, default: true },
+      description: {
+        type: String,
+        default:
+          'Always use light (white) font colour on dark backgrounds and dark font colour on light backgrounds so text stays readable.',
+      },
+    },
   },
 }, { timestamps: true });
 
