@@ -6,8 +6,6 @@ const service = makeRecordService('/mdcl/cases')
 
 const MdclCases: React.FC = () => (
   <RecordManager
-    title="Medical Cases"
-    subtitle="Log book for minor treatments, first aid, prescriptions, and supplies used."
     fields={[
       { key: 'date', label: 'Date of event', type: 'date', required: true },
       { key: 'studentName', label: 'Student name', required: true },

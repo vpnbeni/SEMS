@@ -6,8 +6,6 @@ const service = makeRecordService('/actvt/tours')
 
 const ActvtTours: React.FC = () => (
   <RecordManager
-    title="Tours & Trips"
-    subtitle="Organise educational tours and collect student feedback."
     fields={[
       { key: 'title', label: 'Title', required: true },
       { key: 'destination', label: 'Destination' },

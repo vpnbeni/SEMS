@@ -6,8 +6,6 @@ const service = makeRecordService('/acdmc/curriculum')
 
 const AcdmcCurriculum: React.FC = () => (
   <RecordManager
-    title="Curriculum"
-    subtitle="Manage and select books for the current and next session."
     fields={[
       { key: 'className', label: 'Class', required: true },
       { key: 'subject', label: 'Subject', required: true },

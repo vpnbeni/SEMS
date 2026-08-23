@@ -12,8 +12,6 @@ export type RecordField = {
 type RecordItem = Record<string, any> & { _id?: string }
 
 export const RecordManager = ({
-  title,
-  subtitle,
   fields,
   list,
   save,
@@ -21,8 +19,6 @@ export const RecordManager = ({
   cardTitle,
   cardMeta,
 }: {
-  title: string
-  subtitle: string
   fields: RecordField[]
   list: () => Promise<RecordItem[]>
   save: (payload: RecordItem, id?: string) => Promise<unknown>
@@ -79,11 +75,7 @@ export const RecordManager = ({
 
   return (
     <div className="p-6">
-      <div className="mx-auto max-w-[1400px] space-y-6">
-        <div className="rounded-[28px] border border-slate-200 bg-white px-6 py-5 shadow-sm">
-          <h2 className="text-2xl font-semibold text-slate-900">{title}</h2>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        </div>
+      <div className="mx-auto max-w-[1400px]">
         <div className="grid gap-6 xl:grid-cols-[380px_1fr]">
           <form onSubmit={handleSave} className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="text-lg font-semibold text-slate-900">{editingId ? 'Edit record' : 'New record'}</h3>

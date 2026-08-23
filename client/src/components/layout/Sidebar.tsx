@@ -547,6 +547,17 @@ const Sidebar: React.FC<SidebarProps> = ({
       badge: null,
     },
     {
+      name: 'Activity Board',
+      href: '/actvt/board',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
       name: 'Houses',
       href: '/actvt/houses',
       module: 'actvt',
@@ -558,23 +569,23 @@ const Sidebar: React.FC<SidebarProps> = ({
       badge: null,
     },
     {
+      name: 'Student Council',
+      href: '/actvt/student-council',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4l2.2 4.45 4.91.71-3.55 3.46.84 4.9L12 15.77l-4.4 2.31.84-4.9L4.89 9.16l4.91-.71L12 4z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
       name: 'Clubs',
       href: '/actvt/clubs',
       module: 'actvt',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      badge: null,
-    },
-    {
-      name: 'Activity Calendar',
-      href: '/actvt/calendar',
-      module: 'actvt',
-      icon: (
-        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
       badge: null,

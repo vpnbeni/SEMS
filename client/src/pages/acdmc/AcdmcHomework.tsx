@@ -6,8 +6,6 @@ const service = makeRecordService('/acdmc/homework')
 
 const AcdmcHomework: React.FC = () => (
   <RecordManager
-    title="Homework"
-    subtitle="Record and publish daily homework for students."
     fields={[
       { key: 'title', label: 'Title', required: true },
       { key: 'teacherName', label: 'Teacher' },
