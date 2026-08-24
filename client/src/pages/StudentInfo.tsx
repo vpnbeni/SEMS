@@ -11,6 +11,45 @@ const sectionToneClasses = [
   'bg-violet-50 text-violet-700 ring-1 ring-violet-100',
 ]
 
+const kpiCards = [
+  {
+    key: 'total',
+    label: 'Total',
+    hint: 'All records',
+    icon: Users,
+    valueClass: 'text-blue-600',
+    iconWrap: 'bg-blue-50 text-blue-600 ring-1 ring-blue-100',
+    bar: 'from-blue-500 to-indigo-400',
+  },
+  {
+    key: 'active',
+    label: 'Active',
+    hint: 'In session',
+    icon: GraduationCap,
+    valueClass: 'text-emerald-600',
+    iconWrap: 'bg-emerald-50 text-emerald-600 ring-1 ring-emerald-100',
+    bar: 'from-emerald-500 to-teal-400',
+  },
+  {
+    key: 'classes',
+    label: 'Classes',
+    hint: 'Tracked',
+    icon: LayoutGrid,
+    valueClass: 'text-violet-600',
+    iconWrap: 'bg-violet-50 text-violet-600 ring-1 ring-violet-100',
+    bar: 'from-violet-500 to-fuchsia-400',
+  },
+  {
+    key: 'sections',
+    label: 'Sections',
+    hint: 'With students',
+    icon: BarChart3,
+    valueClass: 'text-amber-600',
+    iconWrap: 'bg-amber-50 text-amber-600 ring-1 ring-amber-100',
+    bar: 'from-amber-500 to-orange-400',
+  },
+] as const
+
 const StudentInfo: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>()
   const { stats, loading } = useSelector((state: RootState) => state.students)
@@ -49,6 +88,16 @@ const StudentInfo: React.FC = () => {
     }
   }, [stats])
 
+  const genderTotal =
+    genderCounts.boys + genderCounts.girls + genderCounts.other + genderCounts.unspecified || 1
+
+  const kpiValues = {
+    total: stats?.total ?? 0,
+    active: stats?.activeTotal ?? 0,
+    classes: stats?.byClass?.length ?? 0,
+    sections: stats?.byClassSection?.length ?? 0,
+  }
+
   const ageMatrix = useMemo(() => {
     const classes = Array.from(new Set((stats?.ageMatrix || []).map((entry) => entry._id.class)))
     const ages = Array.from(new Set((stats?.ageMatrix || []).map((entry) => entry._id.age))).sort((a, b) => a - b)
@@ -63,106 +112,81 @@ const StudentInfo: React.FC = () => {
 
   if (loading && !stats) {
     return (
-      <div className="rounded-[30px] border border-slate-200 bg-white px-6 py-16 text-center text-sm text-slate-500 shadow-sm">
+      <div className="rounded-2xl border border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500 shadow-sm">
         Loading student dashboard...
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-              <Users className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Total Students</p>
-              <p className="text-3xl font-bold tracking-tight text-slate-900">{stats?.total ?? 0}</p>
-            </div>
-          </div>
-          <p className="mt-4 text-sm text-slate-500">All student records available in the current session.</p>
-        </div>
-
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-              <GraduationCap className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Active Students</p>
-              <p className="text-3xl font-bold tracking-tight text-slate-900">{stats?.activeTotal ?? 0}</p>
-            </div>
-          </div>
-          <p className="mt-4 text-sm text-slate-500">Students currently marked active for academic operations.</p>
-        </div>
-
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
-              <LayoutGrid className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Classes Tracked</p>
-              <p className="text-3xl font-bold tracking-tight text-slate-900">{stats?.byClass?.length ?? 0}</p>
-            </div>
-          </div>
-          <p className="mt-4 text-sm text-slate-500">Distinct classes currently represented in the student database.</p>
-        </div>
-
-        <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
-              <BarChart3 className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-slate-500">Sections Tracked</p>
-              <p className="text-3xl font-bold tracking-tight text-slate-900">{stats?.byClassSection?.length ?? 0}</p>
-            </div>
-          </div>
-          <p className="mt-4 text-sm text-slate-500">Class-section combinations that already contain student records.</p>
-        </div>
+    <div className="space-y-4">
+      <section className="grid grid-cols-2 gap-2.5 xl:grid-cols-4">
+        {kpiCards.map((card) => {
+          const Icon = card.icon
+          return (
+            <article
+              key={card.key}
+              className="group relative overflow-hidden rounded-xl border border-slate-200/80 bg-white px-3.5 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-md"
+            >
+              <div className={`absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r ${card.bar}`} />
+              <div className="flex items-center gap-3">
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${card.iconWrap}`}>
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{card.label}</p>
+                  <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                    <p className={`text-2xl font-bold leading-none tracking-tight ${card.valueClass}`}>
+                      {kpiValues[card.key]}
+                    </p>
+                    <p className="truncate text-[11px] text-slate-400">{card.hint}</p>
+                  </div>
+                </div>
+              </div>
+            </article>
+          )
+        })}
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-        <div className="rounded-[30px] border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 px-6 py-5">
-            <h2 className="text-xl font-semibold tracking-tight text-slate-900">Students by Class and Section</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Section-wise student counts so you can spot dense or thin cohorts at a glance.
-            </p>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-end justify-between gap-3 border-b border-slate-100 px-4 py-3">
+            <div>
+              <h2 className="text-base font-semibold tracking-tight text-slate-900">Students by Class and Section</h2>
+              <p className="text-xs text-slate-500">Dense vs thin cohorts at a glance.</p>
+            </div>
           </div>
 
-          <div className="space-y-5 px-6 py-6">
+          <div className="space-y-3 p-4">
             {classSectionGroups.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-12 text-center text-sm text-slate-500">
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
                 No student distribution is available yet.
               </div>
             ) : (
               classSectionGroups.map((group, groupIndex) => (
-                <div key={group.className} className="rounded-[26px] border border-slate-200 bg-slate-50/70 p-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-lg font-semibold text-slate-900">Class {group.className}</p>
-                      <p className="text-sm text-slate-500">{group.total} students across {group.sections.length} sections</p>
+                <div key={group.className} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-sm font-semibold text-slate-900">Class {group.className}</p>
+                      <p className="text-xs text-slate-500">
+                        {group.total} students · {group.sections.length} sections
+                      </p>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${sectionToneClasses[groupIndex % sectionToneClasses.length]}`}>
-                      {group.sections.length} section{group.sections.length === 1 ? '' : 's'}
-                    </span>
                   </div>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {group.sections.map((section, sectionIndex) => (
                       <div
                         key={`${group.className}-${section.section}`}
-                        className={`rounded-2xl bg-white px-4 py-4 shadow-sm ${sectionToneClasses[(groupIndex + sectionIndex) % sectionToneClasses.length]}`}
+                        className={`rounded-lg px-2.5 py-2 ${sectionToneClasses[(groupIndex + sectionIndex) % sectionToneClasses.length]}`}
                       >
-                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-current/70">
-                          Section {section.section}
+                        <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-current/70">
+                          {section.section}
                         </div>
-                        <div className="mt-2 text-2xl font-bold text-slate-900">{section.count}</div>
-                        <div className="mt-1 text-xs text-slate-500">{section.active} active</div>
+                        <div className="mt-0.5 flex items-baseline justify-between gap-1">
+                          <span className="text-lg font-bold leading-none text-slate-900">{section.count}</span>
+                          <span className="text-[10px] text-slate-500">{section.active} active</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -172,60 +196,86 @@ const StudentInfo: React.FC = () => {
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="rounded-[30px] border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-6 py-5">
-              <h2 className="text-xl font-semibold tracking-tight text-slate-900">Gender Split</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Counts of boys, girls, and records still awaiting a gender value.
-              </p>
+        <div className="space-y-4">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-4 py-3">
+              <h2 className="text-base font-semibold tracking-tight text-slate-900">Gender Split</h2>
             </div>
 
-            <div className="grid gap-4 px-6 py-6">
-              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4">
-                <p className="text-sm font-medium text-blue-700">Boys</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{genderCounts.boys}</p>
+            <div className="space-y-3 p-4">
+              <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="bg-blue-500"
+                  style={{ width: `${(genderCounts.boys / genderTotal) * 100}%` }}
+                  title={`Boys ${genderCounts.boys}`}
+                />
+                <div
+                  className="bg-rose-400"
+                  style={{ width: `${(genderCounts.girls / genderTotal) * 100}%` }}
+                  title={`Girls ${genderCounts.girls}`}
+                />
+                {genderCounts.other > 0 ? (
+                  <div
+                    className="bg-violet-400"
+                    style={{ width: `${(genderCounts.other / genderTotal) * 100}%` }}
+                    title={`Other ${genderCounts.other}`}
+                  />
+                ) : null}
+                {genderCounts.unspecified > 0 ? (
+                  <div
+                    className="bg-slate-400"
+                    style={{ width: `${(genderCounts.unspecified / genderTotal) * 100}%` }}
+                    title={`Unspecified ${genderCounts.unspecified}`}
+                  />
+                ) : null}
               </div>
-              <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-4">
-                <p className="text-sm font-medium text-rose-700">Girls</p>
-                <p className="mt-2 text-3xl font-bold text-slate-900">{genderCounts.girls}</p>
-              </div>
-              {(genderCounts.other > 0 || genderCounts.unspecified > 0) ? (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-violet-100 bg-violet-50 px-4 py-4">
-                    <p className="text-sm font-medium text-violet-700">Other</p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">{genderCounts.other}</p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-                    <p className="text-sm font-medium text-slate-600">Unspecified</p>
-                    <p className="mt-2 text-2xl font-bold text-slate-900">{genderCounts.unspecified}</p>
-                  </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-blue-100 bg-blue-50/80 px-3 py-2">
+                  <p className="text-[11px] font-medium text-blue-700">Boys</p>
+                  <p className="text-xl font-bold leading-tight text-slate-900">{genderCounts.boys}</p>
                 </div>
-              ) : null}
+                <div className="rounded-lg border border-rose-100 bg-rose-50/80 px-3 py-2">
+                  <p className="text-[11px] font-medium text-rose-700">Girls</p>
+                  <p className="text-xl font-bold leading-tight text-slate-900">{genderCounts.girls}</p>
+                </div>
+                {(genderCounts.other > 0 || genderCounts.unspecified > 0) ? (
+                  <>
+                    <div className="rounded-lg border border-violet-100 bg-violet-50/80 px-3 py-2">
+                      <p className="text-[11px] font-medium text-violet-700">Other</p>
+                      <p className="text-lg font-bold leading-tight text-slate-900">{genderCounts.other}</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                      <p className="text-[11px] font-medium text-slate-600">Unspecified</p>
+                      <p className="text-lg font-bold leading-tight text-slate-900">{genderCounts.unspecified}</p>
+                    </div>
+                  </>
+                ) : null}
+              </div>
             </div>
           </div>
 
-          <div className="rounded-[30px] border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-200 px-6 py-5">
-              <h2 className="text-xl font-semibold tracking-tight text-slate-900">Class Snapshot</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Overall headcount by class for the current academic session.
-              </p>
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-100 px-4 py-3">
+              <h2 className="text-base font-semibold tracking-tight text-slate-900">Class Snapshot</h2>
             </div>
 
-            <div className="space-y-3 px-6 py-6">
+            <div className="max-h-[320px] space-y-1.5 overflow-auto p-3">
               {(stats?.byClass || []).length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                  Class-wise student counts will appear here once records are added.
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                  Class-wise counts appear once records are added.
                 </div>
               ) : (
                 (stats?.byClass || []).map((entry, index) => (
-                  <div key={entry._id} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div
+                    key={entry._id}
+                    className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2"
+                  >
                     <div>
                       <p className="text-sm font-semibold text-slate-900">Class {entry._id}</p>
-                      <p className="text-xs text-slate-500">{entry.active} active</p>
+                      <p className="text-[11px] text-slate-500">{entry.active} active</p>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-sm font-semibold ${sectionToneClasses[index % sectionToneClasses.length]}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${sectionToneClasses[index % sectionToneClasses.length]}`}>
                       {entry.count}
                     </span>
                   </div>
@@ -236,41 +286,39 @@ const StudentInfo: React.FC = () => {
         </div>
       </section>
 
-      <section className="rounded-[30px] border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-slate-200 px-6 py-5">
-          <h2 className="text-xl font-semibold tracking-tight text-slate-900">Student Age Matrix</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Age distribution across classes to highlight uneven age spreads inside the same cohort.
-          </p>
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 px-4 py-3">
+          <h2 className="text-base font-semibold tracking-tight text-slate-900">Student Age Matrix</h2>
+          <p className="text-xs text-slate-500">Age spread across classes in this session.</p>
         </div>
 
         {(ageMatrix.classes.length === 0 || ageMatrix.ages.length === 0) ? (
-          <div className="px-6 py-12 text-center text-sm text-slate-500">
+          <div className="px-4 py-8 text-center text-sm text-slate-500">
             Age data will populate here once students with date of birth are available.
           </div>
         ) : (
-          <div className="overflow-x-auto px-6 py-6">
+          <div className="overflow-x-auto p-4">
             <table className="min-w-full divide-y divide-slate-200">
               <thead className="bg-slate-50">
-                <tr className="text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                  <th className="rounded-l-2xl px-4 py-3">Age</th>
+                <tr className="text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                  <th className="rounded-l-xl px-3 py-2">Age</th>
                   {ageMatrix.classes.map((className) => (
-                    <th key={className} className="px-4 py-3">
-                      Class {className}
+                    <th key={className} className="px-3 py-2">
+                      {className}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white text-sm text-slate-700">
                 {ageMatrix.ages.map((age) => (
-                  <tr key={age}>
-                    <td className="px-4 py-3 font-semibold text-slate-900">{age}</td>
+                  <tr key={age} className="hover:bg-slate-50/80">
+                    <td className="px-3 py-2 font-semibold text-slate-900">{age}</td>
                     {ageMatrix.classes.map((className) => {
                       const count = ageMatrix.lookup.get(`${className}-${age}`) || 0
                       return (
-                        <td key={`${className}-${age}`} className="px-4 py-3">
+                        <td key={`${className}-${age}`} className="px-3 py-2">
                           <span
-                            className={`inline-flex min-w-[2.75rem] justify-center rounded-full px-3 py-1 text-xs font-semibold ${
+                            className={`inline-flex min-w-[2.25rem] justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${
                               count > 0 ? 'bg-blue-50 text-blue-700' : 'bg-slate-100 text-slate-400'
                             }`}
                           >

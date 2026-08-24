@@ -202,7 +202,7 @@ const ActvtCertificates: React.FC = () => {
               <label className="text-xs">
                 <span className="mb-1 block font-medium text-slate-500">House activity (optional)</span>
                 <select value={form.eventId} onChange={(e) => setForm({ ...form, eventId: e.target.value })} className={inputClass}>
-                  <option value="">Select activity from calendar</option>
+                  <option value="">Select activity from board</option>
                   {events.map((item) => (
                     <option key={item._id} value={item._id}>
                       {item.title}{item.date ? ` · ${item.date}` : ''}

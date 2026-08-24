@@ -1,4 +1,5 @@
 import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
 import toast from 'react-hot-toast'
 import { Download, Filter, LayoutGrid, RefreshCw, Search, Trash2, Upload, UserPlus, Users } from 'lucide-react'
@@ -8,7 +9,8 @@ import api from '../services/api'
 import studentService from '../services/studentService'
 import timetableService from '../services/timetableService'
 import { makeRecordService } from '../services/recordService'
-import { STUDENT_CLASS_OPTIONS, sortSectionNames } from '../constants/studentClasses'
+import { resolveApiBaseUrl } from '../utils/tenantRuntime'
+import { sortSectionNames } from '../constants/studentClasses'
 import {
   getSectionDisplayName,
   normalizeAllowedSections,
@@ -20,6 +22,12 @@ import { getHouseHeadingTextColor, normalizeHouseColorKey } from '../constants/h
 const STUDENTS_PAGE_SIZE = 250
 const BULK_DELETE_TOAST_ID = 'stdnt-bulk-delete'
 const BULK_DELETE_BATCH_SIZE = 50
+
+const getStudentProfileImageUrl = (profileImage?: string) => {
+  if (!profileImage) return null
+  if (profileImage.startsWith('http')) return profileImage
+  return `${resolveApiBaseUrl().replace(/\/api\/?$/, '')}${profileImage}`
+}
 
 type StudentFormState = {
   rollNumber: string
@@ -272,6 +280,8 @@ const buildClassSectionOptions = (state: Awaited<ReturnType<typeof timetableServ
 }
 
 const Students: React.FC = () => {
+  const navigate = useNavigate()
+  const location = useLocation()
   const dispatch = useDispatch<AppDispatch>()
   const { students, stats, loading, pagination } = useSelector((state: RootState) => state.students)
 
@@ -286,10 +296,10 @@ const Students: React.FC = () => {
   const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [isTemplateDownloading, setIsTemplateDownloading] = useState(false)
   const [isTemplateUploading, setIsTemplateUploading] = useState(false)
-  const [showFilterPanel, setShowFilterPanel] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [viewingStudent, setViewingStudent] = useState<any | null>(null)
   const [tableSortField, setTableSortField] = useState<
     | 'rollNumber'
     | 'classRollNo'
@@ -318,11 +328,22 @@ const Students: React.FC = () => {
   const [sectionOverrideByStudentId, setSectionOverrideByStudentId] = useState<Record<string, string>>({})
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null)
   const [selectedPhotoPreview, setSelectedPhotoPreview] = useState<string | null>(null)
+  const [isPhotoDragActive, setIsPhotoDragActive] = useState(false)
 
   const addFormRef = useRef<HTMLDivElement | null>(null)
   const photoInputRef = useRef<HTMLInputElement | null>(null)
   const bulkDeleteCancelRef = useRef(false)
   const deferredSearch = useDeferredValue(searchTerm)
+
+  useEffect(() => {
+    const student = (location.state as { editStudent?: any } | null)?.editStudent
+    if (!student?._id) return
+    setEditingStudentId(student._id)
+    setIsEditModalOpen(true)
+    setFormData(mapStudentToFormState(student))
+    setFormErrors({})
+    setShowAddForm(false)
+  }, [location.state])
 
   useEffect(() => {
     dispatch(fetchStudentStats({
@@ -513,13 +534,10 @@ const Students: React.FC = () => {
     () => (stats?.byGender || []).find((entry) => entry._id === 'Girl')?.count ?? 0,
     [stats]
   )
-  const classOptions = useMemo(() => {
-    const names = new Set<string>([
-      ...STUDENT_CLASS_OPTIONS,
-      ...classSectionOptions.map((option) => option.className),
-    ])
-    return Array.from(names).filter(Boolean).sort(sortClassNames)
-  }, [classSectionOptions])
+  const classOptions = useMemo(
+    () => classSectionOptions.map((option) => option.className).filter(Boolean),
+    [classSectionOptions]
+  )
   const sectionOptionsForSelectedClass = useMemo(
     () => classSectionOptions.find((option) => option.className === formData.class)?.sections || [],
     [classSectionOptions, formData.class]
@@ -541,6 +559,12 @@ const Students: React.FC = () => {
     if (filterSectionOptions.includes(sectionFilter)) return
     setSectionFilter('')
   }, [filterSectionOptions, sectionFilter])
+
+  useEffect(() => {
+    if (!classFilter) return
+    if (classOptions.includes(classFilter)) return
+    setClassFilter('')
+  }, [classFilter, classOptions])
 
   const selectedCount = selectedIds.length
   const sortedStudents = useMemo(() => {
@@ -789,20 +813,15 @@ const Students: React.FC = () => {
     }
   }
 
-  const handlePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] || null
-    if (!file) return
-
+  const selectPhotoFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
       setPageMessage({ tone: 'error', text: 'Please select an image file for the photograph.' })
-      event.target.value = ''
-      return
+      return false
     }
 
     if (file.size > 5 * 1024 * 1024) {
       setPageMessage({ tone: 'error', text: 'Photograph size must be less than 5MB.' })
-      event.target.value = ''
-      return
+      return false
     }
 
     if (selectedPhotoPreview) {
@@ -812,6 +831,23 @@ const Students: React.FC = () => {
     const nextPreview = URL.createObjectURL(file)
     setSelectedPhoto(file)
     setSelectedPhotoPreview(nextPreview)
+    return true
+  }
+
+  const handlePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!selectPhotoFile(file)) {
+      event.target.value = ''
+    }
+  }
+
+  const handlePhotoDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsPhotoDragActive(false)
+    const file = event.dataTransfer.files?.[0]
+    if (file) selectPhotoFile(file)
   }
 
   const clearSelectedPhoto = () => {
@@ -854,14 +890,13 @@ const Students: React.FC = () => {
       const response = await studentService.uploadImportTemplate(selectedFile)
       const result = response?.data ?? {}
       const createdCount = result.created ?? 0
-      const updatedCount = result.updated ?? 0
       const skippedCount = result.skipped ?? 0
       const errors = Array.isArray(result.errors) ? result.errors : []
       const warnings = Array.isArray(result.warnings) ? result.warnings : []
       const errorPreview = errors.slice(0, 2).map((entry: any) => `Row ${entry?.row}: ${entry?.message}`).join(' | ')
       setPageMessage({
-        tone: errors.length > 0 && createdCount === 0 && updatedCount === 0 ? 'error' : 'success',
-        text: `Import completed. Created: ${createdCount}, Updated: ${updatedCount}, Skipped: ${skippedCount}, Errors: ${errors.length}, Warnings: ${warnings.length}.${errorPreview ? ` ${errorPreview}` : ''}`,
+        tone: errors.length > 0 && createdCount === 0 ? 'error' : 'success',
+        text: `Import completed. Created: ${createdCount}, Skipped (already exist): ${skippedCount}, Errors: ${errors.length}, Warnings: ${warnings.length}.${errorPreview ? ` ${errorPreview}` : ''}`,
       })
       refreshStudentData(1)
       setPage(1)
@@ -1052,6 +1087,10 @@ const Students: React.FC = () => {
     setShowAddForm(false)
   }
 
+  const handleViewStudentProfile = (student: any) => {
+    navigate(`/stdnt/students/${student._id}`)
+  }
+
   const getSectionsForClass = (className: string) => (
     classSectionOptions.find((option) => option.className === className)?.sections || []
   )
@@ -1065,16 +1104,7 @@ const Students: React.FC = () => {
       await api.put(`/students/${studentId}`, { class: className, section: normalizedSection })
       setSectionOverrideByStudentId((prev) => ({ ...prev, [studentId]: normalizedSection }))
       setPageMessage({ tone: 'success', text: `Section updated to ${getSectionDisplayName(normalizedSection)}.` })
-      dispatch(
-        fetchStudents({
-          page,
-          limit: STUDENTS_PAGE_SIZE,
-          sort: '-createdAt',
-          ...(deferredSearch.trim() ? { search: deferredSearch.trim() } : {}),
-          ...(classFilter ? { class: classFilter } : {}),
-          ...(sectionFilter ? { section: sectionFilter } : {}),
-        })
-      )
+      refreshStudentData(page)
     } catch (error: any) {
       const message =
         error?.response?.data?.message ||
@@ -1107,9 +1137,9 @@ const Students: React.FC = () => {
       ) : null}
 
       <div className="space-y-2">
-      <section className="flex flex-wrap gap-3">
-        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+      <section className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+        <div className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
             <Users className="h-4 w-4" />
           </div>
           <div>
@@ -1118,8 +1148,8 @@ const Students: React.FC = () => {
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+        <div className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
             <RefreshCw className="h-4 w-4" />
           </div>
           <div>
@@ -1128,8 +1158,8 @@ const Students: React.FC = () => {
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-sky-50 text-sky-600">
+        <div className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-50 text-sky-600">
             <Users className="h-4 w-4" />
           </div>
           <div>
@@ -1138,8 +1168,8 @@ const Students: React.FC = () => {
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-pink-50 text-pink-600">
+        <div className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-pink-50 text-pink-600">
             <Users className="h-4 w-4" />
           </div>
           <div>
@@ -1148,8 +1178,8 @@ const Students: React.FC = () => {
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+        <div className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
             <LayoutGrid className="h-4 w-4" />
           </div>
           <div>
@@ -1158,8 +1188,8 @@ const Students: React.FC = () => {
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+        <div className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
             <Filter className="h-4 w-4" />
           </div>
           <div>
@@ -1168,8 +1198,8 @@ const Students: React.FC = () => {
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+        <div className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 shadow-sm">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
             <LayoutGrid className="h-4 w-4" />
           </div>
           <div>
@@ -1182,7 +1212,7 @@ const Students: React.FC = () => {
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-2.5">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-full max-w-[220px] shrink-0 sm:w-[220px]">
+            <div className="relative w-full max-w-[85px] shrink-0 sm:w-[85px]">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 value={searchTerm}
@@ -1191,6 +1221,43 @@ const Students: React.FC = () => {
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 py-1.5 pl-9 pr-3 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
               />
             </div>
+
+            <select
+              value={classFilter}
+              onChange={(event) => {
+                setClassFilter(event.target.value)
+                setSectionFilter('')
+              }}
+              className="w-[108px] rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+            >
+              <option value="">All Classes</option>
+              {classOptions.map((option) => (
+                <option key={option} value={option}>{option}</option>
+              ))}
+            </select>
+
+            <select
+              value={sectionFilter}
+              onChange={(event) => setSectionFilter(event.target.value)}
+              className="w-[108px] rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
+            >
+              <option value="">All Sections</option>
+              {filterSectionOptions.map((option) => (
+                <option key={option} value={option}>{getSectionDisplayName(option)}</option>
+              ))}
+            </select>
+
+            <button
+              type="button"
+              onClick={() => {
+                setClassFilter('')
+                setSectionFilter('')
+              }}
+              disabled={!classFilter && !sectionFilter}
+              className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Clear Filters
+            </button>
 
             <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
               <input
@@ -1203,15 +1270,11 @@ const Students: React.FC = () => {
                 className="hidden"
               />
 
-              <p className="hidden max-w-[240px] text-[10px] leading-snug text-slate-500 lg:block">
-                Partial sheets OK with Admission No. Re-uploads overwrite provided fields; blank cells are left as-is.
-              </p>
-
               <button
                 onClick={handleDownloadTemplate}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loading || isTemplateDownloading || isTemplateUploading}
-                title="Download full import template"
+                title="Download the import template. Existing Admission Nos are skipped; only new students are added."
               >
                 <Download className="h-3.5 w-3.5" />
                 {isTemplateDownloading ? 'Downloading...' : 'Template'}
@@ -1221,19 +1284,10 @@ const Students: React.FC = () => {
                 onClick={() => document.getElementById('student-template-upload-input')?.click()}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={loading || isTemplateDownloading || isTemplateUploading}
-                title="Upload template — merges by Admission No.; non-empty cells overwrite; blank cells keep existing values"
+                title="Upload template — existing Admission Nos are skipped; only new students are added"
               >
                 <Upload className="h-3.5 w-3.5" />
                 {isTemplateUploading ? 'Uploading...' : 'Upload'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowFilterPanel((prev) => !prev)}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700"
-              >
-                <Filter className="h-3.5 w-3.5" />
-                Filters
               </button>
 
               <button
@@ -1250,55 +1304,11 @@ const Students: React.FC = () => {
                 disabled={loading || isBulkDeleting || selectedCount === 0}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                {isBulkDeleting ? 'Deleting...' : `Delete Selected${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
+                {isBulkDeleting ? 'Deleting...' : `Delete${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
               </button>
             </div>
           </div>
 
-          {showFilterPanel ? (
-            <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-2">
-                <select
-                  value={classFilter}
-                  onChange={(event) => {
-                    setClassFilter(event.target.value)
-                    setSectionFilter('')
-                  }}
-                  className="w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
-                >
-                  <option value="">All Classes</option>
-                  {classOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                ))}
-              </select>
-
-                <select
-                  value={sectionFilter}
-                  onChange={(event) => setSectionFilter(event.target.value)}
-                  className="w-36 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-900 outline-none transition focus:border-blue-400 focus:bg-white"
-                >
-                  <option value="">All Sections</option>
-                  {filterSectionOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {getSectionDisplayName(option)}
-                    </option>
-                ))}
-              </select>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setClassFilter('')
-                  setSectionFilter('')
-                }}
-                disabled={!classFilter && !sectionFilter}
-                className="inline-flex items-center rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Clear Filters
-              </button>
-            </div>
-          ) : null}
         </div>
       </section>
       </div>
@@ -1334,12 +1344,22 @@ const Students: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3 px-4 py-3">
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+            <div
+              onDragOver={(event) => {
+                event.preventDefault()
+                setIsPhotoDragActive(true)
+              }}
+              onDragLeave={(event) => {
+                if (event.currentTarget === event.target) setIsPhotoDragActive(false)
+              }}
+              onDrop={handlePhotoDrop}
+              className={`rounded-xl border border-dashed bg-slate-50/70 p-2.5 transition ${isPhotoDragActive ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' : 'border-slate-200'}`}
+            >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <h3 className="text-xs font-semibold text-slate-900">Photograph</h3>
                   <p className="text-[11px] text-slate-500">
-                    JPEG, PNG, GIF, or WebP up to 5MB.
+                    JPEG, PNG, GIF, or WebP up to 5MB. You can also drag and drop a photo here.
                   </p>
                 </div>
 
@@ -1857,6 +1877,90 @@ const Students: React.FC = () => {
         </div>
       ) : null}
 
+      {viewingStudent ? (
+        <div
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-3"
+          onClick={() => setViewingStudent(null)}
+        >
+          <section
+            className="mx-auto mt-6 max-w-3xl rounded-2xl border border-slate-200 bg-white shadow-xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-blue-50 text-xl font-semibold text-blue-600">
+                  <span>{String(viewingStudent.name || '?').trim().charAt(0).toUpperCase() || '?'}</span>
+                  {getStudentProfileImageUrl(viewingStudent.profileImage) ? (
+                    <img
+                      src={getStudentProfileImageUrl(viewingStudent.profileImage) || ''}
+                      alt={`${viewingStudent.name || 'Student'} photograph`}
+                      className="absolute h-full w-full object-cover"
+                      onError={(event) => { event.currentTarget.style.display = 'none' }}
+                    />
+                  ) : null}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-lg font-semibold text-slate-900">{viewingStudent.name || 'Student Profile'}</p>
+                  <p className="mt-0.5 text-sm text-slate-500">
+                    Class {viewingStudent.class || '—'} · {getSectionDisplayName(viewingStudent.section) || '—'} · Roll {viewingStudent.classRollNo || '—'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingStudent(null)}
+                className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="grid gap-x-6 gap-y-4 px-5 py-5 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ['Admission No.', viewingStudent.rollNumber],
+                ['Gender', viewingStudent.gender],
+                ['Date of Birth', formatDate(viewingStudent.dateOfBirth)],
+                ['Admission Date', formatDate(viewingStudent.admissionDate)],
+                ['Category', viewingStudent.category],
+                ['Blood Group', viewingStudent.medicalInfo?.bloodGroup],
+                ['Father Name', viewingStudent.fatherName],
+                ['Mother Name', viewingStudent.motherName],
+                ['Guardian Phone', viewingStudent.guardianPhone],
+                ['Student Phone', viewingStudent.phone],
+                ['Email', viewingStudent.email],
+                ['PEN No.', viewingStudent.penNumber],
+                ['Aadhaar Number', viewingStudent.aadharNumber],
+                ['House', viewingStudent.house],
+                ['Bus No.', viewingStudent.busNo],
+                ['Religion', viewingStudent.religion],
+                ['Nationality', viewingStudent.nationality],
+                ['Address', formatStudentAddress(viewingStudent.address)],
+              ].map(([label, value]) => (
+                <div key={label} className={label === 'Address' ? 'sm:col-span-2 lg:col-span-3' : ''}>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+                  <p className="mt-1 break-words text-sm font-medium text-slate-800">{value || '—'}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => {
+                  const student = viewingStudent
+                  setViewingStudent(null)
+                  handleEditStudentRow(student)
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                Edit Profile
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="max-h-[min(720px,calc(100vh-260px))] overflow-auto">
           <table className="w-max border-separate border-spacing-0 text-xs leading-snug">
@@ -1874,6 +1978,7 @@ const Students: React.FC = () => {
                 {[
                   { label: 'Adm No.', field: 'rollNumber' as const },
                   { label: 'Roll', field: 'classRollNo' as const },
+                  { label: 'Photo', field: 'photo' as const },
                   { label: 'Name', field: 'name' as const },
                   { label: 'Class', field: 'class' as const },
                   { label: 'Sec', field: 'section' as const },
@@ -1891,9 +1996,9 @@ const Students: React.FC = () => {
                 ].map(({ label, field }) => (
                   <th
                     key={field}
-                    className="sticky top-0 z-20 cursor-pointer whitespace-nowrap border-b border-slate-200 bg-slate-50 px-2 py-2 select-none hover:text-slate-700"
-                    onClick={() => handleSort(field)}
-                    title={`Sort by ${label}`}
+                    className={`sticky top-0 z-20 whitespace-nowrap border-b border-slate-200 bg-slate-50 px-2 py-2 select-none ${field === 'photo' ? '' : 'cursor-pointer hover:text-slate-700'}`}
+                    onClick={field === 'photo' ? undefined : () => handleSort(field)}
+                    title={field === 'photo' ? undefined : `Sort by ${label}`}
                   >
                     <span className="inline-flex items-center gap-0.5">
                       {label}
@@ -1906,13 +2011,13 @@ const Students: React.FC = () => {
             <tbody className="bg-white text-xs text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan={17} className="px-1.5 py-8 text-center text-slate-500">
+                  <td colSpan={18} className="px-1.5 py-8 text-center text-slate-500">
                     Loading student records...
                   </td>
                 </tr>
               ) : students.length === 0 ? (
                 <tr>
-                  <td colSpan={17} className="px-1.5 py-8 text-center text-slate-500">
+                  <td colSpan={18} className="px-1.5 py-8 text-center text-slate-500">
                     No students found for the current filters.
                   </td>
                 </tr>
@@ -1921,11 +2026,11 @@ const Students: React.FC = () => {
                   <tr
                     key={student._id}
                     className="cursor-pointer hover:bg-slate-50/80"
-                    onClick={() => handleEditStudentRow(student)}
+                    onClick={() => handleViewStudentProfile(student)}
                   >
                     {(() => {
                       const displaySection = sectionOverrideByStudentId[student._id] ?? student.section
-                      const cell = 'whitespace-nowrap border-b border-slate-100 px-2 py-1.5 align-middle'
+                      const cell = 'whitespace-nowrap border-b border-slate-100 px-2 py-2.5 align-middle'
                       return (
                         <>
                     <td className={cell} onClick={(event) => event.stopPropagation()}>
@@ -1939,6 +2044,19 @@ const Students: React.FC = () => {
                     </td>
                     <td className={`${cell} font-semibold text-slate-900`}>{student.rollNumber}</td>
                     <td className={cell}>{student.classRollNo || '-'}</td>
+                    <td className={cell}>
+                      <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-slate-200 bg-blue-50 text-xs font-semibold text-blue-600">
+                        <span>{String(student.name || '?').trim().charAt(0).toUpperCase() || '?'}</span>
+                        {getStudentProfileImageUrl(student.profileImage) ? (
+                          <img
+                            src={getStudentProfileImageUrl(student.profileImage) || ''}
+                            alt={`${student.name || 'Student'} photograph`}
+                            className="absolute h-10 w-10 rounded-full object-cover"
+                            onError={(event) => { event.currentTarget.style.display = 'none' }}
+                          />
+                        ) : null}
+                      </div>
+                    </td>
                     <td className={`${cell} font-semibold text-slate-900`}>{student.name}</td>
                     <td className={cell}>{student.class}</td>
                     <td className={cell} onClick={(event) => event.stopPropagation()}>

@@ -14,6 +14,11 @@ const {
   backfillClassRollNumbersIfNeeded,
 } = require('../utils/assignClassRollNumbers');
 const {
+  formatParentNameWithHonorific,
+  ensureParentNameHonorificRule,
+  backfillParentNameHonorificsIfNeeded,
+} = require('../utils/parentNameHonorifics');
+const {
   normalizeSectionKey,
   getSectionDisplayName,
   getCanonicalSectionName,
@@ -667,6 +672,46 @@ const readWorksheetHeaderCells = (worksheet) => {
 // @desc    Get all students
 // @route   GET /api/students
 // @access  Private
+const STUDENT_LIST_FIELD_WHITELIST = new Set([
+  '_id',
+  'rollNumber',
+  'classRollNo',
+  'name',
+  'class',
+  'section',
+  'fatherName',
+  'motherName',
+  'profileImage',
+  'gender',
+  'email',
+  'phone',
+  'house',
+  'houseId',
+  'busNo',
+  'bloodGroup',
+  'isActive',
+  'dateOfBirth',
+  'category',
+  'createdAt',
+  'updatedAt',
+]);
+
+const LITE_STUDENT_FIELDS = [
+  '_id',
+  'rollNumber',
+  'classRollNo',
+  'name',
+  'class',
+  'section',
+  'gender',
+  'fatherName',
+  'motherName',
+  'profileImage',
+  'house',
+  'houseId',
+  'phone',
+].join(' ');
+
 const getStudents = asyncHandler(async (req, res) => {
   const page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
   const limit = Math.min(500, Math.max(1, parseInt(String(req.query.limit), 10) || 100));
@@ -678,8 +723,16 @@ const getStudents = asyncHandler(async (req, res) => {
     subject, 
     isActive, 
     category,
-    sort = '-createdAt' 
+    sort = '-createdAt',
+    lite,
+    populate,
+    skipBackfill,
+    fields,
   } = req.query;
+
+  const isLite = String(lite) === 'true';
+  const shouldPopulate = !isLite && String(populate) !== 'false';
+  const shouldSkipBackfill = isLite || String(skipBackfill) === 'true';
 
   // Build filter object
   const filter = {};
@@ -718,18 +771,42 @@ const getStudents = asyncHandler(async (req, res) => {
     filter.category = category;
   }
 
-  // Get total count for pagination
   const StudentModel = req.models?.Student || Student;
-  await backfillClassRollNumbersIfNeeded(req.models?.SchoolProfile || SchoolProfile, StudentModel);
-  const totalCount = await Student.countDocuments(filter);
 
-  // Execute query with pagination
-  const students = await Student.find(filter)
-    .populate('subjects', 'name code type')
-    .sort(sort)
-    .skip(skip)
-    .limit(limit)
-    .lean();
+  // One-time Mr./Mrs. rewrite for already-imported students (cheap no-op after first run).
+  await backfillParentNameHonorificsIfNeeded(
+    req.models?.SchoolProfile || SchoolProfile,
+    StudentModel
+  );
+
+  if (!shouldSkipBackfill) {
+    await backfillClassRollNumbersIfNeeded(req.models?.SchoolProfile || SchoolProfile, StudentModel);
+  }
+
+  const [totalCount, students] = await Promise.all([
+    StudentModel.countDocuments(filter),
+    (() => {
+      let query = StudentModel.find(filter);
+
+      if (isLite) {
+        query = query.select(LITE_STUDENT_FIELDS);
+      } else if (fields) {
+        const selected = String(fields)
+          .split(',')
+          .map((field) => field.trim())
+          .filter((field) => STUDENT_LIST_FIELD_WHITELIST.has(field));
+        if (selected.length > 0) {
+          query = query.select(selected.join(' '));
+        }
+      }
+
+      if (shouldPopulate) {
+        query = query.populate('subjects', 'name code type');
+      }
+
+      return query.sort(sort).skip(skip).limit(limit).lean();
+    })(),
+  ]);
 
   const { pagination } = buildPaginationResponse(students, totalCount, page, limit);
 
@@ -745,7 +822,8 @@ const getStudents = asyncHandler(async (req, res) => {
 // @route   GET /api/students/:id
 // @access  Private
 const getStudent = asyncHandler(async (req, res) => {
-  const student = await Student.findById(req.params.id)
+  const StudentModel = req.models?.Student || Student;
+  const student = await StudentModel.findById(req.params.id)
     .populate('subjects', 'name code type description');
 
   if (!student) {
@@ -1267,9 +1345,11 @@ const removeSubjects = asyncHandler(async (req, res) => {
 // @route   GET /api/students/stats
 // @access  Private
 const getStudentStats = asyncHandler(async (req, res) => {
-  const stats = await Student.getStats({
+  const StudentModel = req.models?.Student || Student;
+  const stats = await StudentModel.getStats({
     className: req.query.class,
     section: req.query.section,
+    lite: String(req.query.lite) === 'true',
   });
 
   res.status(HTTP_STATUS.OK).json(
@@ -1589,28 +1669,21 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
 
   const mappedHeaderKeys = receivedHeaders.map((header) => headerToKey.get(normalizeHeaderLabel(header)) || null);
   const presentKeys = new Set(mappedHeaderKeys.filter(Boolean));
+  const requiredTemplateKeys = STUDENT_TEMPLATE_COLUMNS
+    .filter((column) => column.required)
+    .map((column) => column.key);
+  const missingRequiredHeaders = requiredTemplateKeys.filter((key) => !presentKeys.has(key));
 
-  // Partial templates are allowed — only Admission No. is required to link/create rows.
-  if (!presentKeys.has('rollNumber')) {
+  if (missingRequiredHeaders.length > 0 || presentKeys.size === 0) {
     return res.status(HTTP_STATUS.BAD_REQUEST).json({
       success: false,
-      message: 'Template must include an Admission No. column so rows can be linked to students.',
+      message: 'Template headers do not match. Please use the downloaded template without changing required headers.',
       data: {
         expectedHeaders,
         receivedHeaders,
-        missingRequiredHeaders: ['Admission No.'],
-      }
-    });
-  }
-
-  if (presentKeys.size === 0) {
-    return res.status(HTTP_STATUS.BAD_REQUEST).json({
-      success: false,
-      message: 'No recognized template headers found. Please use the downloaded template headers.',
-      data: {
-        expectedHeaders,
-        receivedHeaders,
-        missingRequiredHeaders: ['Admission No.'],
+        missingRequiredHeaders: missingRequiredHeaders.map((key) => (
+          STUDENT_TEMPLATE_COLUMNS.find((column) => column.key === key)?.label || key
+        )),
       }
     });
   }
@@ -1622,6 +1695,14 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     errors: [],
     warnings: []
   };
+
+  const parentHonorificRule = await ensureParentNameHonorificRule(
+    req.models?.SchoolProfile || SchoolProfile
+  );
+  await backfillParentNameHonorificsIfNeeded(
+    req.models?.SchoolProfile || SchoolProfile,
+    StudentModel
+  );
 
   const generatedRollNumbersInRequest = new Set();
   const importGroups = [];
@@ -1638,11 +1719,19 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
   }
 
   const activityHouses = await listActiveActivityHouses(req);
-  const isProvided = (rowData, key) => presentKeys.has(key) && !isBlankImportText(rowData[key]);
 
-  // Pass 1: parse rows in memory (last row wins for the same Admission No. in this file).
-  const pendingByRoll = new Map(); // rollNumber -> { kind, rowNumber, doc|patch, previousClass?, previousSection?, fallbackNotes }
-  const fileRollNumbers = [];
+  // Existing Admission Nos — duplicates are skipped (create-only import).
+  const existingStudents = await StudentModel.find({})
+    .select('rollNumber')
+    .lean();
+  const existingRollNumbers = new Set(
+    existingStudents
+      .map((student) => String(student.rollNumber || '').trim().toUpperCase())
+      .filter(Boolean)
+  );
+
+  const createDocs = [];
+  const seenInFile = new Set();
 
   for (const { rowNumber, valueAt } of dataRows) {
     const rowData = {};
@@ -1663,22 +1752,37 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
 
     if (!rollNumber) {
       rollNumber = buildGeneratedImportRollNumber(rowNumber);
-      while (generatedRollNumbersInRequest.has(rollNumber)) {
+      while (
+        existingRollNumbers.has(rollNumber)
+        || generatedRollNumbersInRequest.has(rollNumber)
+        || seenInFile.has(rollNumber)
+      ) {
         rollNumber = buildGeneratedImportRollNumber(rowNumber);
       }
       rollNumberAutoFilled = true;
       fallbackNotes.push('roll number');
     }
+
     if (rollNumber.length > 20) {
       rollNumber = rollNumber.slice(0, 20);
       fallbackNotes.push('roll number length');
     }
-    generatedRollNumbersInRequest.add(rollNumber);
-    if (!rollNumberAutoFilled) {
-      fileRollNumbers.push(rollNumber);
+
+    // Skip duplicates already in DB or already seen in this file.
+    if (!rollNumberAutoFilled && (
+      existingRollNumbers.has(rollNumber)
+      || generatedRollNumbersInRequest.has(rollNumber)
+      || seenInFile.has(rollNumber)
+    )) {
+      results.skipped += 1;
+      continue;
     }
 
-    if (isProvided(rowData, 'house')) {
+    generatedRollNumbersInRequest.add(rollNumber);
+    seenInFile.add(rollNumber);
+
+    let resolvedHouse = { house: '', houseId: null };
+    if (!isBlankImportText(rowData.house)) {
       const resolvedImportHouse = resolveHouseAgainstCatalog(activityHouses, {
         house: rowData.house,
       });
@@ -1686,215 +1790,12 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
         results.errors.push({ row: rowNumber, message: resolvedImportHouse.error });
         continue;
       }
-      rowData.__resolvedHouse = resolvedImportHouse;
+      resolvedHouse = resolvedImportHouse;
     }
 
-    pendingByRoll.set(rollNumber, {
-      rowNumber,
-      rollNumber,
-      rollNumberAutoFilled,
-      rowData,
-      fallbackNotes,
-    });
-  }
-
-  // Load only students referenced by this file (not the full collection).
-  const uniqueFileRolls = [...new Set(fileRollNumbers)];
-  const existingStudents = uniqueFileRolls.length > 0
-    ? await StudentModel.find({ rollNumber: { $in: uniqueFileRolls } })
-      .select('_id rollNumber name gender class section fatherName motherName guardianPhone dateOfBirth admissionDate category email phone penNumber house houseId busNo aadharNumber religion nationality notes address medicalInfo')
-      .lean()
-    : [];
-  const existingByRoll = new Map(
-    existingStudents.map((student) => [String(student.rollNumber || '').trim().toUpperCase(), student])
-  );
-
-  const createDocs = [];
-  const bulkUpdates = [];
-
-  for (const pending of pendingByRoll.values()) {
-    const {
-      rowNumber,
-      rollNumber,
-      rollNumberAutoFilled,
-      rowData,
-      fallbackNotes,
-    } = pending;
-
-    const existingStudent = rollNumberAutoFilled ? null : existingByRoll.get(rollNumber) || null;
-
-    if (existingStudent) {
-      const patch = {};
-      const previousClass = existingStudent.class;
-      const previousSection = existingStudent.section;
-
-      // Later non-empty values always overwrite (empty cells never clear existing data).
-      const setText = (field, nextValue, maxLen) => {
-        if (isBlankImportText(nextValue)) return;
-        let value = String(nextValue);
-        if (maxLen && value.length > maxLen) {
-          value = value.slice(0, maxLen);
-          fallbackNotes.push(`${field} length`);
-        }
-        patch[field] = value;
-      };
-
-      if (isProvided(rowData, 'name')) setText('name', toTitleCaseName(rowData.name), 100);
-      if (isProvided(rowData, 'fatherName')) setText('fatherName', toTitleCaseName(rowData.fatherName), 100);
-      if (isProvided(rowData, 'motherName')) setText('motherName', toTitleCaseName(rowData.motherName), 100);
-      if (isProvided(rowData, 'gender')) {
-        const gender = normalizeGenderValue(rowData.gender);
-        patch.gender = STUDENT_GENDERS.includes(gender) ? gender : 'Unspecified';
-      }
-      if (isProvided(rowData, 'category')) {
-        const category = normalizeCategoryValue(rowData.category);
-        patch.category = ['General', 'OBC', 'SC', 'ST', 'EWS'].includes(category) ? category : 'General';
-      }
-      if (isProvided(rowData, 'dateOfBirth')) {
-        const dob = normalizeDateValue(rowData.dateOfBirth);
-        if (isValidDateString(dob)) patch.dateOfBirth = dob;
-        else fallbackNotes.push('invalid date of birth');
-      }
-      if (isProvided(rowData, 'admissionDate')) {
-        const admissionDate = normalizeDateValue(rowData.admissionDate);
-        if (isValidDateString(admissionDate)) patch.admissionDate = admissionDate;
-        else fallbackNotes.push('invalid admission date');
-      }
-      if (isProvided(rowData, 'phone')) {
-        const mobileNumber = optionalText(normalizeString(rowData.phone).replace(/\D/g, ''));
-        if (mobileNumber && /^[6-9]\d{9}$/.test(mobileNumber)) {
-          patch.phone = mobileNumber;
-          patch.guardianPhone = mobileNumber;
-        } else {
-          fallbackNotes.push('invalid phone');
-        }
-      }
-      if (isProvided(rowData, 'penNumber')) setText('penNumber', optionalText(rowData.penNumber), 50);
-      if (isProvided(rowData, 'busNo')) setText('busNo', optionalText(rowData.busNo), 30);
-      if (isProvided(rowData, 'religion')) {
-        setText('religion', toTitleCaseName(rowData.religion) || optionalText(rowData.religion), 30);
-      }
-      if (isProvided(rowData, 'nationality')) {
-        setText('nationality', toTitleCaseName(rowData.nationality) || optionalText(rowData.nationality), 30);
-      }
-      if (isProvided(rowData, 'notes')) setText('notes', optionalText(rowData.notes), 1000);
-      if (isProvided(rowData, 'email')) {
-        const email = optionalText(normalizeString(rowData.email).toLowerCase());
-        if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) patch.email = email;
-        else fallbackNotes.push('invalid email');
-      }
-      if (isProvided(rowData, 'aadharNumber')) {
-        const aadhar = optionalText(normalizeString(rowData.aadharNumber).replace(/\D/g, ''));
-        if (aadhar && /^\d{12}$/.test(aadhar)) patch.aadharNumber = aadhar;
-        else fallbackNotes.push('invalid aadhar');
-      }
-      if (isProvided(rowData, 'bloodGroup')) {
-        const bloodGroup = normalizeBloodGroupValue(rowData.bloodGroup);
-        if (bloodGroup) {
-          patch.medicalInfo = {
-            ...(existingStudent.medicalInfo || {}),
-            bloodGroup,
-          };
-        } else {
-          fallbackNotes.push('invalid blood group');
-        }
-      }
-      if (rowData.__resolvedHouse) {
-        patch.house = rowData.__resolvedHouse.house;
-        patch.houseId = rowData.__resolvedHouse.houseId;
-      }
-      if (isProvided(rowData, 'addressText')) {
-        const parsedAddress = parseAddressText(rowData.addressText);
-        const nextAddress = { ...(existingStudent.address || {}) };
-        let addressChanged = false;
-        ['street', 'city', 'state', 'pincode'].forEach((part) => {
-          if (!isBlankImportText(parsedAddress[part])) {
-            nextAddress[part] = parsedAddress[part];
-            addressChanged = true;
-          }
-        });
-        if (addressChanged) patch.address = nextAddress;
-      }
-
-      let nextClass = previousClass;
-      let nextSection = previousSection;
-      let placementChanged = false;
-
-      if (isProvided(rowData, 'class')) {
-        nextClass = normalizeClassValue(rowData.class);
-        if (nextClass.length > 50) {
-          nextClass = nextClass.slice(0, 50);
-          fallbackNotes.push('class length');
-        }
-        if (nextClass !== previousClass) {
-          patch.class = nextClass;
-          placementChanged = true;
-        }
-      }
-
-      if (isProvided(rowData, 'section') || (isProvided(rowData, 'class') && placementChanged)) {
-        const sectionInput = isProvided(rowData, 'section')
-          ? normalizeSectionValue(rowData.section)
-          : previousSection;
-        const resolved = resolveImportSectionForClass(
-          nextClass,
-          sectionInput,
-          classSectionLookup,
-          isProvided(rowData, 'section') ? null : fallbackNotes
-        );
-        if (resolved.error) {
-          results.errors.push({ row: rowNumber, message: resolved.error });
-          continue;
-        }
-        nextSection = resolved.section;
-        if (nextSection !== previousSection) {
-          patch.section = nextSection;
-          placementChanged = true;
-        } else if (isProvided(rowData, 'section')) {
-          patch.section = nextSection;
-        }
-      }
-
-      if (Object.keys(patch).length === 0) {
-        results.skipped += 1;
-        continue;
-      }
-
-      bulkUpdates.push({
-        updateOne: {
-          filter: { _id: existingStudent._id },
-          update: { $set: patch },
-        },
-      });
-      results.updated += 1;
-
-      if (placementChanged) {
-        importGroups.push(
-          { className: previousClass, section: previousSection },
-          { className: patch.class || previousClass, section: patch.section || previousSection }
-        );
-      }
-
-      if (fallbackNotes.length > 0) {
-        results.warnings.push({
-          row: rowNumber,
-          message: `Normalized: ${fallbackNotes.join(', ')}`,
-        });
-      }
-      continue;
-    }
-
-    // ---------- Create path ----------
-    const parsedAddress = presentKeys.has('addressText')
-      ? parseAddressText(rowData.addressText)
-      : { street: '', city: '', state: '', pincode: '' };
-    const mobileNumber = isProvided(rowData, 'phone')
-      ? optionalText(normalizeString(rowData.phone).replace(/\D/g, ''))
-      : undefined;
-    const bloodGroup = isProvided(rowData, 'bloodGroup')
-      ? normalizeBloodGroupValue(rowData.bloodGroup)
-      : '';
-    const resolvedHouse = rowData.__resolvedHouse || { house: '', houseId: null };
+    const parsedAddress = parseAddressText(rowData.addressText);
+    const mobileNumber = optionalText(normalizeString(rowData.phone).replace(/\D/g, ''));
+    const bloodGroup = normalizeBloodGroupValue(rowData.bloodGroup);
 
     const normalizedRow = {
       rollNumber,
@@ -1902,8 +1803,8 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       gender: normalizeGenderValue(rowData.gender),
       class: normalizeClassValue(rowData.class),
       section: normalizeSectionValue(rowData.section),
-      fatherName: toTitleCaseName(rowData.fatherName),
-      motherName: toTitleCaseName(rowData.motherName),
+      fatherName: formatParentNameWithHonorific(rowData.fatherName, 'father', parentHonorificRule),
+      motherName: formatParentNameWithHonorific(rowData.motherName, 'mother', parentHonorificRule),
       guardianPhone: mobileNumber || '',
       dateOfBirth: normalizeDateValue(rowData.dateOfBirth),
       admissionDate: normalizeDateValue(rowData.admissionDate),
@@ -1939,10 +1840,7 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       fallbackNotes.push('name length');
     }
     if (!normalizedRow.class) {
-      results.errors.push({
-        row: rowNumber,
-        message: 'Class is required when creating a new student.',
-      });
+      results.errors.push({ row: rowNumber, message: 'Class is required.' });
       continue;
     }
 
@@ -1959,7 +1857,7 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     normalizedRow.section = resolvedCreateSection.section;
 
     if (!normalizedRow.fatherName) {
-      normalizedRow.fatherName = 'Unknown';
+      normalizedRow.fatherName = formatParentNameWithHonorific('Unknown', 'father', parentHonorificRule);
       fallbackNotes.push('father name');
     }
     if (normalizedRow.fatherName.length > 100) {
@@ -1967,7 +1865,7 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
       fallbackNotes.push('father name length');
     }
     if (!normalizedRow.motherName) {
-      normalizedRow.motherName = 'Unknown';
+      normalizedRow.motherName = formatParentNameWithHonorific('Unknown', 'mother', parentHonorificRule);
       fallbackNotes.push('mother name');
     }
     if (normalizedRow.motherName.length > 100) {
@@ -2043,7 +1941,7 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
     if (normalizedRow.busNo && normalizedRow.busNo.length > 30) {
       normalizedRow.busNo = normalizedRow.busNo.slice(0, 30);
     }
-    if (isProvided(rowData, 'bloodGroup') && !normalizedRow.medicalInfo?.bloodGroup) {
+    if (rowData.bloodGroup && !normalizedRow.medicalInfo?.bloodGroup) {
       fallbackNotes.push('invalid blood group');
       delete normalizedRow.medicalInfo;
     }
@@ -2068,23 +1966,12 @@ const uploadStudentsFromTemplate = asyncHandler(async (req, res) => {
 
     createDocs.push(normalizedRow);
     importGroups.push({ className: normalizedRow.class, section: normalizedRow.section });
+    existingRollNumbers.add(rollNumber);
 
     if (fallbackNotes.length > 0) {
       results.warnings.push({
         row: rowNumber,
         message: `Auto-filled/normalized: ${fallbackNotes.join(', ')}`,
-      });
-    }
-  }
-
-  // Pass 2: batched DB writes (much faster than per-row await).
-  if (bulkUpdates.length > 0) {
-    try {
-      await StudentModel.bulkWrite(bulkUpdates, { ordered: false });
-    } catch (error) {
-      results.errors.push({
-        row: null,
-        message: error.message || 'Bulk update failed for some rows.',
       });
     }
   }
@@ -2227,7 +2114,9 @@ const uploadProfileImage = asyncHandler(async (req, res) => {
     );
   }
 
-  const student = await Student.findById(id);
+  // Use the request-scoped model so uploads are saved to the active school's database.
+  const StudentModel = req.models?.Student || Student;
+  const student = await StudentModel.findById(id);
   if (!student) {
     return res.status(HTTP_STATUS.NOT_FOUND).json(
       generateResponse(false, ERROR_MESSAGES.NOT_FOUND)

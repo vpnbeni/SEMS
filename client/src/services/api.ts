@@ -13,10 +13,31 @@ let storeDispatch: any = null
 // Flag to show session-expired toast only once when multiple requests fail with 401
 let sessionExpiredToastShown = false
 const API_ERROR_TOAST_ID = 'api-error'
+const API_SUCCESS_TOAST_ID = 'api-success'
 const API_ERROR_DEDUP_WINDOW_MS = 2000
+const API_SUCCESS_DEDUP_WINDOW_MS = 2000
 let lastApiErrorToast = {
   message: '',
   shownAt: 0,
+}
+let lastApiSuccessToast = {
+  message: '',
+  shownAt: 0,
+}
+
+const showApiSuccessToast = (message: string) => {
+  const normalizedMessage = message?.trim()
+  if (!normalizedMessage) return
+
+  const now = Date.now()
+  const isDuplicateWithinWindow =
+    lastApiSuccessToast.message === normalizedMessage &&
+    now - lastApiSuccessToast.shownAt < API_SUCCESS_DEDUP_WINDOW_MS
+
+  if (isDuplicateWithinWindow) return
+
+  lastApiSuccessToast = { message: normalizedMessage, shownAt: now }
+  toast.success(normalizedMessage, { id: API_SUCCESS_TOAST_ID })
 }
 
 const showApiErrorToast = (message: string) => {
@@ -147,7 +168,7 @@ api.interceptors.response.use(
       const isSilent = (response.config as any)?._silent === true
 
       if (isModifyingOperation && response.data.message && !isSilent) {
-        toast.success(response.data.message)
+        showApiSuccessToast(response.data.message)
       }
     }
 

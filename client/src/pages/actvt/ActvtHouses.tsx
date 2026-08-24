@@ -13,6 +13,11 @@ type HouseFormState = {
   color: string
 }
 
+type GenderSplit = {
+  boys: number
+  girls: number
+}
+
 type HouseStats = {
   totalStudents: number
   assignedStudents: number
@@ -27,8 +32,8 @@ type HouseStats = {
   matrix: Array<{
     className: string
     section: string
-    houses: Record<string, number>
-    unassigned: number
+    houses: Record<string, GenderSplit>
+    unassigned: GenderSplit
     total: number
   }>
 }
@@ -37,6 +42,8 @@ const emptyForm = (): HouseFormState => ({
   name: '',
   color: '#4f46e5',
 })
+
+const emptyGenderSplit = (): GenderSplit => ({ boys: 0, girls: 0 })
 
 const emptyStats = (): HouseStats => ({
   totalStudents: 0,
@@ -230,74 +237,6 @@ const ActvtHouses: React.FC = () => {
   return (
     <div className="p-6">
       <div className="mx-auto max-w-[1400px] space-y-6">
-        <form onSubmit={handleSave} className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="w-[92px] shrink-0">
-              <p className="mb-1 text-[11px] font-semibold text-slate-500">Add house</p>
-              <button
-                type="button"
-                onClick={() => logoInputRef.current?.click()}
-                className="flex h-9 w-full items-center justify-center gap-1.5 overflow-hidden rounded-lg border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
-                title="Upload and crop logo"
-              >
-                {logoPreview ? (
-                  <span className="flex h-7 w-7 items-center justify-center overflow-hidden rounded-md bg-white ring-1 ring-slate-200">
-                    <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain" />
-                  </span>
-                ) : (
-                  <ImagePlus className="h-3.5 w-3.5" />
-                )}
-                <span className="truncate">Logo</span>
-              </button>
-              <input
-                ref={logoInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleLogoSelected}
-                className="hidden"
-              />
-            </div>
-
-            <label className="min-w-[160px] flex-1 text-[11px]">
-              <span className="mb-1 block font-medium text-slate-500">House Name</span>
-              <input
-                required
-                value={form.name}
-                onChange={(event) => setForm({ ...form, name: event.target.value })}
-                placeholder="e.g. Ashoka"
-                className={inputClassCompact}
-              />
-            </label>
-
-            <label className="w-[148px] shrink-0 text-[11px]">
-              <span className="mb-1 block font-medium text-slate-500">Colour</span>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="color"
-                  value={isLikelyColor(form.color) ? form.color : '#4f46e5'}
-                  onChange={(event) => setForm({ ...form, color: event.target.value })}
-                  className="h-9 w-9 cursor-pointer rounded-lg border border-slate-200 bg-white p-1"
-                  aria-label="Pick house colour"
-                />
-                <input
-                  value={form.color}
-                  onChange={(event) => setForm({ ...form, color: event.target.value })}
-                  placeholder="#4f46e5"
-                  className={inputClassCompact}
-                />
-              </div>
-            </label>
-
-            <button
-              type="submit"
-              disabled={saving}
-              className="h-9 shrink-0 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
-            >
-              {saving ? 'Saving...' : 'Add'}
-            </button>
-          </div>
-        </form>
-
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Users className="h-4 w-4 text-indigo-600" />
@@ -320,18 +259,79 @@ const ActvtHouses: React.FC = () => {
         </section>
 
         <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold text-slate-900">{houseCountLabel}</h3>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <form
+            onSubmit={handleSave}
+            className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-2"
+          >
+            <h3 className="shrink-0 text-lg font-semibold text-slate-900">{houseCountLabel}</h3>
+
+            <div className="relative shrink-0">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search houses"
-                className="w-[220px] rounded-xl border border-slate-200 py-2 pl-9 pr-3 text-sm"
+                className="h-9 w-[160px] rounded-lg border border-slate-200 py-1.5 pl-8 pr-2.5 text-sm outline-none focus:border-indigo-400 sm:w-[180px]"
               />
             </div>
-          </div>
+
+            <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                className="flex h-9 shrink-0 items-center justify-center gap-1.5 overflow-hidden rounded-lg border border-slate-200 bg-white px-2.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                title="Upload and crop logo"
+              >
+                {logoPreview ? (
+                  <span className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-md bg-white ring-1 ring-slate-200">
+                    <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain" />
+                  </span>
+                ) : (
+                  <ImagePlus className="h-3.5 w-3.5" />
+                )}
+                <span className="truncate">Logo</span>
+              </button>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleLogoSelected}
+                className="hidden"
+              />
+
+              <input
+                required
+                value={form.name}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                placeholder="House name"
+                className={`${inputClassCompact} min-w-[120px] max-w-[180px] flex-1`}
+              />
+
+              <div className="flex shrink-0 items-center gap-1.5">
+                <input
+                  type="color"
+                  value={isLikelyColor(form.color) ? form.color : '#4f46e5'}
+                  onChange={(event) => setForm({ ...form, color: event.target.value })}
+                  className="h-9 w-9 cursor-pointer rounded-lg border border-slate-200 bg-white p-1"
+                  aria-label="Pick house colour"
+                />
+                <input
+                  value={form.color}
+                  onChange={(event) => setForm({ ...form, color: event.target.value })}
+                  placeholder="#4f46e5"
+                  className={`${inputClassCompact} w-[88px]`}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="h-9 shrink-0 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {saving ? 'Saving...' : 'Add'}
+              </button>
+            </div>
+          </form>
 
           {loading ? <p className="text-sm text-slate-500">Loading houses...</p> : null}
 
@@ -429,18 +429,26 @@ const ActvtHouses: React.FC = () => {
           <div className="border-b border-slate-100 px-5 py-4">
             <h3 className="text-lg font-semibold text-slate-900">Class · Section · House count</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Student distribution across houses for each class and section.
+              Student distribution across houses for each class and section, split by boys and girls.
             </p>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="sticky left-0 z-10 bg-slate-50 px-4 py-3 font-semibold">Class</th>
-                  <th className="sticky left-[72px] z-10 bg-slate-50 px-4 py-3 font-semibold">Section</th>
+                  <th rowSpan={2} className="sticky left-0 z-10 bg-slate-50 px-4 py-3 font-semibold">
+                    Class
+                  </th>
+                  <th rowSpan={2} className="sticky left-[72px] z-10 bg-slate-50 px-4 py-3 font-semibold">
+                    Section
+                  </th>
                   {records.map((house) => (
-                    <th key={house._id} className="whitespace-nowrap px-4 py-3 font-semibold">
-                      <span className="inline-flex items-center gap-1.5">
+                    <th
+                      key={house._id}
+                      colSpan={2}
+                      className="border-l border-slate-200 px-4 py-2 text-center font-semibold"
+                    >
+                      <span className="inline-flex items-center justify-center gap-1.5">
                         <span
                           className="h-2 w-2 rounded-full"
                           style={{ backgroundColor: isLikelyColor(house.color || '') ? house.color : '#94a3b8' }}
@@ -449,15 +457,38 @@ const ActvtHouses: React.FC = () => {
                       </span>
                     </th>
                   ))}
-                  <th className="whitespace-nowrap px-4 py-3 font-semibold text-amber-700">Not assigned</th>
-                  <th className="whitespace-nowrap px-4 py-3 font-semibold">Total</th>
+                  <th
+                    colSpan={2}
+                    className="border-l border-slate-200 px-4 py-2 text-center font-semibold text-amber-700"
+                  >
+                    Not assigned
+                  </th>
+                  <th rowSpan={2} className="whitespace-nowrap px-4 py-3 font-semibold">Total</th>
+                </tr>
+                <tr>
+                  {records.map((house) => (
+                    <React.Fragment key={`${house._id}-split`}>
+                      <th className="border-l border-slate-200 px-3 py-2 text-center font-semibold normal-case text-slate-500">
+                        Boys
+                      </th>
+                      <th className="px-3 py-2 text-center font-semibold normal-case text-slate-500">
+                        Girls
+                      </th>
+                    </React.Fragment>
+                  ))}
+                  <th className="border-l border-slate-200 px-3 py-2 text-center font-semibold normal-case text-amber-700">
+                    Boys
+                  </th>
+                  <th className="px-3 py-2 text-center font-semibold normal-case text-amber-700">
+                    Girls
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {stats.matrix.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={Math.max(4, records.length + 4)}
+                      colSpan={Math.max(5, records.length * 2 + 5)}
                       className="px-4 py-8 text-center text-slate-500"
                     >
                       No student class/section data available yet.
@@ -470,14 +501,14 @@ const ActvtHouses: React.FC = () => {
                       <td className="sticky left-[72px] bg-white px-4 py-3 text-slate-700">{row.section}</td>
                       {records.map((house) => {
                         const houseId = String(house._id || '')
-                        const count = row.houses[houseId] || 0
                         return (
-                          <td key={houseId} className="px-4 py-3 text-slate-700">
-                            {count || '—'}
-                          </td>
+                          <GenderSplitCells
+                            key={houseId}
+                            split={row.houses[houseId]}
+                          />
                         )
                       })}
-                      <td className="px-4 py-3 font-medium text-amber-700">{row.unassigned || '—'}</td>
+                      <GenderSplitCells split={row.unassigned} tone="font-medium text-amber-700" />
                       <td className="px-4 py-3 font-semibold text-slate-900">{row.total}</td>
                     </tr>
                   ))
@@ -506,6 +537,28 @@ const ActvtHouses: React.FC = () => {
         onCropped={handleCropped}
       />
     </div>
+  )
+}
+
+const GenderSplitCells = ({
+  split,
+  tone = 'text-slate-700',
+}: {
+  split?: GenderSplit
+  tone?: string
+}) => {
+  const value = split || emptyGenderSplit()
+  const empty = value.boys === 0 && value.girls === 0
+
+  return (
+    <>
+      <td className={`border-l border-slate-100 px-3 py-3 text-center tabular-nums ${tone}`}>
+        {empty ? '—' : value.boys}
+      </td>
+      <td className={`px-3 py-3 text-center tabular-nums ${tone}`}>
+        {empty ? '—' : value.girls}
+      </td>
+    </>
   )
 }
 

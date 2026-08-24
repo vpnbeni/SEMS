@@ -6,8 +6,6 @@ const service = makeRecordService('/acdmc/quizzes')
 
 const AcdmcQuiz: React.FC = () => (
   <RecordManager
-    title="Quiz"
-    subtitle="Prepare a topic quiz for students to attempt."
     fields={[
       { key: 'title', label: 'Title', required: true },
       { key: 'teacherName', label: 'Teacher' },

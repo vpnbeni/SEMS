@@ -8,6 +8,7 @@ import api from '@/services/api'
 import toast from 'react-hot-toast'
 import { useTimetable } from '@/contexts/TimetableContext'
 import { sortSectionNames } from '@/constants/studentClasses'
+import { resolveApiBaseUrl } from '@/utils/tenantRuntime'
 
 type ResultTab = 'exam'
 
@@ -18,6 +19,7 @@ type StudentRow = {
   name: string
   class: string
   section: string
+  profileImage?: string | null
   subjects?: Array<{ _id?: string; name?: string } | string>
 }
 
@@ -33,6 +35,24 @@ type SubjectColumn = {
 }
 
 const tabConfig = [{ id: 'exam' as const, label: 'Exam', color: 'indigo' as const }]
+
+const SERVER_URL = resolveApiBaseUrl().replace('/api', '')
+
+const getProfileImageUrl = (profileImage?: string | null) => {
+  if (!profileImage) return null
+  if (profileImage.startsWith('http')) return profileImage
+  return `${SERVER_URL}${profileImage}`
+}
+
+const getInitials = (name: string) => {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (parts.length === 0) return '?'
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
+  return `${parts[0][0] || ''}${parts[1][0] || ''}`.toUpperCase()
+}
 
 const sortClassNames = (left: string, right: string) =>
   left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
@@ -103,7 +123,7 @@ const ExmclResult: React.FC = () => {
       try {
         const [examList, statsRes] = await Promise.all([
           exmclExamService.getAll(),
-          api.get('/students/stats'),
+          api.get('/students/stats', { params: { lite: true } }),
         ])
         if (cancelled) return
 
@@ -247,6 +267,7 @@ const ExmclResult: React.FC = () => {
               section: selectedSection,
               isActive: true,
               sort: 'classRollNo',
+              lite: true,
             },
           }),
           subjectService.getAll({ page: 1, limit: 500, class: selectedClass }).catch(() => null),
@@ -659,6 +680,7 @@ const ExmclResult: React.FC = () => {
             <table className="w-max table-fixed border-collapse divide-y divide-gray-200 dark:divide-gray-700">
               <colgroup>
                 <col className="w-[88px]" />
+                <col className="w-[40px]" />
                 <col className="w-[64px]" />
                 <col className="w-[168px]" />
                 <col className="w-[52px]" />
@@ -673,14 +695,17 @@ const ExmclResult: React.FC = () => {
                   <th className="sticky left-0 z-50 bg-gray-50/95 px-2 py-2 text-left text-xs font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
                     Adm. No.
                   </th>
-                  <th className="sticky left-[88px] z-50 bg-gray-50/95 px-2 py-2 text-left text-xs font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
+                  <th className="sticky left-[88px] z-50 bg-gray-50/95 px-1 py-2 text-left text-xs font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
+                    Photo
+                  </th>
+                  <th className="sticky left-[128px] z-50 bg-gray-50/95 px-2 py-2 text-left text-xs font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
                     Roll No
                   </th>
-                  <th className="sticky left-[152px] z-50 bg-gray-50/95 px-2 py-2 text-left text-xs font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
+                  <th className="sticky left-[192px] z-50 bg-gray-50/95 px-2 py-2 text-left text-xs font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400">
                     Student Name
                   </th>
                   <th
-                    className="sticky left-[320px] z-50 bg-gray-50/95 px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400"
+                    className="sticky left-[360px] z-50 bg-gray-50/95 px-1 py-2 text-center text-[11px] font-semibold uppercase tracking-normal text-gray-500 backdrop-blur dark:bg-gray-900/95 dark:text-gray-400"
                     title="Tick to mark absent in all subjects. To mark one subject only, type Ab in that cell."
                   >
                     Abs
@@ -722,7 +747,7 @@ const ExmclResult: React.FC = () => {
                 {filteredStudents.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6 + filteredSubjects.length}
+                      colSpan={7 + filteredSubjects.length}
                       className="px-4 py-10 text-center text-sm text-gray-400 dark:text-gray-500"
                     >
                       No students found for class {selectedClass}, section {selectedSection}. Add them in Student Management.
@@ -738,6 +763,7 @@ const ExmclResult: React.FC = () => {
                     const stickyBg = fullyAbsent
                       ? 'bg-amber-50 dark:bg-amber-950/40'
                       : 'bg-white dark:bg-gray-800'
+                    const photoUrl = getProfileImageUrl(student.profileImage)
                     return (
                     <tr
                       key={student._id}
@@ -750,16 +776,34 @@ const ExmclResult: React.FC = () => {
                       <td className={`sticky left-0 z-20 px-2 py-1.5 text-sm font-medium text-gray-900 dark:text-white ${stickyBg}`}>
                         {student.rollNumber}
                       </td>
-                      <td className={`sticky left-[88px] z-20 px-2 py-1.5 text-sm text-gray-900 dark:text-white ${stickyBg}`}>
+                      <td className={`sticky left-[88px] z-20 px-1 py-1.5 ${stickyBg}`}>
+                        {photoUrl ? (
+                          <img
+                            src={photoUrl}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="h-7 w-7 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-600"
+                          />
+                        ) : (
+                          <span
+                            aria-hidden
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-[9px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                          >
+                            {getInitials(student.name)}
+                          </span>
+                        )}
+                      </td>
+                      <td className={`sticky left-[128px] z-20 px-2 py-1.5 text-sm text-gray-900 dark:text-white ${stickyBg}`}>
                         {student.classRollNo || '—'}
                       </td>
                       <td
-                        className={`sticky left-[152px] z-20 truncate px-2 py-1.5 text-sm text-gray-900 dark:text-white ${stickyBg}`}
+                        className={`sticky left-[192px] z-20 truncate px-2 py-1.5 text-sm text-gray-900 dark:text-white ${stickyBg}`}
                         title={student.name}
                       >
                         {student.name}
                       </td>
-                      <td className={`sticky left-[320px] z-20 px-1 py-1.5 text-center ${stickyBg}`}>
+                      <td className={`sticky left-[360px] z-20 px-1 py-1.5 text-center ${stickyBg}`}>
                         <input
                           type="checkbox"
                           checked={fullyAbsent}
@@ -823,7 +867,7 @@ const ExmclResult: React.FC = () => {
                 <tfoot className="sticky bottom-0 z-30">
                   <tr className="border-t-2 border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/50">
                     <td
-                      colSpan={3}
+                      colSpan={4}
                       className="sticky left-0 z-40 bg-indigo-50 px-2 py-2 text-xs font-semibold uppercase tracking-normal text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-200"
                     >
                       Subject Average

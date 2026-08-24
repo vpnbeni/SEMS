@@ -4,7 +4,8 @@ import { useSelector } from 'react-redux'
 import { selectUser } from '@/redux/slices/authSlice'
 import { useAcademicSession } from '@/contexts/AcademicSessionContext'
 import { useTimetable } from '@/contexts/TimetableContext'
-import { isFeatureEnabledForPath } from '@/constants/featureAccess'
+import { getModuleForPath, isFeatureEnabledForPath } from '@/constants/featureAccess'
+import { contrastTextOnDark } from '@/constants/uiContrast'
 import { useCentreDetails } from '@/hooks/useCentreDetails'
 import { useOnboardingStatus } from '@/hooks/useOnboarding'
 import { AttndModeSwitch } from '@/components/attnd/AttndModeSwitch'
@@ -316,6 +317,7 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
           'exam-functionaries': { title: 'Exam Functionaries', subtitle: 'Manage examination functionaries and assignments' },
           'duties': { title: 'Duties', subtitle: 'Assign exam functionaries to rooms for each exam day' },
           'candidate-details': { title: 'Candidate Details', subtitle: 'Manage examination candidates and PDF imports' },
+          'cbse-registration': { title: 'CBSE Registration', subtitle: 'Class subjects plus per-student additional subject (double-click)' },
           'subjects': { title: 'Subjects', subtitle: 'Manage subjects taught in the classes.' },
           'examrooms': { title: 'Exam Room/Hall', subtitle: 'Assign rooms and halls for examinations' },
           'answersheets': { title: 'Answer Sheets', subtitle: 'Track and manage answer sheet dispatches' },
@@ -362,6 +364,14 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
             backTo: '/actvt/houses',
           }
         }
+        if (subPage === 'students' && houseId) {
+          return {
+            pageTitle: 'Student activity profile',
+            pageSubtitle: 'Participation, certificates, wall of fame, and engagement scores',
+            showBackButton: true,
+            backTo: '/actvt/houses',
+          }
+        }
         if (subPage === 'clubs' && houseId) {
           return {
             pageTitle: 'Club details',
@@ -371,13 +381,18 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
           }
         }
         const titleMap: Record<string, { title: string; subtitle: string }> = {
+          board: { title: 'Activity Board', subtitle: 'Plan, record, score, and judge house and school activities' },
+          calendar: { title: 'Activity Board', subtitle: 'Plan, record, score, and judge house and school activities' },
           clubs: { title: 'Clubs', subtitle: 'Club name, logo, tagline, motto, and colour — then edit the full profile' },
           houses: { title: 'Houses', subtitle: 'House name, logo, tagline, motto, and colour for inter-house competitions' },
-          calendar: { title: 'Activity Calendar', subtitle: 'Plan school, house, and club activities across months' },
+          'student-council': {
+            title: 'Student Council',
+            subtitle: 'Create school and house councils, open posts, and select members',
+          },
           ranking: { title: 'House Ranking', subtitle: 'Track house activity points and live standings' },
           certificates: { title: 'Certificates', subtitle: 'Generate and print certificates for house activity participants' },
           tours: { title: 'Tours & Trips', subtitle: 'Educational tours, trips, and student feedback' },
-          sports: { title: 'Sports', subtitle: 'Inter-house Annual Sports Meet' },
+          sports: { title: 'Sports', subtitle: 'School sports facilities and sports activities' },
           functions: { title: 'Functions', subtitle: 'Plan and record school functions' },
         }
         const info = titleMap[subPage] || { title: 'ACTVT', subtitle: 'Co-curricular and cultural activities' }
@@ -524,8 +539,17 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
     setEditingPeriodsPerWeek(false)
   }
 
+  const isStdntHeader =
+    location.pathname.startsWith('/stdnt') || getModuleForPath(location.pathname) === 'stdnt'
+
   return (
-    <header className="h-16 flex-shrink-0 sticky top-0 z-40 bg-white dark:bg-secondary-900 border-b border-secondary-200 dark:border-secondary-700 transition-all duration-300">
+    <header
+      className={`h-16 flex-shrink-0 sticky top-0 z-40 transition-all duration-300 ${
+        isStdntHeader
+          ? 'border-b border-white/10 bg-[#1e3a8a] text-white'
+          : 'bg-white dark:bg-secondary-900 border-b border-secondary-200 dark:border-secondary-700'
+      }`}
+    >
       <div className="h-full px-2 md:px-4 flex items-center">
         <div className="flex items-center justify-between w-full gap-6">
           {/* Left: Page context + optional back */}
@@ -533,7 +557,11 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
             <button
               type="button"
               onClick={onToggleSidebar}
-              className="p-1.5 text-secondary-600 dark:text-secondary-400 hover:text-primary-600 dark:hover:text-primary-400 transition-colors duration-200 flex-shrink-0"
+              className={`p-1.5 transition-colors duration-200 flex-shrink-0 ${
+                isStdntHeader
+                  ? 'text-white/80 hover:text-white'
+                  : 'text-secondary-600 dark:text-secondary-400 hover:text-primary-600 dark:hover:text-primary-400'
+              }`}
               aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
               title={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
@@ -542,7 +570,11 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
                 <path d="M9 5v14" strokeWidth={1.8} />
               </svg>
             </button>
-            <span className="h-6 w-px bg-secondary-200 dark:bg-secondary-700 flex-shrink-0 mr-1" />
+            <span
+              className={`h-6 w-px flex-shrink-0 mr-1 ${
+                isStdntHeader ? 'bg-white/20' : 'bg-secondary-200 dark:bg-secondary-700'
+              }`}
+            />
             {showBackButton && backTo && (
               <button
                 type="button"
@@ -578,10 +610,18 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
               ) : null
             ) : (
               <div className="min-w-0">
-                <h1 className="text-lg md:text-xl font-bold text-gray-900 dark:text-white truncate tracking-tight">
+                <h1
+                  className={`text-lg md:text-xl font-bold truncate tracking-tight ${
+                    isStdntHeader ? contrastTextOnDark.title : 'text-gray-900 dark:text-white'
+                  }`}
+                >
                   {pageTitle}
                 </h1>
-                <p className="hidden sm:block text-[11px] md:text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5 font-medium">
+                <p
+                  className={`hidden sm:block text-[11px] md:text-xs truncate mt-0.5 font-medium ${
+                    isStdntHeader ? contrastTextOnDark.muted : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
                   {pageSubtitle}
                 </p>
               </div>
@@ -667,11 +707,26 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
 
             {/* Academic Session Badge */}
             {currentSession && (
-              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary-50 dark:bg-primary-900/20 border border-primary-200/60 dark:border-primary-800/40">
-                <svg className="w-3.5 h-3.5 text-primary-500 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div
+                className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${
+                  isStdntHeader
+                    ? 'border border-white/15 bg-white/10'
+                    : 'bg-primary-50 dark:bg-primary-900/20 border border-primary-200/60 dark:border-primary-800/40'
+                }`}
+              >
+                <svg
+                  className={`w-3.5 h-3.5 ${isStdntHeader ? 'text-white/80' : 'text-primary-500 dark:text-primary-400'}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                <span className="text-xs font-semibold text-primary-700 dark:text-primary-300">
+                <span
+                  className={`text-xs font-semibold ${
+                    isStdntHeader ? 'text-white' : 'text-primary-700 dark:text-primary-300'
+                  }`}
+                >
                   {currentSession}
                 </span>
               </div>
@@ -686,7 +741,13 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
             {/* Search */}
             <div className="hidden md:block">
               <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors group-focus-within:text-primary-500 text-secondary-400">
+                <div
+                  className={`absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none transition-colors ${
+                    isStdntHeader
+                      ? 'text-white/50 group-focus-within:text-white'
+                      : 'text-secondary-400 group-focus-within:text-primary-500'
+                  }`}
+                >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
@@ -696,7 +757,11 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
                   value={headerSearchValue}
                   onChange={(event) => handleHeaderSearchChange(event.target.value)}
                   placeholder={headerSearchConfig.placeholder}
-                  className="pl-9 pr-4 py-2 w-28 sm:w-32 text-sm bg-gray-50/80 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 rounded-xl focus:ring-0 focus:border-primary-400 focus:bg-white dark:focus:bg-gray-800 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)] transition-all duration-200 placeholder:text-gray-400 dark:text-white"
+                  className={`pl-9 pr-4 py-2 w-28 sm:w-32 text-sm rounded-xl focus:ring-0 transition-all duration-200 ${
+                    isStdntHeader
+                      ? 'border border-white/15 bg-white/10 text-white placeholder:text-white/45 focus:border-white/40 focus:bg-white/15'
+                      : 'bg-gray-50/80 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/80 focus:border-primary-400 focus:bg-white dark:focus:bg-gray-800 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.08)] placeholder:text-gray-400 dark:text-white'
+                  }`}
                 />
               </div>
             </div>
@@ -707,10 +772,15 @@ const Header: React.FC<HeaderProps> = ({ isSidebarCollapsed, onToggleSidebar }) 
                 onClick={() => setNotificationsOpen(!notificationsOpen)}
                 aria-label="Toggle notifications"
                 title="Notifications"
-                className={`relative p-2 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${notificationsOpen
-                  ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
-                  : 'text-secondary-500 hover:text-secondary-700 dark:text-secondary-400 dark:hover:text-secondary-200 hover:bg-secondary-50 dark:hover:bg-secondary-800'
-                  }`}
+                className={`relative p-2 rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 ${
+                  isStdntHeader
+                    ? notificationsOpen
+                      ? 'bg-white/15 text-white focus:ring-white/20'
+                      : 'text-white/80 hover:text-white hover:bg-white/10 focus:ring-white/20'
+                    : notificationsOpen
+                      ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400 focus:ring-primary-500/20'
+                      : 'text-secondary-500 hover:text-secondary-700 dark:text-secondary-400 dark:hover:text-secondary-200 hover:bg-secondary-50 dark:hover:bg-secondary-800 focus:ring-primary-500/20'
+                }`}
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />

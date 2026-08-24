@@ -2,12 +2,17 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import {
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
+  ArrowUpDown,
   Crown,
   Flag,
+  Medal,
   Pencil,
   Plus,
   Trash2,
+  Trophy,
   UserRound,
   Users,
 } from 'lucide-react'
@@ -19,6 +24,7 @@ import {
   getHouseHeadingTextColor,
   usesDarkHouseHeading,
 } from '@/constants/houseColorMetadata'
+import { HOUSE_COUNCIL_MEMBER_ROLES } from '@/constants/councilMetadata'
 
 type HouseTeacher = {
   _id?: string
@@ -47,6 +53,35 @@ type HouseStudent = {
   gender?: string
   phone?: string
   fatherName?: string
+  motherName?: string
+  participationCount?: number
+}
+
+type StudentSortKey =
+  | 'rollNumber'
+  | 'classRollNo'
+  | 'name'
+  | 'fatherName'
+  | 'motherName'
+  | 'class'
+  | 'section'
+  | 'gender'
+  | 'participationCount'
+  | 'classSectionName'
+
+type HouseWallOfFameEntry = {
+  _id: string
+  name?: string
+  class?: string
+  section?: string
+  participationCount?: number
+  medalCount?: number
+  highlight?: {
+    role?: string
+    title?: string
+    eventTitle?: string
+    issuedOn?: string
+  } | null
 }
 
 type HouseDetailsPayload = {
@@ -62,6 +97,7 @@ type HouseDetailsPayload = {
     councilMembers?: HouseCouncilMember[]
   }
   students: HouseStudent[]
+  wallOfFame?: HouseWallOfFameEntry[]
   stats: {
     totalStudents: number
     teachersCount: number
@@ -71,7 +107,7 @@ type HouseDetailsPayload = {
   }
 }
 
-const COUNCIL_ROLES = ['Captain', 'Vice Captain', 'Secretary', 'Prefect', 'Sports Captain', 'Member']
+const COUNCIL_ROLES: string[] = [...HOUSE_COUNCIL_MEMBER_ROLES]
 const TEACHER_ROLES = ['House Master', 'House Mistress', 'Assistant House Teacher', 'Mentor', 'House Teacher']
 
 const isLikelyColor = (value = '') => /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim())
@@ -90,11 +126,23 @@ const ActvtHouseDetail: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [data, setData] = useState<HouseDetailsPayload | null>(null)
   const [studentQuery, setStudentQuery] = useState('')
+  const [classFilter, setClassFilter] = useState('')
+  const [sectionFilter, setSectionFilter] = useState('')
+  const [studentSort, setStudentSort] = useState<{ key: StudentSortKey; direction: 'asc' | 'desc' }>({
+    key: 'classSectionName',
+    direction: 'asc',
+  })
 
   const [teacherForm, setTeacherForm] = useState({ name: '', role: 'House Teacher', phone: '', email: '' })
-  const [councilForm, setCouncilForm] = useState({
+  const [councilForm, setCouncilForm] = useState<{
+    name: string
+    role: string
+    className: string
+    section: string
+    phone: string
+  }>({
     name: '',
-    role: 'Captain',
+    role: COUNCIL_ROLES[0],
     className: '',
     section: '',
     phone: '',
@@ -138,16 +186,120 @@ const ActvtHouseDetail: React.FC = () => {
   const headingText = getHouseHeadingTextColor(tone)
   const darkHeading = usesDarkHouseHeading(tone)
 
+  const classOptions = useMemo(() => {
+    const values = new Set<string>()
+    ;(data?.students || []).forEach((student) => {
+      const value = String(student.class || '').trim()
+      if (value) values.add(value)
+    })
+    return Array.from(values).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    )
+  }, [data?.students])
+
+  const sectionOptions = useMemo(() => {
+    const values = new Set<string>()
+    ;(data?.students || []).forEach((student) => {
+      if (classFilter && String(student.class || '').trim() !== classFilter) return
+      const value = String(student.section || '').trim()
+      if (value) values.add(value)
+    })
+    return Array.from(values).sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+    )
+  }, [data?.students, classFilter])
+
+  useEffect(() => {
+    if (sectionFilter && !sectionOptions.includes(sectionFilter)) {
+      setSectionFilter('')
+    }
+  }, [sectionFilter, sectionOptions])
+
   const filteredStudents = useMemo(() => {
     const students = data?.students || []
     const needle = studentQuery.trim().toLowerCase()
-    if (!needle) return students
-    return students.filter((student) =>
-      `${student.name} ${student.rollNumber || ''} ${student.class || ''} ${student.section || ''} ${student.fatherName || ''}`
+    const filtered = students.filter((student) => {
+      if (classFilter && String(student.class || '').trim() !== classFilter) return false
+      if (sectionFilter && String(student.section || '').trim() !== sectionFilter) return false
+      if (!needle) return true
+      return `${student.name} ${student.rollNumber || ''} ${student.class || ''} ${student.section || ''} ${student.fatherName || ''} ${student.motherName || ''}`
         .toLowerCase()
         .includes(needle)
+    })
+
+    const direction = studentSort.direction === 'asc' ? 1 : -1
+    const compareText = (left?: string | number | null, right?: string | number | null) =>
+      String(left ?? '').localeCompare(String(right ?? ''), undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      })
+
+    return [...filtered].sort((a, b) => {
+      if (studentSort.key === 'classSectionName') {
+        const classCompare = compareText(a.class, b.class)
+        if (classCompare !== 0) return classCompare * direction
+        const sectionCompare = compareText(a.section, b.section)
+        if (sectionCompare !== 0) return sectionCompare * direction
+        return compareText(a.name, b.name) * direction
+      }
+
+      if (studentSort.key === 'classRollNo' || studentSort.key === 'participationCount') {
+        const left = Number(a[studentSort.key] ?? -1)
+        const right = Number(b[studentSort.key] ?? -1)
+        if (left !== right) return (left - right) * direction
+        return compareText(a.name, b.name)
+      }
+
+      const left = a[studentSort.key]
+      const right = b[studentSort.key]
+      const primary = compareText(left as string | number | null | undefined, right as string | number | null | undefined)
+      if (primary !== 0) return primary * direction
+      return compareText(a.name, b.name)
+    })
+  }, [data?.students, studentQuery, classFilter, sectionFilter, studentSort])
+
+  const toggleStudentSort = (key: StudentSortKey) => {
+    setStudentSort((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === 'asc' ? 'desc' : 'asc' }
+      }
+      return { key, direction: 'asc' }
+    })
+  }
+
+  const SortHeader = ({
+    label,
+    sortKey,
+    className = '',
+  }: {
+    label: string
+    sortKey: StudentSortKey
+    className?: string
+  }) => {
+    const active = studentSort.key === sortKey
+    return (
+      <th className={`px-2 py-3 sm:px-3 ${className}`}>
+        <button
+          type="button"
+          onClick={() => toggleStudentSort(sortKey)}
+          className={`inline-flex max-w-full items-center gap-1 font-semibold uppercase tracking-wide ${
+            active ? 'text-indigo-700' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span className="truncate">{label}</span>
+          {active ? (
+            studentSort.direction === 'asc' ? (
+              <ArrowUp className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <ArrowDown className="h-3.5 w-3.5 shrink-0" />
+            )
+          ) : (
+            <ArrowUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+          )}
+        </button>
+      </th>
     )
-  }, [data?.students, studentQuery])
+  }
 
   const persistMembers = async (
     nextTeachers: HouseTeacher[],
@@ -269,7 +421,7 @@ const ActvtHouseDetail: React.FC = () => {
       },
     ]
     await persistMembers(house?.teachers || [], next, 'Council member added.')
-    setCouncilForm({ name: '', role: 'Captain', className: '', section: '', phone: '' })
+    setCouncilForm({ name: '', role: COUNCIL_ROLES[0], className: '', section: '', phone: '' })
   }
 
   const handleRemoveCouncil = async (index: number) => {
@@ -491,10 +643,21 @@ const ActvtHouseDetail: React.FC = () => {
           </section>
 
           <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center gap-2">
-              <Crown className="h-4 w-4 text-amber-600" />
-              <h2 className="text-lg font-semibold text-slate-900">House Council Members</h2>
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Crown className="h-4 w-4 text-amber-600" />
+                <h2 className="text-lg font-semibold text-slate-900">House Council Members</h2>
+              </div>
+              <Link
+                to="/actvt/student-council"
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+              >
+                Manage via Student Council →
+              </Link>
             </div>
+            <p className="mb-4 text-xs text-slate-500">
+              Members selected from a house council on Student Council appear here automatically.
+            </p>
 
             <form onSubmit={handleAddCouncil} className="mb-4 grid gap-2 sm:grid-cols-2">
               <input
@@ -567,70 +730,193 @@ const ActvtHouseDetail: React.FC = () => {
           </section>
         </div>
 
+        <section className="rounded-[24px] border border-amber-100 bg-gradient-to-br from-amber-50/80 via-white to-white p-5 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-amber-500" />
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">House wall of fame</h2>
+                <p className="text-xs text-slate-500">
+                  Top achievers from medals and activity participation
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {(data?.wallOfFame || []).length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-amber-200 bg-white/70 px-4 py-8 text-center text-sm text-slate-500">
+              No wall of fame entries yet. Issue house participation or medal certificates after activities to rank students here.
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {(data?.wallOfFame || []).map((entry, index) => (
+                <button
+                  key={entry._id}
+                  type="button"
+                  onClick={() => navigate(`/actvt/students/${entry._id}`)}
+                  className="rounded-2xl border border-amber-100 bg-white p-4 text-left shadow-sm transition hover:border-amber-300 hover:shadow-md"
+                >
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <div
+                      className="flex h-10 w-10 items-center justify-center rounded-xl text-sm font-bold text-white"
+                      style={{ backgroundColor: tone }}
+                    >
+                      {initialsOf(entry.name || '')}
+                    </div>
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                      #{index + 1}
+                    </span>
+                  </div>
+                  <p className="font-semibold text-slate-900">{entry.name || 'Student'}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {[entry.class, entry.section].filter(Boolean).join('-') || 'Class not set'}
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                      <Medal className="h-3 w-3" />
+                      {entry.medalCount || 0} medal{(entry.medalCount || 0) === 1 ? '' : 's'}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                      {entry.participationCount || 0} cert{(entry.participationCount || 0) === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  {entry.highlight ? (
+                    <p className="mt-3 line-clamp-2 text-xs text-slate-600">
+                      <span className="font-semibold text-amber-700">{entry.highlight.role || 'Winner'}</span>
+                      {' · '}
+                      {entry.highlight.eventTitle || entry.highlight.title || 'Activity'}
+                    </p>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+
         <section className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Users className="h-4 w-4 text-indigo-600" />
               <h2 className="text-lg font-semibold text-slate-900">
                 Students ({filteredStudents.length})
               </h2>
+              <select
+                value={classFilter}
+                onChange={(event) => {
+                  setClassFilter(event.target.value)
+                  setSectionFilter('')
+                }}
+                className="h-9 min-w-[110px] rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-indigo-400"
+              >
+                <option value="">All classes</option>
+                {classOptions.map((className) => (
+                  <option key={className} value={className}>{className}</option>
+                ))}
+              </select>
+              <select
+                value={sectionFilter}
+                onChange={(event) => setSectionFilter(event.target.value)}
+                className="h-9 min-w-[110px] rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-indigo-400"
+              >
+                <option value="">All sections</option>
+                {sectionOptions.map((section) => (
+                  <option key={section} value={section}>{section}</option>
+                ))}
+              </select>
+              {(classFilter || sectionFilter || studentQuery) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClassFilter('')
+                    setSectionFilter('')
+                    setStudentQuery('')
+                  }}
+                  className="h-9 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Clear filters
+                </button>
+              ) : null}
             </div>
             <input
               value={studentQuery}
               onChange={(event) => setStudentQuery(event.target.value)}
               placeholder="Search students"
-              className="w-full max-w-xs rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              className="h-9 w-[180px] rounded-xl border border-slate-200 px-3 text-sm outline-none focus:border-indigo-400"
             />
           </div>
 
-          {(data?.stats.byClassSection || []).length > 0 ? (
-            <div className="mb-4 flex flex-wrap gap-2">
-              {data!.stats.byClassSection.map((row) => (
-                <span
-                  key={`${row.className}-${row.section}`}
-                  className="rounded-full bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600"
-                >
-                  {row.className} {row.section}: {row.count}
-                </span>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="overflow-x-auto rounded-2xl border border-slate-100">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Adm No</th>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Class</th>
-                  <th className="px-4 py-3">Section</th>
-                  <th className="px-4 py-3">Gender</th>
-                  <th className="px-4 py-3">Father</th>
-                  <th className="px-4 py-3">Phone</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredStudents.length === 0 ? (
+          <div className="w-full overflow-hidden rounded-2xl border border-slate-100">
+            <div className="max-h-[calc(2.5rem+20*2.75rem)] overflow-y-auto">
+              <table className="w-full table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[9%]" />
+                  <col className="w-[7%]" />
+                  <col className="w-[16%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[14%]" />
+                  <col className="w-[8%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[9%]" />
+                  <col className="w-[14%]" />
+                </colgroup>
+                <thead className="sticky top-0 z-[1] bg-slate-50 text-left text-xs shadow-sm">
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
-                      No students assigned to this house yet. Assign houses from STDNT student records.
-                    </td>
+                    <SortHeader label="Adm No" sortKey="rollNumber" />
+                    <SortHeader label="Roll No" sortKey="classRollNo" />
+                    <SortHeader label="Student Name" sortKey="name" />
+                    <SortHeader label="Father Name" sortKey="fatherName" />
+                    <SortHeader label="Mother Name" sortKey="motherName" />
+                    <SortHeader label="Class" sortKey="class" />
+                    <SortHeader label="Section" sortKey="section" />
+                    <SortHeader label="Gender" sortKey="gender" />
+                    <SortHeader label="Participation" sortKey="participationCount" />
                   </tr>
-                ) : (
-                  filteredStudents.map((student) => (
-                    <tr key={student._id} className="border-t border-slate-100">
-                      <td className="px-4 py-3 text-slate-700">{student.rollNumber || '—'}</td>
-                      <td className="px-4 py-3 font-medium text-slate-900">{student.name}</td>
-                      <td className="px-4 py-3 text-slate-700">{student.class || '—'}</td>
-                      <td className="px-4 py-3 text-slate-700">{student.section || '—'}</td>
-                      <td className="px-4 py-3 text-slate-700">{student.gender || '—'}</td>
-                      <td className="px-4 py-3 text-slate-700">{student.fatherName || '—'}</td>
-                      <td className="px-4 py-3 text-slate-700">{student.phone || '—'}</td>
+                </thead>
+                <tbody>
+                  {filteredStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="px-3 py-8 text-center text-slate-500">
+                        No students assigned to this house yet. Assign houses from STDNT student records.
+                      </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : (
+                    filteredStudents.map((student) => (
+                      <tr
+                        key={student._id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => navigate(`/actvt/students/${student._id}`)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            navigate(`/actvt/students/${student._id}`)
+                          }
+                        }}
+                        className="cursor-pointer border-t border-slate-100 transition hover:bg-indigo-50/60"
+                      >
+                        <td className="truncate px-2 py-3 text-slate-700 sm:px-3">{student.rollNumber || '—'}</td>
+                        <td className="truncate px-2 py-3 text-slate-700 sm:px-3">{student.classRollNo ?? '—'}</td>
+                        <td className="truncate px-2 py-3 font-medium text-indigo-700 sm:px-3" title={student.name}>
+                          {student.name}
+                        </td>
+                        <td className="truncate px-2 py-3 text-slate-700 sm:px-3" title={student.fatherName || ''}>
+                          {student.fatherName || '—'}
+                        </td>
+                        <td className="truncate px-2 py-3 text-slate-700 sm:px-3" title={student.motherName || ''}>
+                          {student.motherName || '—'}
+                        </td>
+                        <td className="truncate px-2 py-3 text-slate-700 sm:px-3">{student.class || '—'}</td>
+                        <td className="truncate px-2 py-3 text-slate-700 sm:px-3">{student.section || '—'}</td>
+                        <td className="truncate px-2 py-3 text-slate-700 sm:px-3">{student.gender || '—'}</td>
+                        <td className="truncate px-2 py-3 font-semibold text-slate-900 sm:px-3">
+                          {student.participationCount ?? 0}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </section>
       </div>

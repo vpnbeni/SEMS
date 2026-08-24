@@ -19,6 +19,7 @@ import TmtblLanding from './pages/TmtblLanding'
 import StdntLanding from './pages/StdntLanding'
 import StudentInfo from './pages/StudentInfo'
 import Students from './pages/Students'
+import StudentProfile from './pages/StudentProfile'
 import StaafStaffMembers from './pages/StaafStaffMembers'
 import StaafOverview from './pages/StaafOverview'
 import StaafStaffGroup from './pages/StaafStaffGroup'
@@ -86,6 +87,7 @@ import ExmclMarksDistribution from './pages/ExmclMarksDistribution'
 import ExmclExams from './pages/ExmclExams'
 import ExmclDatesheets from './pages/ExmclDatesheets'
 import ExmclSubjects from './pages/ExmclSubjects'
+import ExmclCbseRegistration from './pages/ExmclCbseRegistration'
 import AttndStaffAttendance from './pages/AttndStaffAttendance'
 import AttndStudentAttendance from './pages/AttndStudentAttendance'
 import Attndboard from './pages/Attndboard'
@@ -103,7 +105,9 @@ import ActvtClubs from './pages/actvt/ActvtClubs'
 import ActvtClubDetail from './pages/actvt/ActvtClubDetail'
 import ActvtHouses from './pages/actvt/ActvtHouses'
 import ActvtHouseDetail from './pages/actvt/ActvtHouseDetail'
-import ActvtCalendar from './pages/actvt/ActvtCalendar'
+import ActvtStudentCouncil from './pages/actvt/ActvtStudentCouncil'
+import ActvtStudentProfile from './pages/actvt/ActvtStudentProfile'
+import ActvtBoard from './pages/actvt/ActvtBoard'
 import ActvtHouseRanking from './pages/actvt/ActvtHouseRanking'
 import ActvtCertificates from './pages/actvt/ActvtCertificates'
 import ActvtTours from './pages/actvt/ActvtTours'
@@ -307,8 +311,12 @@ function App() {
               <Route path="stdnt/stdntboard" element={<StudentInfo />} />
               <Route path="stdnt/student-info" element={<Navigate to="/stdnt/stdntboard" replace />} />
               <Route path="stdnt/students" element={<Students />} />
+              <Route path="stdnt/students/:id" element={<StudentProfile />} />
               <Route path="stdnt/classes" element={<TimetableClasses />} />
-              <Route path="stdnt/subjects" element={<TimetableSubjects />} />
+              <Route
+                path="stdnt/subjects"
+                element={<TimetableSubjects showParallelSubjectPairs={false} showCommonPeriod={false} />}
+              />
               <Route path="stdnt/alumni" element={<AlmniDirectory />} />
               <Route path="stdnt" element={<Navigate to="/stdnt/stdntboard" replace />} />
               <Route path="staaf/overview" element={<StaafOverview />} />
@@ -339,9 +347,12 @@ function App() {
               <Route path="acdmc" element={<Navigate to="/acdmc/lesson-plan" replace />} />
               <Route path="actvt/houses" element={<ActvtHouses />} />
               <Route path="actvt/houses/:id" element={<ActvtHouseDetail />} />
+              <Route path="actvt/student-council" element={<ActvtStudentCouncil />} />
+              <Route path="actvt/students/:id" element={<ActvtStudentProfile />} />
               <Route path="actvt/clubs" element={<ActvtClubs />} />
               <Route path="actvt/clubs/:id" element={<ActvtClubDetail />} />
-              <Route path="actvt/calendar" element={<ActvtCalendar />} />
+              <Route path="actvt/board" element={<ActvtBoard />} />
+              <Route path="actvt/calendar" element={<ActvtBoard />} />
               <Route path="actvt/ranking" element={<ActvtHouseRanking />} />
               <Route path="actvt/certificates" element={<ActvtCertificates />} />
               <Route path="actvt/tours" element={<ActvtTours />} />
@@ -379,6 +390,7 @@ function App() {
               <Route path="exmcl/candidate-details" element={<Candidates />} />
               <Route path="exmcl/candidate-details/:id" element={<CandidateDetail />} />
               <Route path="exmcl/candidates/*" element={<Navigate to="/exmcl/candidate-details" replace />} />
+              <Route path="exmcl/cbse-registration" element={<ExmclCbseRegistration />} />
               <Route path="exmcl/seatingplan" element={<SeatingPlan />} />
               <Route path="exmcl/subjects" element={<ExmclSubjects />} />
               <Route path="exmcl/datesheets" element={<ExmclDatesheets />} />

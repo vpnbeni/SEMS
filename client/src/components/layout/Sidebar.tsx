@@ -100,6 +100,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   }, [location.pathname])
 
   const activeModule = selectedModule
+  const isStdntNav = activeModule === 'stdnt'
 
   const accessibleModules = useMemo(
     () => getAccessibleModules(currentUser?.featureToggles),
@@ -316,8 +317,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       module: 'stdnt',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
         </svg>
       ),
       badge: null,
@@ -547,6 +547,17 @@ const Sidebar: React.FC<SidebarProps> = ({
       badge: null,
     },
     {
+      name: 'Activity Board',
+      href: '/actvt/board',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
       name: 'Houses',
       href: '/actvt/houses',
       module: 'actvt',
@@ -558,23 +569,23 @@ const Sidebar: React.FC<SidebarProps> = ({
       badge: null,
     },
     {
+      name: 'Student Council',
+      href: '/actvt/student-council',
+      module: 'actvt',
+      icon: (
+        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4l2.2 4.45 4.91.71-3.55 3.46.84 4.9L12 15.77l-4.4 2.31.84-4.9L4.89 9.16l4.91-.71L12 4z" />
+        </svg>
+      ),
+      badge: null,
+    },
+    {
       name: 'Clubs',
       href: '/actvt/clubs',
       module: 'actvt',
       icon: (
         <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      ),
-      badge: null,
-    },
-    {
-      name: 'Activity Calendar',
-      href: '/actvt/calendar',
-      module: 'actvt',
-      icon: (
-        <svg className="w-5 h-5 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
       badge: null,
@@ -1018,6 +1029,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         { name: 'Attendance', href: '/exmcl/attendance', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>), badge: null },
         { name: 'Formats', href: '/exmcl/performas', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m-3-8h3m-9 13h10.5A2.25 2.25 0 0019.5 18.75V8.121a2.25 2.25 0 00-.659-1.591l-2.371-2.371a2.25 2.25 0 00-1.591-.659H9A2.25 2.25 0 006.75 5.75v13A2.25 2.25 0 009 21z" /></svg>), badge: null },
         { name: 'Candidate Details', href: '/exmcl/candidate-details', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>), badge: null },
+        { name: 'CBSE Registration', href: '/exmcl/cbse-registration', icon: (<svg className="w-4 h-4 transition-colors duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2zM9 9h.01" /></svg>), badge: null },
       ],
     },
   ]
@@ -1178,42 +1190,62 @@ const Sidebar: React.FC<SidebarProps> = ({
     openGroups,
   ])
 
+  const stdntItemClass = (isActive: boolean, collapsed: boolean) =>
+    `group relative flex items-center text-[13px] font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-400 ${
+      collapsed ? 'justify-center w-11 h-11 p-0' : 'px-3 py-2.5'
+    } ${
+      isActive
+        ? 'bg-gradient-to-r from-[#7b61ff] to-[#a855f7] text-white shadow-lg shadow-violet-500/25'
+        : 'text-white/80 hover:bg-white/10 hover:text-white'
+    }`
+
   return (
     <div
       ref={rootRef}
-      className="bg-white dark:bg-secondary-900 border-r border-secondary-200 dark:border-secondary-700 h-[100vh] min-h-[100vh] transition-all duration-300 flex flex-col overflow-visible relative z-50"
+      className={`h-[100vh] min-h-[100vh] transition-all duration-300 flex flex-col overflow-visible relative z-50 ${
+        isStdntNav
+          ? 'border-r border-white/10 bg-gradient-to-b from-[#1e3a8a] via-[#172554] to-[#0f172a] text-white'
+          : 'bg-white dark:bg-secondary-900 border-r border-secondary-200 dark:border-secondary-700'
+      }`}
       style={{ width: currentSidebarWidth }}
     >
       {/* Module Switcher Header */}
       <div className={`flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'px-2 py-4' : 'px-4 py-4'} relative z-10`} data-sidebar-fit>
         <div className="relative">
+          <div
+            aria-hidden
+            className={`pointer-events-none absolute -inset-1.5 ${
+              isStdntNav
+                ? 'rounded-[14px] bg-white/20 shadow-[0_8px_24px_rgba(255,255,255,0.16)]'
+                : 'rounded-[14px] bg-sky-100/80 shadow-[0_8px_22px_rgba(56,189,248,0.22)]'
+            }`}
+          />
           <button
             onClick={() => hasMultipleModules && setModuleSwitcherOpen(!moduleSwitcherOpen)}
-            className={`w-full flex items-center rounded-2xl transition-all duration-200 group outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed ? 'justify-center p-2' : 'px-3 py-3'} ${hasMultipleModules ? 'hover:bg-white/60 dark:hover:bg-secondary-800/60 hover:shadow-sm cursor-pointer' : 'cursor-default'} ${moduleSwitcherOpen ? 'bg-white/60 dark:bg-secondary-800/60 shadow-sm ring-1 ring-secondary-200 dark:ring-secondary-700' : ''}`}
+            className={`relative w-full flex items-center rounded-xl transition-all duration-200 group outline-none focus-visible:ring-2 ${isStdntNav ? 'bg-[#1e3a8a]/35 ring-1 ring-white/25 focus-visible:ring-violet-400' : 'bg-white ring-1 ring-secondary-200/80 focus-visible:ring-primary-500'} ${isCollapsed ? 'justify-center p-2' : 'px-3 py-3'} ${hasMultipleModules ? (isStdntNav ? 'hover:bg-white/10 cursor-pointer' : 'hover:bg-white hover:shadow-sm cursor-pointer') : 'cursor-default'} ${moduleSwitcherOpen ? (isStdntNav ? 'bg-white/10' : 'bg-white/80 dark:bg-secondary-800/60 shadow-sm') : ''}`}
           >
             <div className={`relative flex-shrink-0 transition-transform duration-300 ${isCollapsed ? 'scale-85' : 'scale-95'}`}>
-              <div className="absolute inset-0 rounded-2xl bg-sky-400/20 blur-md transition-all group-hover:bg-sky-400/30"></div>
-              <div className="relative flex h-12 w-12 items-center justify-center">
+              <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm">
                 <img
                   src={activeModuleDef.icon || logoMark}
                   alt={activeModuleDef.title}
-                  className="h-12 w-12 object-contain"
+                  className="h-12 w-12 rounded-xl object-cover"
                 />
               </div>
             </div>
             {!isCollapsed && (
               <>
                 <div className="min-w-0 flex flex-col justify-center ml-3 text-left">
-                  <h2 className="text-[1.5rem] font-black text-slate-800 dark:text-white leading-none tracking-tight">
+                  <h2 className={`text-[1.5rem] font-black leading-none tracking-tight ${isStdntNav ? 'text-white' : 'text-slate-800 dark:text-white'}`}>
                     {activeModuleDef.abbreviation}
                   </h2>
-                  <p className="mt-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-tight tracking-tight truncate">
+                  <p className={`mt-0.5 text-[11px] font-semibold leading-tight tracking-tight truncate ${isStdntNav ? 'text-white/60' : 'text-slate-500 dark:text-slate-400'}`}>
                     {activeModuleDef.title}
                   </p>
                 </div>
                 {hasMultipleModules && (
                   <svg
-                    className={`ml-auto w-4 h-4 flex-shrink-0 text-secondary-400 dark:text-secondary-500 transition-transform duration-200 ${moduleSwitcherOpen ? 'rotate-180' : ''}`}
+                    className={`ml-auto w-4 h-4 flex-shrink-0 transition-transform duration-200 ${moduleSwitcherOpen ? 'rotate-180' : ''} ${isStdntNav ? 'text-white/50' : 'text-secondary-400 dark:text-secondary-500'}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -1266,7 +1298,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                             <img
                               src={mod.icon}
                               alt=""
-                              className="h-9 w-9 object-contain"
+                              className="h-9 w-9 rounded-lg object-cover"
                             />
                           </div>
                           <div className="min-w-0 flex-1 ml-3">
@@ -1530,24 +1562,30 @@ const Sidebar: React.FC<SidebarProps> = ({
               <NavLink
                 key={item.name}
                 to={item.href}
-                className={`group relative flex items-center text-[12.5px] font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
-                  ? 'justify-center w-11 h-11 p-0'
-                  : 'px-2.5 py-2.5'
-                  } ${isActive
-                    ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
-                    : 'text-secondary-600 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-900 dark:hover:text-secondary-200'
-                  }`}
+                className={
+                  isStdntNav
+                    ? stdntItemClass(isActive, isCollapsed)
+                    : `group relative flex items-center text-[12.5px] font-medium rounded-xl transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${isCollapsed
+                      ? 'justify-center w-11 h-11 p-0'
+                      : 'px-2.5 py-2.5'
+                      } ${isActive
+                        ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
+                        : 'text-secondary-600 dark:text-secondary-400 hover:bg-secondary-50 dark:hover:bg-secondary-800/50 hover:text-secondary-900 dark:hover:text-secondary-200'
+                      }`
+                }
                 title={isCollapsed ? item.name : undefined}
               >
-                {/* Active Sidebar Indicator */}
-                {isActive && !isCollapsed && (
+                {isActive && !isCollapsed && !isStdntNav && (
                   <div className="absolute left-0 top-1/2 -translate-y-1/2 h-8 w-1 bg-primary-500 rounded-r-full" />
                 )}
 
-                <span className={`flex-shrink-0 transition-colors duration-200 ${isActive
-                  ? 'text-primary-600 dark:text-primary-400'
-                  : 'text-secondary-400 group-hover:text-secondary-600 dark:text-secondary-500 dark:group-hover:text-secondary-300'
-                  }`}>
+                <span className={`flex-shrink-0 transition-colors duration-200 ${
+                  isStdntNav
+                    ? 'text-white'
+                    : isActive
+                      ? 'text-primary-600 dark:text-primary-400'
+                      : 'text-secondary-400 group-hover:text-secondary-600 dark:text-secondary-500 dark:group-hover:text-secondary-300'
+                }`}>
                   {item.icon}
                 </span>
 
@@ -1557,10 +1595,15 @@ const Sidebar: React.FC<SidebarProps> = ({
                       {item.name}
                     </span>
                     {item.badge && (
-                      <span className={`ml-auto inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm ${isActive
-                        ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300'
-                        : 'bg-secondary-100 text-secondary-600 dark:bg-secondary-800 dark:text-secondary-400 group-hover:bg-white group-hover:shadow-sm dark:group-hover:bg-secondary-700'
-                        }`}>
+                      <span className={`ml-auto inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm ${
+                        isStdntNav
+                          ? isActive
+                            ? 'bg-white/20 text-white'
+                            : 'bg-white/10 text-white/80'
+                          : isActive
+                            ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300'
+                            : 'bg-secondary-100 text-secondary-600 dark:bg-secondary-800 dark:text-secondary-400 group-hover:bg-white group-hover:shadow-sm dark:group-hover:bg-secondary-700'
+                      }`}>
                         {item.badge}
                       </span>
                     )}
@@ -1578,31 +1621,64 @@ const Sidebar: React.FC<SidebarProps> = ({
         </div>
       </nav>
 
+      {isStdntNav && !isCollapsed && (
+        <div className="flex-shrink-0 px-3 pb-3" data-sidebar-fit>
+          <div className="flex flex-col items-center rounded-2xl bg-white/10 px-4 py-4 text-center ring-1 ring-white/10">
+            <span className="mb-2 text-4xl leading-none" aria-hidden="true">
+              🎓
+            </span>
+            <p className="text-sm font-bold text-white">Empower Education</p>
+            <p className="mt-1 text-[11px] leading-snug text-white/65">
+              Smarter data. Better decisions. Stronger tomorrow.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Account at bottom - fixed */}
-      <div className={`flex-shrink-0 p-4 border-t border-secondary-100 dark:border-secondary-800 bg-white/50 dark:bg-secondary-900/50 backdrop-blur-sm ${isCollapsed ? 'flex justify-center px-2' : ''}`}>
+      <div className={`flex-shrink-0 p-4 backdrop-blur-sm ${
+        isStdntNav
+          ? 'border-t border-white/10 bg-black/10'
+          : 'border-t border-secondary-100 dark:border-secondary-800 bg-white/50 dark:bg-secondary-900/50'
+      } ${isCollapsed ? 'flex justify-center px-2' : ''}`}>
         <div className="relative w-full">
           <button
             onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}
-            className={`w-full flex items-center rounded-xl transition-all duration-200 group outline-none ${isCollapsed ? 'justify-center p-0' : 'p-2 hover:bg-white dark:hover:bg-secondary-800 hover:shadow-sm ring-1 ring-transparent hover:ring-secondary-200 dark:hover:ring-secondary-700'
-              }`}
+            className={`w-full flex items-center rounded-xl transition-all duration-200 group outline-none ${
+              isCollapsed
+                ? 'justify-center p-0'
+                : isStdntNav
+                  ? 'p-2 hover:bg-white/10'
+                  : 'p-2 hover:bg-white dark:hover:bg-secondary-800 hover:shadow-sm ring-1 ring-transparent hover:ring-secondary-200 dark:hover:ring-secondary-700'
+            }`}
           >
-            <div className="w-10 h-10 flex-shrink-0 bg-gradient-to-br from-primary-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-md shadow-primary-500/10 ring-2 ring-white dark:ring-secondary-800 group-hover:ring-primary-100 dark:group-hover:ring-primary-900/30 transition-all">
+            <div className={`w-10 h-10 flex-shrink-0 rounded-xl flex items-center justify-center shadow-md transition-all ${
+              isStdntNav
+                ? 'bg-gradient-to-br from-[#7b61ff] to-[#a855f7] shadow-violet-500/20'
+                : 'bg-gradient-to-br from-primary-500 to-indigo-600 shadow-primary-500/10 ring-2 ring-white dark:ring-secondary-800 group-hover:ring-primary-100 dark:group-hover:ring-primary-900/30'
+            }`}>
               <span className="text-sm font-bold text-white">
                 {(centreCode || currentUser?.email || 'A').charAt(0).toUpperCase()}
               </span>
             </div>
             {!isCollapsed && (
               <div className="flex-1 min-w-0 text-left ml-3">
-                <p className="text-sm font-semibold text-secondary-900 dark:text-white truncate group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors">
+                <p className={`text-sm font-semibold truncate transition-colors ${
+                  isStdntNav
+                    ? 'text-white'
+                    : 'text-secondary-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400'
+                }`}>
                   {centreCode || '—'}
                 </p>
-                <p className="text-xs text-secondary-500 dark:text-secondary-400 truncate">
+                <p className={`text-xs truncate ${isStdntNav ? 'text-white/55' : 'text-secondary-500 dark:text-secondary-400'}`}>
                   {centreName || currentUser?.role || 'Administrator'}
                 </p>
               </div>
             )}
             {!isCollapsed && (
-              <svg className={`w-4 h-4 text-secondary-400 group-hover:text-secondary-600 dark:text-secondary-500 dark:group-hover:text-secondary-300 transition-transform duration-200 ${accountDropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className={`w-4 h-4 transition-transform duration-200 ${accountDropdownOpen ? 'rotate-180' : ''} ${
+                isStdntNav ? 'text-white/50' : 'text-secondary-400 group-hover:text-secondary-600 dark:text-secondary-500 dark:group-hover:text-secondary-300'
+              }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
               </svg>
             )}

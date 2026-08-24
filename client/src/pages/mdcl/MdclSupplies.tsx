@@ -6,8 +6,6 @@ const service = makeRecordService('/mdcl/supplies')
 
 const MdclSupplies: React.FC = () => (
   <RecordManager
-    title="Medical Supplies"
-    subtitle="Track clinic stock, reorder levels, and expiry for first-aid and medicines."
     fields={[
       { key: 'name', label: 'Item name', required: true },
       { key: 'category', label: 'Category' },

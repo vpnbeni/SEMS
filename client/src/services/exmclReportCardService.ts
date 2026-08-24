@@ -264,26 +264,48 @@ const downloadSingle = async (examId: string, studentId: string, studentName: st
   triggerDownload(response.data as Blob, `report-card_${safeName}.pdf`)
 }
 
-const downloadBulk = async (examId: string, className: string, section: string): Promise<void> => {
+const downloadBulk = async (
+  examId: string,
+  className: string,
+  section: string,
+  studentIds: string[] = []
+): Promise<void> => {
   const response = await api.get('/report-card/bulk', {
-    params: { examId, class: className, section },
+    params: {
+      examId,
+      class: className,
+      section,
+      ...(studentIds.length > 0 ? { studentIds: studentIds.join(',') } : {}),
+    },
     responseType: 'blob',
   })
-  triggerDownload(response.data as Blob, `report-cards_${className}-${section}.pdf`)
+  const suffix = studentIds.length > 0 ? '_selected' : ''
+  triggerDownload(response.data as Blob, `report-cards_${className}-${section}${suffix}.pdf`)
 }
 
-const previewSingle = async (examId: string, studentId: string): Promise<void> => {
+const fetchSinglePdfBlob = async (examId: string, studentId: string): Promise<Blob> => {
   const response = await api.get('/report-card/single', {
     params: { examId, studentId },
     responseType: 'blob',
   })
+  return response.data as Blob
+}
 
-  const blob = response.data as Blob
+const previewSingle = async (examId: string, studentId: string): Promise<void> => {
+  const blob = await fetchSinglePdfBlob(examId, studentId)
   const url = URL.createObjectURL(blob)
   window.open(url, '_blank', 'noopener,noreferrer')
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
-const exmclReportCardService = { getDesign, saveDesign, uploadCanvasImage, downloadSingle, downloadBulk, previewSingle }
+const exmclReportCardService = {
+  getDesign,
+  saveDesign,
+  uploadCanvasImage,
+  downloadSingle,
+  downloadBulk,
+  previewSingle,
+  fetchSinglePdfBlob,
+}
 
 export default exmclReportCardService

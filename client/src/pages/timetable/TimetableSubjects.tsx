@@ -1189,7 +1189,6 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
 
       <div className="mb-6" />
 
-      {showCommonPeriod && (
       <div className="ts-card">
         {/* ── Header ── */}
         <div className="ts-card-header">
@@ -1473,7 +1472,6 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
           </table>
         </div>
       </div>
-      )}
 
       {showParallelSubjectPairs && (
         <div className="ts-card">
@@ -1699,6 +1697,7 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
         </div>
       )}
 
+      {showCommonPeriod && (
       <div className="ts-card">
         <div className="ts-card-header">
           <div>
@@ -1912,6 +1911,7 @@ const TimetableSubjects: React.FC<TimetableSubjectsProps> = ({
           </table>
         </div>
       </div>
+      )}
     </div>
   )
 }

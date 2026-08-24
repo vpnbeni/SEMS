@@ -358,7 +358,12 @@ const studentQuerySchema = Joi.object({
   subject: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).optional(),
   category: Joi.string().valid('General', 'OBC', 'SC', 'ST', 'EWS').optional(),
   isActive: Joi.string().valid('true', 'false').optional(),
-  sort: Joi.string().optional()
+  sort: Joi.string().optional(),
+  // Lightweight list mode for pickers / report cards (skips populate + roll backfill)
+  lite: Joi.string().valid('true', 'false').optional(),
+  populate: Joi.string().valid('true', 'false').optional(),
+  skipBackfill: Joi.string().valid('true', 'false').optional(),
+  fields: Joi.string().trim().max(500).optional(),
 });
 
 // Bulk upload schema

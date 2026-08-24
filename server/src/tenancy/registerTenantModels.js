@@ -31,6 +31,8 @@ const OnboardingSession = require('../models/OnboardingSession');
 const ExamCircular = require('../models/ExamCircular');
 const ExamDefinition = require('../models/ExamDefinition');
 const ExamResult = require('../models/ExamResult');
+const CbseRegistration = require('../models/CbseRegistration');
+const CbseClassSubjectMatrix = require('../models/CbseClassSubjectMatrix');
 const { StaffAttendanceDaily, StudentAttendanceDaily, StudentAttendanceDay } = require('../models/AttndDailyRecord');
 const SchoolProfile = require('../models/SchoolProfile');
 const Alumni = require('../models/Alumni');
@@ -48,11 +50,16 @@ const {
   ActivityClub,
   ActivityHouse,
   ActivityTour,
+  ActivitySportsFacility,
   ActivitySportsMeet,
   ActivityFunction,
   ActivityEvent,
+  ActivityCriteria,
   ActivityPoints,
   ActivityCertificate,
+  ActivityCouncil,
+  ActivityCouncilPost,
+  ActivityCouncilRegistration,
 } = require('../models/ActivityRecords');
 const {
   MedicalCase,
@@ -95,6 +102,8 @@ const tenantModelExports = {
   ExamCircular,
   ExamDefinition,
   ExamResult,
+  CbseRegistration,
+  CbseClassSubjectMatrix,
   StaffAttendanceDaily,
   StudentAttendanceDaily,
   StudentAttendanceDay,
@@ -111,11 +120,16 @@ const tenantModelExports = {
   ActivityClub,
   ActivityHouse,
   ActivityTour,
+  ActivitySportsFacility,
   ActivitySportsMeet,
   ActivityFunction,
   ActivityEvent,
+  ActivityCriteria,
   ActivityPoints,
   ActivityCertificate,
+  ActivityCouncil,
+  ActivityCouncilPost,
+  ActivityCouncilRegistration,
   MedicalCase,
   MedicalSupply,
 };

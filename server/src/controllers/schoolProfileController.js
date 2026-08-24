@@ -3,6 +3,8 @@ const { HTTP_STATUS } = require('../utils/constants');
 const { uploadToCloudinary, deleteFromCloudinary } = require('../config/cloudinary');
 const SchoolProfile = require('../models/SchoolProfile');
 const { ensureStudentRollNumberRule } = require('../utils/assignClassRollNumbers');
+const { backfillParentNameHonorificsIfNeeded } = require('../utils/parentNameHonorifics');
+const Student = require('../models/Student');
 const fs = require('fs');
 
 const ALLOWED_UPDATE_FIELDS = [
@@ -27,13 +29,25 @@ const buildProfileResponse = (tenant, profile) => ({
   email: profile?.email || '',
   metadata: {
     studentRollNumberAssignment: profile?.metadata?.studentRollNumberAssignment || null,
+    parentNameHonorifics: profile?.metadata?.parentNameHonorifics || null,
+    uiContrast: profile?.metadata?.uiContrast || {
+      enabled: true,
+      darkBackgroundUsesLightText: true,
+      lightBackgroundUsesDarkText: true,
+      description:
+        'Always use light (white) font colour on dark backgrounds and dark font colour on light backgrounds so text stays readable.',
+    },
   },
 });
 
 // GET /school-profile
 exports.getProfile = asyncHandler(async (req, res) => {
   const SchoolProfileModel = req.models?.SchoolProfile || SchoolProfile;
-  await ensureStudentRollNumberRule(SchoolProfileModel);
+  const StudentModel = req.models?.Student || Student;
+  await Promise.all([
+    ensureStudentRollNumberRule(SchoolProfileModel),
+    backfillParentNameHonorificsIfNeeded(SchoolProfileModel, StudentModel),
+  ]);
   const profile = await SchoolProfileModel.findOne({}).lean();
 
   return res.status(HTTP_STATUS.OK).json({
