@@ -16,11 +16,8 @@ Each module is fully functional as a standalone product and supports integration
 | **CNTR** | Centre Management | CBSE examination centre operations: datesheet import, candidate management, seating plans, duty assignment, answer sheet tracking, Form 66 attendance, dispatch | Done |
 | **TMTBL** | Timetable | School timetable generation: teacher-subject-class allocation, bell timings, parallel subjects, conflict resolution, version management | Done |
 | **STDNT** | Student Management | Manage students | Near-complete |
-
-#### Up Next
-| Code | Name | Description | Status |
-|------|------|-------------|--------|
-| **EXMCL** | Internal Exams | Manage internal/class exams | Next |
+| **EXMCL** | Internal Exams | Manage internal/class exams | Near-complete |
+| **ASETS** | Asset Management | School physical asset lifecycle: ownership, locations, allocations, stock, maintenance, audits, disposal | Done |
 
 #### Planned
 | Code | Name | Description | Status |
@@ -33,7 +30,7 @@ Each module is fully functional as a standalone product and supports integration
 | **TRNST** | Transport | Manage transport | Planned |
 | **LBRY** | Library | School digital library | Planned |
 | **LABBS** | Labs | School digital labs | Planned |
-| **STTOK** | Store / Inventory | Manage inventory & store | Planned |
+| **STTOK** | Store / Inventory | Manage inventory & store (consumables overlap with ASETS stock) | Planned |
 | **CNTCT** | Communication Centre | Communication centre | Planned |
 | **FDBCK** | Feedback | Suggestions & complaints | Planned |
 | **ALMNI** | Alumni | School alumni (passout students) | Planned |
